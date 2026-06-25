@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Persist and apply proxy env vars for codex (Rust reqwest honors them natively).
 proxy_save() { # <config_file> <url>
-  printf 'PROXY_URL=%s\n' "$2" > "$1"
-  chmod 600 "$1"
+  ( umask 177; printf 'PROXY_URL=%s\n' "$2" > "$1" )
 }
 
 proxy_clear() { # <config_file>

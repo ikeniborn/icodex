@@ -15,10 +15,17 @@ unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
 proxy_apply "$cfg"
 assert_eq "HTTPS_PROXY exported" "http://proxy.local:8080" "${HTTPS_PROXY:-}"
 assert_eq "http_proxy exported"  "http://proxy.local:8080" "${http_proxy:-}"
+assert_eq "HTTP_PROXY exported"  "http://proxy.local:8080" "${HTTP_PROXY:-}"
+assert_eq "https_proxy exported" "http://proxy.local:8080" "${https_proxy:-}"
 
 unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
 proxy_apply "$tmp/absent"
 assert_eq "no export when absent" "" "${HTTPS_PROXY:-}"
+
+unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
+printf 'PROXY_URL=\n' > "$tmp/.codex_config_empty"
+proxy_apply "$tmp/.codex_config_empty"
+assert_eq "no export when empty url" "" "${HTTPS_PROXY:-}"
 
 proxy_clear "$cfg"
 assert_exit "config cleared" 1 test -f "$cfg"
