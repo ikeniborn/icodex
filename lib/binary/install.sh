@@ -31,6 +31,7 @@ _extract_codex() { # <tarball> -> installs $ICODEX_BIN
   cp "$found" "$ICODEX_BIN"
   chmod +x "$ICODEX_BIN"
   rm -rf "$tmpd"
+  return 0
 }
 
 # install_ensure [--update]

@@ -56,4 +56,24 @@ assert_exit "mismatch -> non-zero" 1 install_ensure
 assert_exit "binary NOT installed" 1 test -x "$ICODEX_BIN"
 rm -rf "$tmp"
 
+# --- Case D: --update resolves latest, installs, and rewrites the lockfile pin ---
+setup_case
+_download() { DL_CALLS=$((DL_CALLS+1)); cp "$FIXTURE_TAR" "$2"; }
+_resolve_latest() { echo "rust-v1.2.3"; }
+assert_exit "update installs" 0 install_ensure --update
+assert_exit "update binary present" 0 test -x "$ICODEX_BIN"
+assert_eq "update stamp" "rust-v1.2.3" "$(cat "$ICODEX_STAMP")"
+assert_eq "update lockfile version" "rust-v1.2.3" "$(lockfile_get "$ICODEX_LOCKFILE" version)"
+assert_eq "update lockfile sha" "$FIXTURE_SHA" "$(lockfile_get "$ICODEX_LOCKFILE" sha256)"
+assert_eq "update lockfile asset" "codex-x86_64-unknown-linux-musl.tar.gz" "$(lockfile_get "$ICODEX_LOCKFILE" asset)"
+rm -rf "$tmp"
+
+# --- Case E: empty pinned sha = trust-on-first-use (no mismatch, installs) ---
+setup_case
+_download() { DL_CALLS=$((DL_CALLS+1)); cp "$FIXTURE_TAR" "$2"; }
+lockfile_write "$ICODEX_LOCKFILE" "rust-v9.9.9" "codex-x86_64-unknown-linux-musl.tar.gz" ""
+assert_exit "empty sha trust-on-first-use" 0 install_ensure
+assert_exit "empty sha binary present" 0 test -x "$ICODEX_BIN"
+rm -rf "$tmp"
+
 finish
