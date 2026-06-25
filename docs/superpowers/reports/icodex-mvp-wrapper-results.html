@@ -102,8 +102,8 @@ body:has(#tab-result:checked) #pane-result{ display:block; }
 <body>
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
 <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
 <label for="theme-toggle" class="theme-btn" title="Переключить тему">🌙 / ☀️</label>
 <header>
@@ -284,7 +284,119 @@ body:has(#tab-result:checked) #pane-result{ display:block; }
 
 <!-- TAB:plan START -->
 <section class="tab-pane" id="pane-plan">
-  <p class="note">Этап ещё не проверен.</p>
+
+  <p class="lead">План реализации <b>icodex</b> — 10 TDD-задач (bash, dependency-free), каждая с собственным циклом тест→реализация→коммит.</p>
+
+  <h2>1. Резюме плана (задачи и DoD)</h2>
+  <table class="rpt-table">
+    <thead><tr><th>Задача</th><th>Артефакт</th><th>Definition of Done</th></tr></thead>
+    <tbody>
+      <tr><td class="sec">T1</td><td>scaffold + harness + logging</td><td><code>.gitignore</code>, <code>VERSION</code>, <code>tests/helpers.sh</code>, <code>logging.sh</code>; <code>test_logging.sh</code> → PASS=2</td></tr>
+      <tr><td class="sec">T2</td><td>core/init</td><td>пути <code>ICODEX_*</code> + <code>_sha256</code>; <code>test_init.sh</code> → PASS=7 (sha пустой строки = e3b0…)</td></tr>
+      <tr><td class="sec">T3</td><td>core/validation</td><td><code>require_tools</code>; <code>test_validation.sh</code> → PASS=2 (мок отсутствия tar → exit 1)</td></tr>
+      <tr><td class="sec">T4</td><td>binary/detect</td><td><code>detect_asset</code>; <code>test_detect.sh</code> → PASS=5 (4 платформы + unsupported)</td></tr>
+      <tr><td class="sec">T5</td><td>binary/lockfile</td><td><code>lockfile_get/write</code>; <code>test_lockfile.sh</code> → PASS=4 (round-trip)</td></tr>
+      <tr><td class="sec">T6</td><td>config/isolated</td><td><code>setup_codex_home</code> экспортит CODEX_HOME; <code>test_isolated.sh</code> → PASS=2</td></tr>
+      <tr><td class="sec">T7</td><td>proxy/proxy</td><td><code>proxy_save/apply/clear</code>; <code>test_proxy.sh</code> → PASS=6 (600, export, no-op)</td></tr>
+      <tr><td class="sec">T8</td><td>binary/install</td><td><code>install_ensure</code> + tamper-guard + stamp; <code>test_install.sh</code> → PASS=6 (install/идемпотентность/mismatch). Закрывает F-001 spec</td></tr>
+      <tr><td class="sec">T9</td><td>command/args</td><td><code>parse_args</code>/<code>print_help</code>; <code>test_args.sh</code> → PASS=7 (флаги + passthrough)</td></tr>
+      <tr><td class="sec">T10</td><td>launcher + icodex.sh + README + pin</td><td><code>launch_codex</code>, entrypoint; <code>test_smoke.sh</code> → PASS=5; реальный <code>--update</code> пинит lockfile; вся сюита PASS</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Схемы зависимостей и пересечений</h2>
+
+  <h3>Граф зависимостей задач (M→N = результат M используется в N)</h3>
+  <figure class="rpt-graph">
+    <svg viewBox="0 0 820 460" width="820" role="img" aria-label="граф зависимостей задач">
+      <defs>
+        <marker id="arrow-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path>
+        </marker>
+      </defs>
+      <g stroke="var(--line)" stroke-width="1.7" fill="none" marker-end="url(#arrow-p)">
+        <!-- into T8 -->
+        <line x1="230" y1="58" x2="295" y2="258"></line>
+        <line x1="120" y1="168" x2="285" y2="258"></line>
+        <line x1="250" y1="168" x2="310" y2="258"></line>
+        <!-- into T10 -->
+        <line x1="320" y1="300" x2="445" y2="368"></line>
+        <line x1="380" y1="168" x2="455" y2="368"></line>
+        <line x1="510" y1="168" x2="475" y2="368"></line>
+        <line x1="660" y1="168" x2="495" y2="368"></line>
+        <line x1="380" y1="58"  x2="460" y2="368"></line>
+        <line x1="250" y1="168" x2="448" y2="368"></line>
+        <line x1="230" y1="58"  x2="440" y2="368"></line>
+      </g>
+      <g stroke="var(--warn)" stroke-width="1.3" stroke-dasharray="4 3" fill="none" marker-end="url(#arrow-p)">
+        <line x1="120" y1="55" x2="210" y2="45"></line>
+      </g>
+      <!-- nodes: row A (foundation) -->
+      <g class="gnode"><rect x="60"  y="28" width="120" height="30" rx="6"></rect><text x="120" y="47" text-anchor="middle">T1 harness/log</text></g>
+      <g class="gnode"><rect x="185" y="28" width="100" height="30" rx="6"></rect><text x="235" y="47" text-anchor="middle">T2 init/sha</text></g>
+      <g class="gnode"><rect x="330" y="28" width="110" height="30" rx="6"></rect><text x="385" y="47" text-anchor="middle">T3 validation</text></g>
+      <!-- row B (leaf modules) -->
+      <g class="gnode"><rect x="65"  y="138" width="100" height="30" rx="6"></rect><text x="115" y="157" text-anchor="middle">T4 detect</text></g>
+      <g class="gnode"><rect x="200" y="138" width="100" height="30" rx="6"></rect><text x="250" y="157" text-anchor="middle">T5 lockfile</text></g>
+      <g class="gnode"><rect x="330" y="138" width="100" height="30" rx="6"></rect><text x="380" y="157" text-anchor="middle">T6 config</text></g>
+      <g class="gnode"><rect x="460" y="138" width="100" height="30" rx="6"></rect><text x="510" y="157" text-anchor="middle">T7 proxy</text></g>
+      <g class="gnode"><rect x="610" y="138" width="100" height="30" rx="6"></rect><text x="660" y="157" text-anchor="middle">T9 args</text></g>
+      <!-- row C -->
+      <g class="gnode"><rect x="245" y="258" width="120" height="30" rx="6"></rect><text x="305" y="277" text-anchor="middle">T8 install</text></g>
+      <!-- row D -->
+      <g class="gnode"><rect x="390" y="368" width="130" height="30" rx="6"></rect><text x="455" y="387" text-anchor="middle">T10 entrypoint</text></g>
+      <text class="glabel" x="410" y="430" text-anchor="middle">пунктир (warn) — T1 (harness+logging) используется всеми задачами</text>
+    </svg>
+  </figure>
+  <p class="sub">Сборочный порядок ацикличен: foundation (T1–T3) → leaf-модули (T4–T7, T9) → install (T8) → entrypoint (T10). Нарушений порядка нет.</p>
+
+  <h3>Пересечения по артефактам</h3>
+  <table class="rpt-table">
+    <thead><tr><th>Артефакт</th><th>Задачи, которые его трогают</th></tr></thead>
+    <tbody>
+      <tr><td><code>tests/helpers.sh</code></td><td>T1 создаёт; все тесты T1–T10 source-ят</td></tr>
+      <tr><td><code>binary/lockfile.sh</code></td><td>T5 создаёт; T8 читает; T10 (<code>--update</code>) пишет</td></tr>
+      <tr><td><code>.codex-lockfile.json</code></td><td>T8/T10 пишут (pin); T10 сидит реальным sha</td></tr>
+      <tr><td><code>CODEX_HOME</code> (.codex-isolated)</td><td>T6 задаёт; T8 ставит бинарь внутрь; T10 запускает</td></tr>
+      <tr><td><code>icodex.sh</code></td><td>T10 — source-ит все модули, ветвление по командам</td></tr>
+    </tbody>
+  </table>
+  <p class="sub">Покрытие-пересечения: §3.1 (запуск) делится T9 (passthrough) + T10 (launch/exec); §4 (CLI) — T9 (парс) + T10 (ветвление).</p>
+
+  <h2>3. Результаты проверки</h2>
+  <table class="rpt-table">
+    <thead><tr><th>Фаза</th><th>Статус</th><th>Находок</th></tr></thead>
+    <tbody>
+      <tr><td>structure</td><td><span class="badge ok">passed</span></td><td>0</td></tr>
+      <tr><td>coverage</td><td><span class="badge ok">passed</span></td><td>0</td></tr>
+      <tr><td>dependencies</td><td><span class="badge ok">passed</span></td><td>0</td></tr>
+      <tr><td>verifiability</td><td><span class="badge ok">passed</span></td><td>1 (WARNING)</td></tr>
+      <tr><td>consistency</td><td><span class="badge ok">passed</span></td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Находки</h3>
+  <table class="rpt-table">
+    <thead><tr><th>id</th><th>severity</th><th>раздел</th><th>fragment</th><th>проблема</th><th>fix</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>F-001</td>
+        <td><span class="badge warn">WARNING</span></td>
+        <td class="sec">Task 1</td>
+        <td><code>Step 1: Create .gitignore</code></td>
+        <td>Чисто create-шаги (.gitignore, VERSION, helpers.sh, README) без собственной verify-команды/expected output.</td>
+        <td>Их DoD — последующий test-run шаг задачи, использующий созданные файлы (приемлемо); опц. добавить <code>test -f</code>.</td>
+        <td><span class="badge warn">open</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>Сводка:</b> CRITICAL open — 0 · WARNING open — 1 · <b>Вердикт: OK</b> (план готов к исполнению).
+  </div>
+
+  <p class="sub">Цепочка: <code>intent</code> (null) → <b>spec</b> ✓ → <b>plan</b> ✓ → result</p>
+
 </section>
 <!-- TAB:plan END -->
 
