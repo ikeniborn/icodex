@@ -103,8 +103,8 @@ body:has(#tab-result:checked) #pane-result{ display:block; }
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
 <input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
 <label for="theme-toggle" class="theme-btn" title="Переключить тему">🌙 / ☀️</label>
 <header>
   <h1>icodex — MVP wrapper · IDD chain</h1>
@@ -402,7 +402,74 @@ body:has(#tab-result:checked) #pane-result{ display:block; }
 
 <!-- TAB:result START -->
 <section class="tab-pane" id="pane-result">
-  <p class="note">Этап ещё не проверен.</p>
+
+  <p class="lead">Сверка результата: план ↔ git diff. Реализовано 10/10 задач; вся фича собрана, протестирована и проверена end-to-end.</p>
+
+  <div class="note">
+    <b>Итог:</b> вся сюита <b>PASS=60 FAIL=0</b> · реальный бинарь codex <code>rust-v0.142.2</code> скачан, sha256 проверен, <code>codex-cli 0.142.2</code> стартует из изоляции · финальный whole-branch review (opus) пройден с security-фиксом.
+  </div>
+
+  <h2>1. Резюме сверки</h2>
+  <table class="rpt-table">
+    <thead><tr><th>Документ</th><th>Путь / база</th></tr></thead>
+    <tbody>
+      <tr><td>Intent</td><td>— (этап не использовался)</td></tr>
+      <tr><td>Spec</td><td><code>specs/2026-06-25-icodex-mvp-wrapper-design.md</code></td></tr>
+      <tr><td>Plan</td><td><code>plans/2026-06-25-icodex-mvp-wrapper.md</code> (plan_hash <code>ab4ff975845dbd10</code>)</td></tr>
+      <tr><td>Diff base</td><td><code>git diff 242ed15..HEAD</code> — 26 файлов, +635 строк, 13 коммитов</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Результаты проверки</h2>
+
+  <h3>Покрытие шагов плана</h3>
+  <table class="rpt-table">
+    <thead><tr><th>Статус</th><th>Кол-во</th><th>Задачи</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge ok">DONE</span></td><td>10 / 10</td><td>T1–T10 — все deliverables присутствуют в диффе</td></tr>
+      <tr><td><span class="badge warn">PARTIAL</span></td><td>0</td><td>—</td></tr>
+      <tr><td><span class="badge danger">MISSING</span></td><td>0</td><td>—</td></tr>
+    </tbody>
+  </table>
+
+  <table class="rpt-table">
+    <thead><tr><th>Задача</th><th>Файлы в диффе</th></tr></thead>
+    <tbody>
+      <tr><td class="sec">T1</td><td><code>.gitignore</code>, <code>VERSION</code>, <code>tests/helpers.sh</code>, <code>lib/core/logging.sh</code></td></tr>
+      <tr><td class="sec">T2</td><td><code>lib/core/init.sh</code> (+ <code>_sha256</code>)</td></tr>
+      <tr><td class="sec">T3</td><td><code>lib/core/validation.sh</code></td></tr>
+      <tr><td class="sec">T4</td><td><code>lib/binary/detect.sh</code></td></tr>
+      <tr><td class="sec">T5</td><td><code>lib/binary/lockfile.sh</code></td></tr>
+      <tr><td class="sec">T6</td><td><code>lib/config/isolated.sh</code></td></tr>
+      <tr><td class="sec">T7</td><td><code>lib/proxy/proxy.sh</code></td></tr>
+      <tr><td class="sec">T8</td><td><code>lib/binary/install.sh</code> (tamper guard + stamp)</td></tr>
+      <tr><td class="sec">T9</td><td><code>lib/command/args.sh</code></td></tr>
+      <tr><td class="sec">T10</td><td><code>lib/launcher/launch.sh</code>, <code>icodex.sh</code>, <code>README.md</code>, <code>.codex-lockfile.json</code>, smoke</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Findings</h3>
+  <div class="note">Расхождений план ↔ дифф нет. CRITICAL/WARNING/INFO — 0. (Качественные находки ревью закрыты в ходе SDD: proxy creds 0600, --update/empty-sha тесты, security-фикс перезаписи creds-файла.)</div>
+
+  <h3>Покрытие spec</h3>
+  <table class="rpt-table">
+    <thead><tr><th>Критерий успеха</th><th>Свидетельство</th></tr></thead>
+    <tbody>
+      <tr><td>Скачивание + верификация sha256</td><td><span class="badge ok">✓</span> реальный pin в <code>.codex-lockfile.json</code>, tamper guard в install.sh</td></tr>
+      <tr><td>Изоляция CODEX_HOME</td><td><span class="badge ok">✓</span> <code>config/isolated.sh</code> → <code>.codex-isolated/</code></td></tr>
+      <tr><td>codex стартует в изоляции</td><td><span class="badge ok">✓</span> <code>codex-cli 0.142.2</code> через <code>icodex.sh --version</code></td></tr>
+      <tr><td>Proxy passthrough</td><td><span class="badge ok">✓</span> <code>proxy.sh</code> экспортит *_PROXY (creds-файл 0600)</td></tr>
+    </tbody>
+  </table>
+  <p class="sub">Requirements §3.2–3.7, §4, §5, §6 — покрыты. Excess changes: нет (дифф только файлы реализации).</p>
+
+  <h3>Сводка</h3>
+  <div class="note">
+    <b>CRITICAL: 0 · WARNING: 0 · INFO: 0 · Вердикт: OK.</b> Фича готова к мержу (PR в main).
+  </div>
+
+  <p class="sub">Цепочка: <code>intent</code> (null) → <b>spec</b> ✓ → <b>plan</b> ✓ → <b>result</b> ✓</p>
+
 </section>
 <!-- TAB:result END -->
 

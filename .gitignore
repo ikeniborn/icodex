@@ -1,0 +1,7 @@
+# icodex runtime state — never commit
+.codex-isolated/
+.codex_config
+
+# OS / editor noise
+.DS_Store
+*.swp
