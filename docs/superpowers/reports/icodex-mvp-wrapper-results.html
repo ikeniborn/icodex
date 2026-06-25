@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>icodex MVP wrapper — IDD chain report</title>
+<style>
+:root{
+  --bg:#f6f7fb; --surface:#ffffff; --fg:#2b2b3a; --muted:#6b6b80;
+  --accent:#5c6bc0; --accent-2:#3949ab; --border:#d6d8e6; --line:#9aa0b4; --zebra:#eef0f8;
+  --ok:#43a047; --ok-2:#2e7d32; --warn:#fb8c00; --warn-2:#ef6c00; --danger:#e53935; --danger-2:#c62828;
+  --shadow:rgba(40,40,80,.18);
+}
+body:has(#theme-toggle:checked){
+  --bg:#181825; --surface:#262637; --fg:#cdd6f4; --muted:#a6adc8;
+  --accent:#89b4fa; --accent-2:#5e95f0; --border:#3a3b52; --line:#6c7086; --zebra:#21222f;
+  --ok:#a6e3a1; --ok-2:#74c46e; --warn:#f9e2af; --warn-2:#f5c95b; --danger:#f38ba8; --danger-2:#e8638a;
+  --shadow:rgba(0,0,0,.45);
+}
+body{
+  margin:0 auto; padding:1.5rem 2rem 4rem; max-width:1080px;
+  font:16px/1.55 system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 500px at 100% -10%, color-mix(in srgb,var(--accent) 10%, transparent), transparent),
+    var(--bg);
+  color:var(--fg);
+  transition:background .3s, color .3s;
+}
+.theme-btn{
+  position:sticky; top:.5rem; float:right;
+  cursor:pointer; user-select:none;
+  padding:.25rem .6rem; border:1px solid var(--border); border-radius:6px;
+  background:var(--surface);
+}
+h1{ font-size:1.5rem; margin:.2rem 0 1rem; }
+h2{ font-size:1.2rem; margin:1.6rem 0 .6rem; border-bottom:2px solid var(--border); padding-bottom:.3rem; }
+h3{ font-size:1.02rem; margin:1.1rem 0 .4rem; color:var(--accent); }
+.lead{ font-size:1.08rem; }
+.sub{ color:var(--muted); font-size:.95rem; }
+code{ background:color-mix(in srgb,var(--accent) 10%, var(--surface)); padding:.05rem .35rem; border-radius:4px; font-size:.9em; }
+.note{ border-left:4px solid var(--accent); padding:.55rem 1rem; margin:1rem 0;
+  background:color-mix(in srgb, var(--accent) 8%, var(--surface)); border-radius:0 8px 8px 0;
+  box-shadow:0 1px 8px var(--shadow); }
+
+/* tabs */
+.chain-tabs{ display:flex; gap:.3rem; margin:1rem 0 0; border-bottom:2px solid var(--border); }
+.chain-tabs label{ cursor:pointer; padding:.4rem .9rem; border:1px solid var(--border); border-bottom:none;
+  border-radius:8px 8px 0 0; background:var(--surface); color:var(--muted); }
+body:has(#tab-intent:checked) label[for="tab-intent"],
+body:has(#tab-spec:checked)   label[for="tab-spec"],
+body:has(#tab-plan:checked)   label[for="tab-plan"],
+body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); border-color:var(--accent); font-weight:600; }
+.tab-pane{ display:none; }
+body:has(#tab-intent:checked) #pane-intent,
+body:has(#tab-spec:checked)   #pane-spec,
+body:has(#tab-plan:checked)   #pane-plan,
+body:has(#tab-result:checked) #pane-result{ display:block; }
+
+/* table */
+.rpt-table{ border-collapse:separate; border-spacing:0; width:100%; background:var(--surface);
+  margin:1rem 0; font-size:.9rem; border:1px solid var(--border); border-radius:10px;
+  overflow:hidden; box-shadow:0 2px 12px var(--shadow); }
+.rpt-table th, .rpt-table td{ border-bottom:1px solid var(--border); padding:.5rem .75rem; text-align:left; vertical-align:top; }
+.rpt-table tbody tr:last-child td{ border-bottom:none; }
+.rpt-table thead th{ background:var(--accent); color:var(--bg); }
+.rpt-table tbody tr:nth-child(even){ background:var(--zebra); }
+.rpt-table tbody tr:hover{ background:color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.rpt-table td code{ white-space:nowrap; }
+.sec{ font-weight:600; color:var(--accent); white-space:nowrap; }
+
+/* badges */
+.badge{ display:inline-block; font-size:.72rem; padding:.05rem .5rem; border-radius:999px; border:1px solid var(--border); }
+.badge.ok{ color:var(--ok-2); border-color:var(--ok); }
+.badge.warn{ color:var(--warn-2); border-color:var(--warn); }
+.badge.danger{ color:var(--danger-2); border-color:var(--danger); }
+
+/* C4 */
+.rpt-c4 .boundary{
+  border:1.6px dashed var(--accent); border-radius:12px;
+  padding:1.8rem 1rem 1rem; margin:.7rem 0; position:relative;
+  display:flex; flex-wrap:wrap; gap:.6rem;
+  background:color-mix(in srgb, var(--accent) 5%, transparent); }
+.rpt-c4 .boundary::before{
+  content:attr(data-label); position:absolute; top:-.7rem; left:.9rem;
+  background:var(--bg); padding:0 .45rem; font-size:.8rem; color:var(--accent); font-weight:600; }
+.rpt-c4 .comp{
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:.55rem .85rem; min-width:6rem; font-size:.82rem; box-shadow:0 1px 6px var(--shadow);
+  border-left:4px solid var(--accent); }
+.rpt-c4 .comp b{ color:var(--accent); }
+.rpt-c4 .comp .role{ color:var(--muted); font-size:.92em; }
+
+/* graph */
+.rpt-graph{ margin:1rem 0; text-align:center; }
+.rpt-graph svg{ max-width:100%; height:auto; }
+.gnode rect{ fill:var(--surface); stroke:var(--accent); stroke-width:1.6; }
+.gnode text{ fill:var(--fg); font:11px system-ui,sans-serif; }
+.gnode.shared rect{ stroke:var(--warn); stroke-dasharray:4 3; }
+.glabel{ fill:var(--muted); font:10px system-ui,sans-serif; }
+</style>
+</head>
+<body>
+<input type="checkbox" id="theme-toggle" hidden>
+<input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden checked>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<label for="theme-toggle" class="theme-btn" title="Переключить тему">🌙 / ☀️</label>
+<header>
+  <h1>icodex — MVP wrapper · IDD chain</h1>
+  <p class="sub">topic: <code>icodex-mvp-wrapper</code> · spec_hash <code>c474263773319527</code> · 2026-06-25</p>
+</header>
+<nav class="chain-tabs">
+  <label for="tab-intent">Intent</label>
+  <label for="tab-spec">Spec</label>
+  <label for="tab-plan">Plan</label>
+  <label for="tab-result">Result</label>
+</nav>
+
+<!-- TAB:intent START -->
+<section class="tab-pane" id="pane-intent">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:intent END -->
+
+<!-- TAB:spec START -->
+<section class="tab-pane" id="pane-spec">
+
+  <p class="lead">Спецификация bash-обёртки <b>icodex</b> над OpenAI Codex CLI — MVP-ядро по примеру проекта <code>iclaude</code>.</p>
+
+  <h2>1. Резюме спецификации</h2>
+
+  <h3>Требования по разделам</h3>
+  <table class="rpt-table">
+    <thead><tr><th>§</th><th>Требование</th></tr></thead>
+    <tbody>
+      <tr><td class="sec">1</td><td>icodex — самодостаточный launcher Codex CLI: изоляция установки, изоляция состояния, proxy, прозрачный запуск</td></tr>
+      <tr><td class="sec">1</td><td>Изоляция установки: пиннутый статичный <code>musl</code>-бинарь в проекте, без global-install и без Node</td></tr>
+      <tr><td class="sec">1</td><td>Изоляция состояния: <code>CODEX_HOME</code> → проектный каталог <code>.codex-isolated/</code></td></tr>
+      <tr><td class="sec">1</td><td>Proxy: экспорт <code>HTTPS_PROXY</code>/<code>HTTP_PROXY</code> в окружение codex</td></tr>
+      <tr><td class="sec">1</td><td>Прозрачный запуск: проброс неузнанных аргументов в реальный <code>codex</code></td></tr>
+      <tr><td class="sec">2</td><td>Структура — standalone-зеркало паттерна iclaude, только MVP-модули, ноль связности</td></tr>
+      <tr><td class="sec">3.1</td><td><code>icodex.sh</code> оркестрирует: source → парс args → branch → setup → exec</td></tr>
+      <tr><td class="sec">3.2</td><td><code>binary/detect.sh</code>: uname → имя release-ассета (linux/darwin × x86_64/aarch64)</td></tr>
+      <tr><td class="sec">3.3</td><td><code>binary/install.sh</code>: скачать, sha256-верификация (tamper guard), распаковать в bin/</td></tr>
+      <tr><td class="sec">3.4</td><td><code>binary/lockfile.sh</code>: <code>.codex-lockfile.json</code> {version, asset, sha256}, в git</td></tr>
+      <tr><td class="sec">3.5</td><td><code>config/isolated.sh</code>: export CODEX_HOME; auth passthrough — ключи wrapper не хранит</td></tr>
+      <tr><td class="sec">3.6</td><td><code>proxy/proxy.sh</code>: <code>--proxy</code> сохраняет url (chmod 600), export *_PROXY; <code>--no-proxy</code></td></tr>
+      <tr><td class="sec">3.7</td><td><code>launcher/launch.sh</code>: <code>exec codex "$@"</code></td></tr>
+      <tr><td class="sec">4</td><td>CLI: --proxy / --no-proxy / --clear / --update / --install / --version / --help / passthrough</td></tr>
+      <tr><td class="sec">5</td><td>Ошибки: отсутствие deps, неизвестная платформа, sha-mismatch (стоп), сеть/404</td></tr>
+      <tr><td class="sec">6</td><td>Тесты: detect / lockfile / install / proxy / isolated / smoke</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Критерии успеха (Success Criteria)</h3>
+  <table class="rpt-table">
+    <thead><tr><th>#</th><th>Критерий</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>На чистой машине <code>./icodex.sh</code> скачивает пиннутый бинарь и верифицирует sha256</td></tr>
+      <tr><td>2</td><td>CODEX_HOME изолирован в <code>.codex-isolated/</code></td></tr>
+      <tr><td>3</td><td><code>codex</code> стартует в полностью изолированном окружении проекта</td></tr>
+      <tr><td>4</td><td><code>--proxy &lt;url&gt;</code> наглядно направляет трафик codex через прокси</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Схемы решения и зависимостей</h2>
+
+  <h3>Схема решения (C4 — компоненты и потоки)</h3>
+  <figure class="rpt-c4">
+    <div class="boundary" data-label="System · icodex">
+      <div class="comp"><b>icodex.sh</b><br><span class="role">entry · оркестрация</span></div>
+      <div class="boundary" data-label="lib/ · модули">
+        <div class="comp"><b>core/*</b><br><span class="role">init · logging · validation</span></div>
+        <div class="comp"><b>command/args</b><br><span class="role">парс флагов · help</span></div>
+        <div class="comp"><b>binary/*</b><br><span class="role">detect · install · lockfile</span></div>
+        <div class="comp"><b>config/isolated</b><br><span class="role">export CODEX_HOME</span></div>
+        <div class="comp"><b>proxy/proxy</b><br><span class="role">export *_PROXY</span></div>
+        <div class="comp"><b>launcher/launch</b><br><span class="role">exec codex</span></div>
+      </div>
+      <div class="boundary" data-label="External">
+        <div class="comp"><b>GitHub Releases</b><br><span class="role">musl tar.gz + sha</span></div>
+        <div class="comp"><b>codex (бинарь)</b><br><span class="role">.codex-isolated/bin</span></div>
+      </div>
+    </div>
+  </figure>
+  <p class="sub">Поток: флаги юзера → env (CODEX_HOME + *_PROXY) → <code>exec codex</code> наследует env → codex читает изолированные config.toml/auth.json.</p>
+
+  <h3>Граф зависимостей (A→B = A зависит от B)</h3>
+  <figure class="rpt-graph">
+    <svg viewBox="0 0 780 430" width="780" role="img" aria-label="граф зависимостей модулей">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path>
+        </marker>
+      </defs>
+      <!-- edges -->
+      <g stroke="var(--line)" stroke-width="1.8" fill="none" marker-end="url(#arrow)">
+        <!-- icodex.sh → layer 2 -->
+        <line x1="390" y1="58" x2="120" y2="118"></line>
+        <line x1="390" y1="58" x2="250" y2="118"></line>
+        <line x1="390" y1="58" x2="390" y2="118"></line>
+        <line x1="390" y1="58" x2="545" y2="118"></line>
+        <line x1="390" y1="58" x2="670" y2="118"></line>
+        <!-- install → detect, lockfile, validation -->
+        <line x1="390" y1="152" x2="300" y2="228"></line>
+        <line x1="390" y1="152" x2="430" y2="228"></line>
+        <line x1="390" y1="152" x2="560" y2="228"></line>
+        <!-- launcher → config, launcher → install -->
+        <line x1="670" y1="152" x2="290" y2="135"></line>
+        <line x1="670" y1="152" x2="440" y2="135"></line>
+        <!-- shared core/logging (dashed-ish via shared node) -->
+      </g>
+      <g stroke="var(--warn)" stroke-width="1.4" stroke-dasharray="4 3" fill="none" marker-end="url(#arrow)">
+        <line x1="120" y1="152" x2="360" y2="345"></line>
+        <line x1="390" y1="165" x2="390" y2="345"></line>
+        <line x1="545" y1="152" x2="415" y2="345"></line>
+      </g>
+      <!-- nodes -->
+      <g class="gnode"><rect x="335" y="28" width="110" height="30" rx="6"></rect><text x="390" y="47" text-anchor="middle">icodex.sh</text></g>
+      <g class="gnode"><rect x="60"  y="118" width="120" height="30" rx="6"></rect><text x="120" y="137" text-anchor="middle">command/args</text></g>
+      <g class="gnode"><rect x="195" y="118" width="120" height="30" rx="6"></rect><text x="255" y="137" text-anchor="middle">config/isolated</text></g>
+      <g class="gnode"><rect x="335" y="118" width="110" height="30" rx="6"></rect><text x="390" y="137" text-anchor="middle">binary/install</text></g>
+      <g class="gnode"><rect x="490" y="118" width="110" height="30" rx="6"></rect><text x="545" y="137" text-anchor="middle">proxy/proxy</text></g>
+      <g class="gnode"><rect x="615" y="118" width="120" height="30" rx="6"></rect><text x="675" y="137" text-anchor="middle">launcher/launch</text></g>
+      <g class="gnode"><rect x="245" y="228" width="110" height="30" rx="6"></rect><text x="300" y="247" text-anchor="middle">binary/detect</text></g>
+      <g class="gnode"><rect x="375" y="228" width="115" height="30" rx="6"></rect><text x="432" y="247" text-anchor="middle">binary/lockfile</text></g>
+      <g class="gnode"><rect x="505" y="228" width="120" height="30" rx="6"></rect><text x="565" y="247" text-anchor="middle">core/validation</text></g>
+      <g class="gnode shared"><rect x="320" y="345" width="140" height="30" rx="6"></rect><text x="390" y="364" text-anchor="middle">core/logging (shared)</text></g>
+      <text class="glabel" x="470" y="400" text-anchor="middle">пунктир (warn) — общий core, используется всеми модулями</text>
+    </svg>
+  </figure>
+  <p class="sub">Граф ацикличный: оркестратор зависит от модулей; <code>install</code> — от detect/lockfile/validation; <code>launcher</code> — от config и install. Циклов нет.</p>
+
+  <h3>Карта покрытия (задача → требование спецификации)</h3>
+  <table class="rpt-table">
+    <thead><tr><th>Задача MVP</th><th>Покрыто разделами</th></tr></thead>
+    <tbody>
+      <tr><td>Изоляция бинаря (musl, pin, sha256)</td><td><span class="sec">§3.2</span>, <span class="sec">§3.3</span>, <span class="sec">§3.4</span></td></tr>
+      <tr><td>Изоляция конфига (CODEX_HOME)</td><td><span class="sec">§3.5</span></td></tr>
+      <tr><td>Launcher</td><td><span class="sec">§3.7</span></td></tr>
+      <tr><td>Proxy passthrough</td><td><span class="sec">§3.6</span></td></tr>
+      <tr><td>Auth: изоляция + passthrough (ключи не хранятся)</td><td><span class="sec">§3.5</span></td></tr>
+      <tr><td>Standalone-структура «по примеру iclaude»</td><td><span class="sec">§2</span>, <span class="sec">§3.1</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Результаты проверки</h2>
+
+  <table class="rpt-table">
+    <thead><tr><th>Фаза</th><th>Статус</th><th>Находок</th></tr></thead>
+    <tbody>
+      <tr><td>structure</td><td><span class="badge ok">passed</span></td><td>0</td></tr>
+      <tr><td>coverage</td><td><span class="badge ok">passed</span></td><td>0</td></tr>
+      <tr><td>clarity</td><td><span class="badge ok">passed</span></td><td>1 (WARNING)</td></tr>
+      <tr><td>consistency</td><td><span class="badge ok">passed</span></td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Находки</h3>
+  <table class="rpt-table">
+    <thead><tr><th>id</th><th>severity</th><th>§</th><th>fragment</th><th>проблема</th><th>fix</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>F-001</td>
+        <td><span class="badge warn">WARNING</span></td>
+        <td class="sec">3.3</td>
+        <td><code>if … bin/codex exists AND matches lockfile → return</code></td>
+        <td>Проверка идемпотентности «matches lockfile» недоопределена: sha256 считается по tar-архиву, а не по распакованному <code>bin/codex</code> — как «совпадает» проверять, не задано.</td>
+        <td>Задать механизм маркера установки: stamp-файл с версией рядом с bin/codex, либо хранить sha распакованного бинаря отдельно.</td>
+        <td><span class="badge warn">open</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>Сводка:</b> CRITICAL open — 0 · WARNING open — 1 · <b>Вердикт: OK</b> (WARNING не блокирует переход к плану).
+  </div>
+
+  <p class="sub">Цепочка: <code>intent</code> (null) → <b>spec</b> ✓ → plan → result</p>
+
+</section>
+<!-- TAB:spec END -->
+
+<!-- TAB:plan START -->
+<section class="tab-pane" id="pane-plan">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:plan END -->
+
+<!-- TAB:result START -->
+<section class="tab-pane" id="pane-result">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:result END -->
+
+</body>
+</html>
