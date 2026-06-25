@@ -1,0 +1,28 @@
+# icodex persistent configuration — template.
+#
+# Copy this file to `.codex_config` (which is git-ignored) and uncomment the
+# variables you need:
+#
+#     cp .codex_config.example .codex_config
+#     chmod 600 .codex_config
+#
+# Rules:
+#   - Only ICODEX_-prefixed `KEY=value` lines are honored; all other lines
+#     (comments, blanks, non-ICODEX keys) are ignored.
+#   - The file is PARSED, never sourced — values cannot execute code.
+#   - Precedence: built-in defaults < .codex_config < command-line flags.
+
+# Route codex and its API traffic through an HTTP/HTTPS proxy.
+# Equivalent to a persisted `./icodex.sh --proxy <url>`.
+#ICODEX_PROXY=http://proxy.local:8080
+
+# Set to 1 to ignore any configured proxy and run without one.
+#ICODEX_NO_PROXY=0
+
+# GitHub repo the codex binary is fetched from (default: openai/codex).
+#ICODEX_REPO=openai/codex
+
+# Force the release-asset platform instead of auto-detecting via uname.
+# Rarely needed — only for cross-target installs.
+#ICODEX_UNAME_S=Linux
+#ICODEX_UNAME_M=x86_64

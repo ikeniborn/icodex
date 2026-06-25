@@ -30,14 +30,16 @@ icodex — isolated wrapper for OpenAI Codex CLI
 Usage: icodex [icodex-flags] [-- codex-args...]
 
 icodex flags:
-  --proxy <url>   Save proxy URL and route codex through it
-  --no-proxy      Run without proxy (ignore saved value)
-  --clear         Remove saved proxy config (.codex_config)
+  --proxy <url>   Save ICODEX_PROXY to .codex_config and route codex through it
+  --no-proxy      Run without proxy (ignore the configured value)
+  --clear         Remove the saved config file (.codex_config)
   --update        Update codex binary to latest, re-pin lockfile
   --install       Install codex binary per lockfile (no launch)
   --version       Print icodex + codex versions
   --help, -h      Show this help
 
+Persistent settings: copy .codex_config.example to .codex_config (ICODEX_* keys).
+Precedence: defaults < .codex_config < flags.
 Anything after the first non-flag (or after --) is passed to codex verbatim.
 EOF
 }
