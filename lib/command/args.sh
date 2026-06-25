@@ -8,7 +8,9 @@ ICODEX_PASSTHROUGH=()
 parse_args() {
   while (( $# )); do
     case "$1" in
-      --proxy)    ICODEX_SET_PROXY="${2:?--proxy requires a url}"; shift 2 ;;
+      --proxy)
+        if [[ -z "${2:-}" ]]; then log_error "--proxy requires a url"; return 1; fi
+        ICODEX_SET_PROXY="$2"; shift 2 ;;
       --no-proxy) ICODEX_NO_PROXY=1; shift ;;
       --clear)    ICODEX_CMD="clear";   shift ;;
       --update)   ICODEX_CMD="update";  shift ;;

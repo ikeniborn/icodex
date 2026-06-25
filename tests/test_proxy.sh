@@ -18,6 +18,12 @@ assert_eq "http_proxy exported"  "http://proxy.local:8080" "${http_proxy:-}"
 assert_eq "HTTP_PROXY exported"  "http://proxy.local:8080" "${HTTP_PROXY:-}"
 assert_eq "https_proxy exported" "http://proxy.local:8080" "${https_proxy:-}"
 
+printf 'PROXY_URL=old\n' > "$tmp/.codex_config_pre"
+chmod 644 "$tmp/.codex_config_pre"
+proxy_save "$tmp/.codex_config_pre" "http://new:9090"
+perm_pre="$(stat -c '%a' "$tmp/.codex_config_pre" 2>/dev/null || stat -f '%Lp' "$tmp/.codex_config_pre")"
+assert_eq "existing config tightened to 600" "600" "$perm_pre"
+
 unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
 proxy_apply "$tmp/absent"
 assert_eq "no export when absent" "" "${HTTPS_PROXY:-}"
