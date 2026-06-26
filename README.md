@@ -40,8 +40,8 @@ files above, so secrets and runtime churn can never be committed by accident.
 
 > **Existing users with a custom `config.toml`:** the live `config.toml` is no longer tracked
 > in git. If you have a customized version, merge the Superpowers wiring from
-> `config.toml.example` into it (the `bypass_hook_trust`, `[marketplaces.superpowers]`, and
-> `[plugins."superpowers@superpowers"]` sections), or delete `config.toml` to regenerate it
+> `config.toml.example` into it (the `bypass_hook_trust`, `[marketplaces.superpowers-dev]`, and
+> `[plugins."superpowers@superpowers-dev"]` sections), or delete `config.toml` to regenerate it
 > from the example on next launch (your model/provider settings will need to be re-applied).
 
 Auth: run `codex login`, set the key once in `.codex_config` (`ICODEX_API_KEY`), or export
