@@ -1,7 +1,7 @@
 ---
 review:
-  plan_hash: 32c670b1ad10ef9a
-  spec_hash: 9ac053f168b023ac
+  plan_hash: 84458bcd8c9518bd
+  spec_hash: b1eb4cd16243f9c4
   last_run: 2026-06-26
   phases:
     structure:     { status: passed }
@@ -83,7 +83,7 @@ chain:
 - No secrets in committed files. The API key stays in `.codex_config` (`ICODEX_API_KEY`, git-ignored, 0600).
 - `.codex-isolated/` is a whitelist gitignore: ignore everything, then re-include only curated, shareable artifacts.
 - A fresh clone must be offline-ready except for the binary: no plugin install step, no network for Superpowers.
-- Marketplace name is canonicalized to the literal `superpowers`; the launcher also derives it from the cache path (never hard-depends on the literal).
+- Marketplace name: the plan assumed canonicalization to the literal `superpowers`, but the as-built implementation uses the upstream-authoritative `superpowers-dev` (Codex derives the name from the vendored `.claude-plugin/marketplace.json`; canonicalization was not achievable). The name is deterministic/machine-independent and the launcher derives it from the cache path, so it never hard-depends on the literal. See spec §4.1 "As-built note".
 - Logging: `log_info` / `log_warn` / `log_error` (from `lib/core/logging.sh`, all to stderr).
 - Pin the codex binary present at `.codex-isolated/bin/codex` (codex-cli 0.142.2) is used for the integration verification step.
 

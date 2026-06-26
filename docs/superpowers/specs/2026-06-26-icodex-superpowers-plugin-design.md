@@ -1,6 +1,6 @@
 ---
 review:
-  spec_hash: 9ac053f168b023ac
+  spec_hash: b1eb4cd16243f9c4
   last_run: 2026-06-26
   phases:
     structure:   { status: passed }
@@ -221,6 +221,17 @@ bypass_hook_trust = true
 > `source` line from the real cache path on each run, so a stale version here is harmless.
 > The launcher additionally derives the marketplace name from the cache path, so it never
 > depends on this literal either (belt and suspenders).
+
+> **As-built note (implementation, adjudicated).** Canonicalization to the literal
+> `superpowers` proved **not achievable**: Codex derives the marketplace name from the
+> vendored `.claude-plugin/marketplace.json`, which is `superpowers-dev` — renaming the cache
+> dir does not change it, and patching the upstream manifest would break vendoring hygiene.
+> The implementation therefore standardizes on the **upstream-authoritative** name
+> `superpowers-dev` everywhere (cache dir `plugins/cache/superpowers-dev/superpowers/<ver>/`,
+> example sections `[marketplaces.superpowers-dev]` / `[plugins."superpowers@superpowers-dev"]`).
+> This name is deterministic and machine-independent (it comes from upstream, not from the
+> host), and the launcher's path-derived rewrite (§4.2) stays fully name-agnostic, so the
+> F-006 portability guarantee holds. End-to-end verified: `codex plugin list` loads the plugin.
 
 ### 4.2 `lib/plugin/superpowers.sh` (new) — invoked from launch
 
