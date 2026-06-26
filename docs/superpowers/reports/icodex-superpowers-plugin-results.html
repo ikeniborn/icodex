@@ -69,8 +69,8 @@ body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent); borde
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
 <input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
 <header>
   <h1>icodex × superpowers — IDD chain report</h1>
   <label for="theme-toggle" class="theme-btn" title="Тема dark/light">🌙 / ☀️</label>
@@ -407,7 +407,70 @@ body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent); borde
 
 <!-- TAB:result START -->
 <section class="tab-pane" id="pane-result">
-  <p class="note">Этап ещё не проверен.</p>
+
+  <h2>1. Резюме сверки</h2>
+  <p>План: <code>docs/superpowers/plans/2026-06-26-icodex-superpowers-plugin.md</code> ·
+     plan_hash <code>84458bcd8c9518bd</code> · <span class="badge b-ok">result_check: OK</span></p>
+  <table>
+    <thead><tr><th>Документ цепочки</th><th>Путь / статус</th></tr></thead>
+    <tbody>
+      <tr><td>Intent</td><td><code>null</code> — этап intent отсутствует (брейншторм начался со spec)</td></tr>
+      <tr><td>Spec</td><td><code>docs/superpowers/specs/2026-06-26-...-design.md</code> (spec_hash b1eb4cd1…)</td></tr>
+      <tr><td>Plan</td><td><code>docs/superpowers/plans/2026-06-26-...-plugin.md</code> (7 задач)</td></tr>
+      <tr><td>Diff base</td><td><code>main..HEAD</code> (13 коммитов; 13 authored-файлов + 171 cache + 15 skills)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Результаты проверки</h2>
+
+  <h3>Покрытие шагов плана</h3>
+  <table>
+    <thead><tr><th>Задача</th><th>Коммит(ы)</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>1 — Proxy-aware binary fetch</td><td><code>b8ebfe3</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>2 — Wiring module</td><td><code>7b1d1bf</code>, <code>08360f9</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>3 — Vendor script</td><td><code>b847744</code>, <code>d0d31d4</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>4 — config.toml.example + gitignore</td><td><code>8e582cd</code>, <code>ba2ad13</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>5 — icodex.sh wiring</td><td><code>3de8337</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>6 — Vendor + migrate + README</td><td><code>605cefa</code>, <code>16cfa19</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>7 — Gate + PR</td><td>сюита green; PR — финальный шаг</td><td><span class="badge b-ok">DONE</span></td></tr>
+    </tbody>
+  </table>
+  <p class="note"><strong>DONE: 7</strong> · PARTIAL: 0 · MISSING: 0</p>
+
+  <h3>Покрытие требований spec</h3>
+  <table>
+    <thead><tr><th>Req</th><th>Свидетельство в diff</th><th>Verified</th></tr></thead>
+    <tbody>
+      <tr><td>R1 plugin→git</td><td>171 файл в <code>.codex-isolated/plugins/cache/</code> закоммичены</td><td>✅</td></tr>
+      <tr><td>R2 skills→git</td><td>15 user-skill файлов; <code>.system/</code> исключён (0)</td><td>✅</td></tr>
+      <tr><td>R3 no re-install / install только бинарь</td><td><code>icodex.sh</code> wiring launch-only; cache committed; install/update = 0 вызовов wiring</td><td>✅</td></tr>
+      <tr><td>R4 binary via proxy</td><td><code>lib/binary/install.sh</code> <code>_curl_proxy_args</code></td><td>✅</td></tr>
+      <tr><td>R5 ICODEX_ROOT rewrite</td><td><code>lib/plugin/superpowers.sh</code> <code>_rewrite_marketplace_source</code></td><td>✅ (codex plugin list → superpowers)</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Desired Outcomes (intent): N/A — intent отсутствует. Spec requirements покрыто: <strong>5/5</strong> + §4.4 (hygiene/pin) + §6 (migration).</p>
+
+  <h3>Excess Changes</h3>
+  <p class="note">Нет файлов вне ожидаемых областей плана (<code>icodex.sh</code>, <code>lib/</code>, <code>scripts/</code>, <code>tests/</code>, <code>.gitignore</code>, <code>.codex-isolated/{config.toml*,skills,plugins}</code>, <code>README.md</code>, <code>docs/superpowers/</code>).</p>
+
+  <h3>Тесты и финальный review</h3>
+  <table>
+    <thead><tr><th>Проверка</th><th>Результат</th></tr></thead>
+    <tbody>
+      <tr><td>Полная сюита</td><td><span class="badge b-ok">ALL-GREEN</span> 15 файлов / 115 assertions / FAIL=0</td></tr>
+      <tr><td>Offline-ready</td><td>cache+skills tracked, live config ignored, binary 0 tracked</td></tr>
+      <tr><td>Whole-branch review (opus)</td><td><span class="badge b-ok">Ready to merge: Yes</span> — 0 critical, 0 important, 4 minor (применены/задокументированы)</td></tr>
+      <tr><td>End-to-end</td><td><code>codex plugin list</code> → <code>"name": "superpowers"</code> (из закоммиченного cache)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>Summary:</strong> CRITICAL 0 · WARNING 0 · INFO 0 (MISSING шагов нет, excess нет).
+    <br><strong>Вердикт: <span class="badge b-ok">OK</span></strong> — реализация полностью соответствует плану и spec; готово к merge в main.
+  </div>
+  <p class="note"><strong>Chain:</strong> intent (<code>null</code>) → spec → plan → <strong>result</strong> (текущий). Известное отклонение: marketplace name <code>superpowers-dev</code> (upstream-authoritative), задокументировано в spec §4.1 As-built note.</p>
+
 </section>
 <!-- TAB:result END -->
 
