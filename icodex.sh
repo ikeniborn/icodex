@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ICODEX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve the real script path even when invoked through a symlink
+# (e.g. ~/.local/bin/icodex), so modules are sourced from the repo, not the link dir.
+_src="${BASH_SOURCE[0]}"
+while [ -L "$_src" ]; do
+  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+  _src="$(readlink "$_src")"
+  [[ "$_src" != /* ]] && _src="$_dir/$_src"
+done
+ICODEX_ROOT="$(cd -P "$(dirname "$_src")" && pwd)"
+unset _src _dir
 export ICODEX_ROOT
 
 for m in core/logging core/init core/validation command/args \

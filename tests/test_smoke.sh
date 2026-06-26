@@ -13,6 +13,14 @@ out="$("$ROOT/icodex.sh" --version 2>/dev/null)"; code=$?
 assert_eq       "version exit 0" "0" "$code"
 assert_contains "version names icodex" "$out" "icodex"
 
+# invoking via a symlink must resolve modules from the real script dir
+td="$(mktemp -d)"
+ln -s "$ROOT/icodex.sh" "$td/icodex"
+out="$("$td/icodex" --help 2>&1)"; code=$?
+assert_eq       "symlink invocation exit 0" "0" "$code"
+assert_contains "symlink resolves modules"  "$out" "Usage:"
+rm -rf "$td"
+
 # launch guard: launch_codex returns 1 when the binary is absent
 source "$ROOT/lib/core/logging.sh"
 source "$ROOT/lib/launcher/launch.sh"
