@@ -50,9 +50,11 @@ ensure_superpowers_wiring
 assert_eq "other section preserved" "1" "$(grep -c '^source = "/keep/me"$' "$cfg")"
 
 # 6. missing cache -> warn, no crash, no rewrite
+cfg_before_missing="$(cat "$cfg")"
 rm -rf "$ICODEX_HOME_DIR/plugins"
 warn="$(ensure_superpowers_wiring 2>&1 >/dev/null)"
 assert_contains "warns when not vendored" "$warn" "not vendored"
+assert_eq "config untouched on missing cache" "$cfg_before_missing" "$(cat "$cfg")"
 
 rm -rf "$tmp"
 finish

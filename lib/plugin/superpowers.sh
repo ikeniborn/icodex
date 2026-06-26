@@ -9,7 +9,7 @@
 # Anchored at $ICODEX_ROOT so the glob is independent of the process CWD.
 _superpowers_cache_dir() {
   local m
-  for m in "$ICODEX_ROOT"/.codex-isolated/plugins/cache/*/superpowers/*/; do
+  for m in "$ICODEX_HOME_DIR"/plugins/cache/*/superpowers/*/; do
     [[ -d "$m" ]] || continue
     printf '%s\n' "${m%/}"
     return 0
@@ -31,7 +31,7 @@ _rewrite_marketplace_source() { # <config> <mkt> <abs>
     insec && /^[[:space:]]*source[[:space:]]*=/ { print "source = \"" abs "\""; next }
     { print }
   ' "$config" > "$tmp"
-  cmp -s "$tmp" "$config" || cat "$tmp" > "$config"
+  cmp -s "$tmp" "$config" || cat "$tmp" > "$config"  # overwrite in place (preserve inode/perms) only when changed
   rm -f "$tmp"
 }
 
