@@ -1,11 +1,18 @@
 # icodex — CODEX_HOME (.codex-isolated) holds the isolated codex state.
-# Whitelist: ignore everything (the downloaded binary, secrets such as auth.json,
-# and all runtime state — *.sqlite, logs, sessions, version.json, skills/), and
-# commit ONLY curated, shareable config so a clone ships ready-configured.
+# Whitelist: ignore everything, then re-include only curated, shareable artifacts.
 .codex-isolated/*
 !.codex-isolated/AGENTS.md
 !.codex-isolated/AGENTS.override.md
-!.codex-isolated/config.toml
+!.codex-isolated/config.toml.example
+
+# user skills travel in git; codex-managed system skills do not
+!.codex-isolated/skills/
+!.codex-isolated/skills/**
+.codex-isolated/skills/.system/
+
+# installed plugins travel in git (no re-install on clone)
+!.codex-isolated/plugins/
+!.codex-isolated/plugins/**
 
 # Proxy URL + API key live here (chmod 600) — never commit
 .codex_config
