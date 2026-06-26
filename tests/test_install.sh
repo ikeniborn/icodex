@@ -3,6 +3,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/helpers.sh"
 source "$ROOT/lib/core/logging.sh"
+source "$ROOT/lib/core/init.sh"
 source "$ROOT/lib/binary/detect.sh"
 source "$ROOT/lib/binary/lockfile.sh"
 
@@ -28,6 +29,17 @@ setup_case() {
 }
 
 source "$ROOT/lib/binary/install.sh"
+
+# _curl_proxy_args emits "--proxy <url>" only when a proxy is set and not disabled
+unset ICODEX_DISABLE_PROXY
+out="$(ICODEX_PROXY='http://p:8080' _curl_proxy_args | tr '\n' ' ')"
+assert_eq "proxy args when set"     "--proxy http://p:8080 " "$out"
+
+out="$(ICODEX_PROXY='http://p:8080' ICODEX_DISABLE_PROXY=1 _curl_proxy_args | tr '\n' ' ')"
+assert_eq "no args when disabled"   "" "$out"
+
+out="$(unset ICODEX_PROXY; _curl_proxy_args | tr '\n' ' ')"
+assert_eq "no args when unset"      "" "$out"
 
 # --- Case A: clean install with matching pinned sha succeeds ---
 setup_case

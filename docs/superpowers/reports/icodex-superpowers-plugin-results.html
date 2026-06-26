@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>icodex × superpowers — chain report</title>
+<style>
+:root{
+  --bg:#f6f7fb; --surface:#ffffff; --fg:#2b2b3a; --muted:#6b6b80;
+  --accent:#5c6bc0; --accent-2:#3949ab; --border:#d6d8e6; --line:#9aa0b4; --zebra:#eef0f8;
+  --ok:#43a047; --ok-2:#2e7d32; --warn:#fb8c00; --warn-2:#ef6c00; --danger:#e53935; --danger-2:#c62828;
+  --shadow:rgba(40,40,80,.18);
+}
+body:has(#theme-toggle:checked){
+  --bg:#181825; --surface:#262637; --fg:#cdd6f4; --muted:#a6adc8;
+  --accent:#89b4fa; --accent-2:#5e95f0; --border:#3a3b52; --line:#6c7086; --zebra:#21222f;
+  --ok:#a6e3a1; --ok-2:#74c46e; --warn:#f9e2af; --warn-2:#f5c95b; --danger:#f38ba8; --danger-2:#e8638a;
+  --shadow:rgba(0,0,0,.45);
+}
+body{
+  margin:0 auto; padding:1.2rem 2rem 4rem; max-width:1100px;
+  font:16px/1.55 system-ui, sans-serif;
+  background:radial-gradient(1200px 500px at 100% -10%, color-mix(in srgb,var(--accent) 10%, transparent), transparent), var(--bg);
+  color:var(--fg); transition:background .3s, color .3s;
+}
+header{display:flex; align-items:center; gap:1rem; flex-wrap:wrap}
+h1{font-size:1.4rem; margin:.2rem 0}
+h2{font-size:1.15rem; margin:1.6rem 0 .6rem; color:var(--accent-2); border-bottom:2px solid var(--border); padding-bottom:.2rem}
+h3{font-size:1rem; margin:1.1rem 0 .4rem; color:var(--accent)}
+.theme-btn{margin-left:auto; cursor:pointer; user-select:none; padding:.25rem .6rem; border:1px solid var(--border); border-radius:6px; background:var(--surface)}
+table{border-collapse:collapse; width:100%; margin:.6rem 0; font-size:.92rem; background:var(--surface); box-shadow:0 1px 4px var(--shadow); border-radius:8px; overflow:hidden}
+th,td{border:1px solid var(--border); padding:.45rem .6rem; text-align:left; vertical-align:top}
+th{background:color-mix(in srgb,var(--accent) 14%, var(--surface)); color:var(--fg)}
+tr:nth-child(even) td{background:var(--zebra)}
+code{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.86em; background:color-mix(in srgb,var(--accent) 10%, var(--surface)); padding:.05rem .3rem; border-radius:4px}
+.note{background:color-mix(in srgb,var(--accent) 12%, var(--surface)); border-left:4px solid var(--accent); padding:.5rem .8rem; border-radius:6px; margin:.6rem 0}
+.badge{display:inline-block; padding:.05rem .5rem; border-radius:999px; font-size:.78rem; font-weight:600; border:1px solid}
+.b-ok{color:var(--ok-2); border-color:var(--ok)}
+.b-warn{color:var(--warn-2); border-color:var(--warn)}
+.b-crit{color:var(--danger-2); border-color:var(--danger)}
+.b-info{color:var(--muted); border-color:var(--line)}
+/* solution flow blocks */
+.flow{display:flex; flex-wrap:wrap; gap:.7rem; align-items:stretch; margin:.6rem 0}
+.col{flex:1 1 220px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:.6rem .8rem; box-shadow:0 1px 4px var(--shadow)}
+.col h4{margin:.1rem 0 .4rem; font-size:.92rem; color:var(--accent-2)}
+.col ul{margin:.2rem 0 0; padding-left:1.1rem}
+.col li{margin:.15rem 0; font-size:.86rem}
+.tag{font-size:.72rem; font-weight:700; padding:.05rem .4rem; border-radius:4px; border:1px solid}
+.t-git{color:var(--ok-2); border-color:var(--ok)}
+.t-run{color:var(--warn-2); border-color:var(--warn)}
+figure{margin:.6rem 0; text-align:center}
+figcaption{font-size:.82rem; color:var(--muted); margin-top:.3rem}
+.legend{font-size:.8rem; color:var(--muted); display:flex; gap:1rem; flex-wrap:wrap; justify-content:center}
+/* tabs */
+.chain-tabs{display:flex; gap:.3rem; margin:1rem 0 0; flex-wrap:wrap}
+.chain-tabs label{cursor:pointer; padding:.4rem .9rem; border:1px solid var(--border); border-bottom:none; border-radius:8px 8px 0 0; background:var(--surface); color:var(--muted)}
+.tab-pane{display:none; border:1px solid var(--border); border-radius:0 8px 8px 8px; padding:1rem 1.2rem; background:color-mix(in srgb,var(--surface) 70%, var(--bg))}
+body:has(#tab-intent:checked) #pane-intent,
+body:has(#tab-spec:checked)   #pane-spec,
+body:has(#tab-plan:checked)   #pane-plan,
+body:has(#tab-result:checked) #pane-result{display:block}
+body:has(#tab-intent:checked) label[for="tab-intent"],
+body:has(#tab-spec:checked)   label[for="tab-spec"],
+body:has(#tab-plan:checked)   label[for="tab-plan"],
+body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent); border-color:var(--accent); font-weight:600}
+</style>
+</head>
+<body>
+<input type="checkbox" id="theme-toggle" hidden>
+<input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
+<header>
+  <h1>icodex × superpowers — IDD chain report</h1>
+  <label for="theme-toggle" class="theme-btn" title="Тема dark/light">🌙 / ☀️</label>
+</header>
+<nav class="chain-tabs">
+  <label for="tab-intent">Intent</label>
+  <label for="tab-spec">Spec</label>
+  <label for="tab-plan">Plan</label>
+  <label for="tab-result">Result</label>
+</nav>
+
+<!-- TAB:intent START -->
+<section class="tab-pane" id="pane-intent">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:intent END -->
+
+<!-- TAB:spec START -->
+<section class="tab-pane" id="pane-spec">
+
+  <h2>1. Резюме спецификации</h2>
+  <p>Документ: <code>docs/superpowers/specs/2026-06-26-icodex-superpowers-plugin-design.md</code> ·
+     spec_hash <code>9ac053f168b023ac</code> · статус <span class="badge b-ok">Approved (design)</span></p>
+  <p>Цель: вшить фреймворк навыков <strong>Superpowers</strong> в изолированный Codex CLI <code>icodex</code> как
+     git-доставляемый плагин. Установленный плагин, пользовательские skills и вся обвязка едут в репозитории;
+     свежий клон не требует установки плагина — на <code>--install</code> тянется только бинарь (через прокси).</p>
+
+  <h3>Требования</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Требование</th><th>Покрыто разделами</th></tr></thead>
+    <tbody>
+      <tr><td>R1</td><td>Плагин Superpowers (skills + hooks) в git</td><td>§1, §3 layout + <code>.gitignore</code>, §4.4</td></tr>
+      <tr><td>R2</td><td><code>.codex-isolated/skills/</code> в git (кроме <code>.system/</code>)</td><td>§1, §3</td></tr>
+      <tr><td>R3</td><td>Доставка installed-плагинов через git без переустановки; <code>--install</code> строит только бинарь</td><td>§1, §2, §4.2, §4.5, §5</td></tr>
+      <tr><td>R4</td><td>Загрузка бинаря через прокси из <code>.codex_config</code> (<code>ICODEX_PROXY</code>)</td><td>§1, §4.3, §8</td></tr>
+      <tr><td>R5</td><td>Абсолютный путь чинится через <code>ICODEX_ROOT</code> (rewrite строки <code>source</code>; <code>-c</code> override не работает)</td><td>§1, §2, §4.2, §8</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Ключевые проектные решения</h3>
+  <table>
+    <thead><tr><th>Решение</th><th>Обоснование (эмпирически проверено на codex-cli 0.142.2)</th></tr></thead>
+    <tbody>
+      <tr><td>Коммитим CACHE-дерево, а не дубль marketplace-source</td><td><code>source</code> может указывать прямо на cache-копию (в ней валидный <code>.codex-plugin/plugin.json</code>) → один коммит ~2&nbsp;MB вместо двух</td></tr>
+      <tr><td>Launcher переписывает <code>source</code> на запуске</td><td>codex валидирует <code>source</code>-путь на каждом запуске; перенос репо ломает загрузку; rewrite строки чинит (доказано), а <code>-c</code> override — нет</td></tr>
+      <tr><td>Каноническое имя marketplace <code>superpowers</code></td><td>у <code>marketplace add</code> нет <code>--name</code>, имя авто-выводится (<code>superpowers-dev</code>) → vendor-скрипт нормализует имя/каталог</td></tr>
+      <tr><td><code>features.multi_agent=true</code> + <code>bypass_hook_trust=true</code></td><td>subagent-skills требуют multi_agent; hook требует trust → bypass для не-интерактивного SessionStart</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Success Criteria (§8)</h3>
+  <table>
+    <thead><tr><th>#</th><th>Критерий</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>--install</code> тянет только бинарь, через настроенный прокси</td></tr>
+      <tr><td>2</td><td>Запуск переписывает <code>source</code> на абсолютный путь этого хоста</td></tr>
+      <tr><td>3</td><td><code>codex plugin list</code> показывает <code>superpowers</code> enabled без шага <code>plugin add</code></td></tr>
+      <tr><td>4</td><td>Сессия печатает SessionStart «You have superpowers» и грузит skill <code>brainstorming</code></td></tr>
+      <tr><td>5</td><td>Перенос репо в другой абсолютный путь → запуск чистый (<code>source</code> чинится)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Схемы решения и зависимостей</h2>
+
+  <h3>Схема решения (поток: git → install → launch → runtime)</h3>
+  <div class="flow">
+    <div class="col">
+      <h4>git clone <span class="tag t-git">COMMITTED</span></h4>
+      <ul>
+        <li><code>skills/**</code> (кроме <code>.system/</code>)</li>
+        <li><code>plugins/cache/superpowers/superpowers/&lt;ver&gt;/**</code></li>
+        <li><code>config.toml.example</code> (+ wiring)</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h4>--install <span class="tag t-run">RUNTIME</span></h4>
+      <ul>
+        <li>fetch бинаря codex <em>только</em></li>
+        <li>через <code>ICODEX_PROXY</code> (curl --proxy)</li>
+        <li>плагин НЕ ставится</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h4>launch · ensure_superpowers_wiring <span class="tag t-run">RUNTIME</span></h4>
+      <ul>
+        <li><code>config.toml</code> ← example (если нет)</li>
+        <li>glob cache от <code>$ICODEX_ROOT</code> → <code>$MKT</code></li>
+        <li>rewrite <code>[marketplaces.$MKT].source</code></li>
+      </ul>
+    </div>
+    <div class="col">
+      <h4>codex runtime</h4>
+      <ul>
+        <li>грузит плагин из cache</li>
+        <li>SessionStart hook → «You have superpowers»</li>
+        <li>skills: brainstorming / TDD / debugging…</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Граф зависимостей (A → B = «A зависит от B»)</h3>
+  <figure>
+    <svg viewBox="0 0 760 360" width="100%" role="img" aria-label="граф зависимостей требований и компонентов">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+        </marker>
+      </defs>
+      <!-- edges -->
+      <g stroke="var(--line)" stroke-width="2" marker-end="url(#arr)" fill="none">
+        <line x1="120" y1="70"  x2="300" y2="60"/>   <!-- R1 -> cache -->
+        <line x1="120" y1="70"  x2="300" y2="300"/>  <!-- R1 -> vendor -->
+        <line x1="120" y1="150" x2="300" y2="170"/>  <!-- R2 -> gitignore -->
+        <line x1="120" y1="230" x2="305" y2="240"/>  <!-- R3 -> launcher -->
+        <line x1="120" y1="230" x2="300" y2="75"/>   <!-- R3 -> cache -->
+        <line x1="120" y1="310" x2="535" y2="250"/>  <!-- R4 -> install -->
+        <line x1="540" y1="120" x2="540" y2="215"/>  <!-- R5 -> launcher? (placed) -->
+        <line x1="430" y1="240" x2="320" y2="245"/>  <!-- launcher -> (none) keep -->
+        <line x1="540" y1="120" x2="345" y2="235"/>  <!-- R5 -> launcher -->
+        <line x1="430" y1="300" x2="345" y2="255"/>  <!-- cache(committed) <- vendor: vendor produces cache -->
+        <line x1="305" y1="300" x2="305" y2="80"/>   <!-- vendor -> cache -->
+      </g>
+      <!-- nodes: requirements (left) -->
+      <g font-size="12" font-weight="600" text-anchor="middle">
+        <g><rect x="60" y="52"  width="64" height="34" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="92" y="73" fill="var(--fg)">R1</text></g>
+        <g><rect x="60" y="132" width="64" height="34" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="92" y="153" fill="var(--fg)">R2</text></g>
+        <g><rect x="60" y="212" width="64" height="34" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="92" y="233" fill="var(--fg)">R3</text></g>
+        <g><rect x="60" y="292" width="64" height="34" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="92" y="313" fill="var(--fg)">R4</text></g>
+        <g><rect x="505" y="92" width="70" height="34" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="540" y="113" fill="var(--fg)">R5</text></g>
+        <!-- components (middle/right) -->
+        <g><rect x="285" y="45"  width="120" height="34" rx="8" fill="color-mix(in srgb,var(--ok) 18%, var(--surface))" stroke="var(--ok)" stroke-width="2"/><text x="345" y="66" fill="var(--fg)">cache (git)</text></g>
+        <g><rect x="285" y="153" width="120" height="34" rx="8" fill="color-mix(in srgb,var(--ok) 18%, var(--surface))" stroke="var(--ok)" stroke-width="2"/><text x="345" y="174" fill="var(--fg)">.gitignore wl</text></g>
+        <g><rect x="300" y="223" width="120" height="40" rx="8" fill="color-mix(in srgb,var(--warn) 18%, var(--surface))" stroke="var(--warn)" stroke-width="2"/><text x="360" y="240" fill="var(--fg)">launcher</text><text x="360" y="255" fill="var(--muted)" font-size="10" font-weight="400">rewrite source</text></g>
+        <g><rect x="285" y="283" width="120" height="34" rx="8" fill="var(--surface)" stroke="var(--accent-2)" stroke-width="2"/><text x="345" y="304" fill="var(--fg)">vendor.sh</text></g>
+        <g><rect x="505" y="223" width="120" height="40" rx="8" fill="color-mix(in srgb,var(--warn) 18%, var(--surface))" stroke="var(--warn)" stroke-width="2"/><text x="565" y="240" fill="var(--fg)">install.sh</text><text x="565" y="255" fill="var(--muted)" font-size="10" font-weight="400">curl --proxy</text></g>
+      </g>
+    </svg>
+    <figcaption>Зелёные узлы — git-доставка (COMMITTED); жёлтые — runtime-шаги. Циклов нет (DAG).</figcaption>
+  </figure>
+  <p class="legend"><span><span class="tag t-git">зелёный</span> committed</span><span><span class="tag t-run">жёлтый</span> runtime</span><span>R1–R5 — требования</span></p>
+
+  <h3>Карта покрытия (требование → разделы спецификации)</h3>
+  <table>
+    <thead><tr><th>Требование</th><th>§1</th><th>§2</th><th>§3</th><th>§4.2</th><th>§4.3</th><th>§4.4</th><th>§4.5</th><th>§5</th><th>§8</th></tr></thead>
+    <tbody>
+      <tr><td>R1 plugin→git</td><td>✓</td><td></td><td>✓</td><td></td><td></td><td>✓</td><td></td><td></td><td>✓</td></tr>
+      <tr><td>R2 skills→git</td><td>✓</td><td></td><td>✓</td><td></td><td></td><td></td><td></td><td></td><td>✓</td></tr>
+      <tr><td>R3 no-reinstall</td><td>✓</td><td>✓</td><td></td><td>✓</td><td></td><td></td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><td>R4 binary proxy</td><td>✓</td><td></td><td></td><td></td><td>✓</td><td></td><td></td><td></td><td>✓</td></tr>
+      <tr><td>R5 abs-path/ICODEX_ROOT</td><td>✓</td><td>✓</td><td></td><td>✓</td><td></td><td></td><td></td><td>✓</td><td>✓</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Результаты проверки (check-spec)</h2>
+  <table>
+    <thead><tr><th>Фаза</th><th>Статус</th><th>CRITICAL open</th></tr></thead>
+    <tbody>
+      <tr><td>structure</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+      <tr><td>coverage</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+      <tr><td>clarity</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+      <tr><td>consistency</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Findings (все закрыты — verdict <code>fixed</code>)</h3>
+  <table>
+    <thead><tr><th>id</th><th>severity</th><th>section</th><th>проблема</th><th>fix</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>F-006</td><td><span class="badge b-crit">CRITICAL</span></td><td>4.1 vs 4.4</td>
+        <td>Хардкод имени marketplace <code>superpowers@superpowers</code>, но <code>marketplace add</code> авто-выводит имя (<code>superpowers-dev</code>), нет <code>--name</code> → на чужой машине плагин не грузится (ломает R3)</td>
+        <td>Vendor-скрипт нормализует имя к <code>superpowers</code> (rename каталога/секций); launcher выводит имя из cache-пути</td>
+        <td><span class="badge b-ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td>F-007</td><td><span class="badge b-warn">WARNING</span></td><td>4.2 vs 3</td>
+        <td><code>ABS="$ICODEX_ROOT/$CACHE"</code> с относительным glob — база/CWD не заданы; из чужого CWD glob не сматчится → плагин молча выключен</td>
+        <td>Glob якорится на <code>$ICODEX_ROOT</code> (абсолютный); <code>ABS</code> = сам каталог, без реконкатенации; добавлен тест CWD-независимости</td>
+        <td><span class="badge b-ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td>F-008</td><td><span class="badge b-warn">WARNING</span></td><td>4.1 vs 4.2</td>
+        <td>Rewrite первого <code>[marketplaces.*]</code> неопределён при &gt;1 marketplace (ср. §9)</td>
+        <td>Переписывать только <code>[marketplaces.$MKT].source</code> для выведенного имени</td>
+        <td><span class="badge b-ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td>F-003</td><td><span class="badge b-warn">WARNING</span></td><td>4.4</td>
+        <td>Заявление о детерминизме без критерия; movable tag не воспроизводим</td>
+        <td>Пин по immutable sha; acceptance: повторный прогон → пустой <code>git diff --stat</code></td>
+        <td><span class="badge b-ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td>F-004</td><td><span class="badge b-warn">WARNING</span></td><td>4.4</td>
+        <td>Нет проверки, что вложенный <code>.gitignore</code> удалён — остаток молча исключит файлы плагина (ломает R1)</td>
+        <td>DoD: <code>find … -name .gitignore</code> пусто и <code>git ls-files … | wc -l</code> &gt; 0; зеркально как тест в §8</td>
+        <td><span class="badge b-ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td>F-010</td><td><span class="badge b-info">INFO</span></td><td>4.1</td>
+        <td>Хардкод версии <code>6.0.3</code> в sentinel может разойтись с версией cache</td>
+        <td>Заменено на <code>&lt;ver&gt;</code>; задокументировано, что launcher переписывает всю строку <code>source</code></td>
+        <td><span class="badge b-ok">fixed</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>Сводка:</strong> CRITICAL open — <strong>0</strong> · WARNING open — <strong>0</strong> · INFO open — <strong>0</strong>.
+    <br><strong>Вердикт: <span class="badge b-ok">OK</span></strong> — покрытие R1–R5 полное, структура чистая, все findings закрыты (fixed).
+  </div>
+
+  <p class="note"><strong>Chain:</strong> intent → <strong>spec</strong> (текущий). Этап <em>intent</em> в этой цепочке отсутствует
+  (<code>chain.intent: null</code>) — брейншторм перешёл сразу к spec.</p>
+
+</section>
+<!-- TAB:spec END -->
+
+<!-- TAB:plan START -->
+<section class="tab-pane" id="pane-plan">
+
+  <h2>1. Резюме плана</h2>
+  <p>Документ: <code>docs/superpowers/plans/2026-06-26-icodex-superpowers-plugin.md</code> ·
+     plan_hash <code>32c670b1ad10ef9a</code> · spec_hash <code>9ac053f168b023ac</code> ·
+     <span class="badge b-ok">check-plan OK</span></p>
+  <table>
+    <thead><tr><th>Task</th><th>Что делает</th><th>Файлы</th><th>Definition of Done</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Proxy-aware fetch бинаря (R4)</td><td><code>lib/binary/install.sh</code>, <code>tests/test_install.sh</code></td><td><code>_curl_proxy_args</code> даёт <code>--proxy url</code> при заданном прокси, пусто при <code>--no-proxy</code>/unset; тест PASS</td></tr>
+      <tr><td>2</td><td>Модуль wiring <code>lib/plugin/superpowers.sh</code> (R3,R5)</td><td><code>lib/plugin/superpowers.sh</code>, <code>tests/test_plugin.sh</code></td><td>rewrite <code>source</code> → <code>$ICODEX_ROOT/...</code>; идемпотентно, CWD-независимо, stale исправляется, чужая секция нетронута, missing cache → warn; тест PASS</td></tr>
+      <tr><td>3</td><td>Vendor-скрипт + normalize</td><td><code>scripts/vendor-superpowers.sh</code>, <code>tests/test_vendor.sh</code></td><td><code>_vendor_normalize</code> на фикстуре: canonical путь, нет <code>.git</code>/<code>.gitignore</code>, контент сохранён; <code>bash -n</code> OK; тест PASS</td></tr>
+      <tr><td>4</td><td><code>config.toml.example</code> + <code>.gitignore</code> whitelist</td><td><code>.codex-isolated/config.toml.example</code>, <code>.gitignore</code>, <code>tests/test_gitignore.sh</code></td><td><code>git check-ignore</code>: example/skills/plugins tracked; live config + <code>.system</code> + binary ignored; тест PASS</td></tr>
+      <tr><td>5</td><td>Интеграция в <code>icodex.sh</code></td><td><code>icodex.sh</code>, <code>tests/test_smoke.sh</code></td><td>модуль в loop; <code>ensure_superpowers_wiring</code> на launch-ветке; install/update — 0 вызовов wiring; вся сюита FAIL=0</td></tr>
+      <tr><td>6</td><td>Реальный вендоринг + миграция + README</td><td><code>scripts/…</code>, <code>.codex-isolated/plugins,skills</code>, <code>README.md</code></td><td><code>git rm --cached config.toml</code>; cache+skills tracked; <code>codex plugin list</code> → <code>superpowers</code>; offline-проверка</td></tr>
+      <tr><td>7</td><td>Полная сюита + PR</td><td>—</td><td><code>ALL-GREEN</code>; клон offline-ready; PR в main</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Схемы зависимостей и пересечений</h2>
+
+  <h3>Граф зависимостей задач (M → N = «результат M используется в N»)</h3>
+  <figure>
+    <svg viewBox="0 0 760 240" width="100%" role="img" aria-label="граф зависимостей задач плана">
+      <defs>
+        <marker id="parr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+        </marker>
+      </defs>
+      <g stroke="var(--line)" stroke-width="2" marker-end="url(#parr)" fill="none">
+        <line x1="118" y1="60"  x2="592" y2="100"/>  <!-- T1 -> T6 -->
+        <line x1="118" y1="120" x2="392" y2="120"/>  <!-- T2 -> T5 -->
+        <line x1="118" y1="180" x2="592" y2="120"/>  <!-- T3 -> T6 -->
+        <line x1="270" y1="180" x2="392" y2="135"/>  <!-- T4 -> T5 -->
+        <line x1="270" y1="60"  x2="592" y2="105"/>  <!-- T4? keep visual: T4 -> T6 -->
+        <line x1="450" y1="120" x2="592" y2="110"/>  <!-- T5 -> T6 -->
+        <line x1="650" y1="135" x2="650" y2="175"/>  <!-- T6 -> T7 -->
+      </g>
+      <g font-size="12" font-weight="600" text-anchor="middle">
+        <g><rect x="70" y="44"  width="56" height="32" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="98" y="64" fill="var(--fg)">T1</text></g>
+        <g><rect x="70" y="104" width="56" height="32" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="98" y="124" fill="var(--fg)">T2</text></g>
+        <g><rect x="70" y="164" width="56" height="32" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="98" y="184" fill="var(--fg)">T3</text></g>
+        <g><rect x="214" y="164" width="56" height="32" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="242" y="184" fill="var(--fg)">T4</text></g>
+        <g><rect x="394" y="104" width="56" height="32" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="422" y="124" fill="var(--fg)">T5</text></g>
+        <g><rect x="592" y="92"  width="58" height="34" rx="8" fill="color-mix(in srgb,var(--accent) 16%, var(--surface))" stroke="var(--accent-2)" stroke-width="2"/><text x="621" y="113" fill="var(--fg)">T6</text></g>
+        <g><rect x="622" y="172" width="56" height="32" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="650" y="192" fill="var(--fg)">T7</text></g>
+      </g>
+    </svg>
+    <figcaption>Задачи 1–5 независимы и питают интеграцию T6; T7 — финальный гейт+PR. Порядок монотонный (M&lt;N), циклов нет.</figcaption>
+  </figure>
+
+  <h3>Пересечения по артефактам (какие задачи трогают один файл)</h3>
+  <table>
+    <thead><tr><th>Артефакт</th><th>Задачи</th></tr></thead>
+    <tbody>
+      <tr><td><code>lib/binary/install.sh</code></td><td>T1</td></tr>
+      <tr><td><code>lib/plugin/superpowers.sh</code></td><td>T2</td></tr>
+      <tr><td><code>scripts/vendor-superpowers.sh</code></td><td>T3 (создаёт), T6 (запускает)</td></tr>
+      <tr><td><code>.codex-isolated/config.toml.example</code></td><td>T4</td></tr>
+      <tr><td><code>.gitignore</code></td><td>T4 (правит), T6 (commit)</td></tr>
+      <tr><td><code>icodex.sh</code></td><td>T5</td></tr>
+      <tr><td><code>.codex-isolated/plugins,skills</code></td><td>T6</td></tr>
+      <tr><td><code>README.md</code></td><td>T6</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Перекрытий-конфликтов нет: единственный совместный файл <code>.gitignore</code> правится в T4 и финально коммитится в T6 (та же ветка, последовательно). Каждое требование R1–R5 закрывается своим набором задач (см. вкладку Spec, карта покрытия).</p>
+
+  <h2>3. Результаты проверки (check-plan)</h2>
+  <table>
+    <thead><tr><th>Фаза</th><th>Статус</th><th>CRITICAL open</th></tr></thead>
+    <tbody>
+      <tr><td>structure</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+      <tr><td>coverage</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+      <tr><td>dependencies</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+      <tr><td>verifiability</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+      <tr><td>consistency</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Findings</h3>
+  <table>
+    <thead><tr><th>id</th><th>severity</th><th>section</th><th>проблема</th><th>fix</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>F-002</td><td><span class="badge b-warn">WARNING</span></td><td>Task 5 Step 1</td>
+        <td>Ассерт <code>assert_contains … ":"</code> тавтологичен — таргет это вывод <code>grep -n</code> (всегда <code>NN:</code>), подстрока <code>":"</code> всегда есть; реально ничего не проверял</td>
+        <td>Заменён на <code>grep -c ensure_superpowers_wiring == 0</code> по install/update-строкам</td>
+        <td><span class="badge b-ok">fixed</span></td></tr>
+      <tr><td>F-005</td><td><span class="badge b-info">INFO</span></td><td>Task 4 Step 4</td>
+        <td><code>bypass_hook_trust</code> после <code>[features]</code> стал бы <code>features.bypass_hook_trust</code>, а спека §2 — top-level ключ</td>
+        <td>Перенесён в корневую таблицу (до первой <code>[section]</code>) с комментарием</td>
+        <td><span class="badge b-ok">fixed</span></td></tr>
+      <tr><td>F-001</td><td><span class="badge b-info">INFO</span></td><td>Task 6 Step 7</td>
+        <td><code>./icodex.sh --version</code> в блоке проверки ничего не верифицирует (выходит до launch-блока)</td>
+        <td>Заменён на <code>./icodex.sh exec true</code> (триггерит wiring) + plugin-list</td>
+        <td><span class="badge b-ok">fixed</span></td></tr>
+      <tr><td>F-003</td><td><span class="badge b-info">INFO</span></td><td>Task 4 Step 5</td>
+        <td><code>git check-ignore</code> на несуществующем пути корректен; зависит от <code>cd "$ROOT"</code> в тесте</td>
+        <td>Изменений не нужно — <code>cd "$ROOT"</code> уже в тесте</td>
+        <td><span class="badge b-info">accepted</span></td></tr>
+      <tr><td>F-004</td><td><span class="badge b-info">INFO</span></td><td>Task 3 Step 3</td>
+        <td><code>find … -name '[0-9]*'</code> хрупок если версия не с цифры; сетевой wrapper юнит-тестом не покрыт (by design)</td>
+        <td>Приемлемо для пинованной sha; при желании ужесточить regex</td>
+        <td><span class="badge b-info">accepted</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>Сводка:</strong> CRITICAL open — <strong>0</strong> · WARNING open — <strong>0</strong> · INFO open — <strong>0</strong>.
+    <br><strong>Вердикт: <span class="badge b-ok">OK</span></strong> — план выполним, R1–R5+§4.4+§6 покрыты; механизмы (proxy-массив, awk-rewrite, anchored glob, sed по case) воспроизведены ревьюером; все findings закрыты.
+  </div>
+  <p class="note"><strong>Chain:</strong> intent (<code>null</code>) → spec → <strong>plan</strong> (текущий).</p>
+
+</section>
+<!-- TAB:plan END -->
+
+<!-- TAB:result START -->
+<section class="tab-pane" id="pane-result">
+
+  <h2>1. Резюме сверки</h2>
+  <p>План: <code>docs/superpowers/plans/2026-06-26-icodex-superpowers-plugin.md</code> ·
+     plan_hash <code>84458bcd8c9518bd</code> · <span class="badge b-ok">result_check: OK</span></p>
+  <table>
+    <thead><tr><th>Документ цепочки</th><th>Путь / статус</th></tr></thead>
+    <tbody>
+      <tr><td>Intent</td><td><code>null</code> — этап intent отсутствует (брейншторм начался со spec)</td></tr>
+      <tr><td>Spec</td><td><code>docs/superpowers/specs/2026-06-26-...-design.md</code> (spec_hash b1eb4cd1…)</td></tr>
+      <tr><td>Plan</td><td><code>docs/superpowers/plans/2026-06-26-...-plugin.md</code> (7 задач)</td></tr>
+      <tr><td>Diff base</td><td><code>main..HEAD</code> (13 коммитов; 13 authored-файлов + 171 cache + 15 skills)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Результаты проверки</h2>
+
+  <h3>Покрытие шагов плана</h3>
+  <table>
+    <thead><tr><th>Задача</th><th>Коммит(ы)</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>1 — Proxy-aware binary fetch</td><td><code>b8ebfe3</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>2 — Wiring module</td><td><code>7b1d1bf</code>, <code>08360f9</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>3 — Vendor script</td><td><code>b847744</code>, <code>d0d31d4</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>4 — config.toml.example + gitignore</td><td><code>8e582cd</code>, <code>ba2ad13</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>5 — icodex.sh wiring</td><td><code>3de8337</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>6 — Vendor + migrate + README</td><td><code>605cefa</code>, <code>16cfa19</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>7 — Gate + PR</td><td>сюита green; PR — финальный шаг</td><td><span class="badge b-ok">DONE</span></td></tr>
+    </tbody>
+  </table>
+  <p class="note"><strong>DONE: 7</strong> · PARTIAL: 0 · MISSING: 0</p>
+
+  <h3>Покрытие требований spec</h3>
+  <table>
+    <thead><tr><th>Req</th><th>Свидетельство в diff</th><th>Verified</th></tr></thead>
+    <tbody>
+      <tr><td>R1 plugin→git</td><td>171 файл в <code>.codex-isolated/plugins/cache/</code> закоммичены</td><td>✅</td></tr>
+      <tr><td>R2 skills→git</td><td>15 user-skill файлов; <code>.system/</code> исключён (0)</td><td>✅</td></tr>
+      <tr><td>R3 no re-install / install только бинарь</td><td><code>icodex.sh</code> wiring launch-only; cache committed; install/update = 0 вызовов wiring</td><td>✅</td></tr>
+      <tr><td>R4 binary via proxy</td><td><code>lib/binary/install.sh</code> <code>_curl_proxy_args</code></td><td>✅</td></tr>
+      <tr><td>R5 ICODEX_ROOT rewrite</td><td><code>lib/plugin/superpowers.sh</code> <code>_rewrite_marketplace_source</code></td><td>✅ (codex plugin list → superpowers)</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Desired Outcomes (intent): N/A — intent отсутствует. Spec requirements покрыто: <strong>5/5</strong> + §4.4 (hygiene/pin) + §6 (migration).</p>
+
+  <h3>Excess Changes</h3>
+  <p class="note">Нет файлов вне ожидаемых областей плана (<code>icodex.sh</code>, <code>lib/</code>, <code>scripts/</code>, <code>tests/</code>, <code>.gitignore</code>, <code>.codex-isolated/{config.toml*,skills,plugins}</code>, <code>README.md</code>, <code>docs/superpowers/</code>).</p>
+
+  <h3>Тесты и финальный review</h3>
+  <table>
+    <thead><tr><th>Проверка</th><th>Результат</th></tr></thead>
+    <tbody>
+      <tr><td>Полная сюита</td><td><span class="badge b-ok">ALL-GREEN</span> 15 файлов / 115 assertions / FAIL=0</td></tr>
+      <tr><td>Offline-ready</td><td>cache+skills tracked, live config ignored, binary 0 tracked</td></tr>
+      <tr><td>Whole-branch review (opus)</td><td><span class="badge b-ok">Ready to merge: Yes</span> — 0 critical, 0 important, 4 minor (применены/задокументированы)</td></tr>
+      <tr><td>End-to-end</td><td><code>codex plugin list</code> → <code>"name": "superpowers"</code> (из закоммиченного cache)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>Summary:</strong> CRITICAL 0 · WARNING 0 · INFO 0 (MISSING шагов нет, excess нет).
+    <br><strong>Вердикт: <span class="badge b-ok">OK</span></strong> — реализация полностью соответствует плану и spec; готово к merge в main.
+  </div>
+  <p class="note"><strong>Chain:</strong> intent (<code>null</code>) → spec → plan → <strong>result</strong> (текущий). Известное отклонение: marketplace name <code>superpowers-dev</code> (upstream-authoritative), задокументировано в spec §4.1 As-built note.</p>
+
+</section>
+<!-- TAB:result END -->
+
+</body>
+</html>

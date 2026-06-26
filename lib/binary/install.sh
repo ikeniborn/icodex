@@ -4,12 +4,23 @@
 # matches the lockfile version and the binary is executable, skip the download.
 
 # --- Seams (overridable in tests) ---
+
+# Emit curl proxy args from .codex_config (ICODEX_PROXY), honoring --no-proxy.
+# One arg per line so callers can read it into an array.
+_curl_proxy_args() {
+  [[ -n "${ICODEX_PROXY:-}" ]] || return 0
+  (( ${ICODEX_DISABLE_PROXY:-0} )) && return 0
+  printf '%s\n' "--proxy" "$ICODEX_PROXY"
+}
+
 _download() { # <url> <dest>
-  curl -fsSL "$1" -o "$2"
+  local pargs=(); while IFS= read -r a; do pargs+=("$a"); done < <(_curl_proxy_args)
+  curl -fsSL ${pargs[@]+"${pargs[@]}"} "$1" -o "$2"
 }
 
 _resolve_latest() {
-  curl -fsSL "https://api.github.com/repos/$ICODEX_REPO/releases/latest" \
+  local pargs=(); while IFS= read -r a; do pargs+=("$a"); done < <(_curl_proxy_args)
+  curl -fsSL ${pargs[@]+"${pargs[@]}"} "https://api.github.com/repos/$ICODEX_REPO/releases/latest" \
     | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
 }
 
