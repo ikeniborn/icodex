@@ -17,6 +17,9 @@
 # Proxy URL + API key live here (chmod 600) — never commit
 .codex_config
 
+# SDD scratch (briefs, reports, ledger) — never commit
+.superpowers
+
 # OS / editor noise
 .DS_Store
 *.swp
