@@ -12,6 +12,11 @@
 #   - The file is PARSED, never sourced — values cannot execute code.
 #   - Precedence: built-in defaults < .codex_config < command-line flags.
 
+# OpenAI API key — exported as OPENAI_API_KEY for codex. SECRET: this file is
+# git-ignored and should be chmod 600. An OPENAI_API_KEY already in your shell
+# takes precedence. Alternative: `codex login` (writes auth.json, also ignored).
+#ICODEX_API_KEY=sk-...
+
 # Route codex and its API traffic through an HTTP/HTTPS proxy.
 # Equivalent to a persisted `./icodex.sh --proxy <url>`.
 #ICODEX_PROXY=http://proxy.local:8080

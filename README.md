@@ -17,9 +17,22 @@ On `--install`/`--update` a symlink `icodex` is created in `~/.local/bin` (overr
 `ICODEX_LINK_DIR`) so you can run `icodex` from anywhere — provided that directory is on
 your `PATH`. An existing non-symlink file at that path is never overwritten.
 
-State lives in `.codex-isolated/` (git-ignored). The binary is pinned by version + sha256
-in `.codex-lockfile.json` (committed). Auth (`codex login` / `OPENAI_API_KEY`) is written
-into the isolated `CODEX_HOME` by codex itself — the wrapper never stores credentials.
+### What lives in git
+
+Only the **codex binary** is fetched on demand (pinned by version + sha256 in the
+committed `.codex-lockfile.json`); everything else ships with the repo, so a clone is
+ready to use offline once the binary is present:
+
+- **Committed** — curated codex config under `CODEX_HOME`: `.codex-isolated/AGENTS.md`
+  (instructions codex reads — note the plural name), `AGENTS.override.md`, and `config.toml`.
+- **Git-ignored** — the downloaded binary (`.codex-isolated/bin/`), secrets (`auth.json`,
+  `.codex_config`), and all runtime state (`*.sqlite`, logs, sessions, `version.json`).
+
+The `.codex-isolated/` ignore rule is a whitelist: everything is ignored except the three
+config files above, so secrets and runtime churn can never be committed by accident.
+
+Auth: run `codex login`, set the key once in `.codex_config` (`ICODEX_API_KEY`), or export
+`OPENAI_API_KEY` — the key stays out of git either way.
 
 ## Persistent configuration
 
@@ -34,6 +47,7 @@ the file is parsed (never sourced), so values can't execute code. Precedence is
 
 | Variable | Effect |
 |----------|--------|
+| `ICODEX_API_KEY` | OpenAI API key → exported as `OPENAI_API_KEY` (secret; an ambient `OPENAI_API_KEY` wins) |
 | `ICODEX_PROXY` | Proxy URL exported as `HTTPS_PROXY`/`HTTP_PROXY` for codex |
 | `ICODEX_NO_PROXY` | Comma-separated host bypass list, exported as `NO_PROXY` (e.g. `localhost,127.0.0.1,github.com`) |
 | `ICODEX_REPO` | GitHub repo for the codex binary (default `openai/codex`) |

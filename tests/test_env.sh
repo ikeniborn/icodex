@@ -49,5 +49,22 @@ assert_eq "no duplicate key" "1" "$lines"
 unset ICODEX_PROXY; load_config "$cfg2"
 assert_eq "set: PROXY replaced" "http://p:2" "${ICODEX_PROXY:-}"
 
+# --- apply_api_key: ICODEX_API_KEY -> OPENAI_API_KEY when the latter is unset ---
+unset OPENAI_API_KEY ICODEX_API_KEY
+ICODEX_API_KEY="sk-test123"
+apply_api_key
+assert_eq "api key mapped to OPENAI_API_KEY" "sk-test123" "${OPENAI_API_KEY:-}"
+
+# ambient OPENAI_API_KEY takes precedence over ICODEX_API_KEY
+unset OPENAI_API_KEY ICODEX_API_KEY
+export OPENAI_API_KEY="sk-ambient"; ICODEX_API_KEY="sk-config"
+apply_api_key
+assert_eq "ambient OPENAI_API_KEY wins" "sk-ambient" "${OPENAI_API_KEY:-}"
+
+# no ICODEX_API_KEY -> no-op
+unset OPENAI_API_KEY ICODEX_API_KEY
+assert_exit "no key -> noop returns 0" 0 apply_api_key
+assert_eq "no OPENAI_API_KEY set" "" "${OPENAI_API_KEY:-}"
+
 rm -rf "$tmp"
 finish

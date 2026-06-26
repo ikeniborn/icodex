@@ -23,6 +23,7 @@ done
 main() {
   # Precedence: built-in defaults < .codex_config (ICODEX_*) < CLI flags.
   load_config "$ICODEX_CONFIG"
+  apply_api_key
   parse_args "$@"
 
   case "$ICODEX_CMD" in
