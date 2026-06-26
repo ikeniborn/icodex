@@ -6,7 +6,7 @@ export ICODEX_ROOT
 
 for m in core/logging core/init core/validation command/args \
          binary/detect binary/lockfile binary/install \
-         config/isolated config/env proxy/proxy launcher/launch; do
+         config/isolated config/env proxy/proxy symlink/symlink launcher/launch; do
   # shellcheck source=/dev/null
   source "$ICODEX_ROOT/lib/$m.sh"
 done
@@ -35,14 +35,14 @@ main() {
   fi
 
   case "$ICODEX_CMD" in
-    install) setup_codex_home; install_ensure;          exit $? ;;
-    update)  setup_codex_home; install_ensure --update; exit $? ;;
+    install) setup_codex_home; install_ensure          || exit 1; install_symlink; exit 0 ;;
+    update)  setup_codex_home; install_ensure --update || exit 1; install_symlink; exit 0 ;;
   esac
 
   # default: run
   setup_codex_home
   install_ensure || exit 1
-  (( ICODEX_NO_PROXY )) || proxy_apply
+  (( ICODEX_DISABLE_PROXY )) || proxy_apply
   launch_codex ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}
 }
 

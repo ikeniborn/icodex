@@ -5,7 +5,7 @@ source "$ROOT/tests/helpers.sh"
 source "$ROOT/lib/core/logging.sh"
 source "$ROOT/lib/command/args.sh"
 
-reset() { ICODEX_CMD="run"; ICODEX_NO_PROXY=0; ICODEX_SET_PROXY=""; ICODEX_PASSTHROUGH=(); }
+reset() { ICODEX_CMD="run"; ICODEX_DISABLE_PROXY=0; ICODEX_SET_PROXY=""; ICODEX_PASSTHROUGH=(); }
 
 reset; parse_args --proxy "http://p:8080"
 assert_eq "proxy url captured" "http://p:8080" "$ICODEX_SET_PROXY"
@@ -15,7 +15,7 @@ reset; parse_args --update
 assert_eq "update cmd" "update" "$ICODEX_CMD"
 
 reset; parse_args --no-proxy exec "hi"
-assert_eq "no-proxy flag" "1" "$ICODEX_NO_PROXY"
+assert_eq "no-proxy flag" "1" "$ICODEX_DISABLE_PROXY"
 assert_eq "passthrough joined" "exec hi" "${ICODEX_PASSTHROUGH[*]}"
 
 reset; parse_args --model o3 -q

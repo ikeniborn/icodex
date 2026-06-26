@@ -10,7 +10,7 @@ tmp="$(mktemp -d)"; cfg="$tmp/.codex_config"
 cat > "$cfg" <<'EOF'
 # a comment line
 ICODEX_PROXY=http://proxy.local:8080
-ICODEX_NO_PROXY=1
+ICODEX_NO_PROXY=localhost,127.0.0.1,github.com
 ICODEX_REPO=acme/codex-fork
 PROXY_URL=should-be-ignored
 NOT_PREFIXED=nope
@@ -18,7 +18,7 @@ EOF
 unset ICODEX_PROXY ICODEX_NO_PROXY ICODEX_REPO PROXY_URL NOT_PREFIXED
 load_config "$cfg"
 assert_eq "ICODEX_PROXY loaded"    "http://proxy.local:8080" "${ICODEX_PROXY:-}"
-assert_eq "ICODEX_NO_PROXY loaded" "1"                        "${ICODEX_NO_PROXY:-}"
+assert_eq "ICODEX_NO_PROXY loaded" "localhost,127.0.0.1,github.com" "${ICODEX_NO_PROXY:-}"
 assert_eq "ICODEX_REPO loaded"     "acme/codex-fork"          "${ICODEX_REPO:-}"
 assert_eq "comment ignored"        ""                         "${a:-}"
 assert_eq "non-ICODEX key ignored" ""                         "${NOT_PREFIXED:-}"
