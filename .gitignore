@@ -1,5 +1,13 @@
-# icodex runtime state — never commit
-.codex-isolated/
+# icodex — CODEX_HOME (.codex-isolated) holds the isolated codex state.
+# Whitelist: ignore everything (the downloaded binary, secrets such as auth.json,
+# and all runtime state — *.sqlite, logs, sessions, version.json, skills/), and
+# commit ONLY curated, shareable config so a clone ships ready-configured.
+.codex-isolated/*
+!.codex-isolated/AGENTS.md
+!.codex-isolated/AGENTS.override.md
+!.codex-isolated/config.toml
+
+# Proxy URL + API key live here (chmod 600) — never commit
 .codex_config
 
 # OS / editor noise

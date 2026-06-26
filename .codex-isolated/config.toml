@@ -1,0 +1,18 @@
+# Codex configuration for the isolated icodex environment (CODEX_HOME = .codex-isolated).
+# This file is committed to git so a clone ships ready-configured. Only the codex
+# binary is fetched on `--install`; everything here travels with the repo.
+#
+# Do NOT put secrets in this file. The API key goes in .codex_config as
+# ICODEX_API_KEY (git-ignored, chmod 600) or via `codex login` (auth.json,
+# git-ignored). Reference: https://developers.openai.com/codex/config-advanced
+
+# Example — point the default provider at a custom OpenAI-compatible endpoint
+# (e.g. a LiteLLM gateway). Uncomment and adjust:
+#
+# model = "gpt-5-codex"
+# model_provider = "litellm"
+#
+# [model_providers.litellm]
+# name = "litellm"
+# base_url = "https://litellm.ikeniborn.ru/v1"
+# env_key = "OPENAI_API_KEY"

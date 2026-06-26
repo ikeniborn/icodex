@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
-# Persist and apply proxy env vars for codex (Rust reqwest honors them natively).
+# Persist and apply the proxy for codex. The persistent values live in the config
+# file (see config/env.sh): ICODEX_PROXY is the proxy URL; ICODEX_NO_PROXY is a
+# comma-separated host bypass list (standard NO_PROXY semantics). proxy_apply
+# exports the standard *_PROXY / NO_PROXY vars, which Codex (Rust reqwest) honors.
 proxy_save() { # <config_file> <url>
-  ( umask 177; printf 'PROXY_URL=%s\n' "$2" > "$1" )
-  chmod 600 "$1"
+  _config_set "$1" ICODEX_PROXY "$2"
 }
 
 proxy_clear() { # <config_file>
   rm -f "$1"
 }
 
-proxy_apply() { # <config_file>
-  local file="$1" url
-  [[ -f "$file" ]] || return 0
-  url="$(sed -n 's/^PROXY_URL=//p' "$file" | head -1)"
-  [[ -n "$url" ]] || return 0
-  export HTTPS_PROXY="$url" HTTP_PROXY="$url" https_proxy="$url" http_proxy="$url"
+proxy_apply() { # exports *_PROXY from $ICODEX_PROXY; NO_PROXY from $ICODEX_NO_PROXY
+  [[ -n "${ICODEX_PROXY:-}" ]] || return 0
+  export HTTPS_PROXY="$ICODEX_PROXY" HTTP_PROXY="$ICODEX_PROXY" https_proxy="$ICODEX_PROXY" http_proxy="$ICODEX_PROXY"
+  if [[ -n "${ICODEX_NO_PROXY:-}" ]]; then
+    export NO_PROXY="$ICODEX_NO_PROXY" no_proxy="$ICODEX_NO_PROXY"
+  fi
 }

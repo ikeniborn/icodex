@@ -1,17 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ICODEX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve the real script path even when invoked through a symlink
+# (e.g. ~/.local/bin/icodex), so modules are sourced from the repo, not the link dir.
+_src="${BASH_SOURCE[0]}"
+while [ -L "$_src" ]; do
+  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+  _src="$(readlink "$_src")"
+  [[ "$_src" != /* ]] && _src="$_dir/$_src"
+done
+ICODEX_ROOT="$(cd -P "$(dirname "$_src")" && pwd)"
+unset _src _dir
 export ICODEX_ROOT
 
 for m in core/logging core/init core/validation command/args \
          binary/detect binary/lockfile binary/install \
-         config/isolated proxy/proxy launcher/launch; do
+         config/isolated config/env proxy/proxy symlink/symlink launcher/launch; do
   # shellcheck source=/dev/null
   source "$ICODEX_ROOT/lib/$m.sh"
 done
 
 main() {
+  # Precedence: built-in defaults < .codex_config (ICODEX_*) < CLI flags.
+  load_config "$ICODEX_CONFIG"
+  apply_api_key
   parse_args "$@"
 
   case "$ICODEX_CMD" in
@@ -26,17 +38,21 @@ main() {
   esac
 
   require_tools || exit 1
-  [[ -n "$ICODEX_SET_PROXY" ]] && proxy_save "$ICODEX_CONFIG" "$ICODEX_SET_PROXY"
+  # --proxy overrides the persisted value and is saved for next time.
+  if [[ -n "$ICODEX_SET_PROXY" ]]; then
+    ICODEX_PROXY="$ICODEX_SET_PROXY"
+    proxy_save "$ICODEX_CONFIG" "$ICODEX_PROXY"
+  fi
 
   case "$ICODEX_CMD" in
-    install) setup_codex_home; install_ensure;          exit $? ;;
-    update)  setup_codex_home; install_ensure --update; exit $? ;;
+    install) setup_codex_home; install_ensure          || exit 1; install_symlink; exit 0 ;;
+    update)  setup_codex_home; install_ensure --update || exit 1; install_symlink; exit 0 ;;
   esac
 
   # default: run
   setup_codex_home
   install_ensure || exit 1
-  (( ICODEX_NO_PROXY )) || proxy_apply "$ICODEX_CONFIG"
+  (( ICODEX_DISABLE_PROXY )) || proxy_apply
   launch_codex ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}
 }
 
