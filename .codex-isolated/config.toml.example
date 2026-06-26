@@ -24,11 +24,11 @@ bypass_hook_trust = true
 
 # The <ver> segment below is illustrative: the launcher rewrites the whole
 # `source` line from the real cache path on each run (see spec §4.1/§4.2).
-[marketplaces.superpowers]
+[marketplaces.superpowers-dev]
 source_type = "local"
-source = "__ICODEX_ROOT__/.codex-isolated/plugins/cache/superpowers/superpowers/<ver>"
+source = "__ICODEX_ROOT__/.codex-isolated/plugins/cache/superpowers-dev/superpowers/<ver>"
 
-[plugins."superpowers@superpowers"]
+[plugins."superpowers@superpowers-dev"]
 enabled = true
 
 [features]

@@ -23,16 +23,32 @@ Only the **codex binary** is fetched on demand (pinned by version + sha256 in th
 committed `.codex-lockfile.json`); everything else ships with the repo, so a clone is
 ready to use offline once the binary is present:
 
-- **Committed** — curated codex config under `CODEX_HOME`: `.codex-isolated/AGENTS.md`
-  (instructions codex reads — note the plural name), `AGENTS.override.md`, and `config.toml`.
+- **Committed** — curated codex config under `CODEX_HOME`: `.codex-isolated/AGENTS.md`,
+  `AGENTS.override.md`, and **`config.toml.example`** (the live `config.toml` is generated
+  from it on first launch and is git-ignored). The **Superpowers plugin** ships pre-installed:
+  its skills (`.codex-isolated/skills/`, excluding codex-managed `.system/`) and its plugin
+  cache (`.codex-isolated/plugins/cache/superpowers/…`) are committed, so a clone has the full
+  skills framework with **no plugin install** — only the binary is fetched on `--install`.
+- The launcher rewrites the plugin's marketplace `source` to this host's absolute path on
+  every run (from `ICODEX_ROOT`), so the committed plugin is portable across machines.
 - **Git-ignored** — the downloaded binary (`.codex-isolated/bin/`), secrets (`auth.json`,
-  `.codex_config`), and all runtime state (`*.sqlite`, logs, sessions, `version.json`).
+  `.codex_config`), the generated `config.toml`, and all runtime state (`*.sqlite`, logs,
+  sessions, `version.json`).
 
-The `.codex-isolated/` ignore rule is a whitelist: everything is ignored except the three
-config files above, so secrets and runtime churn can never be committed by accident.
+The `.codex-isolated/` ignore rule is a whitelist: everything is ignored except the committed
+files above, so secrets and runtime churn can never be committed by accident.
+
+> **Existing users with a custom `config.toml`:** the live `config.toml` is no longer tracked
+> in git. If you have a customized version, merge the Superpowers wiring from
+> `config.toml.example` into it (the `bypass_hook_trust`, `[marketplaces.superpowers]`, and
+> `[plugins."superpowers@superpowers"]` sections), or delete `config.toml` to regenerate it
+> from the example on next launch (your model/provider settings will need to be re-applied).
 
 Auth: run `codex login`, set the key once in `.codex_config` (`ICODEX_API_KEY`), or export
 `OPENAI_API_KEY` — the key stays out of git either way.
+
+`--install` and `--update` fetch the binary through `ICODEX_PROXY` (if set), so the proxy
+configuration in `.codex_config` is honored during installation as well as at runtime.
 
 ## Persistent configuration
 
