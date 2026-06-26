@@ -68,8 +68,8 @@ body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent); borde
 <body>
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
 <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
 <header>
   <h1>icodex × superpowers — IDD chain report</h1>
@@ -291,7 +291,117 @@ body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent); borde
 
 <!-- TAB:plan START -->
 <section class="tab-pane" id="pane-plan">
-  <p class="note">Этап ещё не проверен.</p>
+
+  <h2>1. Резюме плана</h2>
+  <p>Документ: <code>docs/superpowers/plans/2026-06-26-icodex-superpowers-plugin.md</code> ·
+     plan_hash <code>32c670b1ad10ef9a</code> · spec_hash <code>9ac053f168b023ac</code> ·
+     <span class="badge b-ok">check-plan OK</span></p>
+  <table>
+    <thead><tr><th>Task</th><th>Что делает</th><th>Файлы</th><th>Definition of Done</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Proxy-aware fetch бинаря (R4)</td><td><code>lib/binary/install.sh</code>, <code>tests/test_install.sh</code></td><td><code>_curl_proxy_args</code> даёт <code>--proxy url</code> при заданном прокси, пусто при <code>--no-proxy</code>/unset; тест PASS</td></tr>
+      <tr><td>2</td><td>Модуль wiring <code>lib/plugin/superpowers.sh</code> (R3,R5)</td><td><code>lib/plugin/superpowers.sh</code>, <code>tests/test_plugin.sh</code></td><td>rewrite <code>source</code> → <code>$ICODEX_ROOT/...</code>; идемпотентно, CWD-независимо, stale исправляется, чужая секция нетронута, missing cache → warn; тест PASS</td></tr>
+      <tr><td>3</td><td>Vendor-скрипт + normalize</td><td><code>scripts/vendor-superpowers.sh</code>, <code>tests/test_vendor.sh</code></td><td><code>_vendor_normalize</code> на фикстуре: canonical путь, нет <code>.git</code>/<code>.gitignore</code>, контент сохранён; <code>bash -n</code> OK; тест PASS</td></tr>
+      <tr><td>4</td><td><code>config.toml.example</code> + <code>.gitignore</code> whitelist</td><td><code>.codex-isolated/config.toml.example</code>, <code>.gitignore</code>, <code>tests/test_gitignore.sh</code></td><td><code>git check-ignore</code>: example/skills/plugins tracked; live config + <code>.system</code> + binary ignored; тест PASS</td></tr>
+      <tr><td>5</td><td>Интеграция в <code>icodex.sh</code></td><td><code>icodex.sh</code>, <code>tests/test_smoke.sh</code></td><td>модуль в loop; <code>ensure_superpowers_wiring</code> на launch-ветке; install/update — 0 вызовов wiring; вся сюита FAIL=0</td></tr>
+      <tr><td>6</td><td>Реальный вендоринг + миграция + README</td><td><code>scripts/…</code>, <code>.codex-isolated/plugins,skills</code>, <code>README.md</code></td><td><code>git rm --cached config.toml</code>; cache+skills tracked; <code>codex plugin list</code> → <code>superpowers</code>; offline-проверка</td></tr>
+      <tr><td>7</td><td>Полная сюита + PR</td><td>—</td><td><code>ALL-GREEN</code>; клон offline-ready; PR в main</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Схемы зависимостей и пересечений</h2>
+
+  <h3>Граф зависимостей задач (M → N = «результат M используется в N»)</h3>
+  <figure>
+    <svg viewBox="0 0 760 240" width="100%" role="img" aria-label="граф зависимостей задач плана">
+      <defs>
+        <marker id="parr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+        </marker>
+      </defs>
+      <g stroke="var(--line)" stroke-width="2" marker-end="url(#parr)" fill="none">
+        <line x1="118" y1="60"  x2="592" y2="100"/>  <!-- T1 -> T6 -->
+        <line x1="118" y1="120" x2="392" y2="120"/>  <!-- T2 -> T5 -->
+        <line x1="118" y1="180" x2="592" y2="120"/>  <!-- T3 -> T6 -->
+        <line x1="270" y1="180" x2="392" y2="135"/>  <!-- T4 -> T5 -->
+        <line x1="270" y1="60"  x2="592" y2="105"/>  <!-- T4? keep visual: T4 -> T6 -->
+        <line x1="450" y1="120" x2="592" y2="110"/>  <!-- T5 -> T6 -->
+        <line x1="650" y1="135" x2="650" y2="175"/>  <!-- T6 -> T7 -->
+      </g>
+      <g font-size="12" font-weight="600" text-anchor="middle">
+        <g><rect x="70" y="44"  width="56" height="32" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="98" y="64" fill="var(--fg)">T1</text></g>
+        <g><rect x="70" y="104" width="56" height="32" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="98" y="124" fill="var(--fg)">T2</text></g>
+        <g><rect x="70" y="164" width="56" height="32" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="98" y="184" fill="var(--fg)">T3</text></g>
+        <g><rect x="214" y="164" width="56" height="32" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="242" y="184" fill="var(--fg)">T4</text></g>
+        <g><rect x="394" y="104" width="56" height="32" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="422" y="124" fill="var(--fg)">T5</text></g>
+        <g><rect x="592" y="92"  width="58" height="34" rx="8" fill="color-mix(in srgb,var(--accent) 16%, var(--surface))" stroke="var(--accent-2)" stroke-width="2"/><text x="621" y="113" fill="var(--fg)">T6</text></g>
+        <g><rect x="622" y="172" width="56" height="32" rx="8" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="650" y="192" fill="var(--fg)">T7</text></g>
+      </g>
+    </svg>
+    <figcaption>Задачи 1–5 независимы и питают интеграцию T6; T7 — финальный гейт+PR. Порядок монотонный (M&lt;N), циклов нет.</figcaption>
+  </figure>
+
+  <h3>Пересечения по артефактам (какие задачи трогают один файл)</h3>
+  <table>
+    <thead><tr><th>Артефакт</th><th>Задачи</th></tr></thead>
+    <tbody>
+      <tr><td><code>lib/binary/install.sh</code></td><td>T1</td></tr>
+      <tr><td><code>lib/plugin/superpowers.sh</code></td><td>T2</td></tr>
+      <tr><td><code>scripts/vendor-superpowers.sh</code></td><td>T3 (создаёт), T6 (запускает)</td></tr>
+      <tr><td><code>.codex-isolated/config.toml.example</code></td><td>T4</td></tr>
+      <tr><td><code>.gitignore</code></td><td>T4 (правит), T6 (commit)</td></tr>
+      <tr><td><code>icodex.sh</code></td><td>T5</td></tr>
+      <tr><td><code>.codex-isolated/plugins,skills</code></td><td>T6</td></tr>
+      <tr><td><code>README.md</code></td><td>T6</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Перекрытий-конфликтов нет: единственный совместный файл <code>.gitignore</code> правится в T4 и финально коммитится в T6 (та же ветка, последовательно). Каждое требование R1–R5 закрывается своим набором задач (см. вкладку Spec, карта покрытия).</p>
+
+  <h2>3. Результаты проверки (check-plan)</h2>
+  <table>
+    <thead><tr><th>Фаза</th><th>Статус</th><th>CRITICAL open</th></tr></thead>
+    <tbody>
+      <tr><td>structure</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+      <tr><td>coverage</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+      <tr><td>dependencies</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+      <tr><td>verifiability</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+      <tr><td>consistency</td><td><span class="badge b-ok">passed</span></td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Findings</h3>
+  <table>
+    <thead><tr><th>id</th><th>severity</th><th>section</th><th>проблема</th><th>fix</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>F-002</td><td><span class="badge b-warn">WARNING</span></td><td>Task 5 Step 1</td>
+        <td>Ассерт <code>assert_contains … ":"</code> тавтологичен — таргет это вывод <code>grep -n</code> (всегда <code>NN:</code>), подстрока <code>":"</code> всегда есть; реально ничего не проверял</td>
+        <td>Заменён на <code>grep -c ensure_superpowers_wiring == 0</code> по install/update-строкам</td>
+        <td><span class="badge b-ok">fixed</span></td></tr>
+      <tr><td>F-005</td><td><span class="badge b-info">INFO</span></td><td>Task 4 Step 4</td>
+        <td><code>bypass_hook_trust</code> после <code>[features]</code> стал бы <code>features.bypass_hook_trust</code>, а спека §2 — top-level ключ</td>
+        <td>Перенесён в корневую таблицу (до первой <code>[section]</code>) с комментарием</td>
+        <td><span class="badge b-ok">fixed</span></td></tr>
+      <tr><td>F-001</td><td><span class="badge b-info">INFO</span></td><td>Task 6 Step 7</td>
+        <td><code>./icodex.sh --version</code> в блоке проверки ничего не верифицирует (выходит до launch-блока)</td>
+        <td>Заменён на <code>./icodex.sh exec true</code> (триггерит wiring) + plugin-list</td>
+        <td><span class="badge b-ok">fixed</span></td></tr>
+      <tr><td>F-003</td><td><span class="badge b-info">INFO</span></td><td>Task 4 Step 5</td>
+        <td><code>git check-ignore</code> на несуществующем пути корректен; зависит от <code>cd "$ROOT"</code> в тесте</td>
+        <td>Изменений не нужно — <code>cd "$ROOT"</code> уже в тесте</td>
+        <td><span class="badge b-info">accepted</span></td></tr>
+      <tr><td>F-004</td><td><span class="badge b-info">INFO</span></td><td>Task 3 Step 3</td>
+        <td><code>find … -name '[0-9]*'</code> хрупок если версия не с цифры; сетевой wrapper юнит-тестом не покрыт (by design)</td>
+        <td>Приемлемо для пинованной sha; при желании ужесточить regex</td>
+        <td><span class="badge b-info">accepted</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>Сводка:</strong> CRITICAL open — <strong>0</strong> · WARNING open — <strong>0</strong> · INFO open — <strong>0</strong>.
+    <br><strong>Вердикт: <span class="badge b-ok">OK</span></strong> — план выполним, R1–R5+§4.4+§6 покрыты; механизмы (proxy-массив, awk-rewrite, anchored glob, sed по case) воспроизведены ревьюером; все findings закрыты.
+  </div>
+  <p class="note"><strong>Chain:</strong> intent (<code>null</code>) → spec → <strong>plan</strong> (текущий).</p>
+
 </section>
 <!-- TAB:plan END -->
 
