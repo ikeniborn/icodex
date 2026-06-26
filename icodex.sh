@@ -15,7 +15,8 @@ export ICODEX_ROOT
 
 for m in core/logging core/init core/validation command/args \
          binary/detect binary/lockfile binary/install \
-         config/isolated config/env proxy/proxy symlink/symlink launcher/launch; do
+         config/isolated config/env proxy/proxy symlink/symlink \
+         plugin/superpowers launcher/launch; do
   # shellcheck source=/dev/null
   source "$ICODEX_ROOT/lib/$m.sh"
 done
@@ -51,6 +52,7 @@ main() {
 
   # default: run
   setup_codex_home
+  ensure_superpowers_wiring
   install_ensure || exit 1
   (( ICODEX_DISABLE_PROXY )) || proxy_apply
   launch_codex ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}

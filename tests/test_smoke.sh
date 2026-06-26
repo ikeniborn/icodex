@@ -27,4 +27,15 @@ source "$ROOT/lib/launcher/launch.sh"
 ICODEX_BIN="/nonexistent/codex"
 assert_exit "launch guard -> 1" 1 launch_codex --help
 
+# icodex.sh must source the plugin module and call ensure_superpowers_wiring
+assert_eq "sources plugin module" "1" \
+  "$(grep -c 'plugin/superpowers' "$ROOT/icodex.sh")"
+assert_eq "calls wiring on launch" "1" \
+  "$(grep -c 'ensure_superpowers_wiring' "$ROOT/icodex.sh")"
+
+# install/update branch must NOT call the wiring (binary-only): the single-line
+# install)/update) case branches must contain zero ensure_superpowers_wiring calls
+assert_eq "install branch binary-only" "0" \
+  "$(grep -E 'install\)|update\)' "$ROOT/icodex.sh" | grep -c ensure_superpowers_wiring)"
+
 finish
