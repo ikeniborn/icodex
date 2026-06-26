@@ -31,8 +31,10 @@ _vendor_main() {
   local scratch; scratch="$(mktemp -d)"
   CODEX_HOME="$scratch" "$bin" plugin marketplace add obra/superpowers --ref "$sha" >&2
   local mkt; mkt="$(grep -oE '\[marketplaces\.[^]]+\]' "$scratch/config.toml" | head -1 | sed -E 's/\[marketplaces\.(.+)\]/\1/')"
+  [[ -n "$mkt" ]] || { log_error "could not determine marketplace name from $scratch/config.toml"; return 1; }
   CODEX_HOME="$scratch" "$bin" plugin add "superpowers@$mkt" >&2
   local srccache; srccache="$(find "$scratch/plugins/cache" -type d -path '*/superpowers/*' -name '[0-9]*' | head -1)"
+  [[ -n "$srccache" ]] || { log_error "no vendored cache dir found under $scratch/plugins/cache"; return 1; }
   local ver; ver="$(basename "$srccache")"
   _vendor_normalize "$srccache" "$VENDOR_ROOT/.codex-isolated/plugins/cache" superpowers "$ver"
   rm -rf "$scratch"
