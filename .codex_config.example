@@ -17,7 +17,17 @@
 # takes precedence. Alternative: `codex login` (writes auth.json, also ignored).
 #ICODEX_API_KEY=sk-...
 
-# Route codex and its API traffic through an HTTP/HTTPS proxy.
+# Route codex and its API/MCP traffic through a proxy.
+#
+# Use an HTTP CONNECT proxy URL here, even for HTTPS destinations. The `http://`
+# scheme describes how Codex connects to the proxy itself; HTTPS requests to
+# api.openai.com/chatgpt.com still go through CONNECT tunnels.
+#
+# Codex CLI may reject `https://` proxy URLs with "Proxy URL scheme not
+# supported". If your upstream proxy only accepts TLS (`https://proxy:port`) or
+# SOCKS, put a local HTTP proxy adapter in front of it and point ICODEX_PROXY at
+# that adapter instead.
+#
 # Equivalent to a persisted `./icodex.sh --proxy <url>`.
 #ICODEX_PROXY=http://proxy.local:8080
 

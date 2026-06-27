@@ -30,7 +30,7 @@ web_search = "cached"
 # `source` line from the real cache path on each run (see spec §4.1/§4.2) — the whole line is rewritten, the placeholder is never string-substituted.
 [marketplaces.openai-curated]
 source_type = "local"
-source = "__ICODEX_ROOT__/.codex-isolated/plugins/cache/openai-curated/superpowers/<ver>"
+source = "/home/ikeniborn/Documents/Project/icodex/.codex-isolated/plugins/cache/openai-curated/superpowers/3fdeeb49"
 
 [plugins."superpowers@openai-curated"]
 enabled = true
@@ -75,3 +75,13 @@ glob_scan_max_depth = 4
 
 [permissions.dev-safe.network]
 enabled = false
+
+[projects."/home/ikeniborn/Documents/Project/icodex"]
+trust_level = "trusted"
+
+[tui]
+status_line = ["current-dir", "model-with-reasoning", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]
+status_line_use_colors = true
+
+[tui.model_availability_nux]
+"gpt-5.5" = 1
