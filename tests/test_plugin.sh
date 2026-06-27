@@ -4,14 +4,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/helpers.sh"
 source "$ROOT/lib/core/logging.sh"
 
-# Build a fake isolated home with a vendored cache + example config.
+# Build a fake isolated home with a vendored cache + committed config.
 tmp="$(mktemp -d)"
 export ICODEX_ROOT="$tmp"
 export ICODEX_HOME_DIR="$tmp/.codex-isolated"
 CACHE="$ICODEX_HOME_DIR/plugins/cache/superpowers/superpowers/6.0.3"
 mkdir -p "$CACHE/.codex-plugin"
 printf '{}' > "$CACHE/.codex-plugin/plugin.json"
-cat > "$ICODEX_HOME_DIR/config.toml.example" <<'EOF'
+cat > "$ICODEX_HOME_DIR/config.toml" <<'EOF'
 [marketplaces.superpowers]
 source_type = "local"
 source = "__ICODEX_ROOT__/.codex-isolated/plugins/cache/superpowers/superpowers/<ver>"
@@ -22,10 +22,9 @@ EOF
 
 source "$ROOT/lib/plugin/superpowers.sh"
 
-# 1. first run: materialize config.toml and rewrite source to the absolute cache dir
+# 1. first run: rewrite source to the absolute cache dir
 ensure_superpowers_wiring
 cfg="$ICODEX_HOME_DIR/config.toml"
-assert_exit "config.toml materialized" 0 test -f "$cfg"
 assert_eq "source rewritten to abs cache" "1" \
   "$(grep -c "^source = \"$CACHE\"$" "$cfg")"
 

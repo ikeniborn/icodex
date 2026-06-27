@@ -38,7 +38,7 @@ _vendor_main() {
   local ver; ver="$(basename "$srccache")"
   _vendor_normalize "$srccache" "$VENDOR_ROOT/.codex-isolated/plugins/cache" superpowers "$ver"
   rm -rf "$scratch"
-  log_info "vendored superpowers $ver — update the <ver> note in config.toml.example and: git add .codex-isolated/plugins"
+  log_info "vendored superpowers $ver — update the <ver> note in config.toml and: git add .codex-isolated/plugins .codex-isolated/config.toml"
 }
 
 # Run the wrapper only on direct execution (so tests can source the file safely).

@@ -1,0 +1,64 @@
+for cmd in [
+    "git",
+    "npm",
+    "npx",
+    "pnpm",
+    "yarn",
+    "node",
+    "python",
+    "pip",
+    "cat",
+    "ls",
+    "find",
+    "grep",
+    "head",
+    "tail",
+    "wc",
+    "echo",
+    "mkdir",
+    "touch",
+    "gh",
+    "sed",
+    "awk",
+    "sort",
+    "uniq",
+    "diff",
+    "tree",
+    "cd",
+    "ssh",
+    "source",
+    "docker",
+    "docker-compose",
+]:
+    prefix_rule(pattern = [cmd], decision = "allow")
+
+prefix_rule(pattern = ["bash", "-n"], decision = "allow")
+
+for cmd in [
+    "cp",
+    "mv",
+    "rm",
+    "rmdir",
+    "chmod",
+    "chown",
+    "truncate",
+    "shred",
+    "dd",
+    "mkfs",
+    "sudo",
+    "su",
+    "curl",
+    "wget",
+    "scp",
+    "rsync",
+    "nc",
+    "ncat",
+    "netcat",
+]:
+    prefix_rule(pattern = [cmd], decision = "prompt")
+
+for cmd in [
+    "shutdown",
+    "reboot",
+]:
+    prefix_rule(pattern = [cmd], decision = "forbidden")

@@ -3,7 +3,9 @@
 .codex-isolated/*
 !.codex-isolated/AGENTS.md
 !.codex-isolated/AGENTS.override.md
-!.codex-isolated/config.toml.example
+!.codex-isolated/config.toml
+!.codex-isolated/rules/
+!.codex-isolated/rules/**
 
 # user skills travel in git; codex-managed system skills do not
 !.codex-isolated/skills/

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Wire the git-vendored Superpowers plugin into the live config.toml at launch.
+# Wire the git-vendored Superpowers plugin into config.toml at launch.
 #
 # The committed artifact is path-portable: the marketplace `source` must resolve
 # to a valid path on every host and is rewritten here from $ICODEX_ROOT. Codex
@@ -35,17 +35,12 @@ _rewrite_marketplace_source() { # <config> <mkt> <abs>
   rm -f "$tmp"
 }
 
-# Orchestrate: materialize config.toml from the example, then fix the source path.
+# Orchestrate: fix the source path in the committed base config.
 ensure_superpowers_wiring() {
-  local example="$ICODEX_HOME_DIR/config.toml.example"
   local config="$ICODEX_HOME_DIR/config.toml"
   if [[ ! -f "$config" ]]; then
-    if [[ -f "$example" ]]; then
-      cp "$example" "$config"
-    else
-      log_error "missing $example — cannot configure superpowers"
-      return 0
-    fi
+    log_error "missing $config — cannot configure superpowers"
+    return 0
   fi
   local cache mkt
   cache="$(_superpowers_cache_dir)"

@@ -1,0 +1,77 @@
+# Codex configuration for the isolated icodex environment (CODEX_HOME =
+# .codex-isolated). The launcher rewrites the marketplace `source` line to this
+# host's absolute path before launching Codex (see lib/plugin/superpowers.sh).
+#
+# Do NOT put secrets here. The API key goes in .codex_config as ICODEX_API_KEY
+# (git-ignored, chmod 600) or via `codex login` (auth.json, git-ignored).
+
+# Example — point the default provider at a custom OpenAI-compatible endpoint:
+#
+# model = "gpt-5-codex"
+# model_provider = "litellm"
+#
+# [model_providers.litellm]
+# name = "litellm"
+# base_url = "https://litellm.ikeniborn.ru/v1"
+# env_key = "OPENAI_API_KEY"
+
+# --- Superpowers plugin (vendored under .codex-isolated/plugins/cache) ---
+# bypass_hook_trust is a TOP-LEVEL key: it must appear before any [section] so it
+# stays in the root table (a key after [features] would become features.bypass_…).
+# It lets the plugin's SessionStart hook fire non-interactively.
+bypass_hook_trust = true
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+approval_policy = "on-request"
+default_permissions = "dev-safe"
+web_search = "cached"
+
+# The <ver> segment below is illustrative: the launcher rewrites the whole
+# `source` line from the real cache path on each run (see spec §4.1/§4.2) — the whole line is rewritten, the placeholder is never string-substituted.
+[marketplaces.openai-curated]
+source_type = "local"
+source = "__ICODEX_ROOT__/.codex-isolated/plugins/cache/openai-curated/superpowers/<ver>"
+
+[plugins."superpowers@openai-curated"]
+enabled = true
+
+[features]
+multi_agent = true
+
+[permissions.dev-safe.filesystem]
+glob_scan_max_depth = 4
+":minimal" = "read"
+":tmpdir" = "write"
+":slash_tmp" = "write"
+"~/.ssh" = "deny"
+"~/.aws" = "deny"
+"~/.gnupg" = "deny"
+"~/.kube/config" = "deny"
+
+[permissions.dev-safe.filesystem.":workspace_roots"]
+"." = "write"
+"**/.env" = "deny"
+"**/.env.local" = "deny"
+"**/secrets/**" = "deny"
+"**/.aws/**" = "deny"
+"**/.ssh/**" = "deny"
+"**/.gnupg/**" = "deny"
+"**/.kube/config" = "deny"
+"**/*.pem" = "deny"
+"**/*.key" = "deny"
+"**/*.pfx" = "deny"
+"**/*.p12" = "deny"
+"**/.credentials" = "deny"
+"**/.credentials.json" = "deny"
+"**/credentials.json" = "deny"
+"**/credentials.yaml" = "deny"
+"**/credentials.yml" = "deny"
+"**/.token" = "deny"
+"**/.token.*" = "deny"
+"**/token.json" = "deny"
+"**/token.txt" = "deny"
+"**/access_token.*" = "deny"
+"**/refresh_token.*" = "deny"
+
+[permissions.dev-safe.network]
+enabled = false

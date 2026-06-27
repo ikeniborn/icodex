@@ -24,25 +24,22 @@ committed `.codex-lockfile.json`); everything else ships with the repo, so a clo
 ready to use offline once the binary is present:
 
 - **Committed** — curated codex config under `CODEX_HOME`: `.codex-isolated/AGENTS.md`,
-  `AGENTS.override.md`, and **`config.toml.example`** (the live `config.toml` is generated
-  from it on first launch and is git-ignored). The **Superpowers plugin** ships pre-installed:
+  `AGENTS.override.md`, **`config.toml`**, and `rules/default.rules`. The
+  **Superpowers plugin** ships pre-installed:
   its skills (`.codex-isolated/skills/`, excluding codex-managed `.system/`) and its plugin
-  cache (`.codex-isolated/plugins/cache/superpowers/…`) are committed, so a clone has the full
+  cache (`.codex-isolated/plugins/cache/*/superpowers/…`) is committed, so a clone has the full
   skills framework with **no plugin install** — only the binary is fetched on `--install`.
 - The launcher rewrites the plugin's marketplace `source` to this host's absolute path on
   every run (from `ICODEX_ROOT`), so the committed plugin is portable across machines.
 - **Git-ignored** — the downloaded binary (`.codex-isolated/bin/`), secrets (`auth.json`,
-  `.codex_config`), the generated `config.toml`, and all runtime state (`*.sqlite`, logs,
+  `.codex_config`), and all runtime state (`*.sqlite`, logs,
   sessions, `version.json`).
 
 The `.codex-isolated/` ignore rule is a whitelist: everything is ignored except the committed
 files above, so secrets and runtime churn can never be committed by accident.
 
-> **Existing users with a custom `config.toml`:** the live `config.toml` is no longer tracked
-> in git. If you have a customized version, merge the Superpowers wiring from
-> `config.toml.example` into it (the `bypass_hook_trust`, `[marketplaces.superpowers-dev]`, and
-> `[plugins."superpowers@superpowers-dev"]` sections), or delete `config.toml` to regenerate it
-> from the example on next launch (your model/provider settings will need to be re-applied).
+> **Existing users with a custom `config.toml`:** the base `config.toml` is now tracked.
+> Keep secrets in `.codex_config` or `auth.json`, not in `config.toml`.
 
 Auth: run `codex login`, set the key once in `.codex_config` (`ICODEX_API_KEY`), or export
 `OPENAI_API_KEY` — the key stays out of git either way.
