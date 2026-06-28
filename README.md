@@ -44,8 +44,9 @@ files above, so secrets and runtime churn can never be committed by accident.
 Auth: run `codex login`, set the key once in `.codex_config` (`ICODEX_API_KEY`), or export
 `OPENAI_API_KEY` — the key stays out of git either way.
 
-`--install` and `--update` fetch only the Codex binary. Vendored plugins and
-skills ship through git and are updated only by maintainer scripts.
+`--install` and `--update` fetch only the Codex binary. `--update` prints each
+network/install stage and shows curl's download progress bar. Vendored plugins
+and skills ship through git and are updated only by maintainer scripts.
 
 ## Persistent configuration
 

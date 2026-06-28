@@ -46,8 +46,8 @@ main() {
   fi
 
   case "$ICODEX_CMD" in
-    install) setup_codex_home; install_ensure          || exit 1; install_symlink; exit 0 ;;
-    update)  setup_codex_home; install_ensure --update || exit 1; install_symlink; exit 0 ;;
+    install) setup_codex_home; install_ensure          || exit 1; ensure_uv_dependency || exit 1; install_symlink; exit 0 ;;
+    update)  setup_codex_home; install_ensure --update || exit 1; ensure_uv_dependency || exit 1; install_symlink; exit 0 ;;
   esac
 
   # default: run
@@ -56,6 +56,7 @@ main() {
   ensure_superpowers_wiring
   ensure_iwiki_wiring
   install_ensure || exit 1
+  ensure_uv_dependency || exit 1
   (( ICODEX_DISABLE_PROXY )) || proxy_apply
   launch_codex ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}
 }

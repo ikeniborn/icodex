@@ -37,6 +37,10 @@ install_ensure() {
   echo "install_ensure $1" > "$ICODEX_ROOT/update-called"
   return 0
 }
+ensure_uv_dependency() {
+  echo "uv" > "$ICODEX_ROOT/uv-called"
+  return 0
+}
 EOF_STUB
 
 cat >> "$work/lib/symlink/symlink.sh" <<'EOF_STUB'
@@ -47,6 +51,7 @@ out="$("$work/icodex.sh" --update 2>&1)"
 rc=$?
 assert_eq "update exits zero" "0" "$rc"
 assert_eq "install update called" "install_ensure --update" "$(cat "$work/update-called")"
+assert_eq "uv dependency ensured" "uv" "$(cat "$work/uv-called")"
 assert_eq "symlink refreshed" "symlink" "$(cat "$work/symlink-called")"
 assert_eq "superpowers not called" "0" "$(grep -c 'ensure_superpowers_wiring called' <<<"$out")"
 assert_eq "iwiki not called" "0" "$(grep -c 'ensure_iwiki_wiring called' <<<"$out")"

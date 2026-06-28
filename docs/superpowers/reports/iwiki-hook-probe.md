@@ -3,7 +3,7 @@
 Date: 2026-06-28
 
 Codex version:
-codex-cli 0.142.2
+codex-cli 0.142.3
 
 Local hook examples confirmed in repository:
 - PostToolUse

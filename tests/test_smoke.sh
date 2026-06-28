@@ -43,8 +43,9 @@ launch_order_ok="$(awk '
   inblock && /^[[:space:]]*ensure_superpowers_wiring[[:space:]]*$/ && step == 2 { step = 3; next }
   inblock && /^[[:space:]]*ensure_iwiki_wiring[[:space:]]*$/ && step == 3 { step = 4; next }
   inblock && /^[[:space:]]*install_ensure \|\| exit 1[[:space:]]*$/ && step == 4 { step = 5; next }
-  inblock && /^[[:space:]]*\(\([[:space:]]*ICODEX_DISABLE_PROXY[[:space:]]*\)\)[[:space:]]*\|\|[[:space:]]*proxy_apply[[:space:]]*$/ && step == 5 { step = 6; next }
-  inblock && /^[[:space:]]*launch_codex[[:space:]]/ && step == 6 { print 1; found = 1; exit }
+  inblock && /^[[:space:]]*ensure_uv_dependency \|\| exit 1[[:space:]]*$/ && step == 5 { step = 6; next }
+  inblock && /^[[:space:]]*\(\([[:space:]]*ICODEX_DISABLE_PROXY[[:space:]]*\)\)[[:space:]]*\|\|[[:space:]]*proxy_apply[[:space:]]*$/ && step == 6 { step = 7; next }
+  inblock && /^[[:space:]]*launch_codex[[:space:]]/ && step == 7 { print 1; found = 1; exit }
   END { if (!found) print 0 }
 ' "$ROOT/icodex.sh")"
 assert_eq "default launch wiring order" "1" "$launch_order_ok"

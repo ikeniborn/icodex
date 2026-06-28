@@ -23,7 +23,7 @@ bypass_hook_trust = true
 model = "gpt-5.5"
 model_reasoning_effort = "high"
 sandbox_mode = "danger-full-access"
-approval_policy = "never"
+approval_policy = "on-request"
 default_permissions = "ssh-on-request"
 web_search = "cached"
 
@@ -59,7 +59,7 @@ enabled = true
 # --- iwiki plugin (vendored under .codex-isolated/plugins/cache) ---
 [marketplaces.ai-wiki]
 source_type = "local"
-source = "__ICODEX_ROOT__/.codex-isolated/plugins/cache/ai-wiki/iwiki/<ver>"
+source = "/home/ikeniborn/Documents/Project/icodex/.codex-isolated/plugins/cache/ai-wiki/iwiki/0.6.4"
 
 [plugins."iwiki@ai-wiki"]
 enabled = true
