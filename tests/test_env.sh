@@ -6,7 +6,7 @@ source "$ROOT/lib/config/env.sh"
 
 tmp="$(mktemp -d)"; cfg="$tmp/.codex_config"
 
-# --- load_config: only ICODEX_* lines are exported; others/comments ignored ---
+# --- load_config: allowed ICODEX_* lines are exported; unrelated keys/comments ignored ---
 cat > "$cfg" <<'EOF'
 # a comment line
 ICODEX_PROXY=http://proxy.local:8080
@@ -28,6 +28,28 @@ assert_eq "legacy PROXY_URL ignored" ""                       "${PROXY_URL:-}"
 printf 'ICODEX_PROXY=http://h:8080/?a=b\n' > "$cfg"
 unset ICODEX_PROXY; load_config "$cfg"
 assert_eq "value keeps '='" "http://h:8080/?a=b" "${ICODEX_PROXY:-}"
+
+# --- load_config: iwiki and uv allowlist; unrelated env keys ignored ---
+cat > "$cfg" <<'EOF'
+ICODEX_PROXY=http://proxy.local:8080
+IWIKI_LLM_BASE_URL=https://embeddings.local/v1
+IWIKI_LLM_KEY=secret-value
+IWIKI_AUTO_QUERY=0
+UV_BIN=/opt/uv
+UV_BIN_EXTRA=ignored
+OPENAI_API_KEY=ignored
+BAD_KEY=ignored
+EOF
+unset ICODEX_PROXY IWIKI_LLM_BASE_URL IWIKI_LLM_KEY IWIKI_AUTO_QUERY UV_BIN UV_BIN_EXTRA BAD_KEY OPENAI_API_KEY
+load_config "$cfg"
+assert_eq "ICODEX_PROXY allowlisted" "http://proxy.local:8080" "${ICODEX_PROXY:-}"
+assert_eq "IWIKI_LLM_BASE_URL allowlisted" "https://embeddings.local/v1" "${IWIKI_LLM_BASE_URL:-}"
+assert_eq "IWIKI_LLM_KEY allowlisted" "secret-value" "${IWIKI_LLM_KEY:-}"
+assert_eq "IWIKI_AUTO_QUERY allowlisted" "0" "${IWIKI_AUTO_QUERY:-}"
+assert_eq "UV_BIN allowlisted" "/opt/uv" "${UV_BIN:-}"
+assert_eq "UV_BIN_EXTRA ignored" "" "${UV_BIN_EXTRA:-}"
+assert_eq "BAD_KEY ignored" "" "${BAD_KEY:-}"
+assert_eq "OPENAI_API_KEY ignored by load_config" "" "${OPENAI_API_KEY:-}"
 
 # --- missing file is a silent no-op (returns 0) ---
 assert_exit "missing file -> 0" 0 load_config "$tmp/absent"

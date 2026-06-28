@@ -25,7 +25,6 @@ for cmd in [
     "diff",
     "tree",
     "cd",
-    "ssh",
     "source",
     "docker",
     "docker-compose",
@@ -49,6 +48,7 @@ for cmd in [
     "su",
     "curl",
     "wget",
+    "ssh",
     "scp",
     "rsync",
     "nc",
@@ -62,3 +62,4 @@ for cmd in [
     "reboot",
 ]:
     prefix_rule(pattern = [cmd], decision = "forbidden")
+prefix_rule(pattern=["git", "add", "docs/superpowers/specs/2026-06-28-icodex-update-iwiki-plugin-design.md"], decision="allow")

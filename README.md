@@ -10,7 +10,7 @@ project, isolates codex state via `CODEX_HOME`, and optionally routes traffic th
     ./icodex.sh                    # launch codex in the isolated environment
     icodex                         # same, once ~/.local/bin is on PATH
     ./icodex.sh --proxy http://p:8080 exec "..."   # via proxy, args forwarded to codex
-    ./icodex.sh --update           # update + re-pin the binary
+    ./icodex.sh --update           # update + re-pin the Codex binary only
     ./icodex.sh --version          # icodex + codex versions
 
 On `--install`/`--update` a symlink `icodex` is created in `~/.local/bin` (override with
@@ -44,8 +44,8 @@ files above, so secrets and runtime churn can never be committed by accident.
 Auth: run `codex login`, set the key once in `.codex_config` (`ICODEX_API_KEY`), or export
 `OPENAI_API_KEY` — the key stays out of git either way.
 
-`--install` and `--update` fetch the binary through `ICODEX_PROXY` (if set), so the proxy
-configuration in `.codex_config` is honored during installation as well as at runtime.
+`--install` and `--update` fetch only the Codex binary. Vendored plugins and
+skills ship through git and are updated only by maintainer scripts.
 
 ## Persistent configuration
 
@@ -71,3 +71,54 @@ the file is parsed (never sourced), so values can't execute code. Precedence is
 switch — to skip the proxy for a single run use the `--no-proxy` flag.
 `./icodex.sh --proxy <url>` writes `ICODEX_PROXY` into `.codex_config` (preserving other
 keys); `./icodex.sh --clear` removes the file.
+
+## Codex config quick guide
+
+ICODEX uses two config files:
+
+- `.codex_config` — local wrapper settings: API key, proxy, install repo, symlink path.
+  This file is git-ignored and is the right place for secrets.
+- `.codex-isolated/config.toml` — Codex runtime settings: model, sandbox, approvals,
+  permissions, plugins, projects, and UI.
+
+Common `.codex-isolated/config.toml` keys:
+
+| Key | Simple meaning |
+|-----|----------------|
+| `model` | Default model name used by Codex |
+| `model_reasoning_effort` | Reasoning level, for example `low`, `medium`, `high` |
+| `model_provider` | Named provider to use from `[model_providers.<name>]` |
+| `sandbox_mode` | Filesystem sandbox: `read-only`, `workspace-write`, or `danger-full-access` |
+| `approval_policy` | When Codex asks before commands: `untrusted`, `on-request`, `never`; `on-failure` is deprecated |
+| `default_permissions` | Named managed permission profile from `[permissions.<name>]` |
+| `web_search` | Web search mode used by Codex |
+| `bypass_hook_trust` | Allows trusted bundled hooks to run without an interactive trust prompt |
+| `[marketplaces.*]` / `[plugins.*]` | Plugin marketplace paths and enabled plugins |
+| `[features]` | Feature flags, for example `multi_agent = true` |
+| `[projects."<path>"]` | Project trust settings |
+| `[tui]` | Terminal UI settings such as the status line |
+
+Useful launch safety presets:
+
+```toml
+# Safer everyday mode: write inside the workspace, ask on risk.
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+default_permissions = "dev-safe"
+
+# Full filesystem access, but still ask on risky actions.
+sandbox_mode = "danger-full-access"
+approval_policy = "on-request"
+default_permissions = "ssh-on-request"
+
+# No sandbox and no approval prompts.
+# Equivalent to: codex --dangerously-bypass-approvals-and-sandbox
+sandbox_mode = "danger-full-access"
+approval_policy = "never"
+default_permissions = "ssh-on-request"
+```
+
+`default_permissions` is not the same as `sandbox_mode`. It selects one of the named
+managed profiles below in the same TOML file, such as `dev-safe` or `ssh-on-request`.
+Those profiles describe allowed files, denied secrets, network access, and SSH access.
+They matter most when Codex runs with managed permissions or `workspace-write`.

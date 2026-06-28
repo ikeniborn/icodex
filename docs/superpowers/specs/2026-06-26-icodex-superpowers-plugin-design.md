@@ -130,9 +130,11 @@ Established by direct probing of the pinned binary (`codex-cli 0.142.2`):
   `CODEX_HOME`, and fails to find the manifest.
 - **A launch-time `-c marketplaces.<name>.source=...` override does NOT fix a stale path.**
   Rewriting the `source` line in `config.toml` before launch **does**.
-- **`source` may point directly at the installed cache directory** (the cache copy contains a
-  valid `.codex-plugin/plugin.json`). This lets us commit a single tree (the cache) and skip a
-  duplicate marketplace tree.
+- **`source` must point at a marketplace root, not the installed cache directory.** Current
+  Codex validates the marketplace manifest before loading installed plugins; pointing
+  `source` at `$CODEX_HOME/plugins/cache/<marketplace>/<plugin>/<version>/` fails with
+  `marketplace root does not contain a supported manifest`. The launcher generates a small
+  runtime marketplace root that links `./plugins/superpowers` to the committed installed cache.
 - **`config.toml` keys** `marketplaces`, `plugins`, `skills`, `hooks`, `features`, and
   `bypass_hook_trust` are recognized. Subagent skills need `features.multi_agent = true`.
   Plugin hooks require trust; `bypass_hook_trust = true` lets the SessionStart hook fire
@@ -163,8 +165,9 @@ Established by direct probing of the pinned binary (`codex-cli 0.142.2`):
 └── bin/codex                                  ignored    fetched on --install (via proxy)
 ```
 
-The duplicate marketplace source tree is intentionally **not** vendored — `source` points
-at the committed cache directory (§2).
+The duplicate marketplace source tree is intentionally **not** vendored. At launch, icodex
+generates a small runtime marketplace root under `.codex-isolated/tmp/marketplaces/` and
+points `source` there. That generated root links back to the committed cache directory (§2).
 
 ### `.gitignore` (whitelist additions)
 
@@ -244,8 +247,13 @@ ensure_superpowers_wiring():
      - 0 matches → log_warn "superpowers plugin not vendored", return (no hard fail)
      ABS="${CACHE[0]%/}"                                  # already absolute; no re-concatenation
      MKT=$(basename "$(dirname "$(dirname "$ABS")")")     # marketplace dir name (canonical: superpowers)
-  3. rewrite ONLY the source line inside the [marketplaces.$MKT] section of config.toml to ABS,
-     and only if it differs (idempotent; sentinel or stale path → ABS)
+  3. generate `.codex-isolated/tmp/marketplaces/$MKT/`:
+     - `.agents/plugins/marketplace.json`
+     - `.agents/plugins/api_marketplace.json`
+     - `plugins/superpowers` symlink to `ABS`
+  4. rewrite ONLY the source line inside the [marketplaces.$MKT] section of config.toml to the
+     generated marketplace root, and only if it differs (idempotent; sentinel or stale path →
+     generated root)
 ```
 
 Notes that make this correct regardless of host or CWD:
@@ -254,6 +262,8 @@ Notes that make this correct regardless of host or CWD:
   at launch. `ABS` is the matched cache directory itself — not re-prefixed with `ICODEX_ROOT`.
 - The rewrite targets the named section `[marketplaces.$MKT]` (not the first `[marketplaces.*]`),
   so it stays correct if other Codex plugins/marketplaces are vendored later (cf. §9).
+- The generated marketplace root uses a relative plugin path (`./plugins/superpowers`) because
+  Codex expects plugin entries in marketplace manifests to resolve from the marketplace root.
 
 The rewrite is the entire `ICODEX_ROOT` mechanism: every host (and every relocated clone)
 gets a correct absolute `source` without re-running `codex plugin` commands.
