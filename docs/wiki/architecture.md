@@ -23,7 +23,7 @@ directory becomes `ICODEX_ROOT` and is exported.
 The entrypoint sources modules in a fixed order before running `main()`.
 
 The order is `core/logging`, `core/init`, `core/validation`, `command/args`, the
-`binary/*` trio, `config/*`, `proxy`, `symlink`, the `plugin/*` pair, and finally
+`binary/*` trio, `config/*`, `proxy`, `symlink`, the plugin module, and finally
 `launcher/launch`. Each is a flat bash file defining functions only — see
 [[core#Logging helpers]] for the first loaded.
 
@@ -41,7 +41,7 @@ exit, or the default run path proceeds. Flags map to `ICODEX_CMD` in
 The default `run` case wires up the isolated environment, then execs codex.
 
 It calls `setup_codex_home`, wires launcher binary permissions, wires the
-Superpowers and iwiki plugins, ensures the binary and uv are present, optionally
+Superpowers plugin, ensures the binary and uv are present, optionally
 applies the proxy, then `exec`s codex. See [[config#CODEX_HOME isolation]],
 [[plugins#Superpowers wiring]], [[launch#Final exec]].
 
@@ -58,6 +58,6 @@ model, sandbox, approvals, permissions, plugins. See [[config#Persistent user co
 Only the codex binary is fetched on demand; everything else ships in the repo.
 
 The binary is pinned by version + sha256 in the committed `.codex-lockfile.json`.
-The curated `CODEX_HOME` config and the pre-vendored Superpowers/iwiki plugin
-caches are committed. Binary, secrets, and runtime state are git-ignored via an
+The curated `CODEX_HOME` config and the pre-vendored Superpowers plugin cache
+are committed. Binary, secrets, and runtime state are git-ignored via an
 allowlist. See [[binary#Lockfile pinning]] and [[tooling#Plugin vendoring]].

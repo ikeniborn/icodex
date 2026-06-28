@@ -7,10 +7,9 @@
 #     chmod 600 .codex_config
 #
 # Rules:
-#   - Only ICODEX_*, CODEX_UV_BIN, IWIKI_*, and UV_BIN `KEY=value` lines are
-#     honored; all other lines (comments, blanks, disallowed keys) are ignored.
-#   - Prefer ICODEX_IWIKI_* and CODEX_UV_BIN here; icodex maps them to the
-#     IWIKI_* / UV_BIN runtime names expected by iwiki tools.
+#   - Only ICODEX_*, CODEX_UV_BIN, and UV_BIN `KEY=value` lines are honored;
+#     all other lines (comments, blanks, disallowed keys) are ignored.
+#   - Prefer CODEX_UV_BIN here; icodex maps it to the UV_BIN runtime name.
 #   - The file is PARSED, never sourced — values cannot execute code.
 #   - Precedence: built-in defaults < .codex_config < command-line flags.
 
@@ -49,29 +48,6 @@
 # Directory for the `icodex` symlink created on --install (default: ~/.local/bin).
 # A leading ~/ is expanded. Put this dir on your PATH to run `icodex` directly.
 #ICODEX_LINK_DIR=~/.local/bin
-
-# iwiki embeddings endpoint. Required for /iwiki-init, /iwiki-ingest, and
-# /iwiki-query. Keep secrets in this git-ignored file or in your shell.
-#ICODEX_IWIKI_LLM_BASE_URL=https://your-openai-compatible-endpoint/v1
-#ICODEX_IWIKI_LLM_KEY=...
-
-# Optional iwiki tuning.
-#ICODEX_IWIKI_EMBED_MODEL=text-embedding-3-small
-#ICODEX_IWIKI_EMBED_DIMENSIONS=1536
-#ICODEX_IWIKI_TOP_K=8
-#ICODEX_IWIKI_SCORE_THRESHOLD=0.2
-#ICODEX_IWIKI_GRAPH_DEPTH=2
-#ICODEX_IWIKI_CHUNK_SIZE=512
-#ICODEX_IWIKI_CHUNK_OVERLAP=64
-#ICODEX_IWIKI_SUMMARY_MAX_CHARS=400
-
-# Optional iwiki automation switches. Set to 0 to disable.
-#ICODEX_IWIKI_AUTO_BOOTSTRAP=1
-#ICODEX_IWIKI_AUTO_QUERY=1
-#ICODEX_IWIKI_AUTO_REINDEX=1
-#ICODEX_IWIKI_AUTO_SYNC=1
-#ICODEX_IWIKI_VALIDATE_SECTIONS=1
-#ICODEX_IWIKI_SYNC_MAX_ASK=2
 
 # Optional explicit path to uv. `icodex --install` persists this automatically
 # as the permanent uv binary under .codex-isolated/bin/uv.

@@ -56,14 +56,6 @@ source = "/home/ikeniborn/Documents/Project/icodex/.codex-isolated/tmp/marketpla
 [plugins."superpowers@openai-curated"]
 enabled = true
 
-# --- iwiki plugin (vendored under .codex-isolated/plugins/cache) ---
-[marketplaces.ai-wiki]
-source_type = "local"
-source = "/home/ikeniborn/Documents/Project/icodex/.codex-isolated/plugins/cache/ai-wiki/iwiki/0.6.4"
-
-[plugins."iwiki@ai-wiki"]
-enabled = true
-
 [features]
 multi_agent = true
 

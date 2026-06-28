@@ -16,7 +16,7 @@ export ICODEX_ROOT
 for m in core/logging core/init core/validation command/args \
          binary/detect binary/lockfile binary/install \
          config/isolated config/permissions config/env proxy/proxy symlink/symlink \
-         plugin/superpowers plugin/iwiki launcher/launch; do
+         plugin/superpowers launcher/launch; do
   # shellcheck source=/dev/null
   source "$ICODEX_ROOT/lib/$m.sh"
 done
@@ -54,7 +54,6 @@ main() {
   setup_codex_home
   ensure_launcher_binary_permission
   ensure_superpowers_wiring
-  ensure_iwiki_wiring
   install_ensure || exit 1
   ensure_uv_dependency || exit 1
   (( ICODEX_DISABLE_PROXY )) || proxy_apply

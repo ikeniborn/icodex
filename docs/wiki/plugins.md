@@ -2,11 +2,11 @@
 
 ## Overview
 
-The `lib/plugin/` modules wire the two git-vendored plugins into `config.toml`.
+The `lib/plugin/` module wires the git-vendored Superpowers plugin into `config.toml`.
 
-Superpowers and iwiki are wired at launch. Both rewrite a marketplace `source`
-line to a host-absolute path so the committed plugin caches are portable across
-machines. They run on the default run path. See [[architecture#Default run path]]
+Superpowers is wired at launch. The launcher rewrites its marketplace `source`
+line to a host-absolute path so the committed plugin cache is portable across
+machines. It runs on the default run path. See [[architecture#Default run path]]
 and [[tooling#Plugin vendoring]].
 
 ## Superpowers wiring
@@ -27,17 +27,9 @@ It makes a `plugins/superpowers` symlink to the cache plus a generated
 This lets Codex load the committed plugin without a network plugin install. See
 [[architecture#What lives in git]].
 
-## iwiki wiring
-
-`ensure_iwiki_wiring` finds the vendored cache under `ai-wiki/iwiki/*`.
-
-It rewrites the `[marketplaces.ai-wiki]` source directly to that cache path. If
-`config.toml` is absent it is seeded from `config.toml.example` first. The iwiki
-engine relies on `UV_BIN`/`IWIKI_*` env from [[config#Allowed keys and mapping]].
-
 ## Idempotent source rewrite
 
-Both modules share the same awk-based rewrite of the `source` line.
+The plugin module uses an awk-based rewrite of the `source` line.
 
 Inside the matching `[marketplaces.<mkt>]` section, the `source = ...` line is
 replaced with the absolute path, and the file is overwritten only when the content

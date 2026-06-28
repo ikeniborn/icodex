@@ -20,13 +20,6 @@ ensure_superpowers_wiring() {
 }
 EOF_STUB
 
-cat > "$work/lib/plugin/iwiki.sh" <<'EOF_STUB'
-ensure_iwiki_wiring() {
-  echo "ERROR: ensure_iwiki_wiring called during update" >&2
-  return 98
-}
-EOF_STUB
-
 cat >> "$work/lib/core/validation.sh" <<'EOF_STUB'
 require_tools() { return 0; }
 EOF_STUB
@@ -54,7 +47,6 @@ assert_eq "install update called" "install_ensure --update" "$(cat "$work/update
 assert_eq "uv dependency ensured" "uv" "$(cat "$work/uv-called")"
 assert_eq "symlink refreshed" "symlink" "$(cat "$work/symlink-called")"
 assert_eq "superpowers not called" "0" "$(grep -c 'ensure_superpowers_wiring called' <<<"$out")"
-assert_eq "iwiki not called" "0" "$(grep -c 'ensure_iwiki_wiring called' <<<"$out")"
 
 rm -rf "$tmp"
 finish

@@ -28,11 +28,10 @@ no-op.
 
 ## Allowed keys and mapping
 
-`_config_key_allowed` permits `ICODEX_*`, `CODEX_UV_BIN`, `IWIKI_*`, and `UV_BIN`.
+`_config_key_allowed` permits `ICODEX_*`, `CODEX_UV_BIN`, and `UV_BIN`.
 
-`_config_export_mapped` exports each key as written and also under a runtime
-alias: `ICODEX_IWIKI_*` is re-exported as `IWIKI_*` (the names iwiki tools
-expect), and `ICODEX_UV_BIN`/`CODEX_UV_BIN` as `UV_BIN`. See [[plugins#iwiki wiring]].
+`_config_export_mapped` exports each key as written and also maps
+`ICODEX_UV_BIN`/`CODEX_UV_BIN` to `UV_BIN`.
 
 ## API key mapping
 

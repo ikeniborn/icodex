@@ -11,21 +11,19 @@ tests mirror the iclaude pattern. See [[architecture#What lives in git]] and
 
 ## Plugin vendoring
 
-`scripts/vendor-superpowers.sh <sha>` and `scripts/vendor-iwiki.sh` regenerate the caches.
+`scripts/vendor-superpowers.sh <sha>` regenerates the Superpowers cache.
 
-The Superpowers script installs the plugin into a scratch `CODEX_HOME` via the
+The script installs the plugin into a scratch `CODEX_HOME` via the
 real `codex plugin` commands, then normalizes the produced cache into the
-canonical repo path. The iwiki script normalizes an ai-wiki-plugin checkout into
-the Codex plugin cache layout.
+canonical repo path.
 
 ## Vendor normalization
 
 Normalization copies the scratch cache into the repo, then de-lints it.
 
 It removes `.git`, nested `.gitignore`, `.venv`, `.pytest_cache`, and `__pycache__`,
-and asserts the plugin manifest survived. The iwiki script also rewrites the
-source manifest into a Codex-shaped `plugin.json` with curated keywords. This
-keeps the committed cache clean and self-contained.
+and asserts the plugin manifest survived. This keeps the committed cache clean
+and self-contained.
 
 ## Test harness
 
@@ -42,6 +40,5 @@ The suite has one `test_*.sh` per module and concern.
 
 These include `test_args`, `test_detect`, `test_lockfile`, `test_install`,
 `test_env`, `test_isolated`, `test_proxy`, `test_symlink`, `test_validation`,
-`test_logging`, `test_plugin`, the iwiki trio (`test_iwiki_plugin`,
-`test_iwiki_vendor`, `test_iwiki_hooks_probe`), `test_update_scope`,
-`test_gitignore`, and an end-to-end `test_smoke`.
+`test_logging`, `test_plugin`, `test_update_scope`, `test_gitignore`, and an
+end-to-end `test_smoke`.
