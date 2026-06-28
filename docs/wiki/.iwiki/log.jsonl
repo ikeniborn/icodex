@@ -1,0 +1,8 @@
+{"op":"init","source":"icodex.sh","page":"docs/wiki/architecture.md","date":"2026-06-28"}
+{"op":"init","source":"lib/core/","page":"docs/wiki/core.md","date":"2026-06-28"}
+{"op":"init","source":"lib/command/args.sh","page":"docs/wiki/command.md","date":"2026-06-28"}
+{"op":"init","source":"lib/binary/","page":"docs/wiki/binary.md","date":"2026-06-28"}
+{"op":"init","source":"lib/config/","page":"docs/wiki/config.md","date":"2026-06-28"}
+{"op":"init","source":"lib/plugin/","page":"docs/wiki/plugins.md","date":"2026-06-28"}
+{"op":"init","source":"lib/proxy/proxy.sh","page":"docs/wiki/launch.md","date":"2026-06-28"}
+{"op":"init","source":"scripts/","page":"docs/wiki/tooling.md","date":"2026-06-28"}

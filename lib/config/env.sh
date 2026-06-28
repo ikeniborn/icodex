@@ -1,19 +1,47 @@
 #!/usr/bin/env bash
 # Persistent user configuration. The config file (.codex_config) holds plain
-# KEY=value lines; only ICODEX_-prefixed keys are honored. Values are parsed and
-# exported — the file is NOT sourced, so it can never execute arbitrary code.
+# KEY=value lines; only ICODEX_*, CODEX_UV_BIN, IWIKI_*, and UV_BIN keys are
+# honored. ICODEX_IWIKI_* and CODEX_UV_BIN are preferred in .codex_config and
+# are exported both as written and as the runtime IWIKI_*/UV_BIN names expected
+# by iwiki tools. Values are parsed and exported — the file is NOT sourced, so
+# it can never execute arbitrary code.
 
-# load_config <file> — export every ICODEX_<NAME>=value line from the file.
-# Comments, blank lines, and non-ICODEX keys are ignored. Missing file: no-op.
+_config_key_allowed() { # <key>
+  case "$1" in
+    ICODEX_[A-Z0-9_]*|CODEX_UV_BIN|IWIKI_[A-Z0-9_]*|UV_BIN) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_config_export_mapped() { # <key> <value>
+  local key="$1" val="$2" runtime_key
+  export "$key=$val"
+  case "$key" in
+    ICODEX_IWIKI_*)
+      runtime_key="${key#ICODEX_}"
+      export "$runtime_key=$val"
+      ;;
+    ICODEX_UV_BIN)
+      export "UV_BIN=$val"
+      ;;
+    CODEX_UV_BIN)
+      export "UV_BIN=$val"
+      ;;
+  esac
+}
+
+# load_config <file> — export allowed KEY=value lines from the file.
+# Comments, blank lines, and disallowed keys are ignored. Missing file: no-op.
 load_config() { # <config_file>
   local file="$1" line key val
   [[ -f "$file" ]] || return 0
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"                       # tolerate CRLF
-    [[ "$line" =~ ^ICODEX_[A-Z0-9_]+= ]] || continue
+    [[ "$line" =~ ^[A-Z][A-Z0-9_]*= ]] || continue
     key="${line%%=*}"
+    _config_key_allowed "$key" || continue
     val="${line#*=}"
-    export "$key=$val"
+    _config_export_mapped "$key" "$val"
   done < "$file"
 }
 

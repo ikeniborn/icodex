@@ -22,6 +22,55 @@ _superpowers_marketplace_name() { # <cache_dir>
   basename "$(dirname "$(dirname "$1")")"
 }
 
+_superpowers_marketplace_root() { # <mkt>
+  printf '%s/tmp/marketplaces/%s\n' "$ICODEX_HOME_DIR" "$1"
+}
+
+_write_superpowers_marketplace_manifest() { # <root> <mkt>
+  local root="$1" mkt="$2"
+  mkdir -p "$root/.agents/plugins"
+  cat > "$root/.agents/plugins/marketplace.json" <<EOF
+{
+  "name": "$mkt",
+  "interface": {
+    "displayName": "icodex local"
+  },
+  "plugins": [
+    {
+      "name": "superpowers",
+      "source": {
+        "source": "local",
+        "path": "./plugins/superpowers"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL",
+        "products": [
+          "CODEX"
+        ]
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
+EOF
+  cp "$root/.agents/plugins/marketplace.json" "$root/.agents/plugins/api_marketplace.json"
+}
+
+_ensure_superpowers_marketplace_root() { # <cache_dir> <mkt>
+  local cache="$1" mkt="$2" root plugin_link
+  root="$(_superpowers_marketplace_root "$mkt")"
+  plugin_link="$root/plugins/superpowers"
+
+  mkdir -p "$root/plugins"
+  if [[ -e "$plugin_link" || -L "$plugin_link" ]]; then
+    rm -rf "$plugin_link"
+  fi
+  ln -s "$cache" "$plugin_link"
+  _write_superpowers_marketplace_manifest "$root" "$mkt"
+  printf '%s\n' "$root"
+}
+
 # Idempotently rewrite the `source` line inside [marketplaces.<mkt>] to <abs>.
 _rewrite_marketplace_source() { # <config> <mkt> <abs>
   local config="$1" mkt="$2" abs="$3" tmp
@@ -42,12 +91,13 @@ ensure_superpowers_wiring() {
     log_error "missing $config — cannot configure superpowers"
     return 0
   fi
-  local cache mkt
+  local cache mkt marketplace
   cache="$(_superpowers_cache_dir)"
   if [[ -z "$cache" ]]; then
     log_warn "superpowers plugin not vendored under .codex-isolated/plugins/cache"
     return 0
   fi
   mkt="$(_superpowers_marketplace_name "$cache")"
-  _rewrite_marketplace_source "$config" "$mkt" "$cache"
+  marketplace="$(_ensure_superpowers_marketplace_root "$cache" "$mkt")"
+  _rewrite_marketplace_source "$config" "$mkt" "$marketplace"
 }

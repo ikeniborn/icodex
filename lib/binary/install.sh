@@ -13,9 +13,13 @@ _curl_proxy_args() {
   printf '%s\n' "--proxy" "$ICODEX_PROXY"
 }
 
-_download() { # <url> <dest>
+_download() { # <url> <dest> [show_progress]
   local pargs=(); while IFS= read -r a; do pargs+=("$a"); done < <(_curl_proxy_args)
-  curl -fsSL ${pargs[@]+"${pargs[@]}"} "$1" -o "$2"
+  if (( ${3:-0} )); then
+    curl -fL --progress-bar ${pargs[@]+"${pargs[@]}"} "$1" -o "$2"
+  else
+    curl -fsSL ${pargs[@]+"${pargs[@]}"} "$1" -o "$2"
+  fi
 }
 
 _resolve_latest() {
@@ -28,8 +32,57 @@ _release_url() { # <tag> <asset>
   printf 'https://github.com/%s/releases/download/%s/%s\n' "$ICODEX_REPO" "$1" "$2"
 }
 
+_uv_source_bin() {
+  command -v uv 2>/dev/null || true
+}
+
+_install_uv_from_network() { # <dest_dir>
+  local dest_dir="$1" installer
+  mkdir -p "$dest_dir"
+  installer="$(mktemp)"
+  if ! _download "https://astral.sh/uv/install.sh" "$installer" 0; then
+    rm -f "$installer"
+    return 1
+  fi
+  UV_INSTALL_DIR="$dest_dir" sh "$installer"
+  rm -f "$installer"
+  [[ -x "$dest_dir/uv" ]]
+}
+
+_persist_uv_bin() { # <uv_bin>
+  local uv_bin="$1"
+  export CODEX_UV_BIN="$uv_bin"
+  export UV_BIN="$uv_bin"
+  if declare -F _config_set >/dev/null 2>&1; then
+    _config_set "$ICODEX_CONFIG" CODEX_UV_BIN "$uv_bin"
+  fi
+}
+
+ensure_uv_dependency() {
+  local target="$ICODEX_HOME_DIR/bin/uv" source
+  if [[ -x "$target" ]]; then
+    _persist_uv_bin "$target"
+    return 0
+  fi
+
+  source="$(_uv_source_bin)"
+  mkdir -p "$ICODEX_HOME_DIR/bin"
+  if [[ -n "$source" && -x "$source" ]]; then
+    cp "$source" "$target" || return 1
+    chmod +x "$target"
+  else
+    log_info "installing uv dependency..."
+    if ! _install_uv_from_network "$ICODEX_HOME_DIR/bin"; then
+      log_error "uv dependency install failed"
+      return 1
+    fi
+  fi
+
+  _persist_uv_bin "$target"
+}
+
 _extract_codex() { # <tarball> -> installs $ICODEX_BIN
-  local tarball="$1" tmpd found
+  local tarball="$1" tmpd found install_tmp
   tmpd="$(mktemp -d)"
   if ! tar -xzf "$tarball" -C "$tmpd"; then
     log_error "failed to extract $tarball"; rm -rf "$tmpd"; return 1
@@ -39,8 +92,19 @@ _extract_codex() { # <tarball> -> installs $ICODEX_BIN
     log_error "codex binary not found inside archive"; rm -rf "$tmpd"; return 1
   fi
   mkdir -p "$ICODEX_HOME_DIR/bin"
-  cp "$found" "$ICODEX_BIN"
-  chmod +x "$ICODEX_BIN"
+  install_tmp="$ICODEX_HOME_DIR/bin/.codex.new.$$"
+  if ! cp "$found" "$install_tmp"; then
+    log_error "failed to stage codex binary at $install_tmp"
+    rm -f "$install_tmp"; rm -rf "$tmpd"; return 1
+  fi
+  if ! chmod +x "$install_tmp"; then
+    log_error "failed to mark codex binary executable: $install_tmp"
+    rm -f "$install_tmp"; rm -rf "$tmpd"; return 1
+  fi
+  if ! mv -f "$install_tmp" "$ICODEX_BIN"; then
+    log_error "failed to replace codex binary at $ICODEX_BIN"
+    rm -f "$install_tmp"; rm -rf "$tmpd"; return 1
+  fi
   rm -rf "$tmpd"
   return 0
 }
@@ -64,6 +128,7 @@ install_ensure() {
 
   local tag="$want_version"
   if (( update )) || [[ -z "$tag" ]]; then
+    (( update )) && log_info "resolving latest codex release..."
     tag="$(_resolve_latest)" || { log_error "cannot resolve latest codex release"; return 1; }
   fi
   [[ -n "$tag" ]] || { log_error "no codex version pinned and latest unresolved"; return 1; }
@@ -71,18 +136,21 @@ install_ensure() {
   local url tarball sha
   url="$(_release_url "$tag" "$asset")"
   tarball="$(mktemp)"
-  if ! _download "$url" "$tarball"; then
+  (( update )) && log_info "downloading $asset from $tag..."
+  if ! _download "$url" "$tarball" "$update"; then
     log_error "download failed: $url"
     log_error "manual: fetch $asset from https://github.com/$ICODEX_REPO/releases/tag/$tag"
     rm -f "$tarball"; return 1
   fi
+  (( update )) && log_info "verifying sha256..."
   sha="$(_sha256 < "$tarball")"
 
-  if [[ -n "$want_sha" && "$want_sha" != "$sha" ]]; then
+  if (( ! update )) && [[ -n "$want_sha" && "$want_sha" != "$sha" ]]; then
     log_error "sha256 mismatch (tamper guard): pinned '$want_sha' got '$sha'"
     rm -f "$tarball"; return 1
   fi
 
+  (( update )) && log_info "extracting codex binary..."
   if ! _extract_codex "$tarball"; then
     rm -f "$tarball"; return 1
   fi
@@ -90,6 +158,7 @@ install_ensure() {
   rm -f "$tarball"
 
   if (( update )); then
+    log_info "writing lockfile..."
     lockfile_write "$ICODEX_LOCKFILE" "$tag" "$asset" "$sha"
     log_info "pinned codex $tag (sha256 $sha)"
   fi

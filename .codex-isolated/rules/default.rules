@@ -32,8 +32,6 @@ for cmd in [
 ]:
     prefix_rule(pattern = [cmd], decision = "allow")
 
-prefix_rule(pattern = ["bash", "-n"], decision = "allow")
-
 for cmd in [
     "cp",
     "mv",
