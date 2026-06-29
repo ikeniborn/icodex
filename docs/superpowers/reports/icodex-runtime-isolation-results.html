@@ -75,8 +75,8 @@ svg{max-width:100%;height:auto;background:var(--surface);border:1px solid var(--
 <body>
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
 <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
 <header>
   <label for="theme-toggle" class="theme-btn" title="Тема">🌙 / ☀️</label>
@@ -262,7 +262,121 @@ svg{max-width:100%;height:auto;background:var(--surface);border:1px solid var(--
 <!-- TAB:spec END -->
 <!-- TAB:plan START -->
 <section class="tab-pane" id="pane-plan">
-  <p class="note">Этап ещё не проверен.</p>
+
+  <h2>1. Резюме плана</h2>
+  <p class="note">План: <code>docs/superpowers/plans/2026-06-29-icodex-runtime-isolation.md</code> ·
+  plan_hash <code>dd72062fdbb41998</code> · 9 задач, TDD (failing test → impl → pass → commit).</p>
+  <table>
+    <tr><th>Задача</th><th>Файлы</th><th>Definition of Done</th></tr>
+    <tr><td>T1 init paths</td><td><code>init.sh</code>, <code>test_env.sh</code></td><td><code>ICODEX_SHARED_DIR</code>/<code>ICODEX_HOMES_DIR</code>/<code>ICODEX_PROJECT_ROOT</code> заданы; bin/stamp в shared; <code>test_env</code> PASS.</td></tr>
+    <tr><td>T2 install→shared</td><td><code>install.sh</code>, <code>test_install.sh</code></td><td>все 5 <code>bin/</code>-путей → <code>ICODEX_SHARED_DIR</code>; <code>test_install</code> PASS.</td></tr>
+    <tr><td>T3 cache→shared</td><td><code>superpowers.sh</code>, <code>test_plugin.sh</code></td><td>cache glob из <code>ICODEX_SHARED_DIR</code>; <code>test_plugin</code> PASS.</td></tr>
+    <tr><td>T4 per-proj home</td><td><code>isolated.sh</code>, <code>.gitignore</code>, <code>test_isolated.sh</code></td><td><code>resolve_codex_home</code>/<code>setup_codex_home</code>/<code>setup_shared_dirs</code>; symlinks plugins+auth; template copy; <code>.codex-homes/</code> ignored; PASS.</td></tr>
+    <tr><td>T5 sandbox</td><td><code>sandbox.sh</code> (new), <code>test_sandbox.sh</code></td><td>precedence default&lt;env&lt;flag; идемпотентный upsert; warning; invalid→exit1; PASS.</td></tr>
+    <tr><td>T6 --full-access</td><td><code>args.sh</code>, <code>test_args.sh</code></td><td>флаг ставит <code>ICODEX_FULL_ACCESS=1</code>; help; PASS.</td></tr>
+    <tr><td>T7 trust</td><td><code>permissions.sh</code>, <code>test_trust.sh</code></td><td><code>ensure_project_trust</code> идемпотентен; approval не тронут; PASS.</td></tr>
+    <tr><td>T8 run-path wiring</td><td><code>icodex.sh</code>, <code>test_smoke.sh</code></td><td>source sandbox; install/update→<code>setup_shared_dirs</code>; run-order совпадает с awk; smoke+update_scope PASS.</td></tr>
+    <tr><td>T9 suite+docs</td><td>все тесты, <code>docs/wiki/</code></td><td>вся сюита FAIL=0; foreign-dir smoke; iwiki regenerate + lint clean.</td></tr>
+  </table>
+
+  <h2>2. Схемы зависимостей и пересечений</h2>
+
+  <h3>Граф зависимостей задач (M → N = результат M используется в N, M&lt;N)</h3>
+  <figure>
+  <svg viewBox="0 0 820 460" role="img" aria-label="Граф зависимостей задач плана">
+    <defs>
+      <marker id="arrp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path>
+      </marker>
+    </defs>
+    <g>
+      <line class="gedge" x1="410" y1="62"  x2="80"  y2="146" marker-end="url(#arrp)"></line>
+      <line class="gedge" x1="410" y1="62"  x2="205" y2="146" marker-end="url(#arrp)"></line>
+      <line class="gedge" x1="410" y1="62"  x2="330" y2="146" marker-end="url(#arrp)"></line>
+      <line class="gedge" x1="70"  y1="192" x2="360" y2="278" marker-end="url(#arrp)"></line>
+      <line class="gedge" x1="200" y1="192" x2="385" y2="278" marker-end="url(#arrp)"></line>
+      <line class="gedge" x1="330" y1="192" x2="400" y2="278" marker-end="url(#arrp)"></line>
+      <line class="gedge" x1="470" y1="192" x2="420" y2="278" marker-end="url(#arrp)"></line>
+      <line class="gedge" x1="600" y1="192" x2="440" y2="278" marker-end="url(#arrp)"></line>
+      <line class="gedge" x1="730" y1="192" x2="460" y2="278" marker-end="url(#arrp)"></line>
+      <line class="gedge" x1="410" y1="322" x2="410" y2="386" marker-end="url(#arrp)"></line>
+    </g>
+    <g class="gnode"><rect x="356" y="18" width="108" height="44" rx="9" filter="url(#ds)"></rect><text x="410" y="44" text-anchor="middle">T1 init paths</text></g>
+    <g class="gnode"><rect x="16"  y="148" width="108" height="44" rx="9" filter="url(#ds)"></rect><text x="70"  y="174" text-anchor="middle">T2 install→sh</text></g>
+    <g class="gnode"><rect x="146" y="148" width="108" height="44" rx="9" filter="url(#ds)"></rect><text x="200" y="174" text-anchor="middle">T3 cache→sh</text></g>
+    <g class="gnode home"><rect x="276" y="148" width="108" height="44" rx="9" filter="url(#ds)"></rect><text x="330" y="174" text-anchor="middle">T4 per-proj home</text></g>
+    <g class="gnode"><rect x="416" y="148" width="108" height="44" rx="9" filter="url(#ds)"></rect><text x="470" y="174" text-anchor="middle">T5 sandbox</text></g>
+    <g class="gnode"><rect x="546" y="148" width="108" height="44" rx="9" filter="url(#ds)"></rect><text x="600" y="174" text-anchor="middle">T6 --full-access</text></g>
+    <g class="gnode"><rect x="676" y="148" width="108" height="44" rx="9" filter="url(#ds)"></rect><text x="730" y="174" text-anchor="middle">T7 trust</text></g>
+    <g class="gnode home"><rect x="356" y="278" width="108" height="44" rx="9" filter="url(#ds)"></rect><text x="410" y="304" text-anchor="middle">T8 run-path wiring</text></g>
+    <g class="gnode shared"><rect x="356" y="386" width="108" height="44" rx="9" filter="url(#ds)"></rect><text x="410" y="412" text-anchor="middle">T9 suite+docs</text></g>
+  </svg>
+  <figcaption>DAG без циклов: T1 (общие пути) питает рефакторы T2/T3/T4; T2–T7 сходятся в T8 (run-path); T9 верифицирует всё. Нарушений порядка нет.</figcaption>
+  </figure>
+
+  <h3>Пересечения по артефактам (файл → задачи)</h3>
+  <p class="note">Каждый файл правит ровно одна задача — чистое разделение, нет конфликтов слияния. <code>test_update_scope.sh</code> только верифицируется в T8 (не редактируется).</p>
+  <table>
+    <tr><th>Файл</th><th>Задачи</th></tr>
+    <tr><td><code>lib/core/init.sh</code></td><td>T1</td></tr>
+    <tr><td><code>lib/binary/install.sh</code></td><td>T2</td></tr>
+    <tr><td><code>lib/plugin/superpowers.sh</code></td><td>T3</td></tr>
+    <tr><td><code>lib/config/isolated.sh</code> · <code>.gitignore</code></td><td>T4</td></tr>
+    <tr><td><code>lib/config/sandbox.sh</code></td><td>T5</td></tr>
+    <tr><td><code>lib/command/args.sh</code></td><td>T6</td></tr>
+    <tr><td><code>lib/config/permissions.sh</code></td><td>T7</td></tr>
+    <tr><td><code>icodex.sh</code></td><td>T8</td></tr>
+  </table>
+
+  <h3>Карта покрытия (требование спеки → задачи)</h3>
+  <table>
+    <tr><th>Требование спеки</th><th>Задачи</th></tr>
+    <tr><td>Path split shared vs home</td><td>T1, T2, T3, T4</td></tr>
+    <tr><td>Per-project home + symlinks (auth/plugins) + template</td><td>T4</td></tr>
+    <tr><td>Sandbox safe-by-default + escalation + warning</td><td>T5, T6, T8</td></tr>
+    <tr><td>approval_policy неизменна</td><td>T5, T7 (asserts)</td></tr>
+    <tr><td>Auto-trust (gap #8)</td><td>T7</td></tr>
+    <tr><td>install/update минуют дом</td><td>T8 (<code>setup_shared_dirs</code>)</td></tr>
+    <tr><td>Run-path ordering</td><td>T8</td></tr>
+    <tr><td>Tests + docs</td><td>T1–T9</td></tr>
+  </table>
+
+  <h2>3. Результаты проверки</h2>
+  <table>
+    <tr><th>Фаза</th><th>Статус</th></tr>
+    <tr><td>structure</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>coverage</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>dependencies</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>verifiability</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>consistency</td><td><span class="badge b-ok">passed</span></td></tr>
+  </table>
+
+  <h3>Findings</h3>
+  <table>
+    <tr><th>ID</th><th>Severity</th><th>Раздел</th><th>Проблема</th><th>Fix</th><th>Verdict</th></tr>
+    <tr><td>F-001</td><td><span class="badge b-warn">WARNING</span></td><td>Task 1 / Step 1</td>
+      <td><code>test_env.sh</code> не source'ит <code>init.sh</code>; хедж мог быть пропущен реализатором.</td>
+      <td>Step 1 переписан: source <code>init.sh</code> (с preset <code>ICODEX_ROOT</code>) — обязательная часть сниппета.</td>
+      <td><span class="badge b-fixed">fixed</span></td></tr>
+    <tr><td>F-002</td><td><span class="badge b-info">INFO</span></td><td>Task 4 / test_isolated</td>
+      <td>Тест полагается, что <code>/tmp</code> вне git-репо; сломается если TMPDIR внутри checkout.</td>
+      <td>Добавлен <code>export GIT_CEILING_DIRECTORIES="$tmp"</code> перед <code>resolve_codex_home</code>.</td>
+      <td><span class="badge b-fixed">fixed</span></td></tr>
+    <tr><td>F-003</td><td><span class="badge b-info">INFO</span></td><td>Task 3 / superpowers.sh:9</td>
+      <td>Doc-коммент говорит <code>$ICODEX_ROOT</code>, код глобит <code>$ICODEX_HOME_DIR</code>.</td>
+      <td>Правки не нужны — T3 уже исправляет и glob, и коммент в том же шаге.</td>
+      <td><span class="badge b-info">wontfix</span></td></tr>
+  </table>
+
+  <h3>Сводка</h3>
+  <p class="note">
+    CRITICAL open: <b>0</b> · WARNING open: <b>0</b> (1 fixed) · INFO open: <b>0</b> (1 fixed, 1 wontfix)<br>
+    Вердикт: <span class="badge b-ok">OK</span> — IDD-гейт открыт, план готов к исполнению.<br>
+    Chain: <b>intent → spec → plan</b><br>
+    intent: <code>docs/superpowers/intents/2026-06-28-icodex-external-workspace-sandbox-intent.md</code><br>
+    spec: <code>docs/superpowers/specs/2026-06-29-icodex-runtime-isolation-design.md</code>
+  </p>
+
 </section>
 <!-- TAB:plan END -->
 <!-- TAB:result START -->
