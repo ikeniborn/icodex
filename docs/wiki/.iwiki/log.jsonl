@@ -17,3 +17,4 @@
 {"op":"ingest","source":"lib/config/permissions.sh","page":"docs/wiki/config.md","date":"2026-06-29"}
 {"op":"ingest","source":"icodex.sh","page":"docs/wiki/architecture.md","date":"2026-06-29"}
 {"op":"ingest","source":"lib/command/args.sh","page":"docs/wiki/command.md","date":"2026-06-29"}
+{"op":"ingest","source":"lib/config/sandbox.sh","page":"docs/wiki/config.md","date":"2026-06-29"}

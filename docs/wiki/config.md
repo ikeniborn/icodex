@@ -41,7 +41,8 @@ permission layer: for a real profile it
 upserts `default_permissions` and calls `ensure_git_writable`; for the `none`
 sentinel it drops `default_permissions` with `_remove_toml_toplevel`, turning the
 managed layer off. It emits a `log_warn` for `danger-full-access` (full filesystem
-access) and for `none` (no managed permissions, no prompts). All writes are
+access) and for `none` (managed permission layer off; `approval_policy` is set
+separately). All writes are
 idempotent upserts that leave an unchanged file byte-identical. See
 [[command#Flag parsing]].
 
