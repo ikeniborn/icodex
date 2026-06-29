@@ -44,3 +44,21 @@ _proxy_host_port() { # <url>
   fi
   printf '%s %s\n' "$host" "$port"
 }
+
+# Return 0 if a TCP connection to host:port opens within <timeout> seconds, else 1.
+# host/port are passed as positional args to the inner shell (no path injection).
+proxy_reachable() { # <host> <port> [timeout=3]
+  local host="$1" port="$2" t="${3:-3}"
+  timeout "$t" bash -c 'exec 3<>/dev/tcp/"$0"/"$1"' "$host" "$port" 2>/dev/null
+}
+
+# Echo "continue" or "exit" for the proxy-unreachable case. Only an explicit n/N
+# at an interactive prompt exits; an empty reply, y/Y, EOF, or no TTY continues.
+_proxy_unreachable_action() { # <tty:0|1> <reply>
+  local tty="$1" reply="$2"
+  if [[ "$tty" == 1 && "$reply" =~ ^[Nn]$ ]]; then
+    printf 'exit\n'
+  else
+    printf 'continue\n'
+  fi
+}

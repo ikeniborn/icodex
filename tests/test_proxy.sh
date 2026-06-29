@@ -56,5 +56,15 @@ assert_eq "socks5 default port"     "h 1080" "$(_proxy_host_port socks5://h)"
 assert_eq "userinfo and path strip" "h 3128" "$(_proxy_host_port http://MASKING@h:3128/x)"
 assert_eq "schemeless host:port"    "h 9"    "$(_proxy_host_port h:9)"
 
+# --- proxy_reachable: closed port is unreachable (Task 2) ---
+assert_exit "closed port unreachable" 1 proxy_reachable 127.0.0.1 65000 2
+
+# --- _proxy_unreachable_action: decision logic (Task 2) ---
+assert_eq "tty + n -> exit"        "exit"     "$(_proxy_unreachable_action 1 n)"
+assert_eq "tty + N -> exit"        "exit"     "$(_proxy_unreachable_action 1 N)"
+assert_eq "tty + empty -> continue" "continue" "$(_proxy_unreachable_action 1 '')"
+assert_eq "tty + y -> continue"     "continue" "$(_proxy_unreachable_action 1 y)"
+assert_eq "no tty -> continue"      "continue" "$(_proxy_unreachable_action 0 '')"
+
 rm -rf "$tmp"
 finish
