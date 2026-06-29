@@ -5,9 +5,10 @@
 The `lib/config/` modules manage per-project isolation and Codex runtime config.
 
 `isolated.sh` resolves a per-project `CODEX_HOME` backed by a shared asset store,
-`sandbox.sh` resolves and writes the effective `sandbox_mode`, `permissions.sh`
-grants filesystem access and trusts the launched project, and `env.sh` parses the
-git-ignored `.codex_config` and maps the API key. See [[architecture#Two-config model]].
+`sandbox.sh` resolves an `ICODEX_MODE` run profile and writes its `sandbox_mode` /
+`approval_policy` / `default_permissions` triple, `permissions.sh` grants filesystem
+access (including `.git` write) and trusts the launched project, and `env.sh` parses
+the git-ignored `.codex_config`. See [[architecture#Two-config model]].
 
 ## CODEX_HOME isolation
 
@@ -26,17 +27,24 @@ shared `bin` dir. The `.codex-homes/` tree is git-ignored runtime state.
 
 ## Sandbox mode
 
-`sandbox.sh` makes the filesystem sandbox safe by default and makes escalation explicit.
+`sandbox.sh` resolves a complete run profile from `ICODEX_MODE` and writes it idempotently into the per-project `config.toml`.
 
-`resolve_sandbox_mode` echoes the effective mode with precedence
-`workspace-write` (the default) < `ICODEX_SANDBOX` < `--full-access` /
-`ICODEX_FULL_ACCESS`; an `ICODEX_SANDBOX` outside `read-only`, `workspace-write`,
-`danger-full-access` is rejected with `log_error` and a non-zero return.
-`apply_sandbox_mode` writes the resolved value into the per-project `config.toml`
-through `_upsert_toml_toplevel` — an idempotent `awk` upsert of a top-level
-`sandbox_mode = "..."` line that leaves an unchanged file byte-identical. Escalating
-to `danger-full-access` emits a `log_warn` that full filesystem access is enabled.
-`approval_policy` is never touched. See [[command#Flag parsing]].
+`resolve_mode` maps the `ICODEX_MODE` preset — `ro`, `safe`, `full-ask` (the
+default), or `full-auto` — to the effective `sandbox approval permissions` triple.
+Precedence runs preset `< ICODEX_MODE <` the granular `ICODEX_SANDBOX` /
+`ICODEX_APPROVAL` / `ICODEX_PERMISSIONS` overrides; `--full-access` /
+`ICODEX_FULL_ACCESS` still forces the sandbox field to `danger-full-access` (it
+reuses `resolve_sandbox_mode`). Any invalid preset or value is rejected with
+`log_error` and a non-zero return. `apply_mode` upserts `sandbox_mode` and
+`approval_policy` as top-level keys via `_upsert_toml_toplevel`, then manages the
+permission layer: for a real profile it
+upserts `default_permissions` and calls `ensure_git_writable`; for the `none`
+sentinel it drops `default_permissions` with `_remove_toml_toplevel`, turning the
+managed layer off. It emits a `log_warn` for `danger-full-access` (full filesystem
+access) and for `none` (managed permission layer off; `approval_policy` is set
+separately). All writes are
+idempotent upserts that leave an unchanged file byte-identical. See
+[[command#Flag parsing]].
 
 ## Project trust
 
@@ -83,9 +91,15 @@ write. Used by [[launch#Proxy persist and apply]].
 
 ## Sandbox permission wiring
 
-`permissions.sh` injects filesystem grants into the `dev-safe` profile of `config.toml`.
+`permissions.sh` injects the filesystem grants codex needs into the managed permission profiles of `config.toml`.
 
-This lets codex reach paths icodex needs even when the workspace is another repo.
-`_ensure_filesystem_permission_entry` uses an awk pass to upsert a quoted path key
-idempotently under `[permissions.dev-safe.filesystem]`; `ensure_launcher_binary_permission`
-grants `read` on `ICODEX_BIN`.
+The managed layer is the second half of the two-layer model: `sandbox_mode` sets the
+broad sandbox, while a named `[permissions.<profile>]` profile (selected by
+`default_permissions`) sets fine-grained filesystem and network rules.
+`_ensure_filesystem_permission_entry` upserts a quoted path key idempotently under
+`[permissions.dev-safe.filesystem]`, and `ensure_launcher_binary_permission` grants
+`read` on `ICODEX_BIN` so the launcher binary stays reachable from any workspace.
+`ensure_git_writable <config> <profile>` grants `".git/" = "write"` under the
+profile's `:workspace_roots` table — parameterized for both `dev-safe` and
+`ssh-on-request` — overriding codex's read-only re-mount of `.git` so commits work in
+every writable mode. `apply_mode` calls it for the active profile on each run.

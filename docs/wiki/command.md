@@ -31,5 +31,6 @@ subcommands and options pass through unchanged.
 `print_help` emits a static usage block via a quoted heredoc.
 
 It covers the synopsis, each icodex flag with a one-line description, the
-`.codex_config` precedence rule (defaults < config < flags), and the passthrough
+`.codex_config` precedence rule (defaults < config < flags), the `ICODEX_MODE`
+run-profile presets (`ro` / `safe` / `full-ask` / `full-auto`), and the passthrough
 behavior. It is printed for the `help` command, which exits before tool checks.

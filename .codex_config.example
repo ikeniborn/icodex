@@ -17,8 +17,23 @@
 # takes precedence. Alternative: `codex login` (writes auth.json, also ignored).
 #ICODEX_API_KEY=sk-...
 
-# Filesystem sandbox for codex: read-only | workspace-write | danger-full-access.
-# Default is workspace-write (write inside the workspace, not the wider filesystem).
+# Run mode — bundles sandbox, approval, and managed permissions. Default: full-ask.
+#   ro        read-only sandbox, asks before commands, no network/SSH.
+#   safe      workspace-write, asks before commands, no network/SSH, .git writable.
+#   full-ask  full filesystem access, still asks for risky actions, network + SSH read, .git writable.
+#   full-auto full access, NEVER asks (no prompts at all), managed permissions off.
+# Granular overrides below take precedence over the preset, per field.
+#ICODEX_MODE=full-ask
+
+# Approval policy override: untrusted | on-failure | on-request | never.
+#ICODEX_APPROVAL=on-request
+
+# Managed permission profile override: dev-safe | ssh-on-request | none
+# (`none` removes the managed layer entirely, like full-auto).
+#ICODEX_PERMISSIONS=ssh-on-request
+
+# Filesystem sandbox override (granular): read-only | workspace-write | danger-full-access.
+# Overrides only the sandbox field of ICODEX_MODE.
 # The --full-access flag has higher precedence and forces danger-full-access for a
 # single run (with a warning). An invalid value is rejected with an error.
 #ICODEX_SANDBOX=workspace-write

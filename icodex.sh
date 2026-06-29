@@ -52,7 +52,7 @@ main() {
 
   # default: run
   setup_codex_home
-  apply_sandbox_mode || exit 1
+  apply_mode || exit 1
   ensure_project_trust "$ICODEX_HOME_DIR/config.toml" "$ICODEX_PROJECT_ROOT"
   ensure_launcher_binary_permission
   ensure_superpowers_wiring
