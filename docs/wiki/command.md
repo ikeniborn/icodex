@@ -13,8 +13,10 @@ first non-flag (or after `--`) as passthrough. It also prints the help text. See
 `parse_args` loops over arguments and maps each known flag to state.
 
 `--proxy <url>` sets `ICODEX_SET_PROXY`, `--no-proxy` sets `ICODEX_DISABLE_PROXY`,
-and `--clear`/`--update`/`--install`/`--version`/`--help` set `ICODEX_CMD`. A
-missing `--proxy` value is an error. The default command is `run`.
+`--full-access` sets `ICODEX_FULL_ACCESS` to escalate the sandbox to
+`danger-full-access` for the run (consumed by [[config#Sandbox mode]]), and
+`--clear`/`--update`/`--install`/`--version`/`--help` set `ICODEX_CMD`. A missing
+`--proxy` value is an error. The default command is `run`.
 
 ## Passthrough collection
 
