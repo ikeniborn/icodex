@@ -43,6 +43,10 @@ review:
 chain:
   intent: null
   spec: docs/superpowers/specs/2026-06-29-caveman-icodex-design.md
+result_check:
+  verdict: OK
+  plan_hash: 1e7060ab0c91f233
+  last_run: 2026-06-30
 ---
 
 # Caveman integration for icodex — Implementation Plan
