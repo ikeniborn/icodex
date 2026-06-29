@@ -1,86 +1,150 @@
 # icodex
 
 Isolated bash wrapper for the [OpenAI Codex CLI](https://developers.openai.com/codex/cli),
-built following the `iclaude` example. Installs a pinned static codex binary into the
-project, isolates codex state via `CODEX_HOME`, and optionally routes traffic through a proxy.
+built following the `iclaude` example. It keeps Codex fully contained inside the project:
+a pinned static `codex` binary, **per-project** state, a **safe-by-default** filesystem
+sandbox, and optional proxy routing — so Codex never touches your home directory or other
+projects unless you ask it to.
 
-## Usage
+## How isolation works
 
-    ./icodex.sh --install          # fetch the pinned binary + create the `icodex` symlink
-    ./icodex.sh                    # launch codex in the isolated environment
-    icodex                         # same, once ~/.local/bin is on PATH
-    ./icodex.sh --proxy http://p:8080 exec "..."   # via proxy, args forwarded to codex
-    ./icodex.sh --update           # update + re-pin the Codex binary only
-    ./icodex.sh --version          # icodex + codex versions
+icodex keeps Codex state in two layers:
 
-On `--install`/`--update` a symlink `icodex` is created in `~/.local/bin` (override with
-`ICODEX_LINK_DIR`) so you can run `icodex` from anywhere — provided that directory is on
-your `PATH`. An existing non-symlink file at that path is never overwritten.
+- **Shared store** — `.codex-isolated/` holds the expensive, stable assets shared by every
+  project: the pinned `codex` binary, `uv`, the vendored Superpowers plugin cache, the
+  shared `auth.json`, and the tracked `config.toml` template.
+- **Per-project home** — each project you launch from gets its own `CODEX_HOME` under
+  `.codex-homes/<project>-<hash>/`. It symlinks the shared `plugins` and `auth.json`, copies
+  the `config.toml` template once, and keeps that project's sessions, logs, and sqlite
+  separate. The home is keyed by the project's git root (or working directory), so two repos
+  never share session state — but they do share one login and one binary.
 
-### What lives in git
+`.codex-homes/` is runtime state and is git-ignored.
 
-Only the **codex binary** is fetched on demand (pinned by version + sha256 in the
-committed `.codex-lockfile.json`); everything else ships with the repo, so a clone is
-ready to use offline once the binary is present:
+## Setup
 
-- **Committed** — curated codex config under `CODEX_HOME`: `.codex-isolated/AGENTS.md`,
-  `AGENTS.override.md`, **`config.toml`**, and `rules/default.rules`. The
-  **Superpowers plugin** ships pre-installed:
-  its skills (`.codex-isolated/skills/`, excluding codex-managed `.system/`) and its plugin
-  cache (`.codex-isolated/plugins/cache/*/superpowers/…`) is committed, so a clone has the full
-  skills framework with **no plugin install** — only the binary is fetched on `--install`.
-- The launcher rewrites the plugin's marketplace `source` to this host's absolute path on
-  every run (from `ICODEX_ROOT`), so the committed plugin is portable across machines.
-- **Git-ignored** — the downloaded binary (`.codex-isolated/bin/`), secrets (`auth.json`,
-  `.codex_config`), and all runtime state (`*.sqlite`, logs,
-  sessions, `version.json`).
+1. **Install the binary** (once per clone):
+
+       ./icodex.sh --install
+
+   Fetches the pinned `codex` binary (version + sha256 from `.codex-lockfile.json`) into
+   `.codex-isolated/bin/`, and creates an `icodex` symlink in `~/.local/bin` (override with
+   `ICODEX_LINK_DIR`). Put that directory on your `PATH` to run `icodex` from anywhere. An
+   existing non-symlink file at the link path is never overwritten.
+
+2. **Authenticate** (pick one):
+
+   - Run `codex login` — writes `.codex-isolated/auth.json` (git-ignored, shared across all
+     projects), or
+   - Set `ICODEX_API_KEY=sk-...` in `.codex_config` (see [Configuration variables](#configuration-variables)), or
+   - Export `OPENAI_API_KEY` in your shell — an ambient key always wins.
+
+3. **Run** from any project directory:
+
+       icodex                      # launch Codex, isolated to the current project
+       icodex -- exec "..."        # everything after -- is forwarded to codex verbatim
+
+## Commands
+
+    ./icodex.sh                 # launch codex in the isolated environment (default)
+    icodex                      # same, once ~/.local/bin is on PATH
+    ./icodex.sh --full-access   # launch with the filesystem sandbox fully open (warns)
+    ./icodex.sh --proxy http://p:8080 -- exec "..."   # route via proxy, forward args to codex
+    ./icodex.sh --no-proxy      # skip the proxy for this run
+    ./icodex.sh --install       # fetch the pinned binary + create the icodex symlink
+    ./icodex.sh --update        # update + re-pin the codex binary only
+    ./icodex.sh --clear         # remove the saved config file (.codex_config)
+    ./icodex.sh --version       # icodex + codex versions
+    ./icodex.sh --help          # full flag list
+
+Anything after the first non-flag argument (or after `--`) is passed straight to `codex`.
+On `--install`/`--update` the `icodex` symlink is created in `ICODEX_LINK_DIR`. `--install`
+and `--update` fetch only the Codex binary; `--update` prints each network/install stage
+with curl's download progress bar. The Superpowers plugin and skills ship through git and
+are updated only by maintainer scripts.
+
+## Configuration variables
+
+Settings you want on every run live in a `.codex_config` file at the project root
+(git-ignored, `chmod 600`). Start from the template:
+
+    cp .codex_config.example .codex_config
+    chmod 600 .codex_config
+
+The file holds plain `KEY=value` lines. **Only `ICODEX_`-prefixed keys (plus
+`CODEX_UV_BIN` / `UV_BIN`) are honored**, and the file is parsed — never sourced — so values
+can't execute code. Precedence is **built-in defaults < `.codex_config` < command-line
+flags**. Every variable below can also be set as an ordinary environment variable.
+
+| Variable | Effect | Default |
+|----------|--------|---------|
+| `ICODEX_API_KEY` | OpenAI API key → exported as `OPENAI_API_KEY` (secret; an ambient `OPENAI_API_KEY` wins) | — |
+| `ICODEX_SANDBOX` | Filesystem sandbox: `read-only`, `workspace-write`, or `danger-full-access` | `workspace-write` |
+| `ICODEX_PROXY` | Proxy URL, exported as `HTTPS_PROXY` / `HTTP_PROXY` for codex | — |
+| `ICODEX_NO_PROXY` | Comma-separated host bypass list, exported as `NO_PROXY` (e.g. `localhost,127.0.0.1,github.com`) | — |
+| `ICODEX_REPO` | GitHub repo the codex binary is fetched from | `openai/codex` |
+| `ICODEX_LINK_DIR` | Directory for the `icodex` symlink (leading `~/` is expanded) | `~/.local/bin` |
+| `ICODEX_UNAME_S` / `ICODEX_UNAME_M` | Force the release-asset platform instead of auto-detecting via `uname` | auto |
+| `CODEX_UV_BIN` / `UV_BIN` | Explicit path to `uv` (mapped to `UV_BIN`); persisted on `--install` | auto |
+
+`ICODEX_NO_PROXY` is a bypass list (standard `NO_PROXY` semantics), **not** a disable switch
+— to skip the proxy for a single run use the `--no-proxy` flag. `./icodex.sh --proxy <url>`
+writes `ICODEX_PROXY` into `.codex_config` (preserving other keys); `./icodex.sh --clear`
+removes the file.
+
+> `ICODEX_*` keys reserved for the iwiki plugin (e.g. `ICODEX_IWIKI_*`) are intentionally
+> ignored by the wrapper config.
+
+## Sandbox and trust
+
+icodex is **safe by default**: every run writes `sandbox_mode = "workspace-write"` into the
+project's `CODEX_HOME` config, so Codex may read and write inside the workspace but not the
+wider filesystem. You raise or lower the sandbox three ways, lowest to highest precedence:
+
+1. **Default** — `workspace-write`.
+2. **`ICODEX_SANDBOX`** — set `read-only`, `workspace-write`, or `danger-full-access` in
+   `.codex_config` or the environment. An invalid value is rejected with an error.
+3. **`--full-access` flag** — forces `danger-full-access` for that single run.
+
+`danger-full-access` grants full filesystem access; icodex always prints a warning to stderr
+when it is active. icodex also **auto-trusts** the launched project in its per-project config,
+so Codex does not re-prompt for trust on every run. icodex never changes `approval_policy`
+(when Codex asks before running commands) — that stays yours to set in `config.toml`.
+
+## What lives in git
+
+Only the **codex binary** is fetched on demand (pinned by version + sha256 in the committed
+`.codex-lockfile.json`); everything else ships with the repo, so a clone is ready to use
+offline once the binary is present:
+
+- **Committed** — the curated Codex config template under `.codex-isolated/`: `AGENTS.md`,
+  `AGENTS.override.md`, **`config.toml`**, `rules/default.rules`, and the pre-installed
+  **Superpowers plugin** — its skills (`.codex-isolated/skills/`, excluding codex-managed
+  `.system/`) and its plugin cache (`.codex-isolated/plugins/cache/*/superpowers/…`). A clone
+  has the full skills framework with **no plugin install** — only the binary is fetched on
+  `--install`.
+- **Git-ignored** — the downloaded binary (`.codex-isolated/bin/`), secrets
+  (`.codex-isolated/auth.json`, `.codex_config`), and all per-project runtime state under
+  `.codex-homes/` (sessions, logs, `*.sqlite`).
 
 The `.codex-isolated/` ignore rule is a whitelist: everything is ignored except the committed
 files above, so secrets and runtime churn can never be committed by accident.
 
-> **Existing users with a custom `config.toml`:** the base `config.toml` is now tracked.
-> Keep secrets in `.codex_config` or `auth.json`, not in `config.toml`.
-
-Auth: run `codex login`, set the key once in `.codex_config` (`ICODEX_API_KEY`), or export
-`OPENAI_API_KEY` — the key stays out of git either way.
-
-`--install` and `--update` fetch only the Codex binary. `--update` prints each
-network/install stage and shows curl's download progress bar. Vendored plugins
-and skills ship through git and are updated only by maintainer scripts.
-
-## Persistent configuration
-
-Settings you want every run can live in a `.codex_config` file at the project root
-(git-ignored, `chmod 600`). Start from the template:
-
-    cp .codex_config.example .codex_config
-
-The file holds plain `KEY=value` lines; **only `ICODEX_`-prefixed keys are honored**, and
-the file is parsed (never sourced), so values can't execute code. Precedence is
-**built-in defaults < `.codex_config` < command-line flags**.
-
-| Variable | Effect |
-|----------|--------|
-| `ICODEX_API_KEY` | OpenAI API key → exported as `OPENAI_API_KEY` (secret; an ambient `OPENAI_API_KEY` wins) |
-| `ICODEX_PROXY` | Proxy URL exported as `HTTPS_PROXY`/`HTTP_PROXY` for codex |
-| `ICODEX_NO_PROXY` | Comma-separated host bypass list, exported as `NO_PROXY` (e.g. `localhost,127.0.0.1,github.com`) |
-| `ICODEX_REPO` | GitHub repo for the codex binary (default `openai/codex`) |
-| `ICODEX_UNAME_S` / `ICODEX_UNAME_M` | Force the release-asset platform |
-| `ICODEX_LINK_DIR` | Directory for the `icodex` symlink (default `~/.local/bin`) |
-
-`ICODEX_NO_PROXY` is a bypass list (standard `NO_PROXY` semantics), **not** a disable
-switch — to skip the proxy for a single run use the `--no-proxy` flag.
-`./icodex.sh --proxy <url>` writes `ICODEX_PROXY` into `.codex_config` (preserving other
-keys); `./icodex.sh --clear` removes the file.
+> **Existing users with a custom `config.toml`:** the base `config.toml` is tracked and acts
+> as a **template** — it is copied into each per-project `CODEX_HOME` on first launch. Keep
+> secrets in `.codex_config` or `auth.json`, never in `config.toml`.
 
 ## Codex config quick guide
 
-ICODEX uses two config files:
+icodex uses two config files:
 
-- `.codex_config` — local wrapper settings: API key, proxy, install repo, symlink path.
-  This file is git-ignored and is the right place for secrets.
-- `.codex-isolated/config.toml` — Codex runtime settings: model, sandbox, approvals,
-  permissions, plugins, projects, and UI.
+- `.codex_config` — local wrapper settings: API key, sandbox, proxy, install repo, symlink
+  path. This file is git-ignored and is the right place for secrets.
+- `.codex-isolated/config.toml` — the **template** for Codex runtime settings: model, sandbox,
+  approvals, permissions, plugins, projects, and UI. It is copied into each project's
+  `CODEX_HOME` (`.codex-homes/<id>/config.toml`) on first launch; later runs only re-manage
+  `sandbox_mode` and project trust there and never clobber your edits to a project's copy.
+  Edit the template to change defaults for *new* project homes.
 
 Common `.codex-isolated/config.toml` keys:
 
@@ -96,7 +160,7 @@ Common `.codex-isolated/config.toml` keys:
 | `bypass_hook_trust` | Allows trusted bundled hooks to run without an interactive trust prompt |
 | `[marketplaces.*]` / `[plugins.*]` | Plugin marketplace paths and enabled plugins |
 | `[features]` | Feature flags, for example `multi_agent = true` |
-| `[projects."<path>"]` | Project trust settings |
+| `[projects."<path>"]` | Project trust settings (icodex auto-adds the launched project) |
 | `[tui]` | Terminal UI settings such as the status line |
 
 Useful launch safety presets:
@@ -119,7 +183,11 @@ approval_policy = "never"
 default_permissions = "ssh-on-request"
 ```
 
-`default_permissions` is not the same as `sandbox_mode`. It selects one of the named
-managed profiles below in the same TOML file, such as `dev-safe` or `ssh-on-request`.
-Those profiles describe allowed files, denied secrets, network access, and SSH access.
-They matter most when Codex runs with managed permissions or `workspace-write`.
+`default_permissions` is not the same as `sandbox_mode`. It selects one of the named managed
+profiles below in the same TOML file, such as `dev-safe` or `ssh-on-request`. Those profiles
+describe allowed files, denied secrets, network access, and SSH access. They matter most when
+Codex runs with managed permissions or `workspace-write`.
+
+> `sandbox_mode` in the template is the **starting** value for a new project home; on each run
+> icodex re-applies the effective sandbox (see [Sandbox and trust](#sandbox-and-trust)) into
+> that home's `config.toml`.
