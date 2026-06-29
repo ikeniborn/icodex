@@ -111,7 +111,7 @@ apply_mode() {
   _upsert_toml_toplevel "$config" approval_policy "$approval"
   if [[ "$permissions" == "none" ]]; then
     _remove_toml_toplevel "$config" default_permissions
-    log_warn "permissions = none — managed permissions disabled, no approval prompts (project: $(basename "$ICODEX_HOME_DIR"))"
+    log_warn "permissions = none — managed permissions disabled; managed filesystem/network rules no longer apply (project: $(basename "$ICODEX_HOME_DIR"))"
   else
     _upsert_toml_toplevel "$config" default_permissions "$permissions"
     ensure_git_writable "$config" "$permissions"
