@@ -16,6 +16,55 @@ resolve_sandbox_mode() {
   esac
 }
 
+# Echo "sandbox approval permissions" for a preset name; return 1 if unknown.
+_mode_preset() { # <mode>
+  case "$1" in
+    ro)        printf 'read-only on-request dev-safe\n' ;;
+    safe)      printf 'workspace-write on-request dev-safe\n' ;;
+    full-ask)  printf 'danger-full-access on-request ssh-on-request\n' ;;
+    full-auto) printf 'danger-full-access never none\n' ;;
+    *)         return 1 ;;
+  esac
+}
+
+# Validate <value> against the remaining args (allowed set); return 0/1.
+_mode_valid() { # <value> <allowed...>
+  local v="$1" a; shift
+  for a in "$@"; do [[ "$v" == "$a" ]] && return 0; done
+  return 1
+}
+
+# Echo the effective "sandbox approval permissions" triple. Preset (default
+# full-ask) < ICODEX_MODE < granular ICODEX_SANDBOX/APPROVAL/PERMISSIONS.
+# log_error + return 1 on any invalid value.
+resolve_mode() {
+  local mode="${ICODEX_MODE:-full-ask}" preset sandbox approval permissions
+  if ! preset="$(_mode_preset "$mode")"; then
+    log_error "invalid ICODEX_MODE '$mode' (want: ro|safe|full-ask|full-auto)"; return 1
+  fi
+  read -r sandbox approval permissions <<<"$preset"
+
+  # Sandbox field: an explicit ICODEX_SANDBOX or --full-access defers to
+  # resolve_sandbox_mode (its precedence + validation); else the preset stands.
+  if [[ -n "${ICODEX_SANDBOX:-}" ]] || (( ${ICODEX_FULL_ACCESS:-0} )); then
+    sandbox="$(resolve_sandbox_mode)" || return 1
+  fi
+
+  if [[ -n "${ICODEX_APPROVAL:-}" ]]; then
+    _mode_valid "$ICODEX_APPROVAL" untrusted on-failure on-request never \
+      || { log_error "invalid ICODEX_APPROVAL '$ICODEX_APPROVAL' (want: untrusted|on-failure|on-request|never)"; return 1; }
+    approval="$ICODEX_APPROVAL"
+  fi
+
+  if [[ -n "${ICODEX_PERMISSIONS:-}" ]]; then
+    _mode_valid "$ICODEX_PERMISSIONS" dev-safe ssh-on-request none \
+      || { log_error "invalid ICODEX_PERMISSIONS '$ICODEX_PERMISSIONS' (want: dev-safe|ssh-on-request|none)"; return 1; }
+    permissions="$ICODEX_PERMISSIONS"
+  fi
+
+  printf '%s %s %s\n' "$sandbox" "$approval" "$permissions"
+}
+
 # Idempotently upsert a top-level `key = "value"` line (before the first [section]).
 _upsert_toml_toplevel() { # <config> <key> <value>
   local config="$1" key="$2" val="$3" tmp
