@@ -40,4 +40,46 @@ clear_env; ICODEX_PERMISSIONS=bogus
 clear_env; ICODEX_SANDBOX=bogus
 ( resolve_mode >/dev/null 2>&1 ); assert_eq "invalid sandbox nonzero" "1" "$?"
 
+# --- ensure_git_writable: grants .git write under a profile's :workspace_roots ---
+gt="$(mktemp -d)"; gcfg="$gt/config.toml"
+cat > "$gcfg" <<'EOF'
+[permissions.dev-safe.filesystem]
+":minimal" = "read"
+
+[permissions.dev-safe.filesystem.":workspace_roots"]
+"." = "write"
+"**/.env" = "deny"
+
+[permissions.ssh-on-request.filesystem.":workspace_roots"]
+"." = "write"
+EOF
+
+ensure_git_writable "$gcfg" dev-safe
+git_in_devsafe="$(awk '
+  /^\[/ { insec = ($0 == "[permissions.dev-safe.filesystem.\":workspace_roots\"]") }
+  insec && $0 == "\".git/\" = \"write\"" { c++ }
+  END { print c + 0 }
+' "$gcfg")"
+assert_eq "git write under dev-safe workspace_roots" "1" "$git_in_devsafe"
+dot_in_devsafe="$(awk '
+  /^\[/ { insec = ($0 == "[permissions.dev-safe.filesystem.\":workspace_roots\"]") }
+  insec && $0 == "\".\" = \"write\"" { c++ }
+  END { print c + 0 }
+' "$gcfg")"
+assert_eq "dev-safe '.' write preserved" "1" "$dot_in_devsafe"
+assert_eq "dev-safe env deny preserved" "1" "$(grep -cFx '"**/.env" = "deny"' "$gcfg")"
+
+ensure_git_writable "$gcfg" ssh-on-request
+git_in_ssh="$(awk '
+  /^\[/ { insec = ($0 == "[permissions.ssh-on-request.filesystem.\":workspace_roots\"]") }
+  insec && $0 == "\".git/\" = \"write\"" { c++ }
+  END { print c + 0 }
+' "$gcfg")"
+assert_eq "git write under ssh-on-request workspace_roots" "1" "$git_in_ssh"
+
+before_git="$(cat "$gcfg")"
+ensure_git_writable "$gcfg" dev-safe
+assert_eq "ensure_git_writable idempotent" "$before_git" "$(cat "$gcfg")"
+rm -rf "$gt"
+
 finish

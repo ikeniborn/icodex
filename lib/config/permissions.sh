@@ -59,6 +59,43 @@ _ensure_filesystem_permission_entry() { # <config> <path> <access>
   rm -f "$tmp"
 }
 
+# Idempotently grant ".git/" = "write" under a profile's :workspace_roots table,
+# overriding codex's read-only re-mount of the .git protected path. The full
+# section path is parameterized per <profile> (dev-safe / ssh-on-request).
+ensure_git_writable() { # <config> <profile>
+  local config="$1" profile="$2" section tmp
+  [[ -f "$config" ]] || return 0
+  section="[permissions.$profile.filesystem.\":workspace_roots\"]"
+  tmp="$(mktemp)"
+  awk -v section="$section" '
+    BEGIN { key = "\".git/\""; line = key " = \"write\"" }
+    function emit_missing() { if (insec && !done) { print line; done = 1 } }
+    /^\[/ {
+      emit_missing()
+      insec = ($0 == section)
+      if (insec) found = 1
+    }
+    insec {
+      trimmed = $0
+      sub(/^[[:space:]]*/, "", trimmed)
+      if (index(trimmed, key) == 1) {
+        rest = substr(trimmed, length(key) + 1)
+        if (rest ~ /^[[:space:]]*=/) {
+          if (!done) { print line; done = 1 }
+          next
+        }
+      }
+    }
+    { print }
+    END {
+      emit_missing()
+      if (!found) { print ""; print section; print line }
+    }
+  ' "$config" > "$tmp"
+  cmp -s "$tmp" "$config" || cat "$tmp" > "$config"
+  rm -f "$tmp"
+}
+
 ensure_launcher_binary_permission() {
   local config="$ICODEX_HOME_DIR/config.toml"
   if [[ ! -f "$config" ]]; then
