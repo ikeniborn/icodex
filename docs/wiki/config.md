@@ -73,6 +73,19 @@ explicitly denied; everything else non-`ICODEX_` is ignored. `uv` is not
 configurable here — its path is fixed at `.codex-isolated/bin/uv`, exported as
 `UV_BIN` by [[binary#uv dependency]].
 
+## ICODEX_CAVEMAN_MODE
+
+`ICODEX_CAVEMAN_MODE` selects the caveman output-compression level for the session.
+
+Values: unset / `off` (ship default — caveman disabled) | `lite` | `full` | `ultra`.
+When set to `lite`, `full`, or `ultra`, `ensure_caveman_wiring` renders the caveman
+instruction block into `$CODEX_HOME/AGENTS.md` and registers the `UserPromptSubmit`
+hook by writing a real `$CODEX_HOME/hooks.json` = shared secret-guard hooks merged
+with the caveman entry. When unset or `off`, the block is removed and the symlink to
+the shared `hooks.json` is restored. The value at launch becomes the **active launch
+mode**; in-session `/caveman` switches can override it for the remainder of the
+session. See [[caveman]] for full details.
+
 ## API key mapping
 
 `apply_api_key` maps `ICODEX_API_KEY` to `OPENAI_API_KEY` for codex.
