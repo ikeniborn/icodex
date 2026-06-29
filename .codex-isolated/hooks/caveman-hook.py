@@ -66,8 +66,8 @@ def main():
         emit("")  # malformed input -> no-op
     if not isinstance(data, dict):
         emit("")  # non-object JSON -> no-op
-    prompt = data.get("prompt", "") or ""
-    session_id = data.get("session_id", "") or ""
+    prompt = str(data.get("prompt") or "")
+    session_id = str(data.get("session_id") or "")
 
     launch_mode = os.environ.get("ICODEX_CAVEMAN_MODE", "full").strip().lower()
     if launch_mode not in MODES:

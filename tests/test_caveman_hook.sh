@@ -59,4 +59,15 @@ assert_eq  "non-dict exit 0"      "0" "$non_dict_code"
 assert_eq  "non-dict empty stdout" ""  "$(sed -n '2,$p' <<<"$non_dict")"
 rm -rf "$non_dict_home"
 
+# 7. Non-string JSON values (e.g. number prompt, number session_id) -> exit 0, empty stdout.
+nonstr_home="$(mktemp -d)"
+nonstr="$(CODEX_HOME="$nonstr_home" ICODEX_CAVEMAN_MODE="full" python3 "$HOOK" <<'EOF'
+{"prompt": 42, "session_id": 99}
+EOF
+)"
+nonstr_code=$?
+assert_eq "non-string values exit 0" "0" "$nonstr_code"
+assert_eq "non-string values empty stdout" "" "$(sed -n '2,$p' <<<"$nonstr")"
+rm -rf "$nonstr_home"
+
 finish
