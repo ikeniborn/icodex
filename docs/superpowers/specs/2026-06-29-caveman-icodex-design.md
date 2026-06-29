@@ -1,3 +1,66 @@
+---
+review:
+  spec_hash: 369e7e8cf081e0aa
+  last_run: 2026-06-29
+  phases:
+    structure:   { status: passed }
+    coverage:    { status: passed }
+    clarity:     { status: passed }
+    consistency: { status: passed }
+  findings:
+    - id: F-001
+      phase: coverage
+      severity: CRITICAL
+      section: "Success criteria / Architecture (Layer 1 & 2)"
+      section_hash: 711490f758fd2056
+      fragment: "While the session's current mode equals the active launch mode, the per-turn hook injects 0 tokens ... current mode == active launch mode: emit empty stdout"
+      text: >-
+        Term overload on "default" creates an unverifiable requirement. The spec
+        uses "default" for two different things: (a) the product default = off/disabled
+        (SC5 line 30, Decisions line 58, Config line 150) and (b) a "baked-in default
+        mode" substituted into the AGENTS.md block at render time, against which the hook
+        compares to stay silent (Layer 1 lines 92-93, Layer 2 step 4 line 108). SC2 ("0
+        tokens in the baked-in default mode") and the hook's silent-path branch cannot be
+        verified because the spec never defines what value "baked-in default" holds. Since
+        wiring only happens when ICODEX_CAVEMAN_MODE is set to lite|full|ultra, the
+        "baked-in default" must be that launch value, but this is never stated.
+      fix: >-
+        Define "baked-in default mode" explicitly as the value of ICODEX_CAVEMAN_MODE at
+        launch (one of lite|full|ultra), and disambiguate it from the product ship default
+        (off). Rename one of the two concepts (e.g. "active launch mode" vs "ship default")
+        so SC2 and Layer 2 step 4 reference a defined value.
+      verdict: fixed
+      verdict_at: 2026-06-29
+      resolution: >-
+        Resolved by the new "## Terminology" section (lines 22-32), which defines
+        "Ship default" (off) vs "Active launch mode" (the value of ICODEX_CAVEMAN_MODE
+        at launch, one of lite|full|ultra). The term "baked-in default" is fully removed
+        from the body; SC2 (line 36) and Layer 2 step 4 now reference "active launch mode",
+        a defined value, making the silent-path requirement verifiable.
+    - id: F-002
+      phase: clarity
+      severity: WARNING
+      section: "Decisions taken during brainstorming"
+      section_hash: ccae8f11d7d96b4b
+      fragment: "Scope: always-on once enabled + in-session mode switch/off ... Ship default: off (opt-in via ICODEX_CAVEMAN_MODE)"
+      text: >-
+        Inconsistent terms within the Decisions block: "always-on default" (line 52)
+        vs "Default: off" (line 58). Reads as a contradiction unless the reader infers
+        that "always-on" describes the standing AGENTS.md mechanism once enabled, while
+        "Default: off" is the ship state. Same root overload as F-001.
+      fix: >-
+        Reword line 52 to "always-on once enabled" or similar, so "always-on" and
+        "Default: off" no longer appear to collide.
+      verdict: fixed
+      verdict_at: 2026-06-29
+      resolution: >-
+        Resolved: the Decisions block now reads "always-on once enabled" (line 65) and
+        "Ship default: off" (line 71). The two phrases no longer appear to collide, and
+        the underlying overload is removed by the new "## Terminology" section.
+chain:
+  intent: null
+---
+
 # Caveman integration for icodex — design
 
 Date: 2026-06-29
@@ -16,18 +79,30 @@ The two stated goals:
 1. **Token efficiency** — terse model output (drop articles / filler / pleasantries),
    ~65–75% fewer output tokens on prose-heavy turns.
 2. **Minimal self-overhead** — the caveman mechanism must add ≈0 input tokens per turn
-   in the steady-state (default) mode.
+   while the session runs in its **active launch mode** (defined below).
+
+## Terminology
+
+Two distinct concepts that must never be conflated:
+
+- **Ship default** — the product default when `ICODEX_CAVEMAN_MODE` is unset: caveman is
+  **off** (no `AGENTS.md` block, no hook registered). This is the out-of-the-box state.
+- **Active launch mode** — once caveman is enabled, the value of `ICODEX_CAVEMAN_MODE`
+  at launch (one of `lite` | `full` | `ultra`). This value is substituted into the
+  `AGENTS.md` block at render time, so the block alone fully specifies behaviour and the
+  hook can stay silent. The hook injects only when the session's *current* mode (after a
+  `/caveman` switch) differs from the active launch mode.
 
 ## Success criteria
 
 - With `ICODEX_CAVEMAN_MODE=full`, Codex output is terse (caveman style).
-- In the baked-in default mode the per-turn hook injects **0 tokens** (all standing
-  instruction lives in the prompt-cached `AGENTS.md`).
+- While the session's current mode equals the active launch mode, the per-turn hook
+  injects **0 tokens** (all standing instruction lives in the prompt-cached `AGENTS.md`).
 - `/caveman lite|full|ultra|off` (and `stop caveman` / `normal mode`) switches mode
   mid-session.
 - The target project's files are never touched — caveman lives entirely in the
   icodex-owned, isolated `CODEX_HOME`.
-- Disabled by default: caveman activates only when `ICODEX_CAVEMAN_MODE` is set.
+- Ship default is off: caveman activates only when `ICODEX_CAVEMAN_MODE` is set.
 
 ## Background — what each side provides
 
@@ -49,13 +124,13 @@ The two stated goals:
     **home** `config.toml` (the authoritative config), which it already rewrites at launch.
 
 ### Decisions taken during brainstorming
-- **Scope**: always-on default + in-session mode switch/off. No stats, no statusline.
+- **Scope**: always-on once enabled + in-session mode switch/off. No stats, no statusline.
 - **Mechanism**: **hybrid** — cached `AGENTS.md` base carries the standing instruction
   (0 per-turn cost), a lightweight hook fires only on a `/caveman` switch or when the
-  active mode deviates from the baked-in default.
+  session's current mode deviates from the active launch mode.
 - **Source**: **hybrid** — style rules vendored once from the upstream caveman
   `SKILL.md`; the hook is written native to icodex.
-- **Default**: `off` (opt-in via `ICODEX_CAVEMAN_MODE`).
+- **Ship default**: `off` (opt-in via `ICODEX_CAVEMAN_MODE`).
 - **Hook count**: one hook (`UserPromptSubmit`), no `SessionStart` — mode state is
   lazy-initialised on the first turn.
 - **Hook language**: `python3` (the shared store already provides `uv`/python).
@@ -89,8 +164,8 @@ Constraints:
 - Keep the block **< 2 KiB**. Global scope is first in Codex's lookup order, so an
   oversized block could truncate the project's own `AGENTS.md` against
   `project_doc_max_bytes`.
-- The default mode is substituted into the block at render time, so in the steady state
-  the block alone fully specifies behaviour and the hook can stay silent.
+- The active launch mode is substituted into the block at render time, so in the steady
+  state the block alone fully specifies behaviour and the hook can stay silent.
 
 Cost: counted once per session, prompt-cached → amortised ≈0 input tokens. This is the
 core of goal 2.
@@ -105,11 +180,11 @@ Registered top-level in the per-project home `config.toml`. Per-turn logic:
 3. If `prompt` matches `/caveman <mode>` | `stop caveman` | `normal mode`:
    write the new mode to the state file and emit `additionalContext` =
    confirmation + one-line style for the new mode.
-4. Else if active mode == baked-in default: emit **empty stdout** → 0 tokens injected
+4. Else if current mode == active launch mode: emit **empty stdout** → 0 tokens injected
    (the common path).
-5. Else (mode deviates from the default, e.g. switched earlier this session): emit a
-   short `ACTIVE MODE: <mode>` reminder so the override stays salient at the tail of
-   context.
+5. Else (current mode deviates from the active launch mode, e.g. switched earlier this
+   session): emit a short `ACTIVE MODE: <mode>` reminder so the override stays salient at
+   the tail of context.
 6. `off` → emit "caveman disabled — respond normally" to override the `AGENTS.md` base
    (~10 tokens/turn while off; off is not the steady state).
 
@@ -147,7 +222,7 @@ source); the hook *logic* is native.
 
 ## Config and wiring
 
-- `ICODEX_CAVEMAN_MODE` in `.codex_config`: unset/`off` (default — disabled) |
+- `ICODEX_CAVEMAN_MODE` in `.codex_config`: unset/`off` (ship default — disabled) |
   `lite` | `full` | `ultra`. Documented in `.codex_config.example`.
 - `lib/caveman/caveman.sh::ensure_caveman_wiring` runs on the launch path next to
   `ensure_superpowers_wiring`. Idempotent: awk-based `[hooks]` rewrite + `AGENTS.md`
@@ -160,8 +235,8 @@ source); the hook *logic* is native.
 
 | State | AGENTS.md (cached, once) | Hook per-turn | Net |
 |-------|--------------------------|---------------|-----|
-| default mode | ~block size, cached | **0** | pure output savings |
-| switched (non-default) | cached | ~10–20 tok | savings − tiny reminder |
+| current mode == active launch mode | ~block size, cached | **0** | pure output savings |
+| switched (≠ launch mode) | cached | ~10–20 tok | savings − tiny reminder |
 | off | cached | ~10 tok (disable line) | ≈ neutral |
 
 ## Tests (`tests/test_*.sh`, sourcing `tests/helpers.sh`)
@@ -172,7 +247,7 @@ source); the hook *logic* is native.
   - Re-run produces no diff (idempotent — `cmp -s` guard).
   - unset → no block, no hook registration.
 - `test_caveman_hook.sh`
-  - stdin JSON, default mode → empty stdout.
+  - stdin JSON, current mode == active launch mode → empty stdout.
   - `/caveman lite` → state file updated + `additionalContext` emitted.
   - `off` → disable line emitted.
   - Tests avoid network; use temp dirs for state.
@@ -187,8 +262,8 @@ source); the hook *logic* is native.
 ## Risks and mitigations
 
 - **TUI noise** — Codex renders `additionalContext` as a visible `hook context:` line.
-  Mitigated: the hook is silent in the default mode; noise appears only on a switch or
-  while in a non-default/off mode.
+  Mitigated: the hook is silent while the current mode equals the active launch mode;
+  noise appears only after a switch or while in an off mode.
 - **`project_doc_max_bytes` starvation** — global block is first in lookup order.
   Mitigated: block kept < 2 KiB.
 - **Repo-local hook bug** — hooks in `.codex/config.toml` don't fire interactively.
