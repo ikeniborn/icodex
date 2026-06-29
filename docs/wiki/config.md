@@ -102,4 +102,9 @@ broad sandbox, while a named `[permissions.<profile>]` profile (selected by
 `ensure_git_writable <config> <profile>` grants `".git/" = "write"` under the
 profile's `:workspace_roots` table — parameterized for both `dev-safe` and
 `ssh-on-request` — overriding codex's read-only re-mount of `.git` so commits work in
-every writable mode. `apply_mode` calls it for the active profile on each run.
+every writable mode. `apply_mode` calls it for the active profile on each run. The grant
+is verifiable in isolation: under a `workspace-write` sandbox a write to `.git/` run via
+`codex sandbox -P <profile> --include-managed-config` succeeds only while the
+`".git/" = "write"` line is present and fails once it is removed; under
+`danger-full-access` `.git` is writable through the sandbox regardless, and under
+`read-only` nothing is writable.
