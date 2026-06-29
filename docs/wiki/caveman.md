@@ -10,7 +10,7 @@ It is built from two cooperating layers: a cached `AGENTS.md` block that carries
 standing compression instruction (counted once per session, then prompt-cached), and a
 lightweight `UserPromptSubmit` hook that fires only when the session's current mode
 deviates from the active launch mode. See [[architecture#Default run path]] for where
-these are wired, and [[config#Persistent user config]] for the controlling variable.
+these are wired, and [[config#ICODEX_CAVEMAN_MODE]] for the controlling variable.
 
 ## Modes
 
