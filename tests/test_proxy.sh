@@ -48,5 +48,13 @@ assert_eq "existing config tightened to 600" "600" "$perm_pre"
 proxy_clear "$cfg"
 assert_exit "config cleared" 1 test -f "$cfg"
 
+# --- _proxy_host_port: parse host+port from a proxy URL (Task 1) ---
+assert_eq "host:port explicit"      "h 8080" "$(_proxy_host_port http://h:8080)"
+assert_eq "http default port"       "h 80"   "$(_proxy_host_port http://h)"
+assert_eq "https default port"      "h 443"  "$(_proxy_host_port https://h)"
+assert_eq "socks5 default port"     "h 1080" "$(_proxy_host_port socks5://h)"
+assert_eq "userinfo and path strip" "h 3128" "$(_proxy_host_port http://MASKING@h:3128/x)"
+assert_eq "schemeless host:port"    "h 9"    "$(_proxy_host_port h:9)"
+
 rm -rf "$tmp"
 finish
