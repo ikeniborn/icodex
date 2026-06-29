@@ -50,4 +50,13 @@ EOF
 assert_contains "deviation re-injects active mode" "$dev" "lite"
 rm -rf "$dev_home"
 
+# 6. Non-dict JSON input (e.g. array) -> exit 0, empty stdout (no-op).
+non_dict_home="$(mktemp -d)"
+non_dict="$(CODEX_HOME="$non_dict_home" ICODEX_CAVEMAN_MODE="full" \
+  python3 "$HOOK" <<< '[]')"
+non_dict_code=$?
+assert_eq  "non-dict exit 0"      "0" "$non_dict_code"
+assert_eq  "non-dict empty stdout" ""  "$(sed -n '2,$p' <<<"$non_dict")"
+rm -rf "$non_dict_home"
+
 finish

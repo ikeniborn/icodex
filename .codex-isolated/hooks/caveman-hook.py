@@ -64,6 +64,8 @@ def main():
         data = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
         emit("")  # malformed input -> no-op
+    if not isinstance(data, dict):
+        emit("")  # non-object JSON -> no-op
     prompt = data.get("prompt", "") or ""
     session_id = data.get("session_id", "") or ""
 
