@@ -56,12 +56,14 @@ keys. The file is parsed, never sourced, so values can never execute code.
 Precedence is built-in defaults < `.codex_config` < CLI flags. Missing file is a
 no-op.
 
-## Allowed keys and mapping
+## Allowed keys
 
-`_config_key_allowed` permits `ICODEX_*`, `CODEX_UV_BIN`, and `UV_BIN`.
+`_config_key_allowed` permits `ICODEX_*` keys and exports each verbatim.
 
-`_config_export_mapped` exports each key as written and also maps
-`ICODEX_UV_BIN`/`CODEX_UV_BIN` to `UV_BIN`.
+The `ICODEX_IWIKI_*`/`IWIKI_*` namespace reserved for the iwiki plugin is
+explicitly denied; everything else non-`ICODEX_` is ignored. `uv` is not
+configurable here — its path is fixed at `.codex-isolated/bin/uv`, exported as
+`UV_BIN` by [[binary#uv dependency]].
 
 ## API key mapping
 
@@ -77,7 +79,7 @@ never overridden. This keeps the secret out of git while still supporting
 
 It greps out the existing key, appends the new value, and rewrites the file with a
 `177` umask plus explicit `chmod 600`, so credentials stay private from the first
-write. Used by [[launch#Proxy persist and apply]] and [[binary#uv dependency]].
+write. Used by [[launch#Proxy persist and apply]].
 
 ## Sandbox permission wiring
 

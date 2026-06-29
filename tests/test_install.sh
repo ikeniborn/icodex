@@ -44,18 +44,17 @@ assert_eq "no args when disabled"   "" "$out"
 out="$(unset ICODEX_PROXY; _curl_proxy_args | tr '\n' ' ')"
 assert_eq "no args when unset"      "" "$out"
 
-# --- uv dependency: copied into the permanent icodex install dir and persisted ---
+# --- uv dependency: copied into the permanent icodex install dir; UV_BIN exported, nothing persisted ---
 setup_case
 UV_FIXTURE="$tmp/source-uv"
 printf '#!/bin/sh\necho uv-fixture\n' > "$UV_FIXTURE"; chmod +x "$UV_FIXTURE"
 _uv_source_bin() { printf '%s\n' "$UV_FIXTURE"; }
 _install_uv_from_network() { return 99; }
+unset UV_BIN
 assert_exit "uv dependency installed" 0 ensure_uv_dependency
 assert_exit "uv installed in isolated bin" 0 test -x "$ICODEX_HOME_DIR/bin/uv"
-assert_eq "CODEX_UV_BIN persisted" "$ICODEX_HOME_DIR/bin/uv" "$(grep '^CODEX_UV_BIN=' "$ICODEX_CONFIG" | cut -d= -f2-)"
-unset CODEX_UV_BIN UV_BIN
-load_config "$ICODEX_CONFIG"
-assert_eq "CODEX_UV_BIN maps to UV_BIN" "$ICODEX_HOME_DIR/bin/uv" "${UV_BIN:-}"
+assert_eq "UV_BIN exported to isolated path" "$ICODEX_HOME_DIR/bin/uv" "${UV_BIN:-}"
+assert_eq "uv path not persisted to config" "0" "$(grep -c '^CODEX_UV_BIN=' "$ICODEX_CONFIG" 2>/dev/null || echo 0)"
 rm -rf "$tmp"
 
 # --- Case A: clean install with matching pinned sha succeeds ---

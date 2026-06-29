@@ -49,19 +49,17 @@ _install_uv_from_network() { # <dest_dir>
   [[ -x "$dest_dir/uv" ]]
 }
 
-_persist_uv_bin() { # <uv_bin>
-  local uv_bin="$1"
-  export CODEX_UV_BIN="$uv_bin"
-  export UV_BIN="$uv_bin"
-  if declare -F _config_set >/dev/null 2>&1; then
-    _config_set "$ICODEX_CONFIG" CODEX_UV_BIN "$uv_bin"
-  fi
+# Export UV_BIN for the launched codex/plugins. The path is deterministic
+# ($ICODEX_SHARED_DIR/bin/uv), recomputed every run, so nothing is persisted to
+# .codex_config — an absolute path there would only go stale if the project moves.
+_export_uv_bin() { # <uv_bin>
+  export UV_BIN="$1"
 }
 
 ensure_uv_dependency() {
   local target="$ICODEX_SHARED_DIR/bin/uv" source
   if [[ -x "$target" ]]; then
-    _persist_uv_bin "$target"
+    _export_uv_bin "$target"
     return 0
   fi
 
@@ -78,7 +76,7 @@ ensure_uv_dependency() {
     fi
   fi
 
-  _persist_uv_bin "$target"
+  _export_uv_bin "$target"
 }
 
 _extract_codex() { # <tarball> -> installs $ICODEX_BIN

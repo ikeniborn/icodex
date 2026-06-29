@@ -56,9 +56,10 @@ Every failure cleans up. This staged-then-move pattern avoids a half-written bin
 `ensure_uv_dependency` guarantees a `uv` binary at `.codex-isolated/bin/uv`.
 
 It is needed by the vendored plugins' engines. A system `uv` is copied in if
-present; otherwise the Astral installer is fetched (honoring the proxy). The
-resolved path is exported as `CODEX_UV_BIN`/`UV_BIN` and persisted to
-`.codex_config` via [[config#Config upsert]].
+present; otherwise the Astral installer is fetched (honoring the proxy). The path
+is deterministic (`.codex-isolated/bin/uv`) and recomputed every run, so it is
+exported as `UV_BIN` for the launched codex but never persisted to `.codex_config`
+— an absolute path there would only go stale if the project directory moved.
 
 ## Proxy-aware downloads
 

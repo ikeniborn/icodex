@@ -71,10 +71,10 @@ Settings you want on every run live in a `.codex_config` file at the project roo
     cp .codex_config.example .codex_config
     chmod 600 .codex_config
 
-The file holds plain `KEY=value` lines. **Only `ICODEX_`-prefixed keys (plus
-`CODEX_UV_BIN` / `UV_BIN`) are honored**, and the file is parsed — never sourced — so values
-can't execute code. Precedence is **built-in defaults < `.codex_config` < command-line
-flags**. Every variable below can also be set as an ordinary environment variable.
+The file holds plain `KEY=value` lines. **Only `ICODEX_`-prefixed keys are honored**, and
+the file is parsed — never sourced — so values can't execute code. Precedence is **built-in
+defaults < `.codex_config` < command-line flags**. Every variable below can also be set as an
+ordinary environment variable.
 
 | Variable | Effect | Default |
 |----------|--------|---------|
@@ -85,7 +85,6 @@ flags**. Every variable below can also be set as an ordinary environment variabl
 | `ICODEX_REPO` | GitHub repo the codex binary is fetched from | `openai/codex` |
 | `ICODEX_LINK_DIR` | Directory for the `icodex` symlink (leading `~/` is expanded) | `~/.local/bin` |
 | `ICODEX_UNAME_S` / `ICODEX_UNAME_M` | Force the release-asset platform instead of auto-detecting via `uname` | auto |
-| `CODEX_UV_BIN` / `UV_BIN` | Explicit path to `uv` (mapped to `UV_BIN`); persisted on `--install` | auto |
 
 `ICODEX_NO_PROXY` is a bypass list (standard `NO_PROXY` semantics), **not** a disable switch
 — to skip the proxy for a single run use the `--no-proxy` flag. `./icodex.sh --proxy <url>`
