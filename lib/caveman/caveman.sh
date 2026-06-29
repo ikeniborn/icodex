@@ -45,11 +45,7 @@ _caveman_write_agents_region() { # <file> <block_or_empty>
     printf '%s\n%s\n%s\n' "$_CAVEMAN_REGION_START" "$block" "$_CAVEMAN_REGION_END" >> "$tmp"
   fi
   if [[ ! -f "$file" ]] || ! cmp -s "$tmp" "$file"; then
-    if [[ -s "$tmp" ]]; then
-      cat "$tmp" > "$file"
-    else
-      rm -f "$file"
-    fi
+    cat "$tmp" > "$file"
   fi
   rm -f "$tmp"
 }

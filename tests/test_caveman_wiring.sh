@@ -51,7 +51,7 @@ assert_eq "hooks idempotent"  "$h_before" "$(cat "$hooks")"
 # 3. Disabled: region removed, hooks.json restored to a symlink.
 unset ICODEX_CAVEMAN_MODE
 ensure_caveman_wiring
-assert_eq "agents region removed" "0" "$(grep -c 'icodex:caveman:start' "$agents" 2>/dev/null || echo 0)"
+assert_eq "agents region removed" "" "$(grep 'icodex:caveman:start' "$agents" 2>/dev/null || true)"
 assert_eq "home hooks.json back to symlink" "0" "$([[ -L "$hooks" ]] && echo 0 || echo 1)"
 
 rm -rf "$tmp"
