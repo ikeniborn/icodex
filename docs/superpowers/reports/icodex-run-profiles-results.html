@@ -77,8 +77,8 @@ svg{max-width:100%;height:auto;background:var(--surface);border:1px solid var(--
 <body>
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
 <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
 <header>
   <label for="theme-toggle" class="theme-btn" title="Тема">🌙 / ☀️</label>
@@ -279,7 +279,144 @@ svg{max-width:100%;height:auto;background:var(--surface);border:1px solid var(--
 <!-- TAB:spec END -->
 <!-- TAB:plan START -->
 <section class="tab-pane" id="pane-plan">
-  <p class="note">Этап ещё не проверен.</p>
+
+  <h2>1. Резюме плана</h2>
+  <p class="note">План: <code>docs/superpowers/plans/2026-06-29-icodex-run-profiles.md</code> ·
+  plan_hash <code>116b0203fdedca7f</code> (ранее frontmatter отсутствовал) ·
+  Цель: один пресет <code>ICODEX_MODE</code> задаёт полный профиль запуска
+  (sandbox + approval + managed permissions) и делает <code>.git</code> доступным для записи
+  во всех writable-режимах.</p>
+
+  <h3>Задачи и их Definition of Done</h3>
+  <table>
+    <tr><th>Задача</th><th>Суть</th><th>Definition of Done</th></tr>
+    <tr>
+      <td><b>1.</b> <code>_remove_toml_toplevel</code></td>
+      <td><code>lib/config/sandbox.sh</code>: идемпотентно удаляет top-level строку <code>key = ...</code> до первого <code>[section]</code>.</td>
+      <td><code>bash tests/test_sandbox.sh</code> → <code>PASS=&lt;n&gt; FAIL=0</code>.</td>
+    </tr>
+    <tr>
+      <td><b>2.</b> <code>resolve_mode</code> (+ <code>_mode_preset</code>, <code>_mode_valid</code>)</td>
+      <td><code>lib/config/sandbox.sh</code>: резолвит <code>ICODEX_MODE</code> (default <code>full-ask</code>) в тройку «sandbox approval permissions» с granular-оверрайдами и валидацией.</td>
+      <td><code>bash tests/test_mode.sh</code> → <code>FAIL=0</code>.</td>
+    </tr>
+    <tr class="row-flag">
+      <td><b>3.</b> <code>ensure_git_writable</code></td>
+      <td><code>lib/config/permissions.sh</code>: идемпотентно добавляет <code>".git/" = "write"</code> под <code>[permissions.&lt;profile&gt;.filesystem.":workspace_roots"]</code> для <code>dev-safe</code> и <code>ssh-on-request</code>.</td>
+      <td><code>bash tests/test_mode.sh</code> → <code>FAIL=0</code>. <span class="badge b-crit">тест содержит дефект — F-001</span></td>
+    </tr>
+    <tr>
+      <td><b>4.</b> <code>apply_mode</code> (заменяет <code>apply_sandbox_mode</code>)</td>
+      <td><code>lib/config/sandbox.sh</code>: пишет тройку в <code>config.toml</code> (upsert <code>sandbox_mode</code>/<code>approval_policy</code>; для <code>none</code> удаляет <code>default_permissions</code>, иначе upsert + <code>ensure_git_writable</code>); warnings для danger/none.</td>
+      <td><code>bash tests/test_mode.sh &amp;&amp; bash tests/test_sandbox.sh</code> → оба <code>FAIL=0</code>; <code>grep -c apply_sandbox_mode tests/test_sandbox.sh</code> == 0.</td>
+    </tr>
+    <tr>
+      <td><b>5.</b> Проводка в run-path + шаблон</td>
+      <td><code>icodex.sh:55</code> (<code>apply_mode || exit 1</code>); шаблон <code>.codex-isolated/config.toml</code> (.git-грант в оба профиля + комментарии); smoke-тест <code>tests/test_smoke.sh:45-46,54</code>.</td>
+      <td><code>bash tests/test_smoke.sh</code> → <code>FAIL=0</code>; шаблон byte-stable под <code>ensure_git_writable</code> (печатает <code>IDEMPOTENT</code>); вся сюита <code>FAIL=0</code>.</td>
+    </tr>
+    <tr>
+      <td><b>6.</b> Документация</td>
+      <td><code>.codex_config.example</code>, <code>print_help</code> (<code>lib/command/args.sh</code>), <code>README.md</code>, <code>docs/wiki/config.md</code> (через iwiki).</td>
+      <td><code>grep apply_sandbox_mode</code> в доках пуст; <code>iwiki-lint</code> без битых ссылок/сирот.</td>
+    </tr>
+  </table>
+
+  <h2>2. Схемы зависимостей и пересечений</h2>
+
+  <h3>Граф зависимостей задач (M → N = «результат задачи M используется в N», M&lt;N)</h3>
+  <figure>
+  <svg viewBox="0 0 820 360" role="img" aria-label="Граф зависимостей задач плана run profiles">
+    <defs>
+      <marker id="parr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path>
+      </marker>
+      <filter id="pds" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="var(--shadow)"></feDropShadow>
+      </filter>
+    </defs>
+    <g>
+      <!-- T1 -> T4 -->
+      <line class="gedge" x1="150" y1="74" x2="380" y2="150" marker-end="url(#parr)"></line>
+      <!-- T2 -> T4 -->
+      <line class="gedge" x1="400" y1="74" x2="410" y2="150" marker-end="url(#parr)"></line>
+      <!-- T3 -> T4 -->
+      <line class="gedge" x1="650" y1="74" x2="450" y2="150" marker-end="url(#parr)"></line>
+      <!-- T4 -> T5 -->
+      <line class="gedge" x1="415" y1="198" x2="415" y2="252" marker-end="url(#parr)"></line>
+      <!-- T5 -> T6 -->
+      <line class="gedge" x1="490" y1="276" x2="640" y2="276" marker-end="url(#parr)"></line>
+    </g>
+    <g class="gnode new"><rect x="75"  y="26"  width="150" height="48" rx="9" filter="url(#pds)"></rect><text x="150" y="46" text-anchor="middle">Задача 1</text><text x="150" y="62" text-anchor="middle">_remove_toml_toplevel</text></g>
+    <g class="gnode new"><rect x="325" y="26"  width="150" height="48" rx="9" filter="url(#pds)"></rect><text x="400" y="46" text-anchor="middle">Задача 2</text><text x="400" y="62" text-anchor="middle">resolve_mode</text></g>
+    <g class="gnode new"><rect x="575" y="26"  width="160" height="48" rx="9" filter="url(#pds)"></rect><text x="655" y="46" text-anchor="middle">Задача 3</text><text x="655" y="62" text-anchor="middle">ensure_git_writable</text></g>
+    <g class="gnode new"><rect x="340" y="150" width="150" height="48" rx="9" filter="url(#pds)"></rect><text x="415" y="170" text-anchor="middle">Задача 4</text><text x="415" y="186" text-anchor="middle">apply_mode</text></g>
+    <g class="gnode home"><rect x="340" y="252" width="150" height="48" rx="9" filter="url(#pds)"></rect><text x="415" y="272" text-anchor="middle">Задача 5</text><text x="415" y="288" text-anchor="middle">run-path + шаблон</text></g>
+    <g class="gnode"><rect x="640" y="252" width="150" height="48" rx="9" filter="url(#pds)"></rect><text x="715" y="272" text-anchor="middle">Задача 6</text><text x="715" y="288" text-anchor="middle">документация</text></g>
+  </svg>
+  <figcaption>DAG без циклов и без нарушений порядка. Задачи 1, 2, 3 → 4 (apply_mode потребляет/вызывает их) → 5 (run-path) → 6 (документация описывает поведение). Артефакт <code>tests/test_mode.sh</code> создаётся в Задаче 2 и расширяется в Задачах 3-4.</figcaption>
+  </figure>
+
+  <h3>Пересечения по артефактам (файл × задача)</h3>
+  <table>
+    <tr><th>Файл</th><th>З1</th><th>З2</th><th>З3</th><th>З4</th><th>З5</th><th>З6</th></tr>
+    <tr><td><code>lib/config/sandbox.sh</code></td><td>✚</td><td>✚</td><td></td><td>✚</td><td></td><td></td></tr>
+    <tr><td><code>lib/config/permissions.sh</code></td><td></td><td></td><td>✚</td><td></td><td></td><td></td></tr>
+    <tr><td><code>tests/test_mode.sh</code></td><td></td><td>✚ создание</td><td>✚</td><td>✚</td><td></td><td></td></tr>
+    <tr><td><code>tests/test_sandbox.sh</code></td><td>✚</td><td></td><td></td><td>✚ удаление stale</td><td></td><td></td></tr>
+    <tr><td><code>icodex.sh</code></td><td></td><td></td><td></td><td></td><td>✚</td><td></td></tr>
+    <tr><td><code>.codex-isolated/config.toml</code></td><td></td><td></td><td></td><td></td><td>✚</td><td></td></tr>
+    <tr><td><code>tests/test_smoke.sh</code></td><td></td><td></td><td></td><td></td><td>✚</td><td></td></tr>
+    <tr><td>docs (<code>.codex_config.example</code>, <code>args.sh</code>, <code>README.md</code>, <code>config.md</code>)</td><td></td><td></td><td></td><td></td><td></td><td>✚</td></tr>
+  </table>
+  <p class="note">Главные пересечения: <code>lib/config/sandbox.sh</code> правится тремя задачами (1, 2, 4) — нужна аккуратная последовательность коммитов; <code>tests/test_mode.sh</code> создаётся и дважды расширяется (2 → 3 → 4).</p>
+
+  <h3>Покрытие требований</h3>
+  <p class="note">Каждое требование спеки закрыто ≥1 задачей. Пересечение: «<b>.git writability</b>» закрыто Задачами 3+4 (per-run миграция) <em>и</em> Задачей 5 (шаблон fresh install). Требование «<b>extend test_install.sh</b>» из заголовка §Testing спеки <b>не закрыто</b> ни одной задачей — см. F-002.</p>
+
+  <h2>3. Результаты проверки</h2>
+  <p class="note">plan_hash <code>116b0203fdedca7f</code> · prev: — (review-блок инициализирован этим прогоном; ранее frontmatter отсутствовал).</p>
+  <table>
+    <tr><th>Фаза</th><th>Статус</th></tr>
+    <tr><td>structure</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>coverage</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>dependencies</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>verifiability</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>consistency</td><td><span class="badge b-crit">in_progress</span> (открыт CRITICAL F-001)</td></tr>
+  </table>
+
+  <h3>Findings</h3>
+  <table>
+    <tr><th>ID</th><th>Severity</th><th>Раздел</th><th>Fragment</th><th>Проблема</th><th>Fix</th><th>Verdict</th></tr>
+    <tr>
+      <td>F-001</td><td><span class="badge b-crit">CRITICAL</span></td>
+      <td>Task 3: <code>ensure_git_writable</code></td>
+      <td><code>assert_eq "dev-safe '.' write preserved" "1" "$(grep -cFx '"." = "write"' "$gcfg")"</code></td>
+      <td>seed-конфиг теста содержит <code>"." = "write"</code> в <b>двух</b> профилях (<code>dev-safe</code> и <code>ssh-on-request</code>), поэтому <code>grep -cFx</code> вернёт <b>2</b>, а тест ждёт <b>1</b> → Шаг 4 Задачи 3 никогда не достигнет <code>FAIL=0</code>. Инлайн-комментарий плана сам признаёт «both profiles keep '.'=write (&gt;=1)», но ассертит ровно 1. Подтверждено прогоном awk/grep на seed-конфиге.</td>
+      <td>Заменить ожидание на <code>"2"</code>, либо ограничить подсчёт одним профилем через awk (как уже сделано для <code>git_in_devsafe</code>), либо убрать <code>"." = "write"</code> из <code>ssh-on-request</code> в seed.</td>
+      <td><span class="badge b-crit">open</span></td>
+    </tr>
+    <tr>
+      <td>F-002</td><td><span class="badge b-info">INFO</span></td>
+      <td>Task 6 / спека §Testing</td>
+      <td>«## Testing (<code>tests/</code>, new <code>test_mode.sh</code> + extend <code>test_install.sh</code>)»</td>
+      <td>Заголовок §Testing спеки говорит «extend test_install.sh», но ни одна задача плана не трогает <code>tests/test_install.sh</code> (grep = 0 ссылок). Тело спеки не уточняет, <em>что</em> добавлять, а все 4 пункта тестирования покрыты новым <code>test_mode.sh</code> → это висячая ссылка, не пропущенное поведение.</td>
+      <td>Либо добавить шаг, расширяющий <code>test_install.sh</code> (например проверить, что fresh install везёт .git-writable шаблон), либо явно отметить, что заголовок спеки замещён <code>test_mode.sh</code>.</td>
+      <td><span class="badge b-info">open</span></td>
+    </tr>
+  </table>
+
+  <h3>Сводка</h3>
+  <p class="note">CRITICAL open: <b>1</b> · WARNING open: <b>0</b> · INFO open: <b>1</b><br>
+  Итоговый вердикт: <span class="badge b-crit">ТРЕБУЕТ ДОРАБОТКИ</span> — 1 critical, 0 warning.<br>
+  Фаза <code>consistency</code> остаётся <code>in_progress</code> до закрытия F-001 (CRITICAL).</p>
+
+  <h3>Косметическая заметка (не находка)</h3>
+  <p class="note">awk в <code>ensure_git_writable</code> при добавлении <code>.git/</code> в профиль, чья <code>:workspace_roots</code>-таблица заканчивается на границе секции, вставляет строку после пустой строки-разделителя (лишняя пустая строка перед новым ключом). Функционально безвредно (TOML игнорирует пустые строки, ключ остаётся под верной таблицей) и идемпотентно. Шаблонный путь (Задача 5 Шаг 7) не страдает: там <code>.git/</code> добавляется сразу после <code>"." = "write"</code> и заменяется in-place — проверено, печатает <code>IDEMPOTENT</code>.</p>
+
+  <h3>Chain</h3>
+  <p class="note">intent <code>null</code> (intent-документ не найден) → spec <code>docs/superpowers/specs/2026-06-29-icodex-run-profiles-design.md</code> → plan <code>docs/superpowers/plans/2026-06-29-icodex-run-profiles.md</code> → result (ещё не проверен).</p>
+
 </section>
 <!-- TAB:plan END -->
 <!-- TAB:result START -->

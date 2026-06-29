@@ -1,3 +1,54 @@
+---
+review:
+  spec_hash: 270d563ac1da3633
+  last_run: 2026-06-29
+  phases:
+    structure:   { status: passed }
+    coverage:    { status: passed }
+    clarity:     { status: passed }
+    consistency: { status: passed }
+  findings:
+    - id: F-001
+      phase: coverage
+      severity: INFO
+      section: Documentation
+      section_hash: d4df5d759400d3f2
+      fragment: "`README.md` and `print_help` (`lib/command/args.sh`): mention `ICODEX_MODE`."
+      text: >-
+        print_help currently documents the `--full-access` flag and a
+        "Precedence: defaults < .codex_config < flags" line but lists no env
+        keys; the spec asks only to "mention ICODEX_MODE" without specifying
+        whether the granular ICODEX_APPROVAL / ICODEX_PERMISSIONS keys or the
+        revised precedence (defaults < ICODEX_MODE < granular) are surfaced in help.
+      fix: >-
+        Clarify in the Documentation section exactly what print_help should say
+        (e.g. one line naming ICODEX_MODE and its 4 presets), or state that the
+        detailed key reference lives only in .codex_config.example / wiki.
+      verdict: open
+      verdict_at: null
+    - id: F-002
+      phase: consistency
+      severity: INFO
+      section: Architecture
+      section_hash: be3bc52b9dc3e5be
+      fragment: "reusing the existing awk-upsert approach (`_ensure_filesystem_permission_entry` generalized to accept the section + key, or a thin dedicated function)."
+      text: >-
+        _ensure_filesystem_permission_entry hardcodes
+        section = "[permissions.dev-safe.filesystem]" and also auto-creates that
+        same hardcoded section in its END block when absent. The spec offers two
+        options (generalize vs. dedicated function) without choosing; whichever
+        is taken, ensure_git_writable must target the ":workspace_roots" subtable
+        (not the bare ".filesystem" table the existing helper creates) for both
+        dev-safe and ssh-on-request.
+      fix: >-
+        State the chosen approach and confirm the new helper parameterizes the
+        full section path "[permissions.<profile>.filesystem.\":workspace_roots\"]"
+        rather than the existing hardcoded "[permissions.dev-safe.filesystem]".
+      verdict: open
+      verdict_at: null
+chain:
+  intent: null
+---
 # icodex Run Profiles (ICODEX_MODE) + `.git` Writability — Design
 
 **Date:** 2026-06-29
