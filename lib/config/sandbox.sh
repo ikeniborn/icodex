@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Effective sandbox mode resolution and idempotent config write.
 # Precedence (low -> high): workspace-write default < ICODEX_SANDBOX < --full-access.
-# approval_policy is never touched here; only sandbox_mode is managed.
+# Run-mode resolution and idempotent config write: sandbox_mode, approval_policy,
+# and the managed permission profile (default_permissions) are all managed here.
 
 # Echo the effective sandbox mode; return 1 + log_error on an invalid ICODEX_SANDBOX.
 resolve_sandbox_mode() {
@@ -98,12 +99,24 @@ _remove_toml_toplevel() { # <config> <key>
   rm -f "$tmp"
 }
 
-# Resolve and write sandbox_mode into the per-project config; warn on full access.
-apply_sandbox_mode() {
-  local config="$ICODEX_HOME_DIR/config.toml" mode
-  mode="$(resolve_sandbox_mode)" || return 1
-  _upsert_toml_toplevel "$config" sandbox_mode "$mode"
-  if [[ "$mode" == "danger-full-access" ]]; then
+# Resolve the run mode and write it into the per-project config: sandbox_mode +
+# approval_policy (top-level upserts), default_permissions (upsert, or removed for
+# `none`), and the .git writability grant for the active managed profile. Warns on
+# danger-full-access and on a disabled managed layer.
+apply_mode() {
+  local config="$ICODEX_HOME_DIR/config.toml" triple sandbox approval permissions
+  triple="$(resolve_mode)" || return 1
+  read -r sandbox approval permissions <<<"$triple"
+  _upsert_toml_toplevel "$config" sandbox_mode "$sandbox"
+  _upsert_toml_toplevel "$config" approval_policy "$approval"
+  if [[ "$permissions" == "none" ]]; then
+    _remove_toml_toplevel "$config" default_permissions
+    log_warn "permissions = none — managed permissions disabled, no approval prompts (project: $(basename "$ICODEX_HOME_DIR"))"
+  else
+    _upsert_toml_toplevel "$config" default_permissions "$permissions"
+    ensure_git_writable "$config" "$permissions"
+  fi
+  if [[ "$sandbox" == "danger-full-access" ]]; then
     log_warn "sandbox = danger-full-access — full filesystem access enabled (project: $(basename "$ICODEX_HOME_DIR"))"
   fi
   return 0

@@ -82,4 +82,50 @@ ensure_git_writable "$gcfg" dev-safe
 assert_eq "ensure_git_writable idempotent" "$before_git" "$(cat "$gcfg")"
 rm -rf "$gt"
 
+# --- apply_mode: writes the resolved triple into the per-project config ---
+mt="$(mktemp -d)"; ICODEX_HOME_DIR="$mt/home"; mkdir -p "$ICODEX_HOME_DIR"
+seed_mode() {
+  cat > "$ICODEX_HOME_DIR/config.toml" <<'EOF'
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+default_permissions = "ssh-on-request"
+
+[permissions.dev-safe.filesystem.":workspace_roots"]
+"." = "write"
+
+[permissions.ssh-on-request.filesystem.":workspace_roots"]
+"." = "write"
+EOF
+}
+
+# safe: dev-safe profile, on-request, workspace-write, .git writable
+clear_env; ICODEX_MODE=safe; seed_mode
+apply_mode
+cfg="$ICODEX_HOME_DIR/config.toml"
+assert_eq "safe sandbox" "1" "$(grep -cFx 'sandbox_mode = "workspace-write"' "$cfg")"
+assert_eq "safe approval" "1" "$(grep -cFx 'approval_policy = "on-request"' "$cfg")"
+assert_eq "safe permissions" "1" "$(grep -cFx 'default_permissions = "dev-safe"' "$cfg")"
+assert_eq "safe grants .git" "1" "$(grep -cFx '".git/" = "write"' "$cfg")"
+
+# full-auto: removes default_permissions, approval never, danger sandbox
+clear_env; ICODEX_MODE=full-auto; seed_mode
+warn_auto="$(apply_mode 2>&1 >/dev/null)"
+assert_eq "full-auto removes managed perms" "0" "$(grep -c '^default_permissions' "$cfg")"
+assert_eq "full-auto approval never" "1" "$(grep -cFx 'approval_policy = "never"' "$cfg")"
+assert_eq "full-auto sandbox danger" "1" "$(grep -cFx 'sandbox_mode = "danger-full-access"' "$cfg")"
+assert_contains "full-auto warns danger" "$warn_auto" "full filesystem access enabled"
+assert_contains "full-auto warns no managed perms" "$warn_auto" "managed permissions disabled"
+
+# idempotent: second apply byte-identical
+clear_env; ICODEX_MODE=full-ask; seed_mode
+apply_mode
+before_apply="$(cat "$cfg")"
+apply_mode
+assert_eq "apply_mode idempotent" "$before_apply" "$(cat "$cfg")"
+
+# resolve failure propagates
+clear_env; ICODEX_MODE=bogus; seed_mode
+assert_exit "apply_mode fails on invalid mode" 1 apply_mode
+rm -rf "$mt"
+
 finish
