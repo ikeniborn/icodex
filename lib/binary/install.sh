@@ -59,20 +59,20 @@ _persist_uv_bin() { # <uv_bin>
 }
 
 ensure_uv_dependency() {
-  local target="$ICODEX_HOME_DIR/bin/uv" source
+  local target="$ICODEX_SHARED_DIR/bin/uv" source
   if [[ -x "$target" ]]; then
     _persist_uv_bin "$target"
     return 0
   fi
 
   source="$(_uv_source_bin)"
-  mkdir -p "$ICODEX_HOME_DIR/bin"
+  mkdir -p "$ICODEX_SHARED_DIR/bin"
   if [[ -n "$source" && -x "$source" ]]; then
     cp "$source" "$target" || return 1
     chmod +x "$target"
   else
     log_info "installing uv dependency..."
-    if ! _install_uv_from_network "$ICODEX_HOME_DIR/bin"; then
+    if ! _install_uv_from_network "$ICODEX_SHARED_DIR/bin"; then
       log_error "uv dependency install failed"
       return 1
     fi
@@ -91,8 +91,8 @@ _extract_codex() { # <tarball> -> installs $ICODEX_BIN
   if [[ -z "$found" ]]; then
     log_error "codex binary not found inside archive"; rm -rf "$tmpd"; return 1
   fi
-  mkdir -p "$ICODEX_HOME_DIR/bin"
-  install_tmp="$ICODEX_HOME_DIR/bin/.codex.new.$$"
+  mkdir -p "$ICODEX_SHARED_DIR/bin"
+  install_tmp="$ICODEX_SHARED_DIR/bin/.codex.new.$$"
   if ! cp "$found" "$install_tmp"; then
     log_error "failed to stage codex binary at $install_tmp"
     rm -f "$install_tmp"; rm -rf "$tmpd"; return 1

@@ -18,6 +18,12 @@
 # takes precedence. Alternative: `codex login` (writes auth.json, also ignored).
 #ICODEX_API_KEY=sk-...
 
+# Filesystem sandbox for codex: read-only | workspace-write | danger-full-access.
+# Default is workspace-write (write inside the workspace, not the wider filesystem).
+# The --full-access flag has higher precedence and forces danger-full-access for a
+# single run (with a warning). An invalid value is rejected with an error.
+#ICODEX_SANDBOX=workspace-write
+
 # Route codex and its API/MCP traffic through a proxy.
 #
 # Use an HTTP CONNECT proxy URL here, even for HTTPS destinations. The `http://`

@@ -5,7 +5,7 @@ source "$ROOT/tests/helpers.sh"
 source "$ROOT/lib/core/logging.sh"
 source "$ROOT/lib/command/args.sh"
 
-reset() { ICODEX_CMD="run"; ICODEX_DISABLE_PROXY=0; ICODEX_SET_PROXY=""; ICODEX_PASSTHROUGH=(); }
+reset() { ICODEX_CMD="run"; ICODEX_DISABLE_PROXY=0; ICODEX_SET_PROXY=""; ICODEX_PASSTHROUGH=(); ICODEX_FULL_ACCESS=0; }
 
 reset; parse_args --proxy "http://p:8080"
 assert_eq "proxy url captured" "http://p:8080" "$ICODEX_SET_PROXY"
@@ -28,5 +28,14 @@ assert_contains "help text" "$(print_help)" "Usage:"
 
 reset; if ( parse_args --proxy ) 2>/dev/null; then rc=0; else rc=1; fi
 assert_eq "missing proxy url -> nonzero" "1" "$rc"
+
+reset; parse_args --full-access
+assert_eq "full-access sets flag" "1" "$ICODEX_FULL_ACCESS"
+assert_eq "full-access keeps run cmd" "run" "$ICODEX_CMD"
+
+reset; parse_args --full-access -- foo
+assert_eq "full-access then passthrough" "foo" "${ICODEX_PASSTHROUGH[*]}"
+
+assert_contains "help documents full-access" "$(print_help)" "--full-access"
 
 finish

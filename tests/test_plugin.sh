@@ -9,6 +9,7 @@ source "$ROOT/lib/config/permissions.sh"
 tmp="$(mktemp -d)"
 export ICODEX_ROOT="$tmp"
 export ICODEX_HOME_DIR="$tmp/.codex-isolated"
+export ICODEX_SHARED_DIR="$ICODEX_HOME_DIR"
 export ICODEX_BIN="$ICODEX_HOME_DIR/bin/codex"
 CACHE="$ICODEX_HOME_DIR/plugins/cache/superpowers/superpowers/6.0.3"
 MARKETPLACE="$ICODEX_HOME_DIR/tmp/marketplaces/superpowers"
@@ -106,7 +107,7 @@ assert_eq "other section preserved" "1" "$(grep -cFx 'source = "/keep/me"' "$cfg
 
 # 7. missing cache -> warn, no crash, no rewrite
 cfg_before_missing="$(cat "$cfg")"
-rm -rf "$ICODEX_HOME_DIR/plugins"
+rm -rf "$ICODEX_SHARED_DIR/plugins"
 missing_code=0
 warn="$(ensure_superpowers_wiring 2>&1 >/dev/null)" || missing_code=$?
 assert_eq "missing cache does not fail" "0" "$missing_code"

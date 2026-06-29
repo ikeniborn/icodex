@@ -2,20 +2,50 @@
 
 ## Overview
 
-The `lib/config/` modules manage isolation and configuration.
+The `lib/config/` modules manage per-project isolation and Codex runtime config.
 
-`isolated.sh` redirects codex state into the project via `CODEX_HOME`, `env.sh`
-parses the git-ignored `.codex_config` and maps the API key, and `permissions.sh`
-injects sandbox filesystem grants into `config.toml`. See
-[[architecture#Two-config model]] and [[binary#uv dependency]].
+`isolated.sh` resolves a per-project `CODEX_HOME` backed by a shared asset store,
+`sandbox.sh` resolves and writes the effective `sandbox_mode`, `permissions.sh`
+grants filesystem access and trusts the launched project, and `env.sh` parses the
+git-ignored `.codex_config` and maps the API key. See [[architecture#Two-config model]].
 
 ## CODEX_HOME isolation
 
-`setup_codex_home` creates `.codex-isolated/bin` and exports `CODEX_HOME`.
+`setup_codex_home` builds a per-project home under `ICODEX_HOMES_DIR` and exports `CODEX_HOME`.
 
-It points `CODEX_HOME` at `ICODEX_HOME_DIR`. This single redirect makes codex keep
-all of its state — config, sessions, logs, sqlite, plugin caches — inside the
-project rather than the user's home, the foundation of icodex's isolation.
+Expensive, stable assets — the codex binary, `uv`, the vendored plugin cache, and
+`auth.json` — live once in the shared store `ICODEX_SHARED_DIR` (`.codex-isolated`).
+Per-project state lives in a home `ICODEX_HOMES_DIR/<basename>-<short-sha256>`
+(`.codex-homes/<id>`), keyed by the target project root via `resolve_project_root`
+(the git toplevel of the CWD, else `pwd -P`). `setup_codex_home` symlinks `plugins`
+and `auth.json` back to the shared store with the idempotent `_link_shared`, copies
+the template `config.toml` once when absent, and exports `CODEX_HOME` — so each
+project gets isolated sessions and logs while sharing the heavy assets. The
+`install`/`update` paths instead call `setup_shared_dirs`, which only creates the
+shared `bin` dir. The `.codex-homes/` tree is git-ignored runtime state.
+
+## Sandbox mode
+
+`sandbox.sh` makes the filesystem sandbox safe by default and makes escalation explicit.
+
+`resolve_sandbox_mode` echoes the effective mode with precedence
+`workspace-write` (the default) < `ICODEX_SANDBOX` < `--full-access` /
+`ICODEX_FULL_ACCESS`; an `ICODEX_SANDBOX` outside `read-only`, `workspace-write`,
+`danger-full-access` is rejected with `log_error` and a non-zero return.
+`apply_sandbox_mode` writes the resolved value into the per-project `config.toml`
+through `_upsert_toml_toplevel` — an idempotent `awk` upsert of a top-level
+`sandbox_mode = "..."` line that leaves an unchanged file byte-identical. Escalating
+to `danger-full-access` emits a `log_warn` that full filesystem access is enabled.
+`approval_policy` is never touched. See [[command#Flag parsing]].
+
+## Project trust
+
+`ensure_project_trust` marks the launched project trusted in its per-project config.
+
+It idempotently appends a `[projects."<root>"]` block with `trust_level = "trusted"`
+for `ICODEX_PROJECT_ROOT`, escaping the path with `_toml_basic_string_escape` and
+skipping the write when the block already exists. It governs trust only and never
+changes `approval_policy`.
 
 ## Persistent user config
 

@@ -19,6 +19,9 @@
 # Proxy URL + API key live here (chmod 600) — never commit
 .codex_config
 
+# Per-project CODEX_HOME directories — runtime state, never committed
+.codex-homes/
+
 # SDD scratch (briefs, reports, ledger) — never commit
 .superpowers
 

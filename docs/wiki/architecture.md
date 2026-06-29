@@ -40,9 +40,12 @@ exit, or the default run path proceeds. Flags map to `ICODEX_CMD` in
 
 The default `run` case wires up the isolated environment, then execs codex.
 
-It calls `setup_codex_home`, wires launcher binary permissions, wires the
-Superpowers plugin, ensures the binary and uv are present, optionally
-applies the proxy, then `exec`s codex. See [[config#CODEX_HOME isolation]],
+It calls `setup_codex_home` to build the per-project `CODEX_HOME`, `apply_sandbox_mode`
+to write the safe-by-default `sandbox_mode`, and `ensure_project_trust` to trust the
+launched project, then wires launcher binary permissions and the Superpowers plugin,
+ensures the binary and `uv` are present, optionally applies the proxy, and finally
+`exec`s codex. The `install`/`update` paths instead call `setup_shared_dirs` and
+create no per-project home. See [[config#CODEX_HOME isolation]], [[config#Sandbox mode]],
 [[plugins#Superpowers wiring]], [[launch#Final exec]].
 
 ## Two-config model
@@ -50,8 +53,10 @@ applies the proxy, then `exec`s codex. See [[config#CODEX_HOME isolation]],
 icodex separates wrapper settings from Codex runtime settings.
 
 `.codex_config` (git-ignored, `chmod 600`) holds `ICODEX_*` keys: API key, proxy,
-repo, symlink dir. `.codex-isolated/config.toml` (tracked) holds Codex runtime:
-model, sandbox, approvals, permissions, plugins. See [[config#Persistent user config]].
+repo, symlink dir. The tracked `.codex-isolated/config.toml` is the template Codex
+runtime config (model, sandbox, approvals, permissions, plugins); it is copied into
+each per-project `CODEX_HOME` on first run, where `sandbox_mode` and project trust
+are then managed. See [[config#Persistent user config]], [[config#Sandbox mode]].
 
 ## What lives in git
 
