@@ -42,8 +42,8 @@ assert_eq "does not call iwiki wiring on launch" "0" \
   "$(grep -Ec '^[[:space:]]*ensure_iwiki_wiring[[:space:]]*$' "$ROOT/icodex.sh")"
 assert_eq "calls binary permission wiring on launch" "1" \
   "$(grep -Ec '^[[:space:]]*ensure_launcher_binary_permission[[:space:]]*$' "$ROOT/icodex.sh")"
-assert_eq "calls apply_sandbox_mode on launch" "1" \
-  "$(grep -Ec '^[[:space:]]*apply_sandbox_mode \|\| exit 1[[:space:]]*$' "$ROOT/icodex.sh")"
+assert_eq "calls apply_mode on launch" "1" \
+  "$(grep -Ec '^[[:space:]]*apply_mode \|\| exit 1[[:space:]]*$' "$ROOT/icodex.sh")"
 assert_eq "calls ensure_project_trust on launch" "1" \
   "$(grep -Ec '^[[:space:]]*ensure_project_trust ' "$ROOT/icodex.sh")"
 assert_eq "tracked config does not enable iwiki" "0" \
@@ -51,7 +51,7 @@ assert_eq "tracked config does not enable iwiki" "0" \
 launch_order_ok="$(awk '
   /# default: run/ { inblock = 1; step = 0; next }
   inblock && /^[[:space:]]*setup_codex_home[[:space:]]*$/ && step == 0 { step = 1; next }
-  inblock && /^[[:space:]]*apply_sandbox_mode \|\| exit 1[[:space:]]*$/ && step == 1 { step = 2; next }
+  inblock && /^[[:space:]]*apply_mode \|\| exit 1[[:space:]]*$/ && step == 1 { step = 2; next }
   inblock && /^[[:space:]]*ensure_project_trust / && step == 2 { step = 3; next }
   inblock && /^[[:space:]]*ensure_launcher_binary_permission[[:space:]]*$/ && step == 3 { step = 4; next }
   inblock && /^[[:space:]]*ensure_superpowers_wiring[[:space:]]*$/ && step == 4 { step = 5; next }

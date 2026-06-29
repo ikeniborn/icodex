@@ -27,25 +27,19 @@ approval_policy = "on-request"
 default_permissions = "ssh-on-request"
 web_search = "cached"
 
-# Launch safety modes:
-# - Safer default:
-#     sandbox_mode = "workspace-write"
-#     approval_policy = "on-request"
-# - Full filesystem access, but still asks for risky actions:
-#     sandbox_mode = "danger-full-access"
-#     approval_policy = "on-request"
-# - Equivalent to `--dangerously-bypass-approvals-and-sandbox`:
-#     sandbox_mode = "danger-full-access"
-#     approval_policy = "never"
+# Run modes (set ICODEX_MODE in .codex_config; default is full-ask):
+# - ro:        read-only sandbox, on-request approval, dev-safe profile.
+# - safe:      workspace-write, on-request approval, dev-safe profile.
+# - full-ask:  danger-full-access, on-request approval, ssh-on-request profile.
+# - full-auto: danger-full-access, never approval, managed permissions removed
+#              (no prompts at all; .git writable). = --dangerously-bypass-approvals-and-sandbox.
+# icodex rewrites sandbox_mode / approval_policy / default_permissions and grants
+# ".git/" = "write" in the active profile on every run. Granular ICODEX_SANDBOX /
+# ICODEX_APPROVAL / ICODEX_PERMISSIONS override individual fields.
 #
-# Permission profiles:
-# `default_permissions` selects one of the named [permissions.<name>] profiles
-# below for managed filesystem/network rules. It is separate from sandbox_mode
-# and approval_policy.
-# - dev-safe: default locked-down profile. No network and no SSH material.
-# - ssh-on-request: allows outbound network plus read-only ~/.ssh for SSH-based
-#   work when managed permissions are active. Keep default.rules `ssh = prompt`
-#   if SSH commands should still require explicit confirmation.
+# Permission profiles (managed filesystem/network rules, selected by default_permissions):
+# - dev-safe:       locked down. No network, no SSH material.
+# - ssh-on-request: outbound network + read-only ~/.ssh for SSH-based work.
 
 # The <ver> segment below is illustrative: the launcher rewrites the whole
 # `source` line from the real cache path on each run (see spec §4.1/§4.2) — the whole line is rewritten, the placeholder is never string-substituted.
@@ -72,6 +66,7 @@ glob_scan_max_depth = 4
 "/home/ikeniborn/Documents/Project/icodex/.codex-isolated/bin/codex" = "read"
 [permissions.dev-safe.filesystem.":workspace_roots"]
 "." = "write"
+".git/" = "write"
 "**/.env" = "deny"
 "**/.env.local" = "deny"
 "**/secrets/**" = "deny"
@@ -111,6 +106,7 @@ glob_scan_max_depth = 4
 "/home/ikeniborn/Documents/Project/icodex/.codex-isolated/bin/codex" = "read"
 [permissions.ssh-on-request.filesystem.":workspace_roots"]
 "." = "write"
+".git/" = "write"
 "**/.env" = "deny"
 "**/.env.local" = "deny"
 "**/secrets/**" = "deny"
