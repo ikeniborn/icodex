@@ -3,6 +3,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/helpers.sh"
 source "$ROOT/lib/config/env.sh"
+source "$ROOT/lib/core/logging.sh"
 source "$ROOT/lib/proxy/proxy.sh"
 
 tmp="$(mktemp -d)"; cfg="$tmp/.codex_config"
@@ -65,6 +66,25 @@ assert_eq "tty + N -> exit"        "exit"     "$(_proxy_unreachable_action 1 N)"
 assert_eq "tty + empty -> continue" "continue" "$(_proxy_unreachable_action 1 '')"
 assert_eq "tty + y -> continue"     "continue" "$(_proxy_unreachable_action 1 y)"
 assert_eq "no tty -> continue"      "continue" "$(_proxy_unreachable_action 0 '')"
+
+# --- proxy_ensure: orchestration (Task 3) ---
+# no proxy set -> no-op (nothing exported)
+unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy ICODEX_PROXY
+proxy_ensure </dev/null
+assert_eq "no proxy -> noop" "" "${HTTPS_PROXY:-}"
+
+# unreachable + no TTY (stdin from /dev/null) -> continue, proxy NOT applied
+unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
+ICODEX_PROXY="http://127.0.0.1:65000" proxy_ensure </dev/null
+assert_eq "unreachable continues (exit 0)" "0" "$?"
+assert_eq "unreachable -> proxy not applied" "" "${HTTPS_PROXY:-}"
+
+# reachable (stub) -> proxy applied
+unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
+proxy_reachable() { return 0; }                # stub: force reachable
+ICODEX_PROXY="http://p:8080" proxy_ensure </dev/null
+assert_eq "reachable -> proxy applied" "http://p:8080" "${HTTPS_PROXY:-}"
+source "$ROOT/lib/proxy/proxy.sh"              # restore the real proxy_reachable
 
 rm -rf "$tmp"
 finish

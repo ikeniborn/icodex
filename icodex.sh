@@ -58,7 +58,7 @@ main() {
   ensure_superpowers_wiring
   install_ensure || exit 1
   ensure_uv_dependency || exit 1
-  (( ICODEX_DISABLE_PROXY )) || proxy_apply
+  (( ICODEX_DISABLE_PROXY )) || proxy_ensure
   launch_codex ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}
 }
 

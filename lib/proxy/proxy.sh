@@ -62,3 +62,29 @@ _proxy_unreachable_action() { # <tty:0|1> <reply>
     printf 'continue\n'
   fi
 }
+
+# Probe ICODEX_PROXY before launch; apply it if reachable, else prompt (TTY) or
+# warn-and-skip (no TTY). Never lets codex hang on a dead proxy. exit 1 only when
+# an interactive user answers n/N.
+proxy_ensure() {
+  [[ -n "${ICODEX_PROXY:-}" ]] || return 0
+  local host port
+  read -r host port < <(_proxy_host_port "$ICODEX_PROXY")
+  if proxy_reachable "$host" "$port"; then
+    proxy_apply
+    return 0
+  fi
+  log_warn "proxy $ICODEX_PROXY unreachable"
+  local tty=0 reply=""
+  if [[ -t 0 ]]; then
+    tty=1
+    printf '[icodex] Continue without proxy? [Y/n] ' >&2
+    read -r reply || reply=""
+  fi
+  if [[ "$(_proxy_unreachable_action "$tty" "$reply")" == exit ]]; then
+    log_error "aborted: proxy $ICODEX_PROXY unreachable"
+    exit 1
+  fi
+  log_warn "continuing without proxy"
+  return 0
+}
