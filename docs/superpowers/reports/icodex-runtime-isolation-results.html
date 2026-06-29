@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>icodex Runtime Isolation — IDD chain report</title>
+<style>
+:root{
+  --bg:#0f1420; --surface:#1a2130; --surface2:#222b3d; --border:#33405a;
+  --text:#e6ecf5; --muted:#9aa7bd; --accent:#5db0ff; --accent2:#7ee0c0;
+  --warn:#ffcf6b; --crit:#ff7a7a; --ok:#7ee0a0; --info:#9aa7bd; --shadow:rgba(0,0,0,.45);
+}
+body:has(#theme-toggle:checked){
+  --bg:#f5f7fb; --surface:#ffffff; --surface2:#eef2f8; --border:#cfd8e6;
+  --text:#1a2230; --muted:#5a6678; --accent:#1769c0; --accent2:#0f9a78;
+  --warn:#b5790a; --crit:#c43d3d; --ok:#1c9d5c; --info:#5a6678; --shadow:rgba(20,40,80,.12);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;font-size:15px}
+header{display:flex;align-items:center;gap:1rem;padding:1rem 1.4rem;border-bottom:1px solid var(--border);
+  background:var(--surface);position:sticky;top:0;z-index:5}
+header h1{font-size:1.15rem;margin:0;font-weight:650}
+.theme-btn{cursor:pointer;border:1px solid var(--border);border-radius:8px;padding:.35rem .6rem;
+  background:var(--surface2);user-select:none;font-size:.95rem}
+main{max-width:1080px;margin:0 auto;padding:1.4rem}
+h2{font-size:1.05rem;border-left:3px solid var(--accent);padding-left:.6rem;margin:1.8rem 0 .8rem}
+h3{font-size:.95rem;color:var(--muted);margin:1.3rem 0 .5rem;text-transform:uppercase;letter-spacing:.04em}
+table{width:100%;border-collapse:collapse;margin:.6rem 0;background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--border);vertical-align:top;font-size:.88rem}
+th{background:var(--surface2);color:var(--muted);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+code{background:var(--surface2);padding:.08rem .35rem;border-radius:5px;font-size:.84em;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.note{background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--accent2);
+  border-radius:8px;padding:.7rem .9rem;color:var(--muted)}
+.badge{display:inline-block;padding:.12rem .5rem;border-radius:20px;font-size:.74rem;font-weight:700;
+  border:1px solid currentColor}
+.b-ok{color:var(--ok)} .b-warn{color:var(--warn)} .b-crit{color:var(--crit)} .b-info{color:var(--info)}
+.b-fixed{color:var(--accent2)}
+.chain-tabs{display:flex;gap:.3rem;max-width:1080px;margin:1rem auto 0;padding:0 1.4rem;flex-wrap:wrap}
+.chain-tabs label{cursor:pointer;padding:.45rem 1rem;border:1px solid var(--border);border-bottom:none;
+  border-radius:9px 9px 0 0;background:var(--surface);color:var(--muted);font-size:.85rem}
+.tab-pane{display:none}
+body:has(#tab-intent:checked) #pane-intent,
+body:has(#tab-spec:checked)   #pane-spec,
+body:has(#tab-plan:checked)   #pane-plan,
+body:has(#tab-result:checked) #pane-result{display:block}
+body:has(#tab-intent:checked) label[for="tab-intent"],
+body:has(#tab-spec:checked)   label[for="tab-spec"],
+body:has(#tab-plan:checked)   label[for="tab-plan"],
+body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent);border-color:var(--accent);font-weight:700;background:var(--surface2)}
+/* CSS flow diagram */
+.flow{display:flex;flex-direction:column;gap:.6rem;margin:1rem 0}
+.flow-row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:stretch;justify-content:center}
+.fnode{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.55rem .8rem;
+  box-shadow:0 2px 8px var(--shadow);min-width:150px;text-align:center;font-size:.82rem}
+.fnode b{display:block;color:var(--accent);font-size:.86rem;margin-bottom:.15rem}
+.fnode.shared{border-color:var(--accent2)} .fnode.shared b{color:var(--accent2)}
+.farrow{text-align:center;color:var(--muted);font-size:1.1rem;line-height:1}
+.legend{display:flex;gap:1rem;flex-wrap:wrap;font-size:.8rem;color:var(--muted);margin:.4rem 0 1rem}
+.legend span{display:inline-flex;align-items:center;gap:.35rem}
+.dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+figure{margin:1rem 0}
+figcaption{color:var(--muted);font-size:.8rem;margin-top:.3rem;text-align:center}
+svg{max-width:100%;height:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+.gnode rect{fill:var(--surface2);stroke:var(--border)}
+.gnode.shared rect{stroke:var(--accent2);stroke-width:2}
+.gnode.home rect{stroke:var(--accent);stroke-width:2}
+.gnode text{fill:var(--text);font-size:11px}
+.gedge{stroke:var(--muted);stroke-width:1.6;fill:none}
+</style>
+</head>
+<body>
+<input type="checkbox" id="theme-toggle" hidden>
+<input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden checked>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<header>
+  <label for="theme-toggle" class="theme-btn" title="Тема">🌙 / ☀️</label>
+  <h1>icodex Runtime Isolation — IDD chain</h1>
+</header>
+<nav class="chain-tabs">
+  <label for="tab-intent">Intent</label>
+  <label for="tab-spec">Spec</label>
+  <label for="tab-plan">Plan</label>
+  <label for="tab-result">Result</label>
+</nav>
+<main>
+<!-- TAB:intent START -->
+<section class="tab-pane" id="pane-intent">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:intent END -->
+<!-- TAB:spec START -->
+<section class="tab-pane" id="pane-spec">
+
+  <h2>1. Резюме спецификации</h2>
+  <p class="note">Спец: <code>docs/superpowers/specs/2026-06-29-icodex-runtime-isolation-design.md</code> ·
+  spec_hash <code>dca0402951279942</code> · покрывает backlog P0 #1 (sandbox) и P0 #2 (per-project CODEX_HOME).</p>
+
+  <h3>Требования по разделам</h3>
+  <table>
+    <tr><th>Раздел</th><th>Требование</th></tr>
+    <tr><td>Decisions</td><td>Per-project дома, централизованно под <code>$ICODEX_ROOT/.codex-homes/&lt;id&gt;/</code>; целевые репо чистые.</td></tr>
+    <tr><td>Decisions</td><td>Shared <code>auth.json</code> через symlink — один логин; изолируются sessions/history/memory/logs.</td></tr>
+    <tr><td>Decisions</td><td>Sandbox по умолчанию <code>workspace-write</code> (safe by default).</td></tr>
+    <tr><td>Decisions</td><td>Escalation до <code>danger-full-access</code> явный: флаг <code>--full-access</code> или <code>ICODEX_SANDBOX</code> + stderr warning.</td></tr>
+    <tr><td>Decisions</td><td><code>approval_policy</code> неизменна (<code>on-request</code>) — escalation не bypass'ит approvals.</td></tr>
+    <tr><td>Decisions</td><td>Dependency-light: только bash / awk / ln, ноль новых зависимостей.</td></tr>
+    <tr><td>Architecture · Path split</td><td>Расщепить <code>ICODEX_HOME_DIR</code> на <code>ICODEX_SHARED_DIR</code> (assets) и динамический per-project <code>ICODEX_HOME_DIR</code> (state).</td></tr>
+    <tr><td>Architecture · Project identity</td><td><code>&lt;id&gt; = &lt;basename&gt;-&lt;short-sha256&gt;</code>; корень = git-toplevel или realpath cwd.</td></tr>
+    <tr><td>Architecture · Module changes</td><td>Правки: <code>init.sh</code>, <code>isolated.sh</code>, <code>install.sh</code>, <code>superpowers.sh</code>, новый <code>sandbox.sh</code>, <code>args.sh</code>, <code>icodex.sh</code>.</td></tr>
+    <tr><td>Architecture · Sandbox escalation</td><td>Precedence <code>default &lt; ICODEX_SANDBOX &lt; --full-access</code>; валидация значений; идемпотентный awk-upsert <code>sandbox_mode</code>.</td></tr>
+    <tr><td>Architecture · Config generation</td><td>Per-project <code>config.toml</code>: copy template + idemпotentный upsert managed-строк (sandbox, marketplace, binary grant, trust).</td></tr>
+    <tr><td>Migration</td><td>Shared assets остаются в <code>.codex-isolated</code>; осиротевший runtime безопасен (CODEX_HOME → <code>.codex-homes</code>); <code>.codex-homes/</code> в gitignore.</td></tr>
+    <tr><td>Testing (TDD)</td><td>Расширить/добавить: <code>test_isolated</code>, новый <code>test_sandbox</code>, <code>test_install</code>/<code>test_update_scope</code>, <code>test_plugin</code>, <code>test_smoke</code>, trust-тест.</td></tr>
+    <tr><td>Out of scope</td><td>GC домов, <code>--list-homes</code>, isolated-auth, 3-уровневый sandbox UX — future.</td></tr>
+  </table>
+
+  <h3>Success Criteria (Verification)</h3>
+  <table>
+    <tr><th>#</th><th>Критерий</th></tr>
+    <tr><td>1</td><td>Запуск из чужого репо → <code>CODEX_HOME</code> под <code>.codex-homes/&lt;id&gt;/</code>, отдельный на проект; сессии там, не в <code>.codex-isolated</code>.</td></tr>
+    <tr><td>2</td><td>Два разных репо → разные дома; нет cross-project утечки session/memory.</td></tr>
+    <tr><td>3</td><td>Дефолт-запуск → <code>sandbox_mode = workspace-write</code>; без warning.</td></tr>
+    <tr><td>4</td><td><code>--full-access</code> / <code>ICODEX_SANDBOX=danger-full-access</code> → <code>danger-full-access</code> в config + stderr warning.</td></tr>
+    <tr><td>5</td><td><code>install</code>/<code>update</code> пишут только под <code>.codex-isolated/bin</code>, дом не создают.</td></tr>
+    <tr><td>6</td><td>Все обновлённые и новые тесты проходят.</td></tr>
+  </table>
+
+  <h2>2. Схемы решения и зависимостей</h2>
+
+  <h3>Схема решения — run path</h3>
+  <div class="flow">
+    <div class="flow-row"><div class="fnode"><b>icodex.sh</b>main() run path</div></div>
+    <div class="farrow">▼</div>
+    <div class="flow-row">
+      <div class="fnode"><b>setup_codex_home</b>resolve &lt;id&gt;, mkdir дом,<br>symlink plugins+auth, copy template</div>
+      <div class="fnode"><b>args.sh</b>--full-access →<br>ICODEX_SANDBOX override</div>
+    </div>
+    <div class="farrow">▼</div>
+    <div class="flow-row">
+      <div class="fnode"><b>sandbox.sh</b>effective mode +<br>upsert sandbox_mode + warning</div>
+      <div class="fnode"><b>superpowers wiring</b>marketplace root +<br>rewrite source</div>
+      <div class="fnode"><b>permissions + trust</b>binary read grant,<br>[projects.&lt;target&gt;] trust</div>
+    </div>
+    <div class="farrow">▼</div>
+    <div class="flow-row"><div class="fnode"><b>launch_codex</b>exec $ICODEX_BIN (CODEX_HOME = per-project дом)</div></div>
+    <div class="farrow">▼ uses ▼</div>
+    <div class="flow-row">
+      <div class="fnode shared"><b>ICODEX_SHARED_DIR</b>.codex-isolated:<br>bin/codex, bin/uv, plugins/cache, auth.json, config.toml(template)</div>
+    </div>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--accent)"></span>per-project (state)</span>
+    <span><span class="dot" style="background:var(--accent2)"></span>shared (assets)</span>
+  </div>
+
+  <h3>Граф зависимостей (A → B = «A зависит от / использует B»)</h3>
+  <figure>
+  <svg viewBox="0 0 820 540" role="img" aria-label="Граф зависимостей компонентов спецификации">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path>
+      </marker>
+      <filter id="ds" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="var(--shadow)"></feDropShadow>
+      </filter>
+    </defs>
+    <!-- edges -->
+    <g>
+      <line class="gedge" x1="410" y1="68"  x2="150" y2="126" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="410" y1="68"  x2="410" y2="126" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="410" y1="68"  x2="690" y2="126" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="110" y1="174" x2="110" y2="246" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="380" y1="174" x2="320" y2="246" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="440" y1="174" x2="520" y2="366" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="410" y1="174" x2="300" y2="366" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="450" y1="160" x2="690" y2="366" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="110" y1="294" x2="290" y2="366" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="300" y1="294" x2="300" y2="366" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="560" y1="294" x2="525" y2="366" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="590" y1="294" x2="700" y2="366" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="375" y1="390" x2="445" y2="390" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="700" y1="414" x2="450" y2="478" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="520" y1="414" x2="425" y2="478" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="710" y1="174" x2="430" y2="478" marker-end="url(#arr)"></line>
+    </g>
+    <!-- nodes -->
+    <g class="gnode"><rect x="335" y="20" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="410" y="48" text-anchor="middle">icodex.sh run</text></g>
+    <g class="gnode"><rect x="35"  y="126" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="110" y="154" text-anchor="middle">args --full-access</text></g>
+    <g class="gnode"><rect x="335" y="126" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="410" y="154" text-anchor="middle">setup_codex_home</text></g>
+    <g class="gnode"><rect x="635" y="126" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="710" y="154" text-anchor="middle">install / update</text></g>
+    <g class="gnode"><rect x="35"  y="246" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="110" y="274" text-anchor="middle">sandbox.sh</text></g>
+    <g class="gnode"><rect x="225" y="246" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="300" y="274" text-anchor="middle">trust upsert</text></g>
+    <g class="gnode"><rect x="485" y="246" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="560" y="274" text-anchor="middle">superpowers wiring</text></g>
+    <g class="gnode"><rect x="225" y="366" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="300" y="394" text-anchor="middle">config.toml (per-proj)</text></g>
+    <g class="gnode home"><rect x="445" y="366" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="520" y="394" text-anchor="middle">ICODEX_HOME_DIR</text></g>
+    <g class="gnode"><rect x="625" y="366" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="700" y="394" text-anchor="middle">symlinks auth+plugins</text></g>
+    <g class="gnode shared"><rect x="335" y="478" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="410" y="506" text-anchor="middle">ICODEX_SHARED_DIR</text></g>
+  </svg>
+  <figcaption>DAG без циклов: per-project узлы (<span style="color:var(--accent)">синий</span>) и весь state в итоге зависят от <span style="color:var(--accent2)">shared store</span>; install/update минуют дом.</figcaption>
+  </figure>
+
+  <h3>Карта покрытия (задача → требования)</h3>
+  <table>
+    <tr><th>P0-задача</th><th>Покрывающие требования спеки</th></tr>
+    <tr><td>#1 Runtime isolation explicit &amp; safe by default (sandbox)</td>
+        <td>Decisions «Sandbox safe by default» + «approval unchanged»; Architecture · Sandbox escalation (precedence, валидация, warning, upsert); <code>sandbox.sh</code>, <code>args.sh --full-access</code>; Verification #3, #4.</td></tr>
+    <tr><td>#2 Shared vs per-project CODEX_HOME</td>
+        <td>Decisions «Per-project centralized» + «Shared auth»; Architecture · Path split, Project identity, Module changes; <code>setup_codex_home</code>, config-генерация, Migration; Verification #1, #2, #5.</td></tr>
+    <tr><td>(supporting) gap #8 trust</td>
+        <td>Config generation · trust upsert <code>[projects."&lt;target&gt;"]</code> — авто-доверие запускаемого репо (scoped, idempotent).</td></tr>
+  </table>
+
+  <h2>3. Результаты проверки</h2>
+  <table>
+    <tr><th>Фаза</th><th>Статус</th></tr>
+    <tr><td>structure</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>coverage</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>clarity</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>consistency</td><td><span class="badge b-ok">passed</span></td></tr>
+  </table>
+
+  <h3>Findings</h3>
+  <table>
+    <tr><th>ID</th><th>Severity</th><th>Раздел</th><th>Проблема</th><th>Fix</th><th>Verdict</th></tr>
+    <tr>
+      <td>F-001</td><td><span class="badge b-warn">WARNING</span></td>
+      <td>Config generation</td>
+      <td>Auto-trust ставит <code>trust_level="trusted"</code>; граница trust vs approval не оговорена.</td>
+      <td>Добавлено: trust только про доверие проекта, не меняет <code>approval_policy=on-request</code>; scope/идемпотентность.</td>
+      <td><span class="badge b-fixed">fixed</span></td>
+    </tr>
+    <tr>
+      <td>F-002</td><td><span class="badge b-info">INFO</span></td>
+      <td>Migration</td>
+      <td>«harmless» без критерия для осиротевших файлов <code>.codex-isolated</code>.</td>
+      <td>Указан критерий: CODEX_HOME → <code>.codex-homes/&lt;id&gt;/</code>, codex не читает старые файлы; проверяется тестом.</td>
+      <td><span class="badge b-fixed">fixed</span></td>
+    </tr>
+    <tr>
+      <td>F-003</td><td><span class="badge b-info">INFO</span></td>
+      <td>Config generation</td>
+      <td>«minimally» без измеримой границы.</td>
+      <td>Убрано «minimally»; привязано к одному блоку <code>[projects."&lt;target&gt;"]</code>, идемпотентность тестом.</td>
+      <td><span class="badge b-fixed">fixed</span></td>
+    </tr>
+  </table>
+
+  <h3>Сводка</h3>
+  <p class="note">
+    CRITICAL open: <b>0</b> · WARNING open: <b>0</b> (1 fixed) · INFO open: <b>0</b> (2 fixed)<br>
+    Итоговый вердикт: <span class="badge b-ok">OK</span> — IDD-гейт открыт.<br>
+    Chain: <b>intent → spec</b> · intent: <code>docs/superpowers/intents/2026-06-28-icodex-external-workspace-sandbox-intent.md</code>
+  </p>
+
+</section>
+<!-- TAB:spec END -->
+<!-- TAB:plan START -->
+<section class="tab-pane" id="pane-plan">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:plan END -->
+<!-- TAB:result START -->
+<section class="tab-pane" id="pane-result">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:result END -->
+</main>
+</body>
+</html>
