@@ -70,7 +70,7 @@ proxy_ensure() {
   [[ -n "${ICODEX_PROXY:-}" ]] || return 0
   local host port
   read -r host port < <(_proxy_host_port "$ICODEX_PROXY")
-  if proxy_reachable "$host" "$port"; then
+  if [[ -n "$host" && -n "$port" ]] && proxy_reachable "$host" "$port"; then
     proxy_apply
     return 0
   fi

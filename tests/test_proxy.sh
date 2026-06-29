@@ -86,5 +86,18 @@ ICODEX_PROXY="http://p:8080" proxy_ensure </dev/null
 assert_eq "reachable -> proxy applied" "http://p:8080" "${HTTPS_PROXY:-}"
 source "$ROOT/lib/proxy/proxy.sh"              # restore the real proxy_reachable
 
+# --- proxy_ensure: a hostless proxy URL is treated as immediately unreachable (post-review fix) ---
+# _proxy_host_port emits an empty host for a hostless URL (documented interface)
+assert_eq "hostless url -> empty host, port 80" " 80" "$(_proxy_host_port http://)"
+
+# guard: with an empty host, proxy_ensure must short-circuit BEFORE probing.
+# A stub that reports "reachable" proves the guard: if the probe were reached,
+# the proxy would be applied; the guard skips it, so HTTPS_PROXY stays unset.
+unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
+proxy_reachable() { return 0; }                # stub: would say reachable if reached
+ICODEX_PROXY="http://" proxy_ensure </dev/null
+assert_eq "hostless url -> proxy not applied" "" "${HTTPS_PROXY:-}"
+source "$ROOT/lib/proxy/proxy.sh"              # restore the real proxy_reachable
+
 rm -rf "$tmp"
 finish
