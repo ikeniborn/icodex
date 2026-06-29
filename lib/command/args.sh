@@ -43,6 +43,7 @@ icodex flags:
   --help, -h      Show this help
 
 Persistent settings: copy .codex_config.example to .codex_config (ICODEX_* keys).
+  ICODEX_MODE selects a run profile: ro | safe | full-ask (default) | full-auto.
 Precedence: defaults < .codex_config < flags.
 Anything after the first non-flag (or after --) is passed to codex verbatim.
 EOF

@@ -79,7 +79,10 @@ ordinary environment variable.
 | Variable | Effect | Default |
 |----------|--------|---------|
 | `ICODEX_API_KEY` | OpenAI API key → exported as `OPENAI_API_KEY` (secret; an ambient `OPENAI_API_KEY` wins) | — |
-| `ICODEX_SANDBOX` | Filesystem sandbox: `read-only`, `workspace-write`, or `danger-full-access` | `workspace-write` |
+| `ICODEX_MODE` | Run profile preset — sets sandbox, approval, and managed permissions together (see [Run mode](#run-mode-icodex_mode)) | `full-ask` |
+| `ICODEX_SANDBOX` | Granular override: filesystem sandbox only — `read-only`, `workspace-write`, or `danger-full-access`; takes precedence over `ICODEX_MODE` for the sandbox field | — |
+| `ICODEX_APPROVAL` | Granular override: approval policy only — `untrusted`, `on-failure`, `on-request`, or `never`; takes precedence over `ICODEX_MODE` for the approval field | — |
+| `ICODEX_PERMISSIONS` | Granular override: managed permission profile only — `dev-safe`, `ssh-on-request`, or `none`; takes precedence over `ICODEX_MODE` for the permissions field | — |
 | `ICODEX_PROXY` | Proxy URL, exported as `HTTPS_PROXY` / `HTTP_PROXY` for codex | — |
 | `ICODEX_NO_PROXY` | Comma-separated host bypass list, exported as `NO_PROXY` (e.g. `localhost,127.0.0.1,github.com`) | — |
 | `ICODEX_REPO` | GitHub repo the codex binary is fetched from | `openai/codex` |
@@ -99,21 +102,35 @@ the probe) entirely.
 > `ICODEX_*` keys reserved for the iwiki plugin (e.g. `ICODEX_IWIKI_*`) are intentionally
 > ignored by the wrapper config.
 
+### Run mode (`ICODEX_MODE`)
+
+One preset sets the sandbox, approval policy, and managed permission profile together:
+
+| `ICODEX_MODE` | Sandbox | Approval | Managed permissions | `.git` writable |
+|---------------|---------|----------|---------------------|-----------------|
+| `ro` | read-only | on-request | dev-safe | no |
+| `safe` | workspace-write | on-request | dev-safe | yes |
+| `full-ask` (default) | danger-full-access | on-request | ssh-on-request | yes |
+| `full-auto` | danger-full-access | never (no prompts) | off | yes |
+
+`full-auto` is the "full, no-stop" mode — equivalent to
+`--dangerously-bypass-approvals-and-sandbox`. The granular keys `ICODEX_SANDBOX`,
+`ICODEX_APPROVAL`, and `ICODEX_PERMISSIONS` override individual fields of the preset.
+
 ## Sandbox and trust
 
-icodex is **safe by default**: every run writes `sandbox_mode = "workspace-write"` into the
-project's `CODEX_HOME` config, so Codex may read and write inside the workspace but not the
-wider filesystem. You raise or lower the sandbox three ways, lowest to highest precedence:
+icodex is **safe by default**: every run writes the effective sandbox into the project's
+`CODEX_HOME` config. The effective sandbox is resolved, lowest to highest precedence:
 
-1. **Default** — `workspace-write`.
-2. **`ICODEX_SANDBOX`** — set `read-only`, `workspace-write`, or `danger-full-access` in
-   `.codex_config` or the environment. An invalid value is rejected with an error.
+1. **`ICODEX_MODE` preset** — the default mode `full-ask` sets `danger-full-access`; `safe`
+   and `ro` set `workspace-write` and `read-only` respectively. See [Run mode](#run-mode-icodex_mode).
+2. **`ICODEX_SANDBOX`** — granular override for the sandbox field only: `read-only`,
+   `workspace-write`, or `danger-full-access`. An invalid value is rejected with an error.
 3. **`--full-access` flag** — forces `danger-full-access` for that single run.
 
 `danger-full-access` grants full filesystem access; icodex always prints a warning to stderr
 when it is active. icodex also **auto-trusts** the launched project in its per-project config,
-so Codex does not re-prompt for trust on every run. icodex never changes `approval_policy`
-(when Codex asks before running commands) — that stays yours to set in `config.toml`.
+so Codex does not re-prompt for trust on every run.
 
 ## What lives in git
 
