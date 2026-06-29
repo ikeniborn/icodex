@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>icodex Run Profiles (ICODEX_MODE) — IDD chain report</title>
+<style>
+:root{
+  --bg:#0f1420; --surface:#1a2130; --surface2:#222b3d; --border:#33405a;
+  --text:#e6ecf5; --muted:#9aa7bd; --accent:#5db0ff; --accent2:#7ee0c0;
+  --warn:#ffcf6b; --crit:#ff7a7a; --ok:#7ee0a0; --info:#9aa7bd; --shadow:rgba(0,0,0,.45);
+}
+body:has(#theme-toggle:checked){
+  --bg:#f5f7fb; --surface:#ffffff; --surface2:#eef2f8; --border:#cfd8e6;
+  --text:#1a2230; --muted:#5a6678; --accent:#1769c0; --accent2:#0f9a78;
+  --warn:#b5790a; --crit:#c43d3d; --ok:#1c9d5c; --info:#5a6678; --shadow:rgba(20,40,80,.12);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;font-size:15px}
+header{display:flex;align-items:center;gap:1rem;padding:1rem 1.4rem;border-bottom:1px solid var(--border);
+  background:var(--surface);position:sticky;top:0;z-index:5}
+header h1{font-size:1.15rem;margin:0;font-weight:650}
+.theme-btn{cursor:pointer;border:1px solid var(--border);border-radius:8px;padding:.35rem .6rem;
+  background:var(--surface2);user-select:none;font-size:.95rem}
+main{max-width:1080px;margin:0 auto;padding:1.4rem}
+h2{font-size:1.05rem;border-left:3px solid var(--accent);padding-left:.6rem;margin:1.8rem 0 .8rem}
+h3{font-size:.95rem;color:var(--muted);margin:1.3rem 0 .5rem;text-transform:uppercase;letter-spacing:.04em}
+table{width:100%;border-collapse:collapse;margin:.6rem 0;background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--border);vertical-align:top;font-size:.88rem}
+th{background:var(--surface2);color:var(--muted);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+code{background:var(--surface2);padding:.08rem .35rem;border-radius:5px;font-size:.84em;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.note{background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--accent2);
+  border-radius:8px;padding:.7rem .9rem;color:var(--muted)}
+.badge{display:inline-block;padding:.12rem .5rem;border-radius:20px;font-size:.74rem;font-weight:700;
+  border:1px solid currentColor}
+.b-ok{color:var(--ok)} .b-warn{color:var(--warn)} .b-crit{color:var(--crit)} .b-info{color:var(--info)}
+.b-fixed{color:var(--accent2)}
+.chain-tabs{display:flex;gap:.3rem;max-width:1080px;margin:1rem auto 0;padding:0 1.4rem;flex-wrap:wrap}
+.chain-tabs label{cursor:pointer;padding:.45rem 1rem;border:1px solid var(--border);border-bottom:none;
+  border-radius:9px 9px 0 0;background:var(--surface);color:var(--muted);font-size:.85rem}
+.tab-pane{display:none}
+body:has(#tab-intent:checked) #pane-intent,
+body:has(#tab-spec:checked)   #pane-spec,
+body:has(#tab-plan:checked)   #pane-plan,
+body:has(#tab-result:checked) #pane-result{display:block}
+body:has(#tab-intent:checked) label[for="tab-intent"],
+body:has(#tab-spec:checked)   label[for="tab-spec"],
+body:has(#tab-plan:checked)   label[for="tab-plan"],
+body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent);border-color:var(--accent);font-weight:700;background:var(--surface2)}
+/* CSS flow diagram */
+.flow{display:flex;flex-direction:column;gap:.6rem;margin:1rem 0}
+.flow-row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:stretch;justify-content:center}
+.fnode{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.55rem .8rem;
+  box-shadow:0 2px 8px var(--shadow);min-width:150px;text-align:center;font-size:.82rem}
+.fnode b{display:block;color:var(--accent);font-size:.86rem;margin-bottom:.15rem}
+.fnode.shared{border-color:var(--accent2)} .fnode.shared b{color:var(--accent2)}
+.fnode.warn{border-color:var(--warn)} .fnode.warn b{color:var(--warn)}
+.farrow{text-align:center;color:var(--muted);font-size:1.1rem;line-height:1}
+.legend{display:flex;gap:1rem;flex-wrap:wrap;font-size:.8rem;color:var(--muted);margin:.4rem 0 1rem}
+.legend span{display:inline-flex;align-items:center;gap:.35rem}
+.dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+figure{margin:1rem 0}
+figcaption{color:var(--muted);font-size:.8rem;margin-top:.3rem;text-align:center}
+svg{max-width:100%;height:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+.gnode rect{fill:var(--surface2);stroke:var(--border)}
+.gnode.shared rect{stroke:var(--accent2);stroke-width:2}
+.gnode.home rect{stroke:var(--accent);stroke-width:2}
+.gnode.new rect{stroke:var(--accent);stroke-width:2;stroke-dasharray:4 3}
+.gnode text{fill:var(--text);font-size:11px}
+.gedge{stroke:var(--muted);stroke-width:1.6;fill:none}
+</style>
+</head>
+<body>
+<input type="checkbox" id="theme-toggle" hidden>
+<input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden checked>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<header>
+  <label for="theme-toggle" class="theme-btn" title="Тема">🌙 / ☀️</label>
+  <h1>icodex Run Profiles (ICODEX_MODE) + .git Writability — IDD chain</h1>
+</header>
+<nav class="chain-tabs">
+  <label for="tab-intent">Intent</label>
+  <label for="tab-spec">Spec</label>
+  <label for="tab-plan">Plan</label>
+  <label for="tab-result">Result</label>
+</nav>
+<main>
+<!-- TAB:intent START -->
+<section class="tab-pane" id="pane-intent">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:intent END -->
+<!-- TAB:spec START -->
+<section class="tab-pane" id="pane-spec">
+
+  <h2>1. Резюме спецификации</h2>
+  <p class="note">Спец: <code>docs/superpowers/specs/2026-06-29-icodex-run-profiles-design.md</code> ·
+  spec_hash <code>7019f35637500586</code> (whole-file, frontmatter отсутствует) ·
+  Цель: один пресет <code>ICODEX_MODE</code> задаёт сразу <code>sandbox_mode</code> + <code>approval_policy</code> +
+  <code>default_permissions</code>; codex получает право писать в <code>.git</code> во всех writable-режимах.</p>
+
+  <h3>Требования по разделам</h3>
+  <table>
+    <tr><th>Раздел</th><th>Требование</th></tr>
+    <tr><td>Goal</td><td><code>ICODEX_MODE</code> — полный профиль запуска с двумя headline-режимами (run-with-prompts и full no-stop); <code>.git</code> writable в каждом writable-режиме.</td></tr>
+    <tr><td>Problem-1</td><td>Сегодня <code>apply_sandbox_mode</code> пишет только <code>sandbox_mode</code>; <code>approval_policy</code>/<code>default_permissions</code> зашиты в шаблон — нет способа получить full no-stop.</td></tr>
+    <tr><td>Problem-2</td><td><code>.git</code> перемонтируется read-only при активном managed-профиле даже на <code>danger-full-access</code>; git-записи падают.</td></tr>
+    <tr><td>Background</td><td>Двухслойная модель codex (sandbox layer + managed-permission layer), строже выигрывает; <code>approval_policy</code> ортогонален обоим слоям.</td></tr>
+    <tr><td>Decisions · модель</td><td>Один пресет <code>ICODEX_MODE</code> бандлит 3 настройки; гранулярные env переопределяют отдельные поля; новых CLI-флагов нет.</td></tr>
+    <tr><td>Decisions · пресеты</td><td>4 пресета: <code>ro</code> / <code>safe</code> / <code>full-ask</code> / <code>full-auto</code>; дефолт <code>full-ask</code> (воспроизводит шаблон + теперь <code>.git</code>-writable).</td></tr>
+    <tr><td>Decisions · full-auto</td><td><code>full-auto</code> убирает <code>default_permissions</code> (managed layer off, эквив. <code>--dangerously-bypass-approvals-and-sandbox</code>), эмитит <code>log_warn</code>.</td></tr>
+    <tr><td>Decisions · .git fix</td><td>Добавить <code>".git/" = "write"</code> в <code>:workspace_roots</code> профилей <code>dev-safe</code> и <code>ssh-on-request</code>, идемпотентно каждый запуск (миграция старых home).</td></tr>
+    <tr><td>Decisions · precedence</td><td><code>defaults(full-ask) &lt; ICODEX_MODE &lt; granular (ICODEX_SANDBOX | ICODEX_APPROVAL | ICODEX_PERMISSIONS)</code>; <code>--full-access</code> по-прежнему форсит только sandbox-поле.</td></tr>
+    <tr><td>Decisions · валидация</td><td>Невалидный <code>ICODEX_MODE</code> или любое невалидное гранулярное значение → <code>log_error</code> + ненулевой код.</td></tr>
+    <tr><td>Architecture · resolve_mode</td><td>Чистый резолвер: echo тройки <code>sandbox approval permissions</code>; старт с пресета, override полей из env; <code>permissions</code> может быть сентинелом <code>none</code>.</td></tr>
+    <tr><td>Architecture · TOML-хелперы</td><td><code>_upsert_toml_toplevel</code> без изменений; новый <code>_remove_toml_toplevel</code> — идемпотентно удаляет top-level ключ (byte-identical при отсутствии).</td></tr>
+    <tr><td>Architecture · apply_mode</td><td>Оркестратор (заменяет <code>apply_sandbox_mode</code> на run-path): resolve → upsert sandbox/approval → ветвь по <code>permissions</code> → <code>log_warn</code> для danger / none.</td></tr>
+    <tr><td>Architecture · ensure_git_writable</td><td>В <code>permissions.sh</code>: идемпотентно апсертит <code>".git/" = "write"</code> под <code>[permissions.&lt;profile&gt;.filesystem.":workspace_roots"]</code>.</td></tr>
+    <tr><td>Architecture · run-path</td><td><code>apply_sandbox_mode || exit 1</code> → <code>apply_mode || exit 1</code> в <code>icodex.sh</code>; порядок относительно trust/binary-grant не меняется.</td></tr>
+    <tr><td>Architecture · шаблон</td><td>Шаблон <code>config.toml</code>: сохранить full-ask дефолт, добавить <code>.git</code> grant в оба профиля, обновить комментарии под <code>ICODEX_MODE</code>.</td></tr>
+    <tr><td>Error handling</td><td>Невалидное значение → выход 1 до запуска codex; <code>_remove_toml_toplevel</code> на отсутствующем ключе — no-op; <code>ensure_git_writable</code> создаёт секцию при отсутствии; повторный запуск идемпотентен.</td></tr>
+    <tr><td>Testing</td><td>Новый <code>test_mode.sh</code> + расширение <code>test_install.sh</code>: <code>resolve_mode</code>, <code>apply_mode</code>, <code>_remove_toml_toplevel</code>, <code>ensure_git_writable</code>.</td></tr>
+    <tr><td>Documentation</td><td><code>.codex_config.example</code> (блок ICODEX_MODE), <code>docs/wiki/config.md</code> (секция Run mode + iwiki), <code>README.md</code> и <code>print_help</code>.</td></tr>
+    <tr><td>Global constraints</td><td>bash + awk; <code>set -euo pipefail</code> в lib, <code>set -uo pipefail</code> в тестах; 2-space indent; <code>ICODEX_</code> префикс; CODEX_HOME/proxy/binary/trust не трогаются.</td></tr>
+    <tr><td>Out of scope (YAGNI)</td><td>Новые CLI-флаги; кастомный no-prompt профиль с защитой секретов; per-project <code>ICODEX_MODE</code>; запись в иные protected paths кроме <code>.git</code>; переписывание исторических home.</td></tr>
+  </table>
+
+  <h3>Пресеты (из §Decisions)</h3>
+  <table>
+    <tr><th>ICODEX_MODE</th><th>sandbox_mode</th><th>approval_policy</th><th>default_permissions</th><th>.git writable</th></tr>
+    <tr><td><code>ro</code></td><td>read-only</td><td>on-request</td><td>dev-safe</td><td>нет (sandbox блокирует записи)</td></tr>
+    <tr><td><code>safe</code></td><td>workspace-write</td><td>on-request</td><td>dev-safe</td><td>да (профиль грантит <code>.git/</code>)</td></tr>
+    <tr><td><code>full-ask</code> (default)</td><td>danger-full-access</td><td>on-request</td><td>ssh-on-request</td><td>да (профиль грантит <code>.git/</code>)</td></tr>
+    <tr><td><code>full-auto</code></td><td>danger-full-access</td><td>never</td><td><em>(удалён)</em></td><td>да (managed layer off)</td></tr>
+  </table>
+
+  <h3>Success Criteria (DoD из §Testing)</h3>
+  <table>
+    <tr><th>#</th><th>Критерий</th></tr>
+    <tr><td>1</td><td><code>resolve_mode</code> выдаёт точную тройку для каждого пресета и при переопределениях полей; невалидные значения → return 1 + <code>log_error</code>.</td></tr>
+    <tr><td>2</td><td><code>apply_mode</code> записывает <code>sandbox_mode</code>/<code>approval_policy</code>; <code>full-auto</code> удаляет <code>default_permissions</code>; non-none пишет его; warnings для danger / none.</td></tr>
+    <tr><td>3</td><td>Повторный запуск любого режима byte-identical (идемпотентность); <code>_remove_toml_toplevel</code> no-op при отсутствии ключа.</td></tr>
+    <tr><td>4</td><td><code>ensure_git_writable</code> добавляет <code>.git</code> grant в оба профиля (<code>dev-safe</code> и <code>ssh-on-request</code>), идемпотентно.</td></tr>
+    <tr><td>5</td><td>Невалидные значения завершают <code>icodex.sh</code> до запуска codex (нет частичной записи конфига).</td></tr>
+  </table>
+
+  <h2>2. Схемы решения и зависимостей</h2>
+
+  <h3>Схема решения — run path</h3>
+  <div class="flow">
+    <div class="flow-row"><div class="fnode shared"><b>.codex_config</b>ICODEX_MODE, ICODEX_SANDBOX,<br>ICODEX_APPROVAL, ICODEX_PERMISSIONS,<br>ICODEX_FULL_ACCESS</div></div>
+    <div class="farrow">▼ load_config → main() (icodex.sh)</div>
+    <div class="flow-row"><div class="fnode warn"><b>apply_mode</b>оркестратор run-path<br>(заменяет apply_sandbox_mode)</div></div>
+    <div class="farrow">▼</div>
+    <div class="flow-row">
+      <div class="fnode"><b>resolve_mode</b>пресет → тройка<br>[sandbox, approval, permissions]<br>+ env-override + FULL_ACCESS</div>
+      <div class="fnode"><b>_upsert_toml_toplevel ×2</b>sandbox_mode,<br>approval_policy</div>
+      <div class="fnode warn"><b>ветвь по permissions</b>none → _remove_toml_toplevel<br>иначе → upsert + ensure_git_writable</div>
+    </div>
+    <div class="farrow">▼ log_warn (danger-full-access / none)</div>
+    <div class="flow-row"><div class="fnode"><b>per-project config.toml</b>sandbox_mode, approval_policy,<br>default_permissions, ".git/"="write"</div></div>
+    <div class="farrow">▼</div>
+    <div class="flow-row"><div class="fnode"><b>launch_codex</b>двухслойная модель: sandbox layer + managed layer (full-auto убирает managed)</div></div>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--accent)"></span>run-path компонент</span>
+    <span><span class="dot" style="background:var(--accent2)"></span>вход (config)</span>
+    <span><span class="dot" style="background:var(--warn)"></span>новое / ветвление / warning</span>
+  </div>
+
+  <h3>Граф зависимостей (A → B = «A зависит от / использует B»)</h3>
+  <figure>
+  <svg viewBox="0 0 860 520" role="img" aria-label="Граф зависимостей компонентов спецификации run profiles">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path>
+      </marker>
+      <filter id="ds" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="var(--shadow)"></feDropShadow>
+      </filter>
+    </defs>
+    <!-- edges -->
+    <g>
+      <!-- icodex.sh run -> apply_mode -->
+      <line class="gedge" x1="430" y1="68"  x2="430" y2="116" marker-end="url(#arr)"></line>
+      <!-- apply_mode -> resolve_mode -->
+      <line class="gedge" x1="370" y1="164" x2="150" y2="236" marker-end="url(#arr)"></line>
+      <!-- apply_mode -> _upsert_toml_toplevel -->
+      <line class="gedge" x1="430" y1="164" x2="430" y2="236" marker-end="url(#arr)"></line>
+      <!-- apply_mode -> _remove_toml_toplevel -->
+      <line class="gedge" x1="470" y1="164" x2="640" y2="236" marker-end="url(#arr)"></line>
+      <!-- apply_mode -> ensure_git_writable -->
+      <line class="gedge" x1="490" y1="160" x2="760" y2="356" marker-end="url(#arr)"></line>
+      <!-- resolve_mode -> ICODEX_MODE preset -->
+      <line class="gedge" x1="90"  y1="284" x2="80"  y2="356" marker-end="url(#arr)"></line>
+      <!-- resolve_mode -> granular env -->
+      <line class="gedge" x1="140" y1="284" x2="250" y2="356" marker-end="url(#arr)"></line>
+      <!-- resolve_mode -> ICODEX_FULL_ACCESS -->
+      <line class="gedge" x1="170" y1="284" x2="430" y2="356" marker-end="url(#arr)"></line>
+      <!-- ensure_git_writable -> _ensure_filesystem_permission_entry -->
+      <line class="gedge" x1="760" y1="404" x2="620" y2="476" marker-end="url(#arr)"></line>
+      <!-- Testing -> apply_mode, resolve_mode, ensure_git_writable -->
+      <line class="gedge" x1="700" y1="68"  x2="490" y2="116" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="700" y1="68"  x2="170" y2="236" marker-end="url(#arr)"></line>
+      <line class="gedge" x1="760" y1="68"  x2="790" y2="356" marker-end="url(#arr)"></line>
+    </g>
+    <!-- nodes -->
+    <g class="gnode home"><rect x="355" y="20"  width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="430" y="48" text-anchor="middle">icodex.sh run</text></g>
+    <g class="gnode new"><rect x="625" y="20"  width="160" height="48" rx="9" filter="url(#ds)"></rect><text x="705" y="48" text-anchor="middle">test_mode.sh</text></g>
+    <g class="gnode new"><rect x="355" y="116" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="430" y="144" text-anchor="middle">apply_mode</text></g>
+    <g class="gnode new"><rect x="40"  y="236" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="115" y="264" text-anchor="middle">resolve_mode</text></g>
+    <g class="gnode"><rect x="355" y="236" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="430" y="264" text-anchor="middle">_upsert_toml_toplevel</text></g>
+    <g class="gnode new"><rect x="585" y="236" width="160" height="48" rx="9" filter="url(#ds)"></rect><text x="665" y="264" text-anchor="middle">_remove_toml_toplevel</text></g>
+    <g class="gnode"><rect x="10"  y="356" width="140" height="48" rx="9" filter="url(#ds)"></rect><text x="80"  y="384" text-anchor="middle">ICODEX_MODE preset</text></g>
+    <g class="gnode"><rect x="180" y="356" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="255" y="378" text-anchor="middle">granular env</text><text x="255" y="394" text-anchor="middle">SANDBOX/APPROVAL/PERM</text></g>
+    <g class="gnode"><rect x="360" y="356" width="150" height="48" rx="9" filter="url(#ds)"></rect><text x="435" y="384" text-anchor="middle">ICODEX_FULL_ACCESS</text></g>
+    <g class="gnode new"><rect x="700" y="356" width="160" height="48" rx="9" filter="url(#ds)"></rect><text x="780" y="384" text-anchor="middle">ensure_git_writable</text></g>
+    <g class="gnode"><rect x="540" y="476" width="180" height="40" rx="9" filter="url(#ds)"></rect><text x="630" y="500" text-anchor="middle">_ensure_filesystem_permission_entry</text></g>
+  </svg>
+  <figcaption>DAG без циклов. Пунктир (<span style="color:var(--accent)">синий</span>) — новые/изменяемые юниты. <code>ensure_git_writable</code> переиспользует существующий <code>_ensure_filesystem_permission_entry</code> (сейчас хардкодит <code>dev-safe</code> — требует обобщения).</figcaption>
+  </figure>
+
+  <h3>Карта покрытия (задача → требования спеки)</h3>
+  <table>
+    <tr><th>Задача</th><th>Покрывающие требования спеки</th></tr>
+    <tr><td>ICODEX_MODE как полный профиль (bundle 3 настроек)</td>
+        <td>§Goal; §Decisions (4 пресета, precedence); §Architecture (<code>resolve_mode</code>, <code>apply_mode</code>).</td></tr>
+    <tr><td>Full no-stop режим</td>
+        <td>§Decisions (<code>full-auto</code>, сентинел <code>none</code>); §Architecture (<code>_remove_toml_toplevel</code>).</td></tr>
+    <tr><td>.git writable</td>
+        <td>§Problem-2; §Decisions (.git fix); §Architecture (<code>ensure_git_writable</code>); §Testing (<code>ensure_git_writable</code>).</td></tr>
+    <tr><td>Гранулярные переопределения</td>
+        <td>§Decisions (granular values, precedence); §Architecture (override в <code>resolve_mode</code>); §Testing.</td></tr>
+    <tr><td>Валидация</td>
+        <td>§Decisions (validation); §Error handling; §Testing (return 1 + <code>log_error</code>).</td></tr>
+    <tr><td>Идемпотентность / миграция старых home</td>
+        <td>§Decisions (idempotent every run); §Error handling; §Testing (byte-identical).</td></tr>
+    <tr><td>Документация</td>
+        <td>§Documentation (<code>.codex_config.example</code>, <code>config.md</code>, <code>README.md</code>, <code>print_help</code>).</td></tr>
+  </table>
+
+  <h2>3. Результаты проверки</h2>
+  <p class="note">spec_hash <code>7019f35637500586</code> · prev_hash: — (первый прогон, review-блок инициализирован).</p>
+  <table>
+    <tr><th>Фаза</th><th>Статус</th></tr>
+    <tr><td>structure</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>coverage</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>clarity</td><td><span class="badge b-ok">passed</span></td></tr>
+    <tr><td>consistency</td><td><span class="badge b-ok">passed</span></td></tr>
+  </table>
+
+  <h3>Findings</h3>
+  <table>
+    <tr><th>ID</th><th>Severity</th><th>Раздел</th><th>Fragment</th><th>Проблема</th><th>Fix</th><th>Verdict</th></tr>
+    <tr>
+      <td>F-001</td><td><span class="badge b-info">INFO</span></td>
+      <td>Decisions</td>
+      <td>«Default mode: full-ask — preserves today's shipped template behavior»</td>
+      <td>Текущий <code>resolve_sandbox_mode</code> по умолчанию даёт <code>workspace-write</code> (<code>sandbox.sh:12</code>), который перезаписывает <code>danger-full-access</code> из шаблона (<code>config.toml:25</code>). «Preserves today's behavior» верно относительно литерала шаблона, но не относительно эффективного resolved-дефолта при пустом env. Не противоречие внутри спеки.</td>
+      <td>Уточнить в §Decisions: <code>full-ask</code> воспроизводит литерал шаблона (danger-full-access + on-request + ssh-on-request), а не текущее resolved-поведение <code>apply_sandbox_mode</code> при пустом окружении.</td>
+      <td><span class="badge b-info">open</span></td>
+    </tr>
+  </table>
+
+  <h3>Сводка</h3>
+  <p class="note">CRITICAL open: <b>0</b> · WARNING open: <b>0</b> · INFO open: <b>1</b><br>
+  Финальный вердикт: <span class="badge b-ok">OK</span> — спецификация проходит все 4 фазы.</p>
+
+  <h3>Chain</h3>
+  <p class="note">intent <code>null</code> (intent-документ не найден) → spec <code>docs/superpowers/specs/2026-06-29-icodex-run-profiles-design.md</code> → plan (ещё не проверен) → result (ещё не проверен).</p>
+
+</section>
+<!-- TAB:spec END -->
+<!-- TAB:plan START -->
+<section class="tab-pane" id="pane-plan">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:plan END -->
+<!-- TAB:result START -->
+<section class="tab-pane" id="pane-result">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:result END -->
+</main>
+</body>
+</html>
