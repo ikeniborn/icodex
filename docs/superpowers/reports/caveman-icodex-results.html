@@ -113,9 +113,9 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
 <section class="tab-pane" id="pane-spec">
 
   <h2>1. Резюме спецификации</h2>
-  <p class="sub">Источник: <code>docs/superpowers/specs/2026-06-29-caveman-icodex-design.md</code> · <code>spec_hash: 369e7e8cf081e0aa</code></p>
+  <p class="sub">Источник: <code>docs/superpowers/specs/2026-06-29-caveman-icodex-design.md</code> · <code>spec_hash: 12d0ef2ea1b81b29</code></p>
 
-  <div class="note">Обновлено после повторной проверки: добавлен раздел <b>Terminology</b>, который разводит <b>Ship default</b> (off) и <b>Active launch mode</b> (значение <code>ICODEX_CAVEMAN_MODE</code> на старте). Перегрузка термина «default» устранена.</div>
+  <div class="note">Повторная проверка после правки механизма регистрации Layer-2 хука: вместо переписывания <code>config.toml [hooks]</code> caveman теперь подключается в per-project home <code>hooks.json</code> — реальный файл = merge(общие secret-guard хуки, caveman <code>UserPromptSubmit</code>); при off/unset — симлинк на общий <code>.codex-isolated/hooks.json</code>. Все 4 фазы passed, новых findings нет.</div>
 
   <h3>Требования по разделам</h3>
   <table>
@@ -128,13 +128,13 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
       <tr><td><b>SC3</b></td><td><code>/caveman lite|full|ultra|off</code> (+ <code>stop caveman</code> / <code>normal mode</code>) переключает режим в середине сессии.</td></tr>
       <tr><td><b>SC4</b></td><td>Файлы целевого проекта не трогаются — caveman живёт в icodex-owned <code>CODEX_HOME</code>.</td></tr>
       <tr><td><b>SC5</b></td><td>Ship default = off; caveman активируется только когда <code>ICODEX_CAVEMAN_MODE</code> задан.</td></tr>
-      <tr><td><b>Background</b></td><td>Точки расширения icodex: глобальный <code>$CODEX_HOME/AGENTS.md</code>; lifecycle-хуки top-level в <code>config.toml</code>; обход repo-local hook-бага (хук пишется в home-конфиг).</td></tr>
+      <tr><td><b>Background</b></td><td>Точки расширения icodex: глобальный <code>$CODEX_HOME/AGENTS.md</code>; lifecycle-хуки (<code>SessionStart</code>, <code>UserPromptSubmit</code>) через top-level <code>config.toml</code> или <code>hooks.json</code>; icodex уже поставляет общий <code>.codex-isolated/hooks.json</code> (PreToolUse secret-guards), симлинк в каждый home, авто-обнаружение из <code>$CODEX_HOME/hooks.json</code> — caveman-хук подключается в этот же файл; обход repo-local hook-бага.</td></tr>
       <tr><td><b>Decisions</b></td><td>Scope = always-on once enabled + in-session switch/off; механизм hybrid (cached AGENTS.md + лёгкий hook); source hybrid (правила из upstream SKILL.md, hook нативный); ship default off; один <code>UserPromptSubmit</code> hook без <code>SessionStart</code>; язык хука python3.</td></tr>
       <tr><td><b>Layer 1 — AGENTS.md base block</b></td><td>Статический кэшируемый блок (persona + правила сжатия, mode table, исключения авто-ясности, языковое правило, <code>/caveman</code>-контракт). &lt;2&nbsp;KiB, delimited region, идемпотентный rewrite. Active launch mode подставляется при рендере.</td></tr>
-      <tr><td><b>Layer 2 — UserPromptSubmit hook</b></td><td>Один python3-скрипт (stdlib): lazy-init режима из state-файла; <code>/caveman</code> switch → запись + <code>additionalContext</code>; current == active launch mode → пустой stdout (0 токенов); deviation → <code>ACTIVE MODE</code> reminder; <code>off</code> → disable line. State по <code>session_id</code> под <code>$CODEX_HOME/.caveman/</code>.</td></tr>
-      <tr><td><b>Data flow</b></td><td><code>icodex.sh launch</code> → <code>ensure_caveman_wiring</code> → render AGENTS.md + register <code>[hooks]</code>; Codex turn → <code>UserPromptSubmit</code> → <code>caveman-hook.py</code>.</td></tr>
-      <tr><td><b>Asset layout</b></td><td><code>.codex-isolated/caveman/{agents-block.md, hooks/caveman-hook.py}</code>, <code>scripts/vendor-caveman.sh</code>, <code>lib/caveman/caveman.sh</code>.</td></tr>
-      <tr><td><b>Config and wiring</b></td><td><code>ICODEX_CAVEMAN_MODE</code> в <code>.codex_config</code>; <code>ensure_caveman_wiring</code> рядом с <code>ensure_superpowers_wiring</code>; идемпотентный awk-rewrite; <code>bypass_hook_trust=true</code>.</td></tr>
+      <tr><td><b>Layer 2 — UserPromptSubmit hook</b></td><td>Регистрируется через per-project home <code>hooks.json</code> (авто-обнаружение из <code>$CODEX_HOME/hooks.json</code>). Один python3-скрипт (stdlib): lazy-init режима из state-файла; <code>/caveman</code> switch → запись + <code>additionalContext</code>; current == active launch mode → пустой stdout (0 токенов); deviation → <code>ACTIVE MODE</code> reminder; <code>off</code> → disable line. State по <code>session_id</code> под <code>$CODEX_HOME/.caveman/</code>.</td></tr>
+      <tr><td><b>Data flow</b></td><td><code>icodex.sh launch</code> → <code>ensure_caveman_wiring</code> → (1) AGENTS.md регион; (2) <code>$CODEX_HOME/hooks.json</code>: mode set → реальный файл = merge(shared secret-guards, caveman <code>UserPromptSubmit</code> → <code>python3 caveman-hook.py</code>); off/unset → симлинк на shared <code>hooks.json</code>. Codex turn → <code>UserPromptSubmit</code> → <code>caveman-hook.py</code>.</td></tr>
+      <tr><td><b>Asset layout</b></td><td><code>.codex-isolated/hooks/caveman-hook.py</code> (рядом с <code>block-secrets.py</code>), <code>.codex-isolated/caveman/agents-block.md</code>, <code>scripts/vendor-caveman.sh</code>, <code>lib/caveman/caveman.sh</code> (<code>ensure_caveman_wiring</code>: рендер AGENTS.md регион + рендер/merge home <code>hooks.json</code>).</td></tr>
+      <tr><td><b>Config and wiring</b></td><td><code>ICODEX_CAVEMAN_MODE</code> в <code>.codex_config</code>; <code>ensure_caveman_wiring</code> после <code>ensure_superpowers_wiring</code>; две идемпотентные операции (AGENTS.md регион; home <code>hooks.json</code> merge/симлинк); <code>setup_codex_home</code> сначала (<code>_link_shared hooks.json</code>), caveman переопределяет только при включении; <code>bypass_hook_trust=true</code>.</td></tr>
       <tr><td><b>Token-overhead accounting (goal 2)</b></td><td>Таблица состояний: == launch mode → 0; switched → ~10–20 ток; off → ~10 ток.</td></tr>
       <tr><td><b>Tests</b></td><td><code>test_caveman_wiring.sh</code> + <code>test_caveman_hook.sh</code>. Без сети, temp-dirs.</td></tr>
       <tr><td><b>Documentation (iwiki)</b></td><td>Новый <code>docs/wiki/caveman.md</code>; обновить <code>config.md</code>, <code>architecture.md</code>, <code>command.md</code>; iwiki-ingest + iwiki-lint.</td></tr>
@@ -167,7 +167,7 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
     <div class="flow-row">
       <div class="fnode"><b>render AGENTS.md</b>из <code>agents-block.md</code>, подстановка режима → <code>$CODEX_HOME/AGENTS.md</code> (delimited region, идемпотентно)</div>
       <span class="farrow">+</span>
-      <div class="fnode"><b>register [hooks]</b>в <code>$CODEX_HOME/config.toml</code> → <code>caveman-hook.py</code></div>
+      <div class="fnode"><b>home hooks.json</b>mode set → реальный файл = merge(shared secret-guards, caveman <code>UserPromptSubmit</code> → <code>caveman-hook.py</code>); off/unset → симлинк на shared <code>.codex-isolated/hooks.json</code></div>
     </div>
     <div class="flow-row">
       <div class="fnode alt"><b>Codex turn: UserPromptSubmit</b>→ <code>caveman-hook.py</code> (stdin JSON), читает per-session state под <code>$CODEX_HOME/.caveman/</code></div>
@@ -234,6 +234,7 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
       <tr><td>In-session переключение режима</td><td>SC3 · Layer 2 steps 3/5/6</td></tr>
       <tr><td>Изоляция файлов проекта</td><td>SC4 · Background (CODEX_HOME) · Config and wiring</td></tr>
       <tr><td>Opt-in активация</td><td>SC5 · Terminology (ship default) · Config and wiring</td></tr>
+      <tr><td>Смена регистрации Layer-2 хука: <code>config.toml [hooks]</code> → home <code>hooks.json</code> (merge shared secret-guards + caveman; off/unset → симлинк)</td><td>Background (hooks bullet) · Layer 2 intro · Data flow · Asset layout · Config and wiring · Tests/<code>test_caveman_wiring.sh</code> · Risks (repo-local hook bug)</td></tr>
       <tr><td>Тесты</td><td>Раздел Tests</td></tr>
       <tr><td>Документация</td><td>Раздел Documentation</td></tr>
     </tbody>

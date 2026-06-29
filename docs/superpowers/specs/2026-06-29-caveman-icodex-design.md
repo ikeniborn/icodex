@@ -1,6 +1,6 @@
 ---
 review:
-  spec_hash: 369e7e8cf081e0aa
+  spec_hash: 12d0ef2ea1b81b29
   last_run: 2026-06-29
   phases:
     structure:   { status: passed }
@@ -119,9 +119,11 @@ Two distinct concepts that must never be conflated:
   `additionalContext` for `SessionStart` / `UserPromptSubmit`). Empty stdout = no-op.
   `bypass_hook_trust = true` (already in the icodex `config.toml` template) lets hooks
   fire non-interactively.
-  - Known Codex bug: hooks declared in a **repo-local** `.codex/config.toml` do not fire
-    in interactive sessions. icodex sidesteps this by writing hooks into the
-    **home** `config.toml` (the authoritative config), which it already rewrites at launch.
+  - icodex already ships a shared `.codex-isolated/hooks.json` (PreToolUse secret
+    guards) symlinked into each home and auto-discovered by Codex from
+    `$CODEX_HOME/hooks.json`. The caveman hook plugs into this same file (see Layer 2).
+  - Known Codex bug: hooks in a **repo-local** `.codex/config.toml` do not fire in
+    interactive sessions — irrelevant here, since icodex uses the home `hooks.json`.
 
 ### Decisions taken during brainstorming
 - **Scope**: always-on once enabled + in-session mode switch/off. No stats, no statusline.
@@ -172,7 +174,8 @@ core of goal 2.
 
 ### Layer 2 — `UserPromptSubmit` hook (dynamic, minimal, one python3 script)
 
-Registered top-level in the per-project home `config.toml`. Per-turn logic:
+Registered via the per-project home `hooks.json` (auto-discovered by Codex from
+`$CODEX_HOME/hooks.json`; wiring below). Per-turn logic:
 
 1. Read stdin JSON (Codex schema: `prompt`, `session_id`, …).
 2. Resolve the active mode from a per-session state file; lazy-init from
@@ -198,9 +201,13 @@ do not clash.
 
 ```
 icodex.sh launch
-  └─ ensure_caveman_wiring  (only when ICODEX_CAVEMAN_MODE is set)
-       ├─ render  $CODEX_HOME/AGENTS.md   ← .codex-isolated/caveman/agents-block.md (mode substituted)
-       └─ register [hooks] in $CODEX_HOME/config.toml → .codex-isolated/caveman/hooks/caveman-hook.py
+  └─ ensure_caveman_wiring
+       ├─ AGENTS.md region in $CODEX_HOME/AGENTS.md  ← .codex-isolated/caveman/agents-block.md
+       │     mode set → insert/replace region (mode substituted);  off/unset → remove region
+       └─ $CODEX_HOME/hooks.json
+             mode set → real file = merge(shared secret-guards, caveman UserPromptSubmit
+                        → python3 "$CODEX_HOME/hooks/caveman-hook.py")
+             off/unset → symlink to shared hooks.json (caveman absent)
 
 Codex turn
   └─ UserPromptSubmit → caveman-hook.py (stdin JSON) → additionalContext | empty
@@ -209,12 +216,16 @@ Codex turn
 ## Asset layout (tracked, shared)
 
 ```
-.codex-isolated/caveman/
-  agents-block.md           # caveman block (rules + mode table), curated from upstream SKILL.md
-  hooks/caveman-hook.py     # native UserPromptSubmit hook (python3, stdlib only)
+.codex-isolated/
+  hooks/caveman-hook.py     # native UserPromptSubmit hook (python3, stdlib only) — beside block-secrets.py
+  caveman/agents-block.md   # caveman block (rules + mode table), curated from upstream SKILL.md
 scripts/vendor-caveman.sh   # manual refresh of agents-block.md from upstream SKILL.md (mirrors vendor-superpowers.sh)
-lib/caveman/caveman.sh      # ensure_caveman_wiring() + idempotent config.toml / AGENTS.md rewrite
+lib/caveman/caveman.sh      # ensure_caveman_wiring(): render AGENTS.md region + render/merge home hooks.json
 ```
+
+The hook lives in `.codex-isolated/hooks/` (not under `caveman/`) because the registered
+command is `python3 "$CODEX_HOME/hooks/caveman-hook.py"` and `setup_codex_home` symlinks
+the shared `hooks/` dir into each home.
 
 The hook is python3 (stdlib only — no pip deps), matching icodex's dependency-light
 ethos. Compression *rules* are vendored once from the upstream `SKILL.md` (hybrid
@@ -224,10 +235,16 @@ source); the hook *logic* is native.
 
 - `ICODEX_CAVEMAN_MODE` in `.codex_config`: unset/`off` (ship default — disabled) |
   `lite` | `full` | `ultra`. Documented in `.codex_config.example`.
-- `lib/caveman/caveman.sh::ensure_caveman_wiring` runs on the launch path next to
-  `ensure_superpowers_wiring`. Idempotent: awk-based `[hooks]` rewrite + `AGENTS.md`
-  rewrite only when content changed (`cmp -s`), preserving inode/permissions — same
-  pattern as `lib/plugin/superpowers.sh`.
+- `lib/caveman/caveman.sh::ensure_caveman_wiring` runs on the launch path right after
+  `ensure_superpowers_wiring`. Two idempotent actions (rewrite only when changed):
+  1. **AGENTS.md region** — insert/replace the delimited caveman region in
+     `$CODEX_HOME/AGENTS.md` (mode substituted), or remove it when off/unset.
+  2. **home hooks.json** — mode set → replace the `$CODEX_HOME/hooks.json` symlink with a
+     real file = the shared secret-guard hooks **plus** a `UserPromptSubmit` entry running
+     `python3 "$CODEX_HOME/hooks/caveman-hook.py"` (merge in python3 — robust JSON, no
+     TOML). off/unset → restore the symlink to the shared `hooks.json` (caveman absent).
+  `setup_codex_home` runs first (`_link_shared hooks.json` establishes the symlink);
+  `ensure_caveman_wiring` overrides it only when caveman is enabled.
 - `bypass_hook_trust = true` already present → hook fires non-interactively.
 - No statusline / stats (explicitly out of scope).
 
@@ -242,10 +259,12 @@ source); the hook *logic* is native.
 ## Tests (`tests/test_*.sh`, sourcing `tests/helpers.sh`)
 
 - `test_caveman_wiring.sh`
-  - `ICODEX_CAVEMAN_MODE=full` → home `AGENTS.md` contains the block; home
-    `config.toml` has a top-level `[hooks]` registration for the hook.
+  - `ICODEX_CAVEMAN_MODE=full` → home `AGENTS.md` contains the caveman region; home
+    `hooks.json` is a real file containing **both** the secret-guard hooks and a
+    `UserPromptSubmit` caveman entry.
   - Re-run produces no diff (idempotent — `cmp -s` guard).
-  - unset → no block, no hook registration.
+  - unset → no caveman region in `AGENTS.md`; home `hooks.json` is the symlink to the
+    shared file (no caveman entry).
 - `test_caveman_hook.sh`
   - stdin JSON, current mode == active launch mode → empty stdout.
   - `/caveman lite` → state file updated + `additionalContext` emitted.
@@ -266,8 +285,9 @@ source); the hook *logic* is native.
   noise appears only after a switch or while in an off mode.
 - **`project_doc_max_bytes` starvation** — global block is first in lookup order.
   Mitigated: block kept < 2 KiB.
-- **Repo-local hook bug** — hooks in `.codex/config.toml` don't fire interactively.
-  Mitigated: hooks are written into the home `config.toml`.
+- **Repo-local hook bug** — hooks in a repo-local `.codex/config.toml` don't fire
+  interactively. Avoided: caveman uses the home `hooks.json` (auto-discovered from
+  `$CODEX_HOME`), the same mechanism as the existing secret-guard hooks.
 - **Mode-file growth** — per-session state files accumulate. Minor; optional cleanup of
   stale files can be added later (out of scope for v1).
 
