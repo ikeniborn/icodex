@@ -53,5 +53,18 @@ assert_eq "inserted before section" "1" \
 head1="$(head -1 "$ICODEX_HOME_DIR/bare.toml")"
 assert_eq "inserted at top" 'sandbox_mode = "workspace-write"' "$head1"
 
+# --- _remove_toml_toplevel: drops a top-level key, no-op when absent ---
+printf 'sandbox_mode = "danger-full-access"\ndefault_permissions = "ssh-on-request"\n\n[features]\ndefault_permissions = "keep-me"\n' > "$ICODEX_HOME_DIR/rm.toml"
+_remove_toml_toplevel "$ICODEX_HOME_DIR/rm.toml" default_permissions
+assert_eq "top-level key removed" "0" \
+  "$(grep -cFx 'default_permissions = "ssh-on-request"' "$ICODEX_HOME_DIR/rm.toml")"
+assert_eq "in-section key preserved" "1" \
+  "$(grep -cFx 'default_permissions = "keep-me"' "$ICODEX_HOME_DIR/rm.toml")"
+assert_eq "other top-level key preserved" "1" \
+  "$(grep -cFx 'sandbox_mode = "danger-full-access"' "$ICODEX_HOME_DIR/rm.toml")"
+before_rm="$(cat "$ICODEX_HOME_DIR/rm.toml")"
+_remove_toml_toplevel "$ICODEX_HOME_DIR/rm.toml" default_permissions
+assert_eq "remove idempotent when absent" "$before_rm" "$(cat "$ICODEX_HOME_DIR/rm.toml")"
+
 rm -rf "$tmp"
 finish

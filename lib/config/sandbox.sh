@@ -36,6 +36,19 @@ _upsert_toml_toplevel() { # <config> <key> <value>
   rm -f "$tmp"
 }
 
+# Idempotently remove a top-level `key = ...` line (before the first [section]).
+_remove_toml_toplevel() { # <config> <key>
+  local config="$1" key="$2" tmp
+  tmp="$(mktemp)"
+  awk -v key="$key" '
+    /^[[:space:]]*\[/ { insec = 1 }
+    !insec && $0 ~ ("^[[:space:]]*" key "[[:space:]]*=") { next }
+    { print }
+  ' "$config" > "$tmp"
+  cmp -s "$tmp" "$config" || cat "$tmp" > "$config"
+  rm -f "$tmp"
+}
+
 # Resolve and write sandbox_mode into the per-project config; warn on full access.
 apply_sandbox_mode() {
   local config="$ICODEX_HOME_DIR/config.toml" mode
