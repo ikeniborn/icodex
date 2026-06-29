@@ -14,6 +14,7 @@ setup_case() {
   tmp="$(mktemp -d)"
   ICODEX_ROOT="$tmp"
   ICODEX_HOME_DIR="$tmp/.codex-isolated"
+  ICODEX_SHARED_DIR="$ICODEX_HOME_DIR"   # in tests the home IS the shared store
   ICODEX_BIN="$ICODEX_HOME_DIR/bin/codex"
   ICODEX_STAMP="$ICODEX_HOME_DIR/bin/.codex-version"
   ICODEX_LOCKFILE="$tmp/.codex-lockfile.json"
