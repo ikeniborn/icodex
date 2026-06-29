@@ -88,8 +88,8 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
 <body>
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
 <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
 <label for="theme-toggle" class="theme-btn" title="Переключить тему">🌙 / ☀️</label>
 <header>
@@ -295,7 +295,158 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
 
 <!-- TAB:plan START -->
 <section class="tab-pane" id="pane-plan">
-  <p class="note">Этап ещё не проверен.</p>
+
+  <h2>1. Резюме плана</h2>
+  <p class="sub">Источник: <code>docs/superpowers/plans/2026-06-29-caveman-icodex.md</code> · <code>plan_hash: 1e7060ab0c91f233</code> (пред.: <code>b38ade5c70d716eb</code>) · <code>spec_hash: 12d0ef2ea1b81b29</code></p>
+
+  <div class="note">Повторный прогон после правки Task 5. Тело плана отредактировано: Task 5 получил новый Step 3 (запись launch-path шага в <code>architecture.md</code>/<code>command.md</code>) и новый Step 4 (<code>iwiki:iwiki-ingest</code> + <code>/iwiki-lint</code>), обновлён список Files и self-review. <b>F-003 закрыт (fixed)</b>. Все 5 фаз — passed; 0 CRITICAL, 0 open WARNING.</div>
+
+  <h3>Шаги и определения готовности (DoD)</h3>
+  <table>
+    <thead><tr><th>Задача</th><th>Шаг</th><th>DoD (определение готовности)</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="5"><b>1.</b> Caveman <code>UserPromptSubmit</code> hook<br><span class="gsub"><code>.codex-isolated/hooks/caveman-hook.py</code>, <code>tests/test_caveman_hook.sh</code></span></td>
+        <td>1. Написать падающий тест</td><td>создан <code>tests/test_caveman_hook.sh</code></td></tr>
+      <tr><td>2. Запустить тест (FAIL)</td><td>тест падает («hook file exists»)</td></tr>
+      <tr><td>3. Реализовать hook</td><td>создан <code>caveman-hook.py</code></td></tr>
+      <tr><td>4. Запустить тест (PASS)</td><td><code>PASS=N FAIL=0</code></td></tr>
+      <tr><td>5. Commit</td><td><code>feat(caveman): add UserPromptSubmit compression hook</code></td></tr>
+
+      <tr><td rowspan="6"><b>2.</b> Wiring module + AGENTS.md block<br><span class="gsub"><code>.codex-isolated/caveman/agents-block.md</code>, <code>lib/caveman/caveman.sh</code>, <code>tests/test_caveman_wiring.sh</code></span></td>
+        <td>1. Создать шаблон <code>agents-block.md</code> (&lt;2&nbsp;KiB, токен <code>__CAVEMAN_MODE__</code>)</td><td>файл существует</td></tr>
+      <tr><td>2. Написать падающий тест</td><td>создан <code>tests/test_caveman_wiring.sh</code></td></tr>
+      <tr><td>3. Запустить тест (FAIL)</td><td><code>ensure_caveman_wiring</code> не определён</td></tr>
+      <tr><td>4. Написать модуль <code>caveman.sh</code></td><td>модуль с <code>ensure_caveman_wiring</code> существует</td></tr>
+      <tr><td>5. Запустить тест (PASS)</td><td><code>PASS=N FAIL=0</code></td></tr>
+      <tr><td>6. Commit</td><td><code>feat(caveman): wire AGENTS.md block and home hooks.json merge</code></td></tr>
+
+      <tr><td rowspan="8"><b>3.</b> Launch-path integration + config example<br><span class="gsub"><code>icodex.sh</code>, <code>.codex_config.example</code>, <code>tests/test_caveman_launch.sh</code></span></td>
+        <td>1. Написать падающий тест</td><td>создан <code>tests/test_caveman_launch.sh</code></td></tr>
+      <tr><td>2. Запустить тест (FAIL)</td><td><code>icodex.sh</code> ещё не подключает модуль</td></tr>
+      <tr><td>3. Добавить модуль в список source</td><td><code>caveman/caveman</code> в цикле <code>for m</code></td></tr>
+      <tr><td>4. Вызвать <code>ensure_caveman_wiring</code> после <code>ensure_superpowers_wiring</code></td><td>вызов на run-path</td></tr>
+      <tr><td>5. Документировать <code>ICODEX_CAVEMAN_MODE</code></td><td>переменная описана в <code>.codex_config.example</code></td></tr>
+      <tr><td>6. Запустить тест (PASS)</td><td><code>PASS=N FAIL=0</code></td></tr>
+      <tr><td>7. Полный прогон набора тестов</td><td>каждый файл <code>PASS=N FAIL=0</code></td></tr>
+      <tr><td>8. Commit</td><td><code>feat(caveman): run caveman wiring on launch</code></td></tr>
+
+      <tr><td rowspan="5"><b>4.</b> Upstream rules refresh helper<br><span class="gsub"><code>scripts/vendor-caveman.sh</code>, <code>tests/test_caveman_vendor.sh</code></span></td>
+        <td>1. Написать падающий тест (только структура, без сети)</td><td>создан <code>tests/test_caveman_vendor.sh</code></td></tr>
+      <tr><td>2. Запустить тест (FAIL)</td><td><code>vendor-caveman.sh</code> отсутствует</td></tr>
+      <tr><td>3. Написать vendor helper + <code>chmod +x</code></td><td>скрипт существует и исполняемый</td></tr>
+      <tr><td>4. Запустить тест (PASS)</td><td><code>PASS=N FAIL=0</code></td></tr>
+      <tr><td>5. Commit</td><td><code>feat(caveman): add upstream SKILL.md refresh helper</code></td></tr>
+
+      <tr><td rowspan="5"><b>5.</b> Documentation (iwiki)<br><span class="gsub"><code>docs/wiki/caveman.md</code>, <code>docs/wiki/config.md</code>, <code>docs/wiki/architecture.md</code>, <code>docs/wiki/command.md</code></span></td>
+        <td>1. Написать <code>docs/wiki/caveman.md</code></td><td>страница создана; кросс-ссылки <code>[[config]]</code> <code>[[plugins]]</code> <code>[[architecture]]</code></td></tr>
+      <tr><td>2. Добавить запись <code>ICODEX_CAVEMAN_MODE</code> в <code>config.md</code></td><td>запись с <code>[[caveman]]</code></td></tr>
+      <tr><td>3. <span class="badge b-ok">новый</span> Записать launch-path шаг в <code>architecture.md</code> / <code>command.md</code></td><td><code>ensure_caveman_wiring</code> после <code>ensure_superpowers_wiring</code> задокументирован + <code>[[caveman]]</code> ссылка (закрывает F-003 п. a)</td></tr>
+      <tr><td>4. <span class="badge b-ok">новый</span> <code>iwiki:iwiki-ingest lib/caveman/caveman.sh</code> → <code>/iwiki-lint</code></td><td>нет битых ссылок / сирот / устаревших (закрывает F-003 п. b)</td></tr>
+      <tr><td>5. Commit</td><td><code>docs(wiki): document caveman integration and ICODEX_CAVEMAN_MODE</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Схемы зависимостей и пересечений</h2>
+
+  <h3>Граф зависимостей задач (M → N = «результат задачи M используется в задаче N», M&lt;N)</h3>
+  <figure class="rpt-graph">
+    <svg viewBox="0 0 760 250" role="img" aria-label="граф зависимостей задач плана">
+      <defs>
+        <marker id="arr-plan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+        </marker>
+      </defs>
+      <g stroke="var(--line)" stroke-width="1.6" marker-end="url(#arr-plan)" fill="none">
+        <line x1="150" y1="70" x2="270" y2="70"/>   <!-- T1 -> T2 -->
+        <line x1="400" y1="70" x2="520" y2="70"/>   <!-- T2 -> T3 -->
+        <line x1="340" y1="95" x2="610" y2="165"/>  <!-- T2 -> T5 -->
+        <line x1="600" y1="95" x2="650" y2="150"/>  <!-- T3 -> T5 -->
+      </g>
+      <g>
+        <rect class="gnode task" x="30"  y="50" width="120" height="40" rx="6"/><text class="glabel" x="90"  y="68" text-anchor="middle">Задача 1</text><text class="gsub" x="90"  y="82" text-anchor="middle">hook</text>
+        <rect class="gnode task" x="280" y="50" width="120" height="40" rx="6"/><text class="glabel" x="340" y="68" text-anchor="middle">Задача 2</text><text class="gsub" x="340" y="82" text-anchor="middle">wiring + block</text>
+        <rect class="gnode task" x="530" y="50" width="120" height="40" rx="6"/><text class="glabel" x="590" y="68" text-anchor="middle">Задача 3</text><text class="gsub" x="590" y="82" text-anchor="middle">launch + config</text>
+        <rect class="gnode task" x="595" y="150" width="130" height="40" rx="6"/><text class="glabel" x="660" y="168" text-anchor="middle">Задача 5</text><text class="gsub" x="660" y="182" text-anchor="middle">docs (iwiki)</text>
+        <rect class="gnode" x="30"  y="150" width="170" height="40" rx="6"/><text class="glabel" x="115" y="168" text-anchor="middle">Задача 4</text><text class="gsub" x="115" y="182" text-anchor="middle">vendor helper (независимая)</text>
+      </g>
+    </svg>
+    <figcaption>Задача 1 → Задача 2 (модуль ссылается на команду хука) → Задача 3 (icodex.sh вызывает <code>ensure_caveman_wiring</code>); Задачи 2+3 → Задача 5 (доки). Задача 4 независима. Граф ацикличен, нарушений порядка нет.</figcaption>
+  </figure>
+
+  <h3>Пересечения по артефактам (задача × файл) — пересечений по записи нет</h3>
+  <table>
+    <thead><tr><th>Артефакт</th><th>Задача (создаёт / изменяет)</th></tr></thead>
+    <tbody>
+      <tr><td><code>.codex-isolated/hooks/caveman-hook.py</code></td><td>Задача 1 (создаёт)</td></tr>
+      <tr><td><code>.codex-isolated/caveman/agents-block.md</code></td><td>Задача 2 (создаёт)</td></tr>
+      <tr><td><code>lib/caveman/caveman.sh</code></td><td>Задача 2 (создаёт)</td></tr>
+      <tr><td><code>icodex.sh</code></td><td>Задача 3 (изменяет)</td></tr>
+      <tr><td><code>.codex_config.example</code></td><td>Задача 3 (изменяет)</td></tr>
+      <tr><td><code>scripts/vendor-caveman.sh</code></td><td>Задача 4 (создаёт)</td></tr>
+      <tr><td><code>docs/wiki/caveman.md</code>, <code>docs/wiki/config.md</code></td><td>Задача 5 (создаёт / изменяет)</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Логическое пересечение (ссылка, не запись): команда хука <code>python3 "$CODEX_HOME/hooks/caveman-hook.py"</code> встречается в Задаче 1 (путь), Задаче 2 (merge) и тестах — строки идентичны.</p>
+
+  <h3>Покрытие требований (требование → задача)</h3>
+  <table>
+    <thead><tr><th>Требование спеки</th><th>Покрывающая задача</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>SC1 — терсный вывод при <code>ICODEX_CAVEMAN_MODE=full</code></td><td>Задача 2 + Задача 3</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>SC2 — 0 токенов при current == active launch mode</td><td>Задача 1 (тест-кейс steady)</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>SC3 — переключение <code>/caveman</code> + <code>stop caveman</code>/<code>normal mode</code></td><td>Задача 1</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>SC4 — файлы проекта не трогаются (всё в <code>$ICODEX_HOME_DIR</code>)</td><td>Задача 2</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>SC5 — ship default off</td><td>Задача 2 (<code>_caveman_mode</code> пустая ветка) + тест disabled</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>Layer 1 — cached AGENTS.md &lt;2&nbsp;KiB</td><td>Задача 2</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>Layer 2 — один python3 <code>UserPromptSubmit</code> hook</td><td>Задача 1</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>Wiring — merge <code>hooks.json</code>, идемпотентно, после superpowers</td><td>Задача 2 + Задача 3</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>Asset layout</td><td>Задачи 1, 2, 4</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>Documentation (4 действия по спеке)</td><td>Задача 5 (Steps 1–4)</td><td><span class="badge b-ok">покрыто</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Результаты проверки</h2>
+
+  <h3>Статус фаз</h3>
+  <table>
+    <thead><tr><th>Фаза</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>structure</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>coverage</td><td><span class="badge b-ok">passed</span> <span class="gsub">(0 open findings)</span></td></tr>
+      <tr><td>dependencies</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>verifiability</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>consistency</td><td><span class="badge b-ok">passed</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Findings</h3>
+  <table>
+    <thead><tr><th>id</th><th>severity</th><th>раздел</th><th>fragment</th><th>проблема</th><th>fix</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>F-003</td>
+        <td><span class="badge b-warn">WARNING</span></td>
+        <td>Task 5: Documentation (iwiki)</td>
+        <td><i>«Run: <code>/iwiki-lint</code>»</i></td>
+        <td>Раздел Documentation спеки (строки 274–279) перечисляет четыре действия по докам, Task 5 покрывает три. Не покрыто: (a) обновление <code>docs/wiki/architecture.md</code> / <code>docs/wiki/command.md</code> (шаг launch-path) и (b) запуск <code>iwiki:iwiki-ingest</code> на изменённых источниках. Не блокирует: только doc-кросс-ссылки, ни один критерий успеха не становится непроверяемым.</td>
+        <td>Добавить в Task 5 шаг обновления <code>architecture.md</code>/<code>command.md</code> (<code>ensure_caveman_wiring</code> после <code>ensure_superpowers_wiring</code>) и вызов <code>iwiki:iwiki-ingest</code> перед <code>/iwiki-lint</code> (строки спеки 278–279).</td>
+        <td><span class="badge b-ok">fixed</span> — Task 5 теперь содержит Step 3 (<code>architecture.md</code>/<code>command.md</code>) и Step 4 (<code>iwiki:iwiki-ingest</code> → <code>/iwiki-lint</code>), закрывающие оба пункта; <code>section_hash</code> изменился <code>1afd1a71fd476e30</code> → <code>aff67d847ae44527</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Сводка</h3>
+  <table>
+    <tbody>
+      <tr><th>CRITICAL open</th><td>0</td></tr>
+      <tr><th>WARNING open</th><td>0</td></tr>
+      <tr><th>Финальный вердикт</th><td><span class="badge b-ok">OK (pass)</span> — 0 CRITICAL, 0 open findings; F-003 закрыт (fixed)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Цепочка</h3>
+  <p class="note">intent → spec → <b>plan</b>. <code>intent_path = null</code> (intent-документ не найден). spec = <code>docs/superpowers/specs/2026-06-29-caveman-icodex-design.md</code> → plan = <code>docs/superpowers/plans/2026-06-29-caveman-icodex.md</code>.</p>
+
 </section>
 <!-- TAB:plan END -->
 
