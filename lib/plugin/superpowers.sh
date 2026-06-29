@@ -6,10 +6,10 @@
 # validates the source on every launch, so this runs on the default (launch) path.
 
 # Echo the absolute vendored cache dir, or nothing when the plugin is not vendored.
-# Anchored at $ICODEX_ROOT so the glob is independent of the process CWD.
+# Anchored at $ICODEX_SHARED_DIR so the glob is independent of the process CWD and the per-project home.
 _superpowers_cache_dir() {
   local m
-  for m in "$ICODEX_HOME_DIR"/plugins/cache/*/superpowers/*/; do
+  for m in "$ICODEX_SHARED_DIR"/plugins/cache/*/superpowers/*/; do
     [[ -d "$m" ]] || continue
     printf '%s\n' "${m%/}"
     return 0
