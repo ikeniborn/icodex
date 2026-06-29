@@ -117,6 +117,34 @@ One preset sets the sandbox, approval policy, and managed permission profile tog
 `--dangerously-bypass-approvals-and-sandbox`. The granular keys `ICODEX_SANDBOX`,
 `ICODEX_APPROVAL`, and `ICODEX_PERMISSIONS` override individual fields of the preset.
 
+### Verifying `.git` write access
+
+In every **writable** mode icodex grants `".git/" = "write"` under the active managed
+permission profile's `:workspace_roots` table. This overrides the read-only re-mount Codex
+applies to `.git/` under `workspace-write`, so `git commit` works from inside the sandbox.
+That grant is what makes the difference under `workspace-write` (`safe`); under
+`danger-full-access` (`full-ask` / `full-auto`) `.git` is writable through the sandbox
+itself, and under `read-only` (`ro`) nothing is writable regardless of the grant.
+
+To check the grant directly — no model, no network — run a write under the same sandbox
+Codex applies, against a throwaway repo:
+
+```bash
+repo="$(mktemp -d)"; git -C "$repo" init -q
+home="$(mktemp -d -p "$HOME")"
+cp .codex-isolated/config.toml "$home/config.toml"
+CODEX_HOME="$home" .codex-isolated/bin/codex sandbox -C "$repo" -P dev-safe --include-managed-config -- sh -c 'echo x > .git/probe && echo WROTE || echo DENIED'
+rm -rf "$repo" "$home"
+```
+
+With the shipped `.git/` grant this prints `WROTE`; delete the `".git/" = "write"` line
+from the `dev-safe` `:workspace_roots` table and the same command prints `DENIED`.
+
+> **Mode precedence with `.codex_config`:** the wrapper exports each `ICODEX_*` key parsed
+> from `.codex_config`, so a key pinned in the file overrides the same environment variable.
+> To select a mode through the environment (e.g. `ICODEX_MODE=safe ./icodex.sh`), make sure
+> that key is not set in `.codex_config`.
+
 ## Sandbox and trust
 
 icodex is **safe by default**: every run writes the effective sandbox into the project's
