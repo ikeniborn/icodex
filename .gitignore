@@ -9,6 +9,8 @@
 !.codex-isolated/hooks/**
 .codex-isolated/hooks/__pycache__/
 .codex-isolated/hooks/**/*.pyc
+!.codex-isolated/caveman/
+!.codex-isolated/caveman/**
 !.codex-isolated/rules/
 !.codex-isolated/rules/**
 
