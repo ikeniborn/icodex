@@ -4,6 +4,11 @@
 !.codex-isolated/AGENTS.md
 !.codex-isolated/AGENTS.override.md
 !.codex-isolated/config.toml
+!.codex-isolated/hooks.json
+!.codex-isolated/hooks/
+!.codex-isolated/hooks/**
+.codex-isolated/hooks/__pycache__/
+.codex-isolated/hooks/**/*.pyc
 !.codex-isolated/rules/
 !.codex-isolated/rules/**
 
