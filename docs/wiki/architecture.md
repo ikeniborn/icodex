@@ -40,8 +40,9 @@ exit, or the default run path proceeds. Flags map to `ICODEX_CMD` in
 
 The default `run` case wires up the isolated environment, then execs codex.
 
-It calls `setup_codex_home` to build the per-project `CODEX_HOME`, `apply_sandbox_mode`
-to write the safe-by-default `sandbox_mode`, and `ensure_project_trust` to trust the
+It calls `setup_codex_home` to build the per-project `CODEX_HOME`, `apply_mode`
+to write the resolved `ICODEX_MODE` run profile (`sandbox_mode`, `approval_policy`,
+managed permissions), and `ensure_project_trust` to trust the
 launched project, then wires launcher binary permissions and the Superpowers plugin,
 ensures the binary and `uv` are present, optionally applies the proxy, and finally
 `exec`s codex. The `install`/`update` paths instead call `setup_shared_dirs` and
