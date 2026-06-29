@@ -7,9 +7,8 @@
 #     chmod 600 .codex_config
 #
 # Rules:
-#   - Only ICODEX_*, CODEX_UV_BIN, and UV_BIN `KEY=value` lines are honored;
-#     all other lines (comments, blanks, disallowed keys) are ignored.
-#   - Prefer CODEX_UV_BIN here; icodex maps it to the UV_BIN runtime name.
+#   - Only ICODEX_*-prefixed `KEY=value` lines are honored; all other lines
+#     (comments, blanks, disallowed keys) are ignored.
 #   - The file is PARSED, never sourced — values cannot execute code.
 #   - Precedence: built-in defaults < .codex_config < command-line flags.
 
@@ -54,7 +53,3 @@
 # Directory for the `icodex` symlink created on --install (default: ~/.local/bin).
 # A leading ~/ is expanded. Put this dir on your PATH to run `icodex` directly.
 #ICODEX_LINK_DIR=~/.local/bin
-
-# Optional explicit path to uv. `icodex --install` persists this automatically
-# as the permanent uv binary under .codex-isolated/bin/uv.
-#CODEX_UV_BIN=/path/to/icodex/.codex-isolated/bin/uv

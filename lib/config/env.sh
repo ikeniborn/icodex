@@ -1,27 +1,13 @@
 #!/usr/bin/env bash
 # Persistent user configuration. The config file (.codex_config) holds plain
-# KEY=value lines; only ICODEX_*, CODEX_UV_BIN, and UV_BIN keys are honored.
-# CODEX_UV_BIN is exported both as written and as UV_BIN. Values are parsed and
+# KEY=value lines; only ICODEX_* keys are honored. Values are parsed and
 # exported — the file is NOT sourced, so it can never execute arbitrary code.
 
 _config_key_allowed() { # <key>
   case "$1" in
     ICODEX_IWIKI_*|IWIKI_[A-Z0-9_]*) return 1 ;;
-    ICODEX_[A-Z0-9_]*|CODEX_UV_BIN|UV_BIN) return 0 ;;
+    ICODEX_[A-Z0-9_]*) return 0 ;;
     *) return 1 ;;
-  esac
-}
-
-_config_export_mapped() { # <key> <value>
-  local key="$1" val="$2"
-  export "$key=$val"
-  case "$key" in
-    ICODEX_UV_BIN)
-      export "UV_BIN=$val"
-      ;;
-    CODEX_UV_BIN)
-      export "UV_BIN=$val"
-      ;;
   esac
 }
 
@@ -36,7 +22,7 @@ load_config() { # <config_file>
     key="${line%%=*}"
     _config_key_allowed "$key" || continue
     val="${line#*=}"
-    _config_export_mapped "$key" "$val"
+    export "$key=$val"
   done < "$file"
 }
 

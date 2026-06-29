@@ -29,7 +29,7 @@ printf 'ICODEX_PROXY=http://h:8080/?a=b\n' > "$cfg"
 unset ICODEX_PROXY; load_config "$cfg"
 assert_eq "value keeps '='" "http://h:8080/?a=b" "${ICODEX_PROXY:-}"
 
-# --- load_config: uv allowlist; unrelated env keys ignored ---
+# --- load_config: only ICODEX_* allowed; UV_BIN and unrelated env keys ignored ---
 cat > "$cfg" <<'EOF'
 ICODEX_PROXY=http://proxy.local:8080
 UV_BIN=/opt/uv
@@ -43,12 +43,12 @@ assert_eq "ICODEX_PROXY allowlisted" "http://proxy.local:8080" "${ICODEX_PROXY:-
 assert_eq "IWIKI_LLM_BASE_URL ignored" "" "${IWIKI_LLM_BASE_URL:-}"
 assert_eq "IWIKI_LLM_KEY ignored" "" "${IWIKI_LLM_KEY:-}"
 assert_eq "IWIKI_AUTO_QUERY ignored" "" "${IWIKI_AUTO_QUERY:-}"
-assert_eq "UV_BIN allowlisted" "/opt/uv" "${UV_BIN:-}"
+assert_eq "UV_BIN ignored (not allowlisted)" "" "${UV_BIN:-}"
 assert_eq "UV_BIN_EXTRA ignored" "" "${UV_BIN_EXTRA:-}"
 assert_eq "BAD_KEY ignored" "" "${BAD_KEY:-}"
 assert_eq "OPENAI_API_KEY ignored by load_config" "" "${OPENAI_API_KEY:-}"
 
-# --- load_config: icodex-prefixed uv key is mapped for runtime ---
+# --- load_config: a generic ICODEX_* key is exported verbatim, never mapped to UV_BIN ---
 cat > "$cfg" <<'EOF'
 ICODEX_UV_BIN=/prefixed/uv
 EOF
@@ -62,17 +62,17 @@ unset ICODEX_IWIKI_AUTO_REINDEX IWIKI_AUTO_REINDEX ICODEX_IWIKI_AUTO_SYNC IWIKI_
 unset ICODEX_IWIKI_VALIDATE_SECTIONS IWIKI_VALIDATE_SECTIONS ICODEX_IWIKI_SYNC_MAX_ASK IWIKI_SYNC_MAX_ASK
 unset ICODEX_UV_BIN UV_BIN
 load_config "$cfg"
-assert_eq "prefixed uv bin retained" "/prefixed/uv" "${ICODEX_UV_BIN:-}"
-assert_eq "prefixed uv bin mapped" "/prefixed/uv" "${UV_BIN:-}"
+assert_eq "ICODEX_* key retained verbatim" "/prefixed/uv" "${ICODEX_UV_BIN:-}"
+assert_eq "ICODEX_UV_BIN not mapped to UV_BIN" "" "${UV_BIN:-}"
 assert_eq "prefixed iwiki key ignored" "" "${ICODEX_IWIKI_LLM_BASE_URL:-}"
 assert_eq "prefixed iwiki runtime key ignored" "" "${IWIKI_LLM_BASE_URL:-}"
 
-# --- load_config: CODEX_UV_BIN is accepted as the persisted uv path ---
+# --- load_config: CODEX_UV_BIN is no longer allowlisted (uv is not configurable) ---
 printf 'CODEX_UV_BIN=/codex/uv\n' > "$cfg"
 unset CODEX_UV_BIN UV_BIN
 load_config "$cfg"
-assert_eq "CODEX_UV_BIN allowlisted" "/codex/uv" "${CODEX_UV_BIN:-}"
-assert_eq "CODEX_UV_BIN mapped to UV_BIN" "/codex/uv" "${UV_BIN:-}"
+assert_eq "CODEX_UV_BIN ignored" "" "${CODEX_UV_BIN:-}"
+assert_eq "UV_BIN not set from config" "" "${UV_BIN:-}"
 
 # --- missing file is a silent no-op (returns 0) ---
 assert_exit "missing file -> 0" 0 load_config "$tmp/absent"
