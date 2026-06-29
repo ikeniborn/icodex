@@ -67,3 +67,13 @@ ensure_launcher_binary_permission() {
   fi
   _ensure_filesystem_permission_entry "$config" "$ICODEX_BIN" "read"
 }
+
+# Idempotently mark the launched project as trusted in the per-project config.
+# Governs project trust only; it does not change approval_policy.
+ensure_project_trust() { # <config> <project_root>
+  local config="$1" root="$2" escaped
+  [[ -f "$config" ]] || return 0
+  escaped="$(_toml_basic_string_escape "$root")"
+  grep -qF "[projects.\"$escaped\"]" "$config" && return 0
+  printf '\n[projects."%s"]\ntrust_level = "trusted"\n' "$escaped" >> "$config"
+}
