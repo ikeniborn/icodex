@@ -92,6 +92,11 @@ flags**. Every variable below can also be set as an ordinary environment variabl
 writes `ICODEX_PROXY` into `.codex_config` (preserving other keys); `./icodex.sh --clear`
 removes the file.
 
+If `ICODEX_PROXY` is set but the proxy is unreachable, icodex warns and — when run
+interactively — asks whether to continue without the proxy (default yes) or exit;
+without a TTY it continues without the proxy. Use `--no-proxy` to skip the proxy (and
+the probe) entirely.
+
 > `ICODEX_*` keys reserved for the iwiki plugin (e.g. `ICODEX_IWIKI_*`) are intentionally
 > ignored by the wrapper config.
 

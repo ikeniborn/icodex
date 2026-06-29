@@ -57,7 +57,7 @@ launch_order_ok="$(awk '
   inblock && /^[[:space:]]*ensure_superpowers_wiring[[:space:]]*$/ && step == 4 { step = 5; next }
   inblock && /^[[:space:]]*install_ensure \|\| exit 1[[:space:]]*$/ && step == 5 { step = 6; next }
   inblock && /^[[:space:]]*ensure_uv_dependency \|\| exit 1[[:space:]]*$/ && step == 6 { step = 7; next }
-  inblock && /^[[:space:]]*\(\([[:space:]]*ICODEX_DISABLE_PROXY[[:space:]]*\)\)[[:space:]]*\|\|[[:space:]]*proxy_apply[[:space:]]*$/ && step == 7 { step = 8; next }
+  inblock && /^[[:space:]]*\(\([[:space:]]*ICODEX_DISABLE_PROXY[[:space:]]*\)\)[[:space:]]*\|\|[[:space:]]*proxy_ensure[[:space:]]*$/ && step == 7 { step = 8; next }
   inblock && /^[[:space:]]*launch_codex[[:space:]]/ && step == 8 { print 1; found = 1; exit }
   END { if (!found) print 0 }
 ' "$ROOT/icodex.sh")"

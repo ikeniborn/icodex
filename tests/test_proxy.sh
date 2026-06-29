@@ -3,6 +3,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/helpers.sh"
 source "$ROOT/lib/config/env.sh"
+source "$ROOT/lib/core/logging.sh"
 source "$ROOT/lib/proxy/proxy.sh"
 
 tmp="$(mktemp -d)"; cfg="$tmp/.codex_config"
@@ -47,6 +48,56 @@ assert_eq "existing config tightened to 600" "600" "$perm_pre"
 # proxy_clear removes the config
 proxy_clear "$cfg"
 assert_exit "config cleared" 1 test -f "$cfg"
+
+# --- _proxy_host_port: parse host+port from a proxy URL (Task 1) ---
+assert_eq "host:port explicit"      "h 8080" "$(_proxy_host_port http://h:8080)"
+assert_eq "http default port"       "h 80"   "$(_proxy_host_port http://h)"
+assert_eq "https default port"      "h 443"  "$(_proxy_host_port https://h)"
+assert_eq "socks5 default port"     "h 1080" "$(_proxy_host_port socks5://h)"
+assert_eq "userinfo and path strip" "h 3128" "$(_proxy_host_port http://MASKING@h:3128/x)"
+assert_eq "schemeless host:port"    "h 9"    "$(_proxy_host_port h:9)"
+
+# --- proxy_reachable: closed port is unreachable (Task 2) ---
+assert_exit "closed port unreachable" 1 proxy_reachable 127.0.0.1 65000 2
+
+# --- _proxy_unreachable_action: decision logic (Task 2) ---
+assert_eq "tty + n -> exit"        "exit"     "$(_proxy_unreachable_action 1 n)"
+assert_eq "tty + N -> exit"        "exit"     "$(_proxy_unreachable_action 1 N)"
+assert_eq "tty + empty -> continue" "continue" "$(_proxy_unreachable_action 1 '')"
+assert_eq "tty + y -> continue"     "continue" "$(_proxy_unreachable_action 1 y)"
+assert_eq "no tty -> continue"      "continue" "$(_proxy_unreachable_action 0 '')"
+
+# --- proxy_ensure: orchestration (Task 3) ---
+# no proxy set -> no-op (nothing exported)
+unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy ICODEX_PROXY
+proxy_ensure </dev/null
+assert_eq "no proxy -> noop" "" "${HTTPS_PROXY:-}"
+
+# unreachable + no TTY (stdin from /dev/null) -> continue, proxy NOT applied
+unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
+ICODEX_PROXY="http://127.0.0.1:65000" proxy_ensure </dev/null
+assert_eq "unreachable continues (exit 0)" "0" "$?"
+assert_eq "unreachable -> proxy not applied" "" "${HTTPS_PROXY:-}"
+
+# reachable (stub) -> proxy applied
+unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
+proxy_reachable() { return 0; }                # stub: force reachable
+ICODEX_PROXY="http://p:8080" proxy_ensure </dev/null
+assert_eq "reachable -> proxy applied" "http://p:8080" "${HTTPS_PROXY:-}"
+source "$ROOT/lib/proxy/proxy.sh"              # restore the real proxy_reachable
+
+# --- proxy_ensure: a hostless proxy URL is treated as immediately unreachable (post-review fix) ---
+# _proxy_host_port emits an empty host for a hostless URL (documented interface)
+assert_eq "hostless url -> empty host, port 80" " 80" "$(_proxy_host_port http://)"
+
+# guard: with an empty host, proxy_ensure must short-circuit BEFORE probing.
+# A stub that reports "reachable" proves the guard: if the probe were reached,
+# the proxy would be applied; the guard skips it, so HTTPS_PROXY stays unset.
+unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
+proxy_reachable() { return 0; }                # stub: would say reachable if reached
+ICODEX_PROXY="http://" proxy_ensure </dev/null
+assert_eq "hostless url -> proxy not applied" "" "${HTTPS_PROXY:-}"
+source "$ROOT/lib/proxy/proxy.sh"              # restore the real proxy_reachable
 
 rm -rf "$tmp"
 finish
