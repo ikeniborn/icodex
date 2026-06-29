@@ -111,5 +111,14 @@ unset OPENAI_API_KEY ICODEX_API_KEY
 assert_exit "no key -> noop returns 0" 0 apply_api_key
 assert_eq "no OPENAI_API_KEY set" "" "${OPENAI_API_KEY:-}"
 
+# --- path split: shared store vs per-project homes (Task 1) ---
+ICODEX_ROOT="/proj"
+source "$ROOT/lib/core/init.sh"
+assert_eq "shared dir"  "/proj/.codex-isolated" "$ICODEX_SHARED_DIR"
+assert_eq "homes dir"   "/proj/.codex-homes"    "$ICODEX_HOMES_DIR"
+assert_eq "bin in shared"   "/proj/.codex-isolated/bin/codex"         "$ICODEX_BIN"
+assert_eq "stamp in shared" "/proj/.codex-isolated/bin/.codex-version" "$ICODEX_STAMP"
+assert_eq "project root default empty" "" "$ICODEX_PROJECT_ROOT"
+
 rm -rf "$tmp"
 finish
