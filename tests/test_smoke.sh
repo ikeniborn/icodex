@@ -32,6 +32,8 @@ assert_eq "sources permissions module" "1" \
   "$(grep -c 'config/permissions' "$ROOT/icodex.sh")"
 assert_eq "sources plugin module" "1" \
   "$(grep -c 'plugin/superpowers' "$ROOT/icodex.sh")"
+assert_eq "sources sandbox module" "1" \
+  "$(grep -c 'config/sandbox' "$ROOT/icodex.sh")"
 assert_eq "does not source iwiki plugin module" "0" \
   "$(grep -c 'plugin/iwiki' "$ROOT/icodex.sh")"
 assert_eq "calls wiring on launch" "1" \
@@ -40,17 +42,23 @@ assert_eq "does not call iwiki wiring on launch" "0" \
   "$(grep -Ec '^[[:space:]]*ensure_iwiki_wiring[[:space:]]*$' "$ROOT/icodex.sh")"
 assert_eq "calls binary permission wiring on launch" "1" \
   "$(grep -Ec '^[[:space:]]*ensure_launcher_binary_permission[[:space:]]*$' "$ROOT/icodex.sh")"
+assert_eq "calls apply_sandbox_mode on launch" "1" \
+  "$(grep -Ec '^[[:space:]]*apply_sandbox_mode \|\| exit 1[[:space:]]*$' "$ROOT/icodex.sh")"
+assert_eq "calls ensure_project_trust on launch" "1" \
+  "$(grep -Ec '^[[:space:]]*ensure_project_trust ' "$ROOT/icodex.sh")"
 assert_eq "tracked config does not enable iwiki" "0" \
   "$(grep -c 'iwiki@ai-wiki' "$ROOT/.codex-isolated/config.toml")"
 launch_order_ok="$(awk '
   /# default: run/ { inblock = 1; step = 0; next }
   inblock && /^[[:space:]]*setup_codex_home[[:space:]]*$/ && step == 0 { step = 1; next }
-  inblock && /^[[:space:]]*ensure_launcher_binary_permission[[:space:]]*$/ && step == 1 { step = 2; next }
-  inblock && /^[[:space:]]*ensure_superpowers_wiring[[:space:]]*$/ && step == 2 { step = 3; next }
-  inblock && /^[[:space:]]*install_ensure \|\| exit 1[[:space:]]*$/ && step == 3 { step = 5; next }
-  inblock && /^[[:space:]]*ensure_uv_dependency \|\| exit 1[[:space:]]*$/ && step == 5 { step = 6; next }
-  inblock && /^[[:space:]]*\(\([[:space:]]*ICODEX_DISABLE_PROXY[[:space:]]*\)\)[[:space:]]*\|\|[[:space:]]*proxy_apply[[:space:]]*$/ && step == 6 { step = 7; next }
-  inblock && /^[[:space:]]*launch_codex[[:space:]]/ && step == 7 { print 1; found = 1; exit }
+  inblock && /^[[:space:]]*apply_sandbox_mode \|\| exit 1[[:space:]]*$/ && step == 1 { step = 2; next }
+  inblock && /^[[:space:]]*ensure_project_trust / && step == 2 { step = 3; next }
+  inblock && /^[[:space:]]*ensure_launcher_binary_permission[[:space:]]*$/ && step == 3 { step = 4; next }
+  inblock && /^[[:space:]]*ensure_superpowers_wiring[[:space:]]*$/ && step == 4 { step = 5; next }
+  inblock && /^[[:space:]]*install_ensure \|\| exit 1[[:space:]]*$/ && step == 5 { step = 6; next }
+  inblock && /^[[:space:]]*ensure_uv_dependency \|\| exit 1[[:space:]]*$/ && step == 6 { step = 7; next }
+  inblock && /^[[:space:]]*\(\([[:space:]]*ICODEX_DISABLE_PROXY[[:space:]]*\)\)[[:space:]]*\|\|[[:space:]]*proxy_apply[[:space:]]*$/ && step == 7 { step = 8; next }
+  inblock && /^[[:space:]]*launch_codex[[:space:]]/ && step == 8 { print 1; found = 1; exit }
   END { if (!found) print 0 }
 ' "$ROOT/icodex.sh")"
 assert_eq "default launch wiring order" "1" "$launch_order_ok"

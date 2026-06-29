@@ -15,7 +15,7 @@ export ICODEX_ROOT
 
 for m in core/logging core/init core/validation command/args \
          binary/detect binary/lockfile binary/install \
-         config/isolated config/permissions config/env proxy/proxy symlink/symlink \
+         config/isolated config/permissions config/sandbox config/env proxy/proxy symlink/symlink \
          plugin/superpowers launcher/launch; do
   # shellcheck source=/dev/null
   source "$ICODEX_ROOT/lib/$m.sh"
@@ -46,12 +46,14 @@ main() {
   fi
 
   case "$ICODEX_CMD" in
-    install) setup_codex_home; install_ensure          || exit 1; ensure_uv_dependency || exit 1; install_symlink; exit 0 ;;
-    update)  setup_codex_home; install_ensure --update || exit 1; ensure_uv_dependency || exit 1; install_symlink; exit 0 ;;
+    install) setup_shared_dirs; install_ensure          || exit 1; ensure_uv_dependency || exit 1; install_symlink; exit 0 ;;
+    update)  setup_shared_dirs; install_ensure --update || exit 1; ensure_uv_dependency || exit 1; install_symlink; exit 0 ;;
   esac
 
   # default: run
   setup_codex_home
+  apply_sandbox_mode || exit 1
+  ensure_project_trust "$ICODEX_HOME_DIR/config.toml" "$ICODEX_PROJECT_ROOT"
   ensure_launcher_binary_permission
   ensure_superpowers_wiring
   install_ensure || exit 1
