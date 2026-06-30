@@ -74,8 +74,8 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
 <body>
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden checked>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
 <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
 <header>
   <h1>Цепочка IDD→SDD — <code>icodex-iwiki-mcp</code></h1>
@@ -101,7 +101,9 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
   <p>Спецификация делает stdio MCP-сервер <code>iwiki-mcp</code> встроенной, всегда
   включённой частью изолированного Codex-окружения, которое поднимает icodex. Секрет
   (<code>IWIKI_LLM_KEY</code>) держится вне git, остальные настройки фиксируются литерально
-  в блоке сервера.</p>
+  в блоке сервера. Per-project привязка доставляется через <code>.iwiki.toml</code>: icodex
+  засевает файл в корне проекта (домен == basename) и симлинкует его в Codex-home, откуда
+  сервер читает привязку по своему cwd.</p>
 
   <h3>Требования по разделам</h3>
   <table>
@@ -112,16 +114,17 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
       <tr><td>R3</td><td>Scope: Always on</td><td>Нет переключателя enable/disable — сервер прописывается на каждом запуске.</td></tr>
       <tr><td>R4</td><td>Scope: System binary</td><td>Жёстко прописанный путь <code>/home/ikeniborn/.local/bin/iwiki-mcp</code>; без изолированной установки и разрешения через PATH.</td></tr>
       <tr><td>R5</td><td>Scope: Settings fixed</td><td>Несекретный env (<code>IWIKI_BASE_DIR</code>, <code>IWIKI_LLM_BASE_URL</code>, <code>IWIKI_EMBED_MODEL</code>, <code>IWIKI_EMBED_DIMENSIONS</code>) — литералом в блоке; вне блока только секрет.</td></tr>
-      <tr><td>R6</td><td>Scope: No binding</td><td>Без per-project привязки (<code>.iwiki.toml</code> / <code>IWIKI_PROJECT_DIR</code>); блок полностью статичен.</td></tr>
+      <tr><td>R6</td><td>Scope: Per-project binding</td><td>icodex засевает <code>.iwiki.toml</code> в корне проекта (домен == basename, <code>read</code> и <code>write</code>) при отсутствии и симлинкует его в Codex-home; существующий файл не перезаписывается; <code>IWIKI_PROJECT_DIR</code> не используется (привязка доставляется через cwd-симлинк).</td></tr>
       <tr><td>R7</td><td>Background / git-facts</td><td>Секрет не может попасть в tracked-файлы; он живёт только в <code>.codex_config</code> и достаётся серверу через окружение (<code>env_vars</code>), без shell-раскрытия.</td></tr>
-      <tr><td>R8</td><td>Architecture</td><td>Решение повторяет существующую форму icodex: env-маппинг для секрета + per-launch wiring-шаг, поддерживающий ограниченный регион в per-home <code>config.toml</code>.</td></tr>
+      <tr><td>R8</td><td>Architecture</td><td>Решение повторяет существующую форму icodex: env-маппинг для секрета + per-launch wiring-шаги (регион в per-home <code>config.toml</code> + привязка <code>.iwiki.toml</code>).</td></tr>
       <tr><td>R9</td><td>Component 1</td><td>Статический ограниченный регион <code>[mcp_servers.iwiki]</code> с правильным порядком TOML (ключи до подтаблицы <code>.env</code>), добавляемый в конец файла.</td></tr>
       <tr><td>R10</td><td>Component 2</td><td><code>.codex_config</code> получает <code>ICODEX_IWIKI_LLM_KEY=&lt;secret&gt;</code>; <code>.codex_config.example</code> — закомментированный пример без значения.</td></tr>
       <tr><td>R11</td><td>Component 3</td><td><code>lib/config/env.sh</code>: разрешить <code>ICODEX_IWIKI_*</code> (raw <code>IWIKI_*</code> остаётся запрещён) и добавить <code>apply_iwiki_env()</code> (де-префикс в <code>IWIKI_LLM_KEY</code>, без перетирания).</td></tr>
-      <tr><td>R12</td><td>Component 4</td><td>Новый <code>lib/iwiki/iwiki.sh</code> с <code>ensure_iwiki_wiring</code>: идемпотентный resync региона (strip + append), без gate, с <code>cmp -s</code>-guard.</td></tr>
-      <tr><td>R13</td><td>Component 5</td><td><code>icodex.sh</code>: подключить модуль, вызвать <code>ensure_iwiki_wiring</code> после <code>ensure_idd_wiring</code> и <code>apply_iwiki_env</code> после <code>apply_api_key</code>.</td></tr>
-      <tr><td>R14</td><td>Error handling</td><td>Отсутствие секрета/бинарника не вызывает жёсткого падения на запуске; поведение задокументировано; запись региона безопасна (temp + compare + replace).</td></tr>
-      <tr><td>R15</td><td>Testing</td><td><code>test_iwiki_wiring.sh</code> и <code>test_iwiki_env.sh</code> покрывают обе новые функции (один регион, идемпотентность, замена stale, не-перетирание, no-op, allowlist).</td></tr>
+      <tr><td>R12</td><td>Component 4 (wiring)</td><td>Новый <code>lib/iwiki/iwiki.sh</code> с <code>ensure_iwiki_wiring</code>: идемпотентный resync региона (strip + append), без gate, с <code>cmp -s</code>-guard.</td></tr>
+      <tr><td>R13</td><td>Component 4 (binding)</td><td><code>ensure_iwiki_binding</code>: засев <code>.iwiki.toml</code> (<code>read=["&lt;basename&gt;"]</code> / <code>write="&lt;basename&gt;"</code>) при отсутствии; никогда не перезаписывает; идемпотентный симлинк <code>$ICODEX_HOME_DIR/.iwiki.toml</code> → файл в корне; no-op без <code>ICODEX_PROJECT_ROOT</code>/<code>ICODEX_HOME_DIR</code>; cwd-допущение задокументировано (мягкий фолбэк).</td></tr>
+      <tr><td>R14</td><td>Component 5</td><td><code>icodex.sh</code>: подключить модуль, вызвать <code>ensure_iwiki_wiring</code> и <code>ensure_iwiki_binding</code> после <code>ensure_idd_wiring</code>, <code>apply_iwiki_env</code> после <code>apply_api_key</code>.</td></tr>
+      <tr><td>R15</td><td>Error handling</td><td>Отсутствие секрета/бинарника не вызывает жёсткого падения на запуске; поведение задокументировано; запись региона безопасна (temp + compare + replace).</td></tr>
+      <tr><td>R16</td><td>Testing</td><td><code>test_iwiki_wiring.sh</code>, <code>test_iwiki_env.sh</code> и <code>test_iwiki_binding.sh</code> покрывают три новые функции (один регион, идемпотентность, замена stale, allowlist, засев/не-перетирание/симлинк/re-point/no-op).</td></tr>
     </tbody>
   </table>
 
@@ -133,6 +136,7 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
       <tr><td>SC2</td><td>Повторный запуск — no-op (байт-идентичен); stale-регион заменяется, не дублируется; регион — завершающее содержимое файла.</td></tr>
       <tr><td>SC3</td><td><code>apply_iwiki_env</code> экспортирует <code>IWIKI_LLM_KEY</code> из <code>ICODEX_IWIKI_LLM_KEY</code>; не перетирает заранее заданный; no-op при незаданном источнике.</td></tr>
       <tr><td>SC4</td><td><code>_config_key_allowed</code> принимает <code>ICODEX_IWIKI_LLM_KEY</code> и по-прежнему отвергает raw <code>IWIKI_LLM_KEY</code>.</td></tr>
+      <tr><td>SC5</td><td><code>ensure_iwiki_binding</code> засевает <code>.iwiki.toml</code> с <code>read</code>/<code>write</code> == basename при отсутствии; не перезаписывает существующий; создаёт/re-point симлинк в home; идемпотентен; no-op без <code>ICODEX_PROJECT_ROOT</code>/<code>ICODEX_HOME_DIR</code>.</td></tr>
     </tbody>
   </table>
 
@@ -148,14 +152,16 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
     <span class="arrow">→</span>
     <div class="block"><b>ensure_iwiki_wiring</b><span>lib/iwiki/iwiki.sh: regen региона в per-home config.toml</span></div>
     <span class="arrow">→</span>
-    <div class="block"><b>Codex launch</b><span>спавн iwiki-mcp: env-блок (литералы) + env_vars (IWIKI_LLM_KEY)</span></div>
+    <div class="block"><b>ensure_iwiki_binding</b><span>засев .iwiki.toml в корне + симлинк в home</span></div>
+    <span class="arrow">→</span>
+    <div class="block"><b>Codex launch</b><span>спавн iwiki-mcp: env-блок (литералы) + env_vars (IWIKI_LLM_KEY) + чтение .iwiki.toml по cwd</span></div>
   </div>
   <p class="legend">Управление вызывается из <code>icodex.sh main()</code>: <code>apply_iwiki_env</code> после
-  <code>apply_api_key</code>, <code>ensure_iwiki_wiring</code> после <code>ensure_idd_wiring</code>.</p>
+  <code>apply_api_key</code>; <code>ensure_iwiki_wiring</code> и <code>ensure_iwiki_binding</code> после <code>ensure_idd_wiring</code>.</p>
 
   <h3>Граф зависимостей</h3>
   <figure>
-  <svg viewBox="0 0 760 360" width="100%" role="img" aria-label="Граф зависимостей требований">
+  <svg viewBox="0 0 760 380" width="100%" role="img" aria-label="Граф зависимостей требований">
     <defs>
       <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
         <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path>
@@ -170,39 +176,41 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
       .e{ stroke:var(--line); stroke-width:1.4; fill:none; marker-end:url(#arr); }
     </style>
     <!-- edges (A->B = A depends on B) -->
-    <path class="e" d="M150,70 L150,120"></path>          <!-- C5 -> C4 -->
-    <path class="e" d="M210,55 L380,55 L380,118"></path>  <!-- C5 -> C3 -->
-    <path class="e" d="M150,160 L150,210"></path>         <!-- C4 -> C1 -->
-    <path class="e" d="M380,160 L380,210"></path>         <!-- C3 -> C2(secret env) -->
-    <path class="e" d="M300,240 L210,240"></path>         <!-- C2 -> C1 (secret reaches block via env_vars) -->
-    <path class="e" d="M380,250 L380,300"></path>         <!-- C2 -> Background/git-facts -->
-    <path class="e" d="M210,320 L300,260"></path>         <!-- git-facts informs C2 -->
+    <path class="e" d="M150,70 L150,120"></path>
+    <path class="e" d="M210,55 L380,55 L380,118"></path>
+    <path class="e" d="M120,160 L120,210"></path>
+    <path class="e" d="M180,160 L300,210"></path>
+    <path class="e" d="M380,160 L380,210"></path>
+    <path class="e" d="M320,240 L215,228"></path>
+    <path class="e" d="M380,250 L380,310"></path>
     <!-- nodes -->
     <g class="n"><rect x="95" y="30" width="120" height="40"></rect><text x="110" y="55">C5 icodex.sh</text></g>
-    <g class="n"><rect x="95" y="120" width="120" height="40"></rect><text x="106" y="145">C4 iwiki.sh</text></g>
-    <g class="n"><rect x="95" y="210" width="120" height="40"></rect><text x="104" y="235">C1 server block</text></g>
+    <g class="n"><rect x="80" y="120" width="160" height="40"></rect><text x="90" y="145">C4 iwiki.sh (wiring+bind)</text></g>
+    <g class="n"><rect x="80" y="210" width="130" height="40"></rect><text x="90" y="235">C1 server block</text></g>
+    <g class="n"><rect x="250" y="210" width="120" height="40"></rect><text x="260" y="235">.iwiki.toml binding</text></g>
     <g class="n"><rect x="320" y="118" width="120" height="40"></rect><text x="330" y="143">C3 env.sh</text></g>
     <g class="n"><rect x="320" y="210" width="120" height="40"></rect><text x="330" y="235">C2 .codex_config</text></g>
-    <g class="n"><rect x="300" y="300" width="160" height="40"></rect><text x="310" y="325">Background (git-facts)</text></g>
+    <g class="n"><rect x="300" y="310" width="160" height="40"></rect><text x="310" y="335">Background (git-facts)</text></g>
   </svg>
   <figcaption>Ребро A→B = «A зависит от B / использует B». Циклов нет (DAG): C5 — корень оркестрации,
-  C1 (статический блок) и Background — листья. C2 поставляет секрет, который C1 потребляет через <code>env_vars</code>.</figcaption>
+  C1 (статический блок), <code>.iwiki.toml</code> и Background — листья. C2 поставляет секрет, который C1 потребляет через <code>env_vars</code>;
+  C4 теперь имеет две ветви — wiring (→C1) и binding (→<code>.iwiki.toml</code>).</figcaption>
   </figure>
 
   <h3>Карта покрытия (задача → требование спецификации)</h3>
   <table>
     <thead><tr><th>Задача (scope-решение / поверхность реализации)</th><th>Покрывающие требования</th></tr></thead>
     <tbody>
-      <tr><td>Сервер iwiki зарегистрирован на каждом запуске, переживает ребилд</td><td>R1, R12, R13</td></tr>
+      <tr><td>Сервер iwiki зарегистрирован на каждом запуске, переживает ребилд</td><td>R1, R12, R14</td></tr>
       <tr><td>Только Codex (icodex), не iclaude</td><td>R2 + Out of scope</td></tr>
       <tr><td>Всегда включён, без gate</td><td>R3, R12</td></tr>
       <tr><td>Системный бинарник по жёсткому пути</td><td>R4, R9</td></tr>
       <tr><td>Несекретные настройки фиксированы в блоке</td><td>R5, R9</td></tr>
-      <tr><td>Без per-project привязки</td><td>R6 + Out of scope</td></tr>
+      <tr><td>Per-project привязка через <code>.iwiki.toml</code> (засев + симлинк, без <code>IWIKI_PROJECT_DIR</code>)</td><td>R6, R13 (SC5)</td></tr>
       <tr><td>Секрет вне git, доставляется через окружение</td><td>R7, R10, R11</td></tr>
-      <tr><td>Per-launch wiring по существующей форме icodex</td><td>R8, R12, R13</td></tr>
-      <tr><td>Обработка отсутствия секрета/бинарника</td><td>R14</td></tr>
-      <tr><td>Тесты обеих новых функций</td><td>R15 (SC1–SC4)</td></tr>
+      <tr><td>Per-launch wiring по существующей форме icodex</td><td>R8, R12, R13, R14</td></tr>
+      <tr><td>Обработка отсутствия секрета/бинарника</td><td>R15</td></tr>
+      <tr><td>Тесты трёх новых функций</td><td>R16 (SC1–SC5)</td></tr>
     </tbody>
   </table>
 
@@ -229,7 +237,8 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
     <b>Сводка:</b> CRITICAL open: 0 &nbsp;·&nbsp; WARNING open: 0<br>
     <b>Вердикт:</b> <span class="badge b-ok">OK</span><br>
     <b>Цепочка:</b> intent → <b>spec</b> (intent не найден; <code>chain.intent = null</code>).<br>
-    <span class="legend">spec_hash: <code>0bfd265e61f4ecd6</code> · last_run: 2026-06-30</span>
+    <span class="legend">Повторная проверка после добавления per-project привязки <code>.iwiki.toml</code>; все 4 фазы перепройдены, находок нет.</span><br>
+    <span class="legend">spec_hash: <code>d39d942250d15e05</code> (prev: <code>0bfd265e61f4ecd6</code>) · last_run: 2026-06-30</span>
   </div>
 
 </section>
@@ -242,18 +251,19 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
   <p>План регистрирует stdio MCP-сервер <code>iwiki-mcp</code> в каждом Codex-home по
   форме существующих launch-шагов icodex: де-префикс секрета в <code>env.sh</code>,
   новый модуль <code>lib/iwiki/iwiki.sh</code> с регионом <code>[mcp_servers.iwiki]</code>
-  и два вызова в <code>icodex.sh</code>. Пять задач, каждая в TDD-порядке
-  (тест → провал → реализация → зелёный → коммит).</p>
+  (<code>ensure_iwiki_wiring</code>) и per-project привязкой <code>.iwiki.toml</code>
+  (<code>ensure_iwiki_binding</code>), плюс три вызова в <code>icodex.sh</code>. Пять задач,
+  каждая в TDD-порядке (тест → провал → реализация → зелёный → коммит).</p>
 
   <h3>Задачи и критерии готовности (DoD)</h3>
   <table>
     <thead><tr><th>Задача</th><th>Файлы</th><th>Критерий готовности (DoD)</th></tr></thead>
     <tbody>
       <tr><td><b>Task 1</b> — <code>env.sh</code>: allowlist <code>ICODEX_IWIKI_*</code> + <code>apply_iwiki_env</code></td><td>mod <code>lib/config/env.sh</code>; new <code>tests/test_iwiki_env.sh</code></td><td><code>bash tests/test_iwiki_env.sh</code> → <code>PASS=… FAIL=0</code>; <code>bash tests/test_env.sh</code> остаётся зелёным; <code>_config_key_allowed</code> допускает <code>ICODEX_IWIKI_LLM_KEY</code>, отвергает raw <code>IWIKI_*</code>.</td></tr>
-      <tr><td><b>Task 2</b> — <code>lib/iwiki/iwiki.sh</code>: <code>ensure_iwiki_wiring</code></td><td>new <code>lib/iwiki/iwiki.sh</code>; new <code>tests/test_iwiki_wiring.sh</code></td><td><code>bash tests/test_iwiki_wiring.sh</code> → <code>PASS=… FAIL=0</code>: ровно один регион, идемпотентность (байт-идентичность), замена stale, no-op при unset/absent.</td></tr>
-      <tr><td><b>Task 3</b> — <code>icodex.sh</code>: подключить модуль и вызвать на запуске</td><td>mod <code>icodex.sh</code></td><td><code>bash -n icodex.sh</code> exit 0; <code>grep -n</code> даёт 3 совпадения (source + два вызова); source-loop печатает <code>OK</code>; все три теста <code>FAIL=0</code>.</td></tr>
+      <tr><td><b>Task 2</b> — <code>lib/iwiki/iwiki.sh</code>: <code>ensure_iwiki_wiring</code> + <code>ensure_iwiki_binding</code></td><td>new <code>lib/iwiki/iwiki.sh</code>; new <code>tests/test_iwiki_wiring.sh</code>, <code>tests/test_iwiki_binding.sh</code></td><td><code>bash tests/test_iwiki_wiring.sh</code> → <code>PASS=… FAIL=0</code>: ровно один регион, идемпотентность, замена stale, no-op. <code>bash tests/test_iwiki_binding.sh</code> → <code>FAIL=0</code>: seed <code>.iwiki.toml</code> (domain==basename), не-перетирание, симлинк в home, re-point stale, no-op.</td></tr>
+      <tr><td><b>Task 3</b> — <code>icodex.sh</code>: подключить модуль и вызвать на запуске</td><td>mod <code>icodex.sh</code></td><td><code>bash -n icodex.sh</code> exit 0; <code>grep -n</code> даёт 4 совпадения (source + <code>apply_iwiki_env</code> + <code>ensure_iwiki_wiring</code> + <code>ensure_iwiki_binding</code>); source-loop печатает <code>OK</code> (все три функции определены); четыре теста <code>FAIL=0</code>.</td></tr>
       <tr><td><b>Task 4</b> — Документация конфига + живой секрет</td><td>mod <code>.codex_config.example</code>; manual (git-ignored) <code>.codex_config</code></td><td><code>grep -c '^#ICODEX_IWIKI_' .codex_config.example</code> = <code>1</code>; скан секрета = <code>0</code>; <code>git check-ignore .codex_config</code> подтверждает игнор (секрет не коммитится).</td></tr>
-      <tr><td><b>Task 5</b> — Сквозная проверка в живом home</td><td>нет (только верификация)</td><td>регион виден в конце <code>config.toml</code>; <code>tomllib</code> печатает ожидаемые <code>command</code>/<code>IWIKI_BASE_DIR</code>/<code>env_vars</code>; повтор → <code>IDEMPOTENT</code>; (опц.) smoke-запуск Codex показывает <code>wiki_*</code>.</td></tr>
+      <tr><td><b>Task 5</b> — Сквозная проверка в живом home</td><td>нет (только верификация)</td><td>регион виден в конце <code>config.toml</code>; <code>tomllib</code> печатает ожидаемые <code>command</code>/<code>IWIKI_BASE_DIR</code>/<code>env_vars</code>; повтор → <code>IDEMPOTENT</code>; Step 4 — <code>.iwiki.toml</code> seed (<code>read/write == myproj</code>) + readlink home-симлинка; (опц.) smoke-запуск Codex показывает <code>wiki_*</code>.</td></tr>
     </tbody>
   </table>
 
@@ -276,21 +286,22 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
       .ep{ stroke:var(--line); stroke-width:1.4; fill:none; marker-end:url(#arrp); }
     </style>
     <!-- edges: N -> M = шаг N использует результат шага M (M<N) -->
-    <path class="ep" d="M250,60 L165,60"></path>            <!-- T3 -> T1 -->
-    <path class="ep" d="M250,75 L210,110 L210,150"></path>  <!-- T3 -> T2 -->
-    <path class="ep" d="M430,60 L345,60"></path>            <!-- T4 -> T1 (load_config/apply_iwiki_env) -->
-    <path class="ep" d="M620,75 L620,150 L260,150"></path>  <!-- T5 -> T2 (sources iwiki.sh) -->
-    <path class="ep" d="M610,60 L530,60"></path>            <!-- T5 -> T3 (full launch wiring) -->
-    <path class="ep" d="M610,48 L530,48 L450,48"></path>    <!-- T5 -> T4 (live secret) -->
+    <path class="ep" d="M250,60 L165,60"></path>
+    <path class="ep" d="M250,75 L210,110 L210,150"></path>
+    <path class="ep" d="M430,60 L345,60"></path>
+    <path class="ep" d="M620,75 L620,150 L260,150"></path>
+    <path class="ep" d="M610,60 L530,60"></path>
+    <path class="ep" d="M610,48 L530,48 L450,48"></path>
     <!-- nodes -->
     <g class="np"><rect x="60" y="40" width="105" height="40"></rect><text x="78" y="64">T1 env.sh</text></g>
-    <g class="np"><rect x="155" y="130" width="105" height="40"></rect><text x="172" y="154">T2 iwiki.sh</text></g>
+    <g class="np"><rect x="155" y="130" width="105" height="40"></rect><text x="166" y="154">T2 iwiki.sh ×2</text></g>
     <g class="np"><rect x="250" y="40" width="105" height="40"></rect><text x="263" y="64">T3 icodex.sh</text></g>
     <g class="np"><rect x="430" y="40" width="105" height="40"></rect><text x="445" y="64">T4 config docs</text></g>
     <g class="np"><rect x="610" y="40" width="105" height="40"></rect><text x="623" y="64">T5 E2E verify</text></g>
   </svg>
   <figcaption>Ребро N→M = «шаг N использует результат шага M», N&gt;M (порядок соблюдён, циклов нет — DAG).
-  T1/T2 — листья (создают функции); T3 потребляет обе; T4 зависит от T1; T5 — корень, зависит от T1–T4
+  T1 и T2 — листья (создают функции: T2 — обе, <code>ensure_iwiki_wiring</code> и <code>ensure_iwiki_binding</code>);
+  T3 потребляет все три; T4 зависит от T1; T5 — корень, зависит от T1–T4
   и подключает <code>lib/iwiki/iwiki.sh</code> из T2. Нарушений порядка фаза <code>dependencies</code> не нашла.</figcaption>
   </figure>
 
@@ -302,10 +313,12 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
       <tr><td><code>tests/test_iwiki_env.sh</code></td><td>＋</td><td></td><td></td><td></td><td></td></tr>
       <tr><td><code>lib/iwiki/iwiki.sh</code></td><td></td><td>＋</td><td>↣ source</td><td></td><td>↣ source</td></tr>
       <tr><td><code>tests/test_iwiki_wiring.sh</code></td><td></td><td>＋</td><td>↣ run</td><td></td><td></td></tr>
+      <tr><td><code>tests/test_iwiki_binding.sh</code></td><td></td><td>＋</td><td>↣ run</td><td></td><td></td></tr>
       <tr><td><code>icodex.sh</code></td><td></td><td></td><td>✎</td><td></td><td></td></tr>
       <tr><td><code>.codex_config.example</code></td><td></td><td></td><td></td><td>✎</td><td></td></tr>
       <tr><td><code>.codex_config</code> (git-ignored)</td><td></td><td></td><td></td><td>＋ secret</td><td>↣ uses</td></tr>
       <tr><td>per-home <code>config.toml</code></td><td></td><td></td><td></td><td></td><td>✎ region</td></tr>
+      <tr><td><code>.iwiki.toml</code> (project root) + home-симлинк</td><td></td><td></td><td></td><td></td><td>＋ seed/symlink</td></tr>
     </tbody>
   </table>
   <p class="legend">＋ создаёт · ✎ редактирует · ↣ потребляет/запускает. Ни один файл не редактируется двумя задачами —
@@ -318,10 +331,11 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
       <tr><td>Component 1 — статический блок <code>[mcp_servers.iwiki]</code></td><td>Task 2 (<code>_iwiki_region_body</code>), верификация Task 5 Step 2</td></tr>
       <tr><td>Component 2 — <code>.codex_config</code> / <code>.example</code> (только секрет)</td><td>Task 4</td></tr>
       <tr><td>Component 3 — <code>env.sh</code> allowlist + <code>apply_iwiki_env</code></td><td>Task 1</td></tr>
-      <tr><td>Component 4 — <code>lib/iwiki/iwiki.sh</code> resync региона</td><td>Task 2</td></tr>
-      <tr><td>Component 5 — <code>icodex.sh</code> source + 2 вызова</td><td>Task 3</td></tr>
-      <tr><td>Error handling (нет секрета/бинарника; безопасная запись)</td><td>Task 1 no-op, Task 2 guards, Task 5</td></tr>
-      <tr><td>Testing (<code>test_iwiki_wiring</code>, <code>test_iwiki_env</code>)</td><td>Tasks 1–2</td></tr>
+      <tr><td>Component 4 — <code>lib/iwiki/iwiki.sh</code> resync региона + <code>.iwiki.toml</code> привязка</td><td>Task 2 (<code>ensure_iwiki_wiring</code>, <code>ensure_iwiki_binding</code>)</td></tr>
+      <tr><td>Per-project binding (seed domain==basename, не-перетирание, home-симлинк)</td><td>Task 2 Steps 6–10, верификация Task 5 Step 4</td></tr>
+      <tr><td>Component 5 — <code>icodex.sh</code> source + 3 вызова</td><td>Task 3</td></tr>
+      <tr><td>Error handling (нет секрета/бинарника; безопасная запись region/binding)</td><td>Task 1 no-op, Task 2 guards, Task 5</td></tr>
+      <tr><td>Testing (<code>test_iwiki_wiring</code>, <code>test_iwiki_env</code>, <code>test_iwiki_binding</code>)</td><td>Tasks 1–2</td></tr>
     </tbody>
   </table>
   <p class="legend">Каждое требование спецификации закрыто ≥1 задачей; лишних задач, не привязанных
@@ -351,7 +365,7 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
     <b>Сводка:</b> CRITICAL open: 0 &nbsp;·&nbsp; WARNING open: 0<br>
     <b>Вердикт:</b> <span class="badge b-ok">OK</span><br>
     <b>Цепочка:</b> intent → spec → <b>plan</b> (intent не найден; <code>chain.intent = null</code>).<br>
-    <span class="legend">plan_hash: <code>d2ea1b9a692a3bd4</code> · spec_hash: <code>0bfd265e61f4ecd6</code> · last_run: 2026-06-30</span>
+    <span class="legend">plan_hash: <code>bf79f24ecdb032b9</code> · spec_hash: <code>d39d942250d15e05</code> · last_run: 2026-06-30</span>
   </div>
 
 </section>

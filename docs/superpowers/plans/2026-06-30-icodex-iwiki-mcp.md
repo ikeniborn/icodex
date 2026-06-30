@@ -1,7 +1,7 @@
 ---
 review:
-  plan_hash: d2ea1b9a692a3bd4
-  spec_hash: 0bfd265e61f4ecd6
+  plan_hash: bf79f24ecdb032b9
+  spec_hash: d39d942250d15e05
   last_run: 2026-06-30
   phases:
     structure:     { status: passed }
