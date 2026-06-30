@@ -81,8 +81,8 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
 <input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
 <label for="theme-toggle" class="theme-btn" title="Переключить тему">🌙 / ☀️</label>
 <header>
   <h1>icodex IDD→SDD integration — цепочка IDD → SDD</h1>
@@ -256,7 +256,95 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
 
 <!-- TAB:result START -->
 <section class="tab-pane" id="pane-result">
-  <p class="note">Этап ещё не проверен.</p>
+
+  <h2>1. Резюме сверки</h2>
+  <p class="sub">Plan: <code>docs/superpowers/plans/2026-06-30-icodex-idd-integration.md</code> · <code>plan_hash: 1c3203e14090a2bf</code><br>
+  Spec: <code>docs/superpowers/specs/2026-06-30-icodex-idd-integration-design.md</code><br>
+  Intent: <i>отсутствует</i> (<code>chain.intent = null</code> — цепочка стартует со spec)</p>
+
+  <div class="note"><code>git diff HEAD</code> пуст — вся работа закоммичена в ветку <code>dev-idd-integration</code>. Сверка выполнена от точки ветвления с main: <code>git diff 58d9106..HEAD</code> — <b>23 файла изменено, +3482 / −17</b>.</div>
+
+  <h2>2. Покрытие шагов плана</h2>
+  <p>
+    <span class="badge b-ok">DONE: все продуктивные шаги</span>
+    <span class="badge b-prog">PARTIAL: 0</span>
+    <span class="badge b-ok">MISSING: 0</span>
+  </p>
+  <table>
+    <thead><tr><th>Задача</th><th>Свидетельство в diff</th><th>Тест</th><th>Commit</th></tr></thead>
+    <tbody>
+      <tr><td><b>1.</b> helper + <code>idd-gate.py</code></td>
+        <td><code>_codex_paths.py</code> (<code>extract_paths</code>/<code>patch_text_from_input</code>); <code>idd-gate.py</code> — <code>CODEX_HOME</code> ledger, dispatch <code>apply_patch/Write/Edit</code>, имена скиллов без слэша</td>
+        <td><span class="badge b-ok">PASS=13 FAIL=0</span></td><td><code>128245a</code></td></tr>
+      <tr><td><b>2.</b> <code>idd-nudge.py</code></td>
+        <td>matcher <code>apply_patch|Write</code>, <code>extract_paths</code>, <code>fix=check-spec</code> без слэша</td>
+        <td><span class="badge b-ok">PASS=13 FAIL=0</span></td><td><code>a4f5ebe</code></td></tr>
+      <tr><td><b>3.</b> wiring + <code>icodex.sh</code></td>
+        <td><code>lib/idd/idd.sh</code> (<code>ensure_idd_wiring</code>, default-on; opt-out <code>ICODEX_IDD=off</code>); <code>icodex.sh</code> — модуль <code>idd/idd</code> + вызов после <code>ensure_caveman_wiring</code></td>
+        <td><span class="badge b-ok">PASS=18 FAIL=0</span></td><td><code>1873859</code></td></tr>
+      <tr><td><b>4.</b> validator skills</td>
+        <td>4× <code>SKILL.md</code> (check-intent/spec/plan/result) — frontmatter, hash-ключи, tab-таргеты</td>
+        <td><span class="badge b-ok">PASS=24 FAIL=0</span></td><td><code>ba3d465</code></td></tr>
+      <tr><td><b>5.</b> suite + docs</td>
+        <td>весь IDD suite зелёный; standalone-skill activation проверен → исправлен; <code>docs/wiki/idd.md</code> + architecture/config/tooling</td>
+        <td><span class="badge b-ok">suite OK</span></td><td><code>2de7001</code>, <code>71d7823</code>, <code>814d0e7</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Findings</h2>
+  <table>
+    <thead><tr><th>Severity</th><th>Plan</th><th>Diff</th><th>Fix options</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="badge b-warn">WARNING</span></td>
+        <td>Excess: <code>lib/config/isolated.sh</code> (+1: <code>_link_shared skills</code>) и <code>tests/test_isolated.sh</code> (+3 ассерта) не указаны в File Structure таблице плана.</td>
+        <td>Добавлен линк shared <code>skills</code> в Codex home + тест симлинка.</td>
+        <td>1) Принять — исполнение контингенции Task 5 Step 2 (standalone-скиллы не были привязаны к home, что блокировало активацию валидаторов; план предписывал отслеживать как prerequisite). 2) Дополнить File Structure таблицу строкой постфактум.</td>
+      </tr>
+      <tr>
+        <td><span class="badge b-prog">INFO</span></td>
+        <td>F-002: spec Component 3 (стр.206) требует <code>.gitignore</code> whitelisting для <code>hooks/idd-*.py</code>, <code>skills/check-*/</code>.</td>
+        <td>Изменений <code>.gitignore</code> нет — существующие globs <code>!.codex-isolated/hooks/**</code> и <code>!.codex-isolated/skills/**</code> уже трекают пути (подтверждено <code>git check-ignore</code>).</td>
+        <td>1) Принять как есть (план фактически прав, spec устарел). 2) Аннотировать расхождение в spec.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>4. Покрытие Intent / Spec</h2>
+  <table>
+    <thead><tr><th>Источник</th><th>Покрытие</th></tr></thead>
+    <tbody>
+      <tr><td>Desired Outcomes (intent)</td><td><span class="badge b-prog">n/a</span> — intent-документа нет</td></tr>
+      <tr><td>Component 1 — validator skills</td><td><span class="badge b-ok">✓</span> 4 SKILL.md</td></tr>
+      <tr><td>Component 2 — ported hooks (5 правок)</td><td><span class="badge b-ok">✓</span> CODEX_HOME ledger · apply_patch extraction · tool names · message reword на check-* skill · spec→plan apply_patch trigger</td></tr>
+      <tr><td>Component 3 — wiring</td><td><span class="badge b-ok">✓</span> default-on/opt-out, <code>ensure_idd_wiring</code> после caveman <span class="badge b-prog">INFO</span> .gitignore — F-002</td></tr>
+      <tr><td>Error handling — fail-open</td><td><span class="badge b-ok">✓</span> сохранён</td></tr>
+      <tr><td>Testing — gate/nudge/wiring + caveman composition</td><td><span class="badge b-ok">✓</span> F-001 (composition) закрыт реализацией: тест sources caveman.sh, ассерты на caveman-hook.py/redact-secrets.py/UserPromptSubmit</td></tr>
+    </tbody>
+  </table>
+  <p class="sub">Spec requirements покрыто полностью; единственное расхождение — INFO про <code>.gitignore</code> (F-002, доброкачественно).</p>
+
+  <h2>5. Избыточные изменения</h2>
+  <table>
+    <thead><tr><th>Severity</th><th>Файл</th><th>Оценка</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge b-warn">WARNING</span></td><td><code>lib/config/isolated.sh</code>, <code>tests/test_isolated.sh</code></td><td>Оправдано — контингенция Task 5 Step 2.</td></tr>
+      <tr><td><span class="badge b-prog">INFO</span></td><td><code>docs/superpowers/reports/icodex-idd-integration-results.html</code></td><td>Артефакт предыдущего прогона check-result, доброкачественно.</td></tr>
+      <tr><td><span class="badge b-prog">INFO</span></td><td><code>docs/superpowers/plans/…md</code>, <code>docs/superpowers/specs/…md</code></td><td>Артефакты самой цепочки (plan + spec), ожидаемо.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. Сводка</h2>
+  <p>
+    <span class="badge b-danger">CRITICAL: 0</span>
+    <span class="badge b-warn">WARNING: 1</span>
+    <span class="badge b-prog">INFO: 1</span>
+  </p>
+  <div class="note"><b>Итоговый вердикт: OK.</b> Все продуктивные шаги плана выполнены и подтверждены в diff + прогоном тестов (gate 13, nudge 13, skills 24, wiring 18 — все FAIL=0). MISSING нет. 1 WARNING (оправданный excess) + 1 INFO (устаревшее требование spec по .gitignore). Задача закрыта.</div>
+
+  <h3>Цепочка</h3>
+  <p class="sub">intent: <i>нет</i> (<code>chain.intent = null</code>) → spec: <code>docs/superpowers/specs/2026-06-30-icodex-idd-integration-design.md</code> → plan: <code>docs/superpowers/plans/2026-06-30-icodex-idd-integration.md</code></p>
+
 </section>
 <!-- TAB:result END -->
 

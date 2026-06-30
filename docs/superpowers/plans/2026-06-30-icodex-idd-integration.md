@@ -46,6 +46,10 @@ review:
         satisfied by existing globs. Optionally annotate the spec divergence.
       verdict: open
       verdict_at: null
+result_check:
+  verdict: OK
+  plan_hash: 1c3203e14090a2bf
+  last_run: 2026-06-30
 chain:
   intent: null
   spec: docs/superpowers/specs/2026-06-30-icodex-idd-integration-design.md
