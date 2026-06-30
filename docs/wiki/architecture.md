@@ -23,8 +23,8 @@ directory becomes `ICODEX_ROOT` and is exported.
 The entrypoint sources modules in a fixed order before running `main()`.
 
 The order is `core/logging`, `core/init`, `core/validation`, `command/args`, the
-`binary/*` trio, `config/*`, `proxy`, `symlink`, the plugin module, and finally
-`launcher/launch`. Each is a flat bash file defining functions only — see
+`binary/*` trio, `config/*`, `proxy`, `symlink`, the plugin module, caveman, IDD,
+and finally `launcher/launch`. Each is a flat bash file defining functions only — see
 [[core#Logging helpers]] for the first loaded.
 
 ## Command dispatch
@@ -46,10 +46,13 @@ managed permissions), and `ensure_project_trust` to trust the
 launched project, then wires launcher binary permissions and the Superpowers plugin,
 runs `ensure_caveman_wiring` (gated on `ICODEX_CAVEMAN_MODE`) to render the caveman
 `AGENTS.md` block and merge the `UserPromptSubmit` hook into the home `hooks.json`,
-ensures the binary and `uv` are present, optionally applies the proxy, and finally
-`exec`s codex. The `install`/`update` paths instead call `setup_shared_dirs` and
-create no per-project home. See [[config#CODEX_HOME isolation]], [[config#Sandbox mode]],
-[[plugins#Superpowers wiring]], [[caveman#Launch-path wiring]], [[launch#Final exec]].
+then runs `ensure_idd_wiring` to merge the IDD gate/nudge hooks unless
+`ICODEX_IDD=off`. It then ensures the binary and `uv` are present, optionally
+applies the proxy, and finally `exec`s codex. The `install`/`update` paths instead
+call `setup_shared_dirs` and create no per-project home. See
+[[config#CODEX_HOME isolation]], [[config#Sandbox mode]],
+[[plugins#Superpowers wiring]], [[caveman#Launch-path wiring]], [[idd#Hook wiring]],
+[[launch#Final exec]].
 
 ## Two-config model
 

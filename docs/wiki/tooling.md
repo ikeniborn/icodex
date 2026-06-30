@@ -41,5 +41,6 @@ The suite has one `test_*.sh` per module and concern.
 These include `test_args`, `test_detect`, `test_lockfile`, `test_install`,
 `test_env`, `test_isolated`, `test_proxy`, `test_symlink`, `test_validation`,
 `test_logging`, `test_plugin`, `test_update_scope`, `test_gitignore`, `test_codex_hooks`,
-`test_caveman_hook`, `test_caveman_wiring`, `test_caveman_launch`, `test_caveman_vendor`,
-and an end-to-end `test_smoke`.
+`test_caveman_hook`, `test_caveman_wiring`, `test_caveman_launch`,
+`test_caveman_vendor`, the IDD tests (`test_idd_gate`, `test_idd_nudge`,
+`test_idd_wiring`, `test_idd_skills`), and an end-to-end `test_smoke`.
