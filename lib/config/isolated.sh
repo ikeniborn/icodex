@@ -39,6 +39,8 @@ setup_codex_home() {
   _link_shared hooks
   _link_shared hooks.json
   _link_shared auth.json
+  _link_shared skills      # user skills → runtime (variant A: whole-dir symlink)
+  _link_shared rules       # codex execution-policy → runtime
   [[ -f "$ICODEX_HOME_DIR/config.toml" ]] \
     || cp "$ICODEX_SHARED_DIR/config.toml" "$ICODEX_HOME_DIR/config.toml"
   export CODEX_HOME="$ICODEX_HOME_DIR"

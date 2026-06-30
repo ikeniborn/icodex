@@ -14,6 +14,12 @@ mkdir -p "$ICODEX_SHARED_DIR/hooks"
 printf 'sandbox_mode = "workspace-write"\n' > "$ICODEX_SHARED_DIR/config.toml"
 printf '{"hooks":{}}\n' > "$ICODEX_SHARED_DIR/hooks.json"
 printf '#!/usr/bin/env python3\n' > "$ICODEX_SHARED_DIR/hooks/example.py"
+# skills fixture: a user skill plus a codex-managed .system dir
+mkdir -p "$ICODEX_SHARED_DIR/skills/sample-skill" "$ICODEX_SHARED_DIR/skills/.system"
+printf 'name: sample\n' > "$ICODEX_SHARED_DIR/skills/sample-skill/SKILL.md"
+# rules fixture: the execution-policy file
+mkdir -p "$ICODEX_SHARED_DIR/rules"
+printf 'prefix_rule(pattern=["git"], decision="allow")\n' > "$ICODEX_SHARED_DIR/rules/default.rules"
 
 # Run from a non-git working dir so resolve_project_root falls back to pwd -P
 work="$tmp/work/sub"; mkdir -p "$work"
@@ -39,6 +45,10 @@ assert_eq  "hooks json -> shared" "$ICODEX_SHARED_DIR/hooks.json" "$(readlink "$
 assert_exit "auth symlink"       0 test -L "$ICODEX_HOME_DIR/auth.json"
 assert_eq  "auth -> shared"      "$ICODEX_SHARED_DIR/auth.json" "$(readlink "$ICODEX_HOME_DIR/auth.json")"
 assert_exit "config copied"      0 test -f "$ICODEX_HOME_DIR/config.toml"
+assert_exit "skills symlink"     0 test -L "$ICODEX_HOME_DIR/skills"
+assert_eq  "skills -> shared"    "$ICODEX_SHARED_DIR/skills" "$(readlink "$ICODEX_HOME_DIR/skills")"
+assert_exit "rules symlink"      0 test -L "$ICODEX_HOME_DIR/rules"
+assert_eq  "rules -> shared"     "$ICODEX_SHARED_DIR/rules" "$(readlink "$ICODEX_HOME_DIR/rules")"
 
 # idempotent: a second setup leaves the symlinks intact and does not clobber config edits
 printf 'edited = true\n' >> "$ICODEX_HOME_DIR/config.toml"
