@@ -21,7 +21,7 @@ chain:
 
 **Goal:** Register the `iwiki-mcp` stdio MCP server in every Codex home icodex launches, always on, with non-secret settings fixed in the server block and the one secret forwarded from the environment.
 
-**Architecture:** Mirror icodex's existing launch-path wiring. `lib/config/env.sh` gains a de-prefix mapping (`ICODEX_IWIKI_LLM_KEY` → `IWIKI_LLM_KEY`) and unblocks the `ICODEX_IWIKI_*` wrapper; a new `lib/iwiki/iwiki.sh` maintains a delimited `# icodex:iwiki:*` region holding `[mcp_servers.iwiki]` in the per-home `config.toml`; `icodex.sh` sources the module and calls both at launch.
+**Architecture:** Mirror icodex's existing launch-path wiring. `lib/config/env.sh` gains a de-prefix mapping (`ICODEX_IWIKI_LLM_KEY` → `IWIKI_LLM_KEY`) and unblocks the `ICODEX_IWIKI_*` wrapper; a new `lib/iwiki/iwiki.sh` maintains a delimited `# icodex:iwiki:*` region holding `[mcp_servers.iwiki]` in the per-home `config.toml` (`ensure_iwiki_wiring`) and seeds a project-root `.iwiki.toml` (domain == project basename) symlinked into the home for per-project binding (`ensure_iwiki_binding`); `icodex.sh` sources the module and calls all three at launch.
 
 **Tech Stack:** Bash (POSIX-ish, `set -uo pipefail`), `awk`/`cmp` region mechanism, dependency-free shell tests under `tests/` (`tests/helpers.sh`).
 
@@ -32,7 +32,7 @@ chain:
 - **System binary, hardcoded path:** `command = "/home/ikeniborn/.local/bin/iwiki-mcp"`.
 - **Secret out of git.** Only `IWIKI_LLM_KEY` leaves the block (via `env_vars`); it lives solely in `.codex_config` as `ICODEX_IWIKI_LLM_KEY`. Never write the secret into any git-tracked file (`lib/**`, `.codex-isolated/config.toml`, `.codex_config.example`).
 - **Non-secret settings literal in the block:** `IWIKI_BASE_DIR = "/home/ikeniborn/Documents/Project/iwiki-personal"`, `IWIKI_LLM_BASE_URL = "https://litellm.ikeniborn.ru/v1"`, `IWIKI_EMBED_MODEL = "ollama-bge-m3"`, `IWIKI_EMBED_DIMENSIONS = "1024"`.
-- **No per-project binding:** no `.iwiki.toml` / `IWIKI_PROJECT_DIR`.
+- **Per-project binding via `.iwiki.toml`:** seed `read = ["<basename>"]` / `write = "<basename>"` (`<basename>` = `basename "$ICODEX_PROJECT_ROOT"`) in the project root only when absent (never overwrite); symlink `$ICODEX_HOME_DIR/.iwiki.toml` → the project file. No `IWIKI_PROJECT_DIR` (the symlink delivers binding via the server's cwd == `CODEX_HOME`). Seed regardless of whether the domain exists in the base.
 - **Raw `IWIKI_*` keys stay rejected** by `.codex_config` allowlisting; only the `ICODEX_IWIKI_*` wrapper is honored.
 - Tests are run individually: `bash tests/test_<name>.sh` (exit 0 = all pass, via `finish`).
 - Commit messages in English; end with the `Co-Authored-By` trailer the repo uses.
@@ -42,11 +42,12 @@ chain:
 ## File Structure
 
 - **Modify** `lib/config/env.sh` — `_config_key_allowed` unblocks `ICODEX_IWIKI_*`; new `apply_iwiki_env()` de-prefix mapping.
-- **Create** `lib/iwiki/iwiki.sh` — `ensure_iwiki_wiring()` region resync into per-home `config.toml`.
-- **Modify** `icodex.sh` — source `iwiki/iwiki`; call `apply_iwiki_env` after `apply_api_key`; call `ensure_iwiki_wiring` after `ensure_idd_wiring`.
+- **Create** `lib/iwiki/iwiki.sh` — `ensure_iwiki_wiring()` region resync into per-home `config.toml`; `ensure_iwiki_binding()` seed `.iwiki.toml` + home symlink.
+- **Modify** `icodex.sh` — source `iwiki/iwiki`; call `apply_iwiki_env` after `apply_api_key`; call `ensure_iwiki_wiring` and `ensure_iwiki_binding` after `ensure_idd_wiring`.
 - **Modify** `.codex_config.example` — commented `#ICODEX_IWIKI_LLM_KEY=...` with docs.
 - **Create** `tests/test_iwiki_env.sh` — allowlist + `apply_iwiki_env` unit tests.
 - **Create** `tests/test_iwiki_wiring.sh` — region insertion/idempotency unit tests.
+- **Create** `tests/test_iwiki_binding.sh` — `.iwiki.toml` seed + symlink unit tests.
 - **Manual, not committed:** add `ICODEX_IWIKI_LLM_KEY=<secret>` to the live git-ignored `.codex_config` (Task 4).
 
 ---
@@ -176,15 +177,17 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
-## Task 2: `lib/iwiki/iwiki.sh` — `ensure_iwiki_wiring`
+## Task 2: `lib/iwiki/iwiki.sh` — `ensure_iwiki_wiring` + `ensure_iwiki_binding`
 
 **Files:**
 - Create: `lib/iwiki/iwiki.sh`
-- Test: `tests/test_iwiki_wiring.sh` (create)
+- Test: `tests/test_iwiki_wiring.sh` (create), `tests/test_iwiki_binding.sh` (create)
 
 **Interfaces:**
-- Consumes: `$ICODEX_HOME_DIR` (per-project Codex home; its `config.toml` is a real file copied by `setup_codex_home`).
-- Produces: `ensure_iwiki_wiring()` → ensures exactly one `# icodex:iwiki:start` … `# icodex:iwiki:end` region (containing the `[mcp_servers.iwiki]` block) at the end of `$ICODEX_HOME_DIR/config.toml`; idempotent; no-op (returns 0) when `ICODEX_HOME_DIR` is unset or the file is absent.
+- Consumes: `$ICODEX_HOME_DIR` (per-project Codex home; its `config.toml` is a real file copied by `setup_codex_home`), `$ICODEX_PROJECT_ROOT` (the target project root set by `resolve_codex_home`).
+- Produces:
+  - `ensure_iwiki_wiring()` → ensures exactly one `# icodex:iwiki:start` … `# icodex:iwiki:end` region (containing the `[mcp_servers.iwiki]` block) at the end of `$ICODEX_HOME_DIR/config.toml`; idempotent; no-op (returns 0) when `ICODEX_HOME_DIR` is unset or the file is absent.
+  - `ensure_iwiki_binding()` → seeds `$ICODEX_PROJECT_ROOT/.iwiki.toml` with `read = ["<basename>"]` / `write = "<basename>"` when absent (never overwrites); ensures `$ICODEX_HOME_DIR/.iwiki.toml` is a symlink to it (re-point stale, create when missing, leave a pre-existing real file); idempotent; no-op (returns 0) when `ICODEX_PROJECT_ROOT` or `ICODEX_HOME_DIR` is unset.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -323,6 +326,104 @@ git commit -m "feat(iwiki): add ensure_iwiki_wiring region for Codex config.toml
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```
 
+- [ ] **Step 6: Write the failing binding test**
+
+Create `tests/test_iwiki_binding.sh`:
+
+```bash
+#!/usr/bin/env bash
+set -uo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT/tests/helpers.sh"
+source "$ROOT/lib/iwiki/iwiki.sh"
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+# --- seeds .iwiki.toml with domain == project basename when absent ---
+export ICODEX_PROJECT_ROOT="$tmp/myproj"
+export ICODEX_HOME_DIR="$tmp/home"
+mkdir -p "$ICODEX_PROJECT_ROOT" "$ICODEX_HOME_DIR"
+ensure_iwiki_binding
+toml="$(cat "$ICODEX_PROJECT_ROOT/.iwiki.toml")"
+assert_contains "seed read domain"  "$toml" 'read = ["myproj"]'
+assert_contains "seed write domain" "$toml" 'write = "myproj"'
+assert_eq "home symlink created" "0" "$([[ -L "$ICODEX_HOME_DIR/.iwiki.toml" ]] && echo 0 || echo 1)"
+assert_eq "symlink target" "$ICODEX_PROJECT_ROOT/.iwiki.toml" "$(readlink "$ICODEX_HOME_DIR/.iwiki.toml")"
+
+# --- never overwrites an existing project .iwiki.toml ---
+printf 'read = ["custom"]\nwrite = "custom"\n' > "$ICODEX_PROJECT_ROOT/.iwiki.toml"
+ensure_iwiki_binding
+toml="$(cat "$ICODEX_PROJECT_ROOT/.iwiki.toml")"
+assert_contains "existing preserved" "$toml" 'read = ["custom"]'
+assert_eq "no basename overwrite" "0" "$(grep -c 'myproj' "$ICODEX_PROJECT_ROOT/.iwiki.toml")"
+
+# --- idempotent: symlink stable across a second run ---
+before="$(readlink "$ICODEX_HOME_DIR/.iwiki.toml")"
+ensure_iwiki_binding
+assert_eq "symlink stable" "$before" "$(readlink "$ICODEX_HOME_DIR/.iwiki.toml")"
+
+# --- re-points a stale home symlink ---
+rm -f "$ICODEX_HOME_DIR/.iwiki.toml"
+ln -s "$tmp/old-target" "$ICODEX_HOME_DIR/.iwiki.toml"
+ensure_iwiki_binding
+assert_eq "stale symlink re-pointed" "$ICODEX_PROJECT_ROOT/.iwiki.toml" "$(readlink "$ICODEX_HOME_DIR/.iwiki.toml")"
+
+# --- no-op when project root unset ---
+unset ICODEX_PROJECT_ROOT
+assert_exit "unset project root -> noop 0" 0 ensure_iwiki_binding
+
+# --- no-op when home unset ---
+export ICODEX_PROJECT_ROOT="$tmp/myproj"; unset ICODEX_HOME_DIR
+assert_exit "unset home -> noop 0" 0 ensure_iwiki_binding
+
+finish
+```
+
+- [ ] **Step 7: Run test to verify it fails**
+
+Run: `bash tests/test_iwiki_binding.sh`
+Expected: FAIL — `ensure_iwiki_binding` is undefined (function not found → assertions error / non-zero).
+
+- [ ] **Step 8: Add `ensure_iwiki_binding` to `lib/iwiki/iwiki.sh`**
+
+Append to `lib/iwiki/iwiki.sh` (after `ensure_iwiki_wiring`):
+
+```bash
+# Seed a project-root .iwiki.toml (domain == project basename) when absent and
+# symlink it into the Codex home so the iwiki MCP server (cwd == CODEX_HOME)
+# resolves the per-project read/write binding. Never overwrites an existing
+# project .iwiki.toml (it is the user's truth, e.g. a prior wiki_bind). No-op
+# when the project root or home is unknown.
+ensure_iwiki_binding() {
+  [[ -n "${ICODEX_PROJECT_ROOT:-}" && -n "${ICODEX_HOME_DIR:-}" ]] || return 0
+  local toml="$ICODEX_PROJECT_ROOT/.iwiki.toml" link="$ICODEX_HOME_DIR/.iwiki.toml" domain
+  domain="$(basename "$ICODEX_PROJECT_ROOT")"
+  if [[ ! -e "$toml" ]]; then
+    printf 'read = ["%s"]\nwrite = "%s"\n' "$domain" "$domain" > "$toml"
+  fi
+  if [[ -L "$link" ]]; then
+    [[ "$(readlink "$link")" == "$toml" ]] || { rm -f "$link"; ln -s "$toml" "$link"; }
+  elif [[ ! -e "$link" ]]; then
+    ln -s "$toml" "$link"
+  fi
+}
+```
+
+- [ ] **Step 9: Run test to verify it passes**
+
+Run: `bash tests/test_iwiki_binding.sh`
+Expected: PASS (`PASS=… FAIL=0`).
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add lib/iwiki/iwiki.sh tests/test_iwiki_binding.sh
+git commit -m "feat(iwiki): seed .iwiki.toml and symlink it into the Codex home
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
+```
+
 ---
 
 ## Task 3: `icodex.sh` — source the module and call it at launch
@@ -331,8 +432,8 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Modify: `icodex.sh` (module `source` loop lines 16-22; `main()` after `apply_api_key` line 27; `main()` after `ensure_idd_wiring` line 60)
 
 **Interfaces:**
-- Consumes: `apply_iwiki_env` (Task 1), `ensure_iwiki_wiring` (Task 2).
-- Produces: a launch path that exports `IWIKI_LLM_KEY` and writes the iwiki region into the active home `config.toml` on every run.
+- Consumes: `apply_iwiki_env` (Task 1), `ensure_iwiki_wiring` + `ensure_iwiki_binding` (Task 2).
+- Produces: a launch path that exports `IWIKI_LLM_KEY`, writes the iwiki region into the active home `config.toml`, and seeds + symlinks `.iwiki.toml` on every run.
 
 - [ ] **Step 1: Add the module to the `source` loop**
 
@@ -373,7 +474,7 @@ to:
   parse_args "$@"
 ```
 
-- [ ] **Step 3: Call `ensure_iwiki_wiring` after `ensure_idd_wiring`**
+- [ ] **Step 3: Call `ensure_iwiki_wiring` and `ensure_iwiki_binding` after `ensure_idd_wiring`**
 
 In `main()`, in the default run block, change (line 60 area):
 
@@ -389,35 +490,38 @@ to:
   ensure_caveman_wiring
   ensure_idd_wiring
   ensure_iwiki_wiring
+  ensure_iwiki_binding
   install_ensure || exit 1
 ```
+
+(Both run after `setup_codex_home`, which calls `resolve_codex_home` to set `ICODEX_PROJECT_ROOT` and create the home — so both `ensure_iwiki_binding` inputs are populated.)
 
 - [ ] **Step 4: Verify the script parses and the wiring is present**
 
 Run: `bash -n icodex.sh`
 Expected: no output, exit 0 (syntax OK).
 
-Run: `grep -n "iwiki/iwiki\|apply_iwiki_env\|ensure_iwiki_wiring" icodex.sh`
-Expected: three matches — the module in the `source` loop, `apply_iwiki_env` after `apply_api_key`, and `ensure_iwiki_wiring` after `ensure_idd_wiring`.
+Run: `grep -n "iwiki/iwiki\|apply_iwiki_env\|ensure_iwiki_wiring\|ensure_iwiki_binding" icodex.sh`
+Expected: four matches — the module in the `source` loop, `apply_iwiki_env` after `apply_api_key`, and `ensure_iwiki_wiring` + `ensure_iwiki_binding` after `ensure_idd_wiring`.
 
 - [ ] **Step 5: Verify the module loads in icodex.sh's source order**
 
 Run:
 ```bash
-bash -c 'ICODEX_ROOT="$PWD"; for m in core/logging core/init core/validation command/args binary/detect binary/lockfile binary/install config/isolated config/permissions config/sandbox config/env proxy/proxy symlink/symlink plugin/superpowers caveman/caveman idd/idd iwiki/iwiki launcher/launch; do source "lib/$m.sh" || { echo "FAIL $m"; exit 1; }; done; type apply_iwiki_env ensure_iwiki_wiring >/dev/null && echo OK'
+bash -c 'ICODEX_ROOT="$PWD"; for m in core/logging core/init core/validation command/args binary/detect binary/lockfile binary/install config/isolated config/permissions config/sandbox config/env proxy/proxy symlink/symlink plugin/superpowers caveman/caveman idd/idd iwiki/iwiki launcher/launch; do source "lib/$m.sh" || { echo "FAIL $m"; exit 1; }; done; type apply_iwiki_env ensure_iwiki_wiring ensure_iwiki_binding >/dev/null && echo OK'
 ```
-Expected: `OK` (all modules source cleanly and both functions are defined).
+Expected: `OK` (all modules source cleanly and the three functions are defined).
 
 - [ ] **Step 6: Run the full relevant test set**
 
-Run: `bash tests/test_iwiki_env.sh && bash tests/test_iwiki_wiring.sh && bash tests/test_env.sh`
+Run: `bash tests/test_iwiki_env.sh && bash tests/test_iwiki_wiring.sh && bash tests/test_iwiki_binding.sh && bash tests/test_env.sh`
 Expected: each prints `PASS=… FAIL=0`.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add icodex.sh
-git commit -m "feat(iwiki): wire apply_iwiki_env and ensure_iwiki_wiring into launch
+git commit -m "feat(iwiki): wire apply_iwiki_env, ensure_iwiki_wiring and ensure_iwiki_binding into launch
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```
@@ -484,7 +588,7 @@ Expected: `git check-ignore` prints `.codex_config` (confirming it is git-ignore
 
 **Interfaces:**
 - Consumes: the full launch wiring (Tasks 1-4).
-- Produces: confirmation that a real per-home `config.toml` ends up with a valid, parseable `[mcp_servers.iwiki]` block.
+- Produces: confirmation that a real per-home `config.toml` ends up with a valid, parseable `[mcp_servers.iwiki]` block, and that `.iwiki.toml` is seeded + symlinked.
 
 - [ ] **Step 1: Wire an existing home directly and confirm the region**
 
@@ -518,9 +622,19 @@ b="$(cat "$ICODEX_HOME_DIR/config.toml")"; ensure_iwiki_wiring; a="$(cat "$ICODE
 ```
 Expected: `IDEMPOTENT`.
 
-- [ ] **Step 4 (optional, requires the secret set): smoke-launch Codex**
+- [ ] **Step 4: Verify `.iwiki.toml` seed + home symlink on a temp project**
 
-If a real run is desired: `./icodex.sh` in a project, then inside the session list MCP tools and confirm the `wiki_*` tools appear (and `wiki_status` reports the base). If embeddings calls fail, check that `ICODEX_IWIKI_LLM_KEY` is set in `.codex_config`.
+Run:
+```bash
+tmp="$(mktemp -d)/myproj"; mkdir -p "$tmp"; export ICODEX_PROJECT_ROOT="$tmp"; export ICODEX_HOME_DIR="$tmp/.home"; mkdir -p "$ICODEX_HOME_DIR"
+ensure_iwiki_binding
+cat "$ICODEX_PROJECT_ROOT/.iwiki.toml"; readlink "$ICODEX_HOME_DIR/.iwiki.toml"
+```
+Expected: `.iwiki.toml` printing `read = ["myproj"]` / `write = "myproj"`, then the readlink prints `$ICODEX_PROJECT_ROOT/.iwiki.toml`.
+
+- [ ] **Step 5 (optional, requires the secret set): smoke-launch Codex**
+
+If a real run is desired: `./icodex.sh` in a project, then inside the session list MCP tools and confirm the `wiki_*` tools appear (and `wiki_status` reports the base and the project's bound domain). If embeddings calls fail, check that `ICODEX_IWIKI_LLM_KEY` is set in `.codex_config`.
 
 ---
 
@@ -530,12 +644,13 @@ If a real run is desired: `./icodex.sh` in a project, then inside the session li
 - Static server block (Component 1) → Task 2 (`_iwiki_region_body`), verified Task 5 Step 2.
 - `.codex_config` / `.codex_config.example` secret-only (Component 2) → Task 4.
 - `env.sh` allowlist + `apply_iwiki_env` (Component 3) → Task 1.
-- `lib/iwiki/iwiki.sh` region resync (Component 4) → Task 2.
-- `icodex.sh` source + two calls (Component 5) → Task 3.
-- Error handling (missing secret/binary; region write safety) → covered by `apply_iwiki_env` no-op (Task 1), region no-op guards (Task 2), and Task 5 verification.
-- Testing section (`test_iwiki_wiring.sh`, `test_iwiki_env.sh`) → Tasks 1-2.
-- Out of scope items respected: no iclaude changes, no isolated install, no `.iwiki.toml`/`IWIKI_PROJECT_DIR`, no gate, non-secrets fixed in block.
+- `lib/iwiki/iwiki.sh` region resync + `.iwiki.toml` binding (Component 4) → Task 2 (`ensure_iwiki_wiring`, `ensure_iwiki_binding`).
+- Per-project binding via `.iwiki.toml` (seed domain==basename, never overwrite, home symlink) → Task 2 Steps 6-10, verified Task 5 Step 4.
+- `icodex.sh` source + three calls (Component 5) → Task 3.
+- Error handling (missing secret/binary; region/binding write safety) → covered by `apply_iwiki_env` no-op (Task 1), region + binding no-op guards (Task 2), and Task 5 verification.
+- Testing section (`test_iwiki_wiring.sh`, `test_iwiki_env.sh`, `test_iwiki_binding.sh`) → Tasks 1-2.
+- Out of scope items respected: no iclaude changes, no isolated install, no `IWIKI_PROJECT_DIR` (binding via symlink instead), no gate, non-secrets fixed in block.
 
 **Placeholder scan:** No TBD/TODO; every code step shows complete content. The only literal `<paste-secret-here>` is an intentional manual action on a git-ignored file (Task 4 Step 4), not committed code.
 
-**Type/name consistency:** `apply_iwiki_env`, `ensure_iwiki_wiring`, `_iwiki_region_body`, `_IWIKI_REGION_START/END`, `ICODEX_IWIKI_LLM_KEY`, `IWIKI_LLM_KEY` used identically across Tasks 1-5. Region markers `# icodex:iwiki:start` / `# icodex:iwiki:end` match between the module and every test/verification.
+**Type/name consistency:** `apply_iwiki_env`, `ensure_iwiki_wiring`, `ensure_iwiki_binding`, `_iwiki_region_body`, `_IWIKI_REGION_START/END`, `ICODEX_IWIKI_LLM_KEY`, `IWIKI_LLM_KEY` used identically across Tasks 1-5. Region markers `# icodex:iwiki:start` / `# icodex:iwiki:end` match between the module and every test/verification. `.iwiki.toml` seed format (`read = ["<basename>"]` / `write = "<basename>"`) matches between Task 2 implementation, its test, and Task 5 Step 4.

@@ -41,9 +41,13 @@ Scope decisions (confirmed with the user):
   `IWIKI_LLM_BASE_URL`, `IWIKI_EMBED_MODEL`, `IWIKI_EMBED_DIMENSIONS`) is written
   literally into the `[mcp_servers.iwiki]` block. Only the secret
   (`IWIKI_LLM_KEY`) is kept out of the block.
-- **No per-project binding.** `.iwiki.toml` / `IWIKI_PROJECT_DIR` are not used —
-  every project can already reach any domain via `scope="all"`, an explicit
-  `domains` list, or `wiki_bind` in-session. The block is fully static.
+- **Per-project binding via `.iwiki.toml`.** icodex seeds `.iwiki.toml` in the
+  project root (domain == project basename, both `read` and `write`) when absent,
+  and symlinks it into the Codex home so the server resolves the binding from its
+  cwd. An existing project `.iwiki.toml` is never overwritten. The domain need not
+  exist in the base yet (seed regardless; create it later with
+  `wiki_create_domain`). `IWIKI_PROJECT_DIR` is not used — the home symlink
+  delivers the binding via the server's working directory.
 - **Base:** `/home/ikeniborn/Documents/Project/iwiki-personal`.
 
 ## Background — how Codex passes env to an MCP server
@@ -86,8 +90,9 @@ the per-home `config.toml`.
 .codex_config                      # ICODEX_IWIKI_LLM_KEY=<secret> (git-ignored)
 .codex_config.example              # commented #ICODEX_IWIKI_LLM_KEY=... + docs
 lib/config/env.sh                  # allow ICODEX_IWIKI_*; apply_iwiki_env de-prefix
-lib/iwiki/iwiki.sh                 # ensure_iwiki_wiring — region resync (new)
-icodex.sh                          # source iwiki/iwiki + call after ensure_idd_wiring
+lib/iwiki/iwiki.sh                 # ensure_iwiki_wiring (region) + ensure_iwiki_binding (.iwiki.toml) (new)
+icodex.sh                          # source iwiki/iwiki + calls after ensure_idd_wiring
+.iwiki.toml                        # seeded in project root (domain==basename); symlinked into the home
 ```
 
 Data flow at launch:
@@ -97,8 +102,12 @@ Data flow at launch:
    `env_vars` expect).
 3. `ensure_iwiki_wiring` writes the static `# icodex:iwiki:*` region into the
    per-home `config.toml`.
-4. Codex launches, spawns `iwiki-mcp`, forwards `IWIKI_LLM_KEY` from the env per
-   `env_vars`, and passes the literal `env` block.
+4. `ensure_iwiki_binding` seeds `.iwiki.toml` in the project root (when absent)
+   and symlinks it into the home (`$ICODEX_HOME_DIR/.iwiki.toml` → project root),
+   so the server finds the binding via its cwd.
+5. Codex launches, spawns `iwiki-mcp`, forwards `IWIKI_LLM_KEY` from the env per
+   `env_vars`, passes the literal `env` block, and reads `.iwiki.toml` (through the
+   home symlink) for the project's `read`/`write` domains.
 
 ## Component 1 — the server block (static region)
 
@@ -167,11 +176,30 @@ A small launch-path module mirroring the region mechanism in
 Because the region is resynced from the module on every launch, it lands in both
 existing homes (which were copied before this feature) and new ones.
 
+A second function, `ensure_iwiki_binding`, wires the per-project binding:
+
+- **Seed.** When `$ICODEX_PROJECT_ROOT/.iwiki.toml` is absent, write it with
+  `read = ["<basename>"]` / `write = "<basename>"` where `<basename>` is
+  `basename "$ICODEX_PROJECT_ROOT"`. The domain need not exist in the base yet.
+- **Never overwrite.** An existing project `.iwiki.toml` is left untouched (it is
+  the user's truth — e.g. a prior `wiki_bind`).
+- **Symlink into the home.** Ensure `$ICODEX_HOME_DIR/.iwiki.toml` is a symlink to
+  the project root `.iwiki.toml`, idempotently (re-point a stale symlink; create
+  when missing; leave a pre-existing real file untouched). The server runs with
+  cwd at `CODEX_HOME` (the per-project home), so the symlink delivers the binding.
+- No-op when `ICODEX_PROJECT_ROOT` or `ICODEX_HOME_DIR` is unset.
+
+**cwd assumption.** This relies on Codex spawning the stdio MCP server with cwd ==
+`CODEX_HOME`. If a Codex version places the server's cwd elsewhere, the binding
+symlink is not seen and the server falls back to no project scope (search still
+works via `scope="all"` / explicit `domains`); it is not a hard failure.
+
 ## Component 5 — `icodex.sh`
 
 - Add `iwiki/iwiki` to the module `source` list.
-- Call `ensure_iwiki_wiring` in `main()` after `ensure_idd_wiring` (alongside the
-  other per-home wiring steps, after `setup_codex_home` has created the home).
+- Call `ensure_iwiki_wiring` and `ensure_iwiki_binding` in `main()` after
+  `ensure_idd_wiring` (per-home wiring steps, after `setup_codex_home` created the
+  home and `resolve_codex_home` set `ICODEX_PROJECT_ROOT`).
 - Call `apply_iwiki_env` after `apply_api_key`.
 
 No `.gitignore` change is needed: the new file is under `lib/` (already tracked)
@@ -204,12 +232,18 @@ temp-dir filesystem side effects):
   `ICODEX_IWIKI_LLM_KEY`; does not clobber a pre-set `IWIKI_LLM_KEY`; is a no-op
   when the source is unset. `_config_key_allowed` accepts `ICODEX_IWIKI_LLM_KEY`
   and still rejects a raw `IWIKI_LLM_KEY`.
+- `test_iwiki_binding.sh` — `ensure_iwiki_binding` seeds `.iwiki.toml` with
+  `read`/`write` == project basename when absent; never overwrites an existing
+  project `.iwiki.toml`; creates the home symlink pointing at the project file;
+  re-points a stale home symlink; is idempotent across repeated runs; no-ops when
+  `ICODEX_PROJECT_ROOT` / `ICODEX_HOME_DIR` is unset.
 
 ## Out of scope
 
 - iclaude / Claude Code wiring (the Claude-side engine plugin is untouched).
 - Isolated install of the `iwiki-mcp` binary (system binary by decision).
-- Per-project `.iwiki.toml` binding / `IWIKI_PROJECT_DIR` (dropped by decision).
+- `IWIKI_PROJECT_DIR` env var (binding is delivered by the home `.iwiki.toml`
+  symlink instead).
 - An enable/disable gate (always on by decision).
 - Making the non-secret settings configurable via `ICODEX_IWIKI_*` (fixed in the
   block by decision; can be revisited if a second base/model is ever needed).
