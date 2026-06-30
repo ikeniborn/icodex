@@ -46,8 +46,8 @@ main() {
   fi
 
   case "$ICODEX_CMD" in
-    install) setup_shared_dirs; install_ensure          || exit 1; ensure_uv_dependency || exit 1; install_symlink; exit 0 ;;
-    update)  setup_shared_dirs; install_ensure --update || exit 1; ensure_uv_dependency || exit 1; install_symlink; exit 0 ;;
+    install) setup_shared_dirs; install_ensure          || exit 1; ensure_uv_dependency || exit 1; install_symlink; ensure_path_entry; exit 0 ;;
+    update)  setup_shared_dirs; install_ensure --update || exit 1; ensure_uv_dependency || exit 1; install_symlink; ensure_path_entry; exit 0 ;;
   esac
 
   # default: run

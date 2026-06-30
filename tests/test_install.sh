@@ -139,4 +139,43 @@ assert_exit "empty sha trust-on-first-use" 0 install_ensure
 assert_exit "empty sha binary present" 0 test -x "$ICODEX_BIN"
 rm -rf "$tmp"
 
+# --- _wget_proxy_args mirrors _curl_proxy_args, emitting wget -e directives ---
+unset ICODEX_DISABLE_PROXY
+out="$(ICODEX_PROXY='http://p:8080' _wget_proxy_args | tr '\n' ' ')"
+assert_eq "wget proxy args when set" "-e use_proxy=yes -e https_proxy=http://p:8080 -e http_proxy=http://p:8080 " "$out"
+out="$(ICODEX_PROXY='http://p:8080' ICODEX_DISABLE_PROXY=1 _wget_proxy_args | tr '\n' ' ')"
+assert_eq "wget no args when disabled" "" "$out"
+out="$(unset ICODEX_PROXY; _wget_proxy_args | tr '\n' ' ')"
+assert_eq "wget no args when unset" "" "$out"
+
+# Earlier cases stubbed the _download/_resolve_latest seams; re-source to restore
+# the real functions, then stub curl/wget as shell functions to drive the
+# curl-primary / wget-fallback branches offline. Not run in a subshell so the
+# PASS/FAIL counters aggregate; curl/wget stubs are unset at the end.
+source "$ROOT/lib/binary/install.sh"
+
+# --- _download: curl is primary; wget is not touched when curl succeeds ---
+setup_case
+curl() { local p="" d=""; for a in "$@"; do [[ "$p" == "-o" ]] && d="$a"; p="$a"; done; printf 'via-curl\n' > "$d"; }
+wget() { echo "wget must not run when curl succeeds" >&2; return 1; }
+assert_exit "curl success path"    0 _download "https://example/x" "$tmp/c.bin" 0
+assert_eq   "dest written by curl"  "via-curl" "$(cat "$tmp/c.bin" 2>/dev/null)"
+rm -rf "$tmp"
+
+# --- _download: wget fallback when curl aborts (e.g. GOST CA decode failure) ---
+setup_case
+curl() { return 35; }   # simulate TLS x509_pubkey_decode abort
+wget() { local p="" d=""; for a in "$@"; do [[ "$p" == "-O" ]] && d="$a"; p="$a"; done; printf 'via-wget\n' > "$d"; }
+assert_exit "wget fallback on curl failure"   0 _download "https://example/x" "$tmp/w.bin" 0
+assert_eq   "dest written by wget fallback"    "via-wget" "$(cat "$tmp/w.bin" 2>/dev/null)"
+rm -rf "$tmp"
+
+# --- _resolve_latest: same curl->wget fallback ---
+setup_case
+curl() { return 35; }
+wget() { printf '{"tag_name":"rust-v7.7.7"}\n'; }
+assert_eq "_resolve_latest wget fallback" "rust-v7.7.7" "$(_resolve_latest)"
+rm -rf "$tmp"
+unset -f curl wget
+
 finish

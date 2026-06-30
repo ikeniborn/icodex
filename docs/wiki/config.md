@@ -19,13 +19,24 @@ standalone skills, and `auth.json` — live once in the shared store
 `ICODEX_SHARED_DIR` (`.codex-isolated`).
 Per-project state lives in a home `ICODEX_HOMES_DIR/<basename>-<short-sha256>`
 (`.codex-homes/<id>`), keyed by the target project root via `resolve_project_root`
-(the git toplevel of the CWD, else `pwd -P`). `setup_codex_home` symlinks
-`plugins`, `skills`, `hooks`, `hooks.json`, and `auth.json` back to the shared store
-with the idempotent `_link_shared`, copies the template `config.toml` once when
-absent, and exports `CODEX_HOME` — so each project gets isolated sessions and logs
-while sharing the heavy assets and standalone skill catalog. The `install`/`update`
-paths instead call `setup_shared_dirs`, which only creates the shared `bin` dir. The
+(the git toplevel of the CWD, else `pwd -P`). `setup_codex_home` symlinks `plugins`,
+`hooks`, `hooks.json`, `auth.json`, `skills`, and `rules` back to the shared store
+with the idempotent `_link_shared` — so the vendored user skills and the
+`rules/default.rules` execution policy (read by codex from `$CODEX_HOME/rules` at
+startup) are live in each home, not stranded in the shared store. It copies the
+template `config.toml` once when absent, syncs the `AGENTS.md` base region with
+`_sync_agents_base_region`, and exports `CODEX_HOME` — so each project gets isolated
+sessions and logs while sharing the heavy assets. The `install`/`update` paths
+instead call `setup_shared_dirs`, which only creates the shared `bin` dir. The
 `.codex-homes/` tree is git-ignored runtime state.
+
+`_sync_agents_base_region` keeps the global guidance current in every home without a
+symlink (which caveman would mutate into the tracked source). It maintains a
+delimited `<!-- icodex:base:start -->`…`<!-- icodex:base:end -->` region in
+`$CODEX_HOME/AGENTS.md`, re-synced from the shared `.codex-isolated/AGENTS.md` on
+every launch so edits propagate to existing homes. It strips and re-appends only its
+own region, leaving the caveman region and any free text intact — mirroring the
+region mechanism in [[caveman]].
 
 ## Sandbox mode
 

@@ -67,4 +67,22 @@ exported as `UV_BIN` for the launched codex but never persisted to `.codex_confi
 
 It is skipped when `ICODEX_DISABLE_PROXY` is set. All network helpers (`_download`,
 `_resolve_latest`, the uv installer fetch) route through it, so installs work
-behind a proxy. See [[launch#Proxy persist and apply]] for proxy configuration.
+behind a proxy. `_wget_proxy_args` is the wget counterpart used by the download
+fallback, emitting `-e use_proxy=yes -e https_proxy=… -e http_proxy=…` from the
+same `ICODEX_PROXY` and honoring the same disable flag. See
+[[launch#Proxy persist and apply]] for proxy configuration.
+
+## Download fallback
+
+`_download` and `_resolve_latest` try `curl` first and retry with `wget` on any
+curl failure, so the install survives a broken curl TLS stack.
+
+This matters on hosts whose `curl` is linked against an OpenSSL build that cannot
+decode a GOST (or otherwise unsupported) CA sitting in the concatenated system
+trust bundle (`/usr/share/ca-certificates/ca-bundle.crt`). Such a CA makes curl
+abort the whole handshake with `x509_pubkey_decode: unsupported algorithm` — every
+HTTPS fetch fails, not just the codex download. `wget` reads the hashed `CApath`
+(`/etc/ssl/certs`) and only touches the issuer it needs, so it sidesteps the GOST
+entry. The fallback runs only when `wget` is present (`command -v wget`); when it
+is absent, the original curl failure is returned. No system trust change is
+required.
