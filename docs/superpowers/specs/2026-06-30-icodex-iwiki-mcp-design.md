@@ -3,13 +3,13 @@ title: icodex iwiki-mcp server integration design
 date: 2026-06-30
 status: draft
 review:
-  spec_hash: null
-  last_run: null
+  spec_hash: 0bfd265e61f4ecd6
+  last_run: 2026-06-30
   phases:
-    structure:    { status: pending }
-    coverage:     { status: pending }
-    clarity:      { status: pending }
-    consistency:  { status: pending }
+    structure:    { status: passed }
+    coverage:     { status: passed }
+    clarity:      { status: passed }
+    consistency:  { status: passed }
   findings: []
 chain:
   intent: null

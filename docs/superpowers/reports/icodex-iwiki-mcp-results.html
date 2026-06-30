@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Цепочка IDD→SDD — icodex-iwiki-mcp</title>
+<style>
+:root{
+  --bg:#f6f7fb; --surface:#ffffff; --fg:#2b2b3a; --muted:#6b6b80;
+  --accent:#5c6bc0; --accent-2:#3949ab; --border:#d6d8e6; --line:#9aa0b4; --zebra:#eef0f8;
+  --ok:#43a047; --ok-2:#2e7d32; --warn:#fb8c00; --warn-2:#ef6c00; --danger:#e53935; --danger-2:#c62828;
+  --shadow:rgba(40,40,80,.18);
+}
+body:has(#theme-toggle:checked){
+  --bg:#181825; --surface:#262637; --fg:#cdd6f4; --muted:#a6adc8;
+  --accent:#89b4fa; --accent-2:#5e95f0; --border:#3a3b52; --line:#6c7086; --zebra:#21222f;
+  --ok:#a6e3a1; --ok-2:#74c46e; --warn:#f9e2af; --warn-2:#f5c95b; --danger:#f38ba8; --danger-2:#e8638a;
+  --shadow:rgba(0,0,0,.45);
+}
+body{
+  margin:0 auto; padding:1.5rem 2rem 4rem; max-width:1080px;
+  font:16px/1.55 system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 500px at 100% -10%, color-mix(in srgb,var(--accent) 10%, transparent), transparent),
+    var(--bg);
+  color:var(--fg);
+  transition:background .3s, color .3s;
+}
+header{ display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
+h1{ font-size:1.5rem; margin:.2rem 0; }
+h2{ font-size:1.2rem; margin:1.6rem 0 .6rem; color:var(--accent); border-bottom:1px solid var(--border); padding-bottom:.2rem; }
+h3{ font-size:1.02rem; margin:1.2rem 0 .4rem; }
+.theme-btn{
+  cursor:pointer; user-select:none; margin-left:auto;
+  padding:.25rem .6rem; border:1px solid var(--border); border-radius:6px;
+  background:var(--surface);
+}
+nav.chain-tabs{ display:flex; gap:.3rem; margin:1rem 0 0; border-bottom:1px solid var(--border); }
+.chain-tabs label{ cursor:pointer; padding:.4rem .9rem; border:1px solid var(--border);
+  border-bottom:none; border-radius:8px 8px 0 0; background:var(--surface); color:var(--muted); }
+body:has(#tab-intent:checked) label[for="tab-intent"],
+body:has(#tab-spec:checked)   label[for="tab-spec"],
+body:has(#tab-plan:checked)   label[for="tab-plan"],
+body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); border-color:var(--accent); font-weight:600; }
+.tab-pane{ display:none; padding-top:.6rem; }
+body:has(#tab-intent:checked) #pane-intent,
+body:has(#tab-spec:checked)   #pane-spec,
+body:has(#tab-plan:checked)   #pane-plan,
+body:has(#tab-result:checked) #pane-result{ display:block; }
+table{ border-collapse:collapse; width:100%; margin:.6rem 0 1rem; font-size:.92rem; }
+th,td{ border:1px solid var(--border); padding:.45rem .6rem; text-align:left; vertical-align:top; }
+th{ background:var(--surface); color:var(--accent); }
+tbody tr:nth-child(even){ background:var(--zebra); }
+code{ background:color-mix(in srgb,var(--accent) 12%, var(--surface)); padding:.05rem .3rem; border-radius:4px;
+  font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.86em; }
+.note{ background:color-mix(in srgb,var(--accent) 14%, var(--surface)); border-left:4px solid var(--accent);
+  padding:.6rem .9rem; border-radius:0 6px 6px 0; margin:.8rem 0; }
+.badge{ display:inline-block; padding:.08rem .5rem; border-radius:99px; font-size:.78rem; font-weight:600; }
+.b-ok{ background:color-mix(in srgb,var(--ok) 22%, var(--surface)); color:var(--ok-2); border:1px solid var(--ok); }
+.b-warn{ background:color-mix(in srgb,var(--warn) 22%, var(--surface)); color:var(--warn-2); border:1px solid var(--warn); }
+.b-danger{ background:color-mix(in srgb,var(--danger) 22%, var(--surface)); color:var(--danger-2); border:1px solid var(--danger); }
+.flow{ display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; margin:1rem 0; }
+.block{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:.6rem .8rem;
+  box-shadow:0 2px 6px var(--shadow); min-width:150px; }
+.block b{ color:var(--accent); display:block; font-size:.92rem; }
+.block span{ color:var(--muted); font-size:.78rem; }
+.arrow{ color:var(--line); font-size:1.4rem; }
+figure{ margin:1rem 0; }
+figcaption{ color:var(--muted); font-size:.85rem; margin-top:.3rem; }
+.legend{ color:var(--muted); font-size:.82rem; }
+svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
+</style>
+</head>
+<body>
+<input type="checkbox" id="theme-toggle" hidden>
+<input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden checked>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<header>
+  <h1>Цепочка IDD→SDD — <code>icodex-iwiki-mcp</code></h1>
+  <label for="theme-toggle" class="theme-btn" title="Переключить тему">🌙 / ☀️</label>
+</header>
+<nav class="chain-tabs">
+  <label for="tab-intent">Intent</label>
+  <label for="tab-spec">Spec</label>
+  <label for="tab-plan">Plan</label>
+  <label for="tab-result">Result</label>
+</nav>
+
+<!-- TAB:intent START -->
+<section class="tab-pane" id="pane-intent">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:intent END -->
+
+<!-- TAB:spec START -->
+<section class="tab-pane" id="pane-spec">
+
+  <h2>1. Резюме спецификации</h2>
+  <p>Спецификация делает stdio MCP-сервер <code>iwiki-mcp</code> встроенной, всегда
+  включённой частью изолированного Codex-окружения, которое поднимает icodex. Секрет
+  (<code>IWIKI_LLM_KEY</code>) держится вне git, остальные настройки фиксируются литерально
+  в блоке сервера.</p>
+
+  <h3>Требования по разделам</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Раздел</th><th>Требование</th></tr></thead>
+    <tbody>
+      <tr><td>R1</td><td>Objective</td><td>Каждый Codex-home, который запускает icodex, имеет зарегистрированный MCP-сервер <code>iwiki</code>, всегда включённый; регистрация переживает ребилд.</td></tr>
+      <tr><td>R2</td><td>Scope: Target</td><td>Только Codex (icodex); iclaude/Claude-сторона не трогается.</td></tr>
+      <tr><td>R3</td><td>Scope: Always on</td><td>Нет переключателя enable/disable — сервер прописывается на каждом запуске.</td></tr>
+      <tr><td>R4</td><td>Scope: System binary</td><td>Жёстко прописанный путь <code>/home/ikeniborn/.local/bin/iwiki-mcp</code>; без изолированной установки и разрешения через PATH.</td></tr>
+      <tr><td>R5</td><td>Scope: Settings fixed</td><td>Несекретный env (<code>IWIKI_BASE_DIR</code>, <code>IWIKI_LLM_BASE_URL</code>, <code>IWIKI_EMBED_MODEL</code>, <code>IWIKI_EMBED_DIMENSIONS</code>) — литералом в блоке; вне блока только секрет.</td></tr>
+      <tr><td>R6</td><td>Scope: No binding</td><td>Без per-project привязки (<code>.iwiki.toml</code> / <code>IWIKI_PROJECT_DIR</code>); блок полностью статичен.</td></tr>
+      <tr><td>R7</td><td>Background / git-facts</td><td>Секрет не может попасть в tracked-файлы; он живёт только в <code>.codex_config</code> и достаётся серверу через окружение (<code>env_vars</code>), без shell-раскрытия.</td></tr>
+      <tr><td>R8</td><td>Architecture</td><td>Решение повторяет существующую форму icodex: env-маппинг для секрета + per-launch wiring-шаг, поддерживающий ограниченный регион в per-home <code>config.toml</code>.</td></tr>
+      <tr><td>R9</td><td>Component 1</td><td>Статический ограниченный регион <code>[mcp_servers.iwiki]</code> с правильным порядком TOML (ключи до подтаблицы <code>.env</code>), добавляемый в конец файла.</td></tr>
+      <tr><td>R10</td><td>Component 2</td><td><code>.codex_config</code> получает <code>ICODEX_IWIKI_LLM_KEY=&lt;secret&gt;</code>; <code>.codex_config.example</code> — закомментированный пример без значения.</td></tr>
+      <tr><td>R11</td><td>Component 3</td><td><code>lib/config/env.sh</code>: разрешить <code>ICODEX_IWIKI_*</code> (raw <code>IWIKI_*</code> остаётся запрещён) и добавить <code>apply_iwiki_env()</code> (де-префикс в <code>IWIKI_LLM_KEY</code>, без перетирания).</td></tr>
+      <tr><td>R12</td><td>Component 4</td><td>Новый <code>lib/iwiki/iwiki.sh</code> с <code>ensure_iwiki_wiring</code>: идемпотентный resync региона (strip + append), без gate, с <code>cmp -s</code>-guard.</td></tr>
+      <tr><td>R13</td><td>Component 5</td><td><code>icodex.sh</code>: подключить модуль, вызвать <code>ensure_iwiki_wiring</code> после <code>ensure_idd_wiring</code> и <code>apply_iwiki_env</code> после <code>apply_api_key</code>.</td></tr>
+      <tr><td>R14</td><td>Error handling</td><td>Отсутствие секрета/бинарника не вызывает жёсткого падения на запуске; поведение задокументировано; запись региона безопасна (temp + compare + replace).</td></tr>
+      <tr><td>R15</td><td>Testing</td><td><code>test_iwiki_wiring.sh</code> и <code>test_iwiki_env.sh</code> покрывают обе новые функции (один регион, идемпотентность, замена stale, не-перетирание, no-op, allowlist).</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Критерии успеха (Success Criteria)</h3>
+  <table>
+    <thead><tr><th>#</th><th>Критерий (из раздела Testing / Objective)</th></tr></thead>
+    <tbody>
+      <tr><td>SC1</td><td><code>ensure_iwiki_wiring</code> на свежем <code>config.toml</code> вставляет ровно один регион <code># icodex:iwiki:*</code> с блоком <code>[mcp_servers.iwiki]</code>.</td></tr>
+      <tr><td>SC2</td><td>Повторный запуск — no-op (байт-идентичен); stale-регион заменяется, не дублируется; регион — завершающее содержимое файла.</td></tr>
+      <tr><td>SC3</td><td><code>apply_iwiki_env</code> экспортирует <code>IWIKI_LLM_KEY</code> из <code>ICODEX_IWIKI_LLM_KEY</code>; не перетирает заранее заданный; no-op при незаданном источнике.</td></tr>
+      <tr><td>SC4</td><td><code>_config_key_allowed</code> принимает <code>ICODEX_IWIKI_LLM_KEY</code> и по-прежнему отвергает raw <code>IWIKI_LLM_KEY</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Схемы решения и зависимостей</h2>
+
+  <h3>Схема решения (поток запуска)</h3>
+  <div class="flow">
+    <div class="block"><b>.codex_config</b><span>ICODEX_IWIKI_LLM_KEY (git-ignored)</span></div>
+    <span class="arrow">→</span>
+    <div class="block"><b>load_config</b><span>lib/config/env.sh: export ICODEX_IWIKI_*</span></div>
+    <span class="arrow">→</span>
+    <div class="block"><b>apply_iwiki_env</b><span>де-префикс → export IWIKI_LLM_KEY</span></div>
+    <span class="arrow">→</span>
+    <div class="block"><b>ensure_iwiki_wiring</b><span>lib/iwiki/iwiki.sh: regen региона в per-home config.toml</span></div>
+    <span class="arrow">→</span>
+    <div class="block"><b>Codex launch</b><span>спавн iwiki-mcp: env-блок (литералы) + env_vars (IWIKI_LLM_KEY)</span></div>
+  </div>
+  <p class="legend">Управление вызывается из <code>icodex.sh main()</code>: <code>apply_iwiki_env</code> после
+  <code>apply_api_key</code>, <code>ensure_iwiki_wiring</code> после <code>ensure_idd_wiring</code>.</p>
+
+  <h3>Граф зависимостей</h3>
+  <figure>
+  <svg viewBox="0 0 760 360" width="100%" role="img" aria-label="Граф зависимостей требований">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"></path>
+      </marker>
+      <filter id="ds" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="var(--shadow)"></feDropShadow>
+      </filter>
+    </defs>
+    <style>
+      .n rect{ fill:var(--surface); stroke:var(--accent); stroke-width:1.2; rx:8; filter:url(#ds); }
+      .n text{ fill:var(--fg); font-size:11px; }
+      .e{ stroke:var(--line); stroke-width:1.4; fill:none; marker-end:url(#arr); }
+    </style>
+    <!-- edges (A->B = A depends on B) -->
+    <path class="e" d="M150,70 L150,120"></path>          <!-- C5 -> C4 -->
+    <path class="e" d="M210,55 L380,55 L380,118"></path>  <!-- C5 -> C3 -->
+    <path class="e" d="M150,160 L150,210"></path>         <!-- C4 -> C1 -->
+    <path class="e" d="M380,160 L380,210"></path>         <!-- C3 -> C2(secret env) -->
+    <path class="e" d="M300,240 L210,240"></path>         <!-- C2 -> C1 (secret reaches block via env_vars) -->
+    <path class="e" d="M380,250 L380,300"></path>         <!-- C2 -> Background/git-facts -->
+    <path class="e" d="M210,320 L300,260"></path>         <!-- git-facts informs C2 -->
+    <!-- nodes -->
+    <g class="n"><rect x="95" y="30" width="120" height="40"></rect><text x="110" y="55">C5 icodex.sh</text></g>
+    <g class="n"><rect x="95" y="120" width="120" height="40"></rect><text x="106" y="145">C4 iwiki.sh</text></g>
+    <g class="n"><rect x="95" y="210" width="120" height="40"></rect><text x="104" y="235">C1 server block</text></g>
+    <g class="n"><rect x="320" y="118" width="120" height="40"></rect><text x="330" y="143">C3 env.sh</text></g>
+    <g class="n"><rect x="320" y="210" width="120" height="40"></rect><text x="330" y="235">C2 .codex_config</text></g>
+    <g class="n"><rect x="300" y="300" width="160" height="40"></rect><text x="310" y="325">Background (git-facts)</text></g>
+  </svg>
+  <figcaption>Ребро A→B = «A зависит от B / использует B». Циклов нет (DAG): C5 — корень оркестрации,
+  C1 (статический блок) и Background — листья. C2 поставляет секрет, который C1 потребляет через <code>env_vars</code>.</figcaption>
+  </figure>
+
+  <h3>Карта покрытия (задача → требование спецификации)</h3>
+  <table>
+    <thead><tr><th>Задача (scope-решение / поверхность реализации)</th><th>Покрывающие требования</th></tr></thead>
+    <tbody>
+      <tr><td>Сервер iwiki зарегистрирован на каждом запуске, переживает ребилд</td><td>R1, R12, R13</td></tr>
+      <tr><td>Только Codex (icodex), не iclaude</td><td>R2 + Out of scope</td></tr>
+      <tr><td>Всегда включён, без gate</td><td>R3, R12</td></tr>
+      <tr><td>Системный бинарник по жёсткому пути</td><td>R4, R9</td></tr>
+      <tr><td>Несекретные настройки фиксированы в блоке</td><td>R5, R9</td></tr>
+      <tr><td>Без per-project привязки</td><td>R6 + Out of scope</td></tr>
+      <tr><td>Секрет вне git, доставляется через окружение</td><td>R7, R10, R11</td></tr>
+      <tr><td>Per-launch wiring по существующей форме icodex</td><td>R8, R12, R13</td></tr>
+      <tr><td>Обработка отсутствия секрета/бинарника</td><td>R14</td></tr>
+      <tr><td>Тесты обеих новых функций</td><td>R15 (SC1–SC4)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Результаты проверки</h2>
+  <table>
+    <thead><tr><th>Фаза</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>structure</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>coverage</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>clarity</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>consistency</td><td><span class="badge b-ok">passed</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Находки</h3>
+  <table>
+    <thead><tr><th>id</th><th>severity</th><th>section</th><th>fragment</th><th>text</th><th>fix</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td colspan="7" style="text-align:center; color:var(--muted)">Находок нет.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>Сводка:</b> CRITICAL open: 0 &nbsp;·&nbsp; WARNING open: 0<br>
+    <b>Вердикт:</b> <span class="badge b-ok">OK</span><br>
+    <b>Цепочка:</b> intent → <b>spec</b> (intent не найден; <code>chain.intent = null</code>).<br>
+    <span class="legend">spec_hash: <code>0bfd265e61f4ecd6</code> · last_run: 2026-06-30</span>
+  </div>
+
+</section>
+<!-- TAB:spec END -->
+
+<!-- TAB:plan START -->
+<section class="tab-pane" id="pane-plan">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:plan END -->
+
+<!-- TAB:result START -->
+<section class="tab-pane" id="pane-result">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:result END -->
+
+</body>
+</html>
