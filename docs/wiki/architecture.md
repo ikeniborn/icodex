@@ -18,6 +18,21 @@ It walks `readlink` until it reaches the repo, so modules are always sourced fro
 the repo rather than the link directory (e.g. `~/.local/bin/icodex`). The resolved
 directory becomes `ICODEX_ROOT` and is exported.
 
+## Launcher symlink and PATH
+
+`install_symlink` and `ensure_path_entry` (in `lib/symlink/symlink.sh`) make
+`icodex` runnable as a bare command after `--install`/`--update`.
+
+`install_symlink` points `$ICODEX_LINK_DIR/icodex` (default `~/.local/bin/icodex`)
+at the repo's `icodex.sh`, repairing a stale link and never clobbering a real file.
+`ensure_path_entry` then guarantees that dir is on `PATH`: if it is already present
+it does nothing; otherwise it appends an `export` (bash `~/.bashrc`, zsh `~/.zshrc`)
+or `fish_add_path` (`~/.config/fish/config.fish`) chosen from `$SHELL`. It is
+idempotent — skipped when the dir is already referenced in the profile (marker,
+prior run, or manual edit) — and only ever appends, so a hand-managed profile stays
+intact. An unknown shell gets a manual hint instead of an edit. Both run on
+`--install` and `--update`. See [[binary#Install and update]].
+
 ## Module load order
 
 The entrypoint sources modules in a fixed order before running `main()`.
