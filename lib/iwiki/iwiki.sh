@@ -44,3 +44,22 @@ ensure_iwiki_wiring() {
   fi
   rm -f "$tmp"
 }
+
+# Seed a project-root .iwiki.toml (domain == project basename) when absent and
+# symlink it into the Codex home so the iwiki MCP server (cwd == CODEX_HOME)
+# resolves the per-project read/write binding. Never overwrites an existing
+# project .iwiki.toml (it is the user's truth, e.g. a prior wiki_bind). No-op
+# when the project root or home is unknown.
+ensure_iwiki_binding() {
+  [[ -n "${ICODEX_PROJECT_ROOT:-}" && -n "${ICODEX_HOME_DIR:-}" ]] || return 0
+  local toml="$ICODEX_PROJECT_ROOT/.iwiki.toml" link="$ICODEX_HOME_DIR/.iwiki.toml" domain
+  domain="$(basename "$ICODEX_PROJECT_ROOT")"
+  if [[ ! -e "$toml" ]]; then
+    printf 'read = ["%s"]\nwrite = "%s"\n' "$domain" "$domain" > "$toml"
+  fi
+  if [[ -L "$link" ]]; then
+    [[ "$(readlink "$link")" == "$toml" ]] || { rm -f "$link"; ln -s "$toml" "$link"; }
+  elif [[ ! -e "$link" ]]; then
+    ln -s "$toml" "$link"
+  fi
+}
