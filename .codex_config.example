@@ -76,4 +76,4 @@
 #   lite   drop filler only
 #   full   drop articles + filler + pleasantries (recommended)
 #   ultra  fragments + maximum abbreviation
-# ICODEX_CAVEMAN_MODE=full
+#ICODEX_CAVEMAN_MODE=full
