@@ -14,6 +14,14 @@ mkdir -p "$ICODEX_SHARED_DIR/hooks"
 printf 'sandbox_mode = "workspace-write"\n' > "$ICODEX_SHARED_DIR/config.toml"
 printf '{"hooks":{}}\n' > "$ICODEX_SHARED_DIR/hooks.json"
 printf '#!/usr/bin/env python3\n' > "$ICODEX_SHARED_DIR/hooks/example.py"
+# skills fixture: a user skill plus a codex-managed .system dir
+mkdir -p "$ICODEX_SHARED_DIR/skills/sample-skill" "$ICODEX_SHARED_DIR/skills/.system"
+printf 'name: sample\n' > "$ICODEX_SHARED_DIR/skills/sample-skill/SKILL.md"
+# rules fixture: the execution-policy file
+mkdir -p "$ICODEX_SHARED_DIR/rules"
+printf 'prefix_rule(pattern=["git"], decision="allow")\n' > "$ICODEX_SHARED_DIR/rules/default.rules"
+# AGENTS.md base fixture (the global guidance that must reach the home)
+printf '# Base guidelines\nLine one.\n' > "$ICODEX_SHARED_DIR/AGENTS.md"
 
 # Run from a non-git working dir so resolve_project_root falls back to pwd -P
 work="$tmp/work/sub"; mkdir -p "$work"
@@ -39,12 +47,41 @@ assert_eq  "hooks json -> shared" "$ICODEX_SHARED_DIR/hooks.json" "$(readlink "$
 assert_exit "auth symlink"       0 test -L "$ICODEX_HOME_DIR/auth.json"
 assert_eq  "auth -> shared"      "$ICODEX_SHARED_DIR/auth.json" "$(readlink "$ICODEX_HOME_DIR/auth.json")"
 assert_exit "config copied"      0 test -f "$ICODEX_HOME_DIR/config.toml"
+assert_exit "skills symlink"     0 test -L "$ICODEX_HOME_DIR/skills"
+assert_eq  "skills -> shared"    "$ICODEX_SHARED_DIR/skills" "$(readlink "$ICODEX_HOME_DIR/skills")"
+assert_exit "rules symlink"      0 test -L "$ICODEX_HOME_DIR/rules"
+assert_eq  "rules -> shared"     "$ICODEX_SHARED_DIR/rules" "$(readlink "$ICODEX_HOME_DIR/rules")"
+assert_exit "AGENTS.md created"  0 test -f "$ICODEX_HOME_DIR/AGENTS.md"
+agents="$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
+assert_contains "AGENTS base marker start" "$agents" "<!-- icodex:base:start -->"
+assert_contains "AGENTS base content"      "$agents" "Base guidelines"
+assert_contains "AGENTS base marker end"   "$agents" "<!-- icodex:base:end -->"
 
 # idempotent: a second setup leaves the symlinks intact and does not clobber config edits
 printf 'edited = true\n' >> "$ICODEX_HOME_DIR/config.toml"
 before="$(cat "$ICODEX_HOME_DIR/config.toml")"
 setup_codex_home
 assert_eq "config not clobbered on re-run" "$before" "$(cat "$ICODEX_HOME_DIR/config.toml")"
+
+# base region re-syncs when the shared AGENTS.md changes
+printf '# Base guidelines v2\nNew line.\n' > "$ICODEX_SHARED_DIR/AGENTS.md"
+setup_codex_home
+assert_contains "AGENTS base re-synced" "$(cat "$ICODEX_HOME_DIR/AGENTS.md")" "New line."
+assert_exit "old base line removed" 1 grep -qF "Line one." "$ICODEX_HOME_DIR/AGENTS.md"
+
+# a foreign (caveman-style) region outside the base markers must survive a re-sync;
+# this run also stabilizes region order to [foreign][base]
+printf '\n<!-- icodex:caveman:start -->\nCAVEMAN\n<!-- icodex:caveman:end -->\n' >> "$ICODEX_HOME_DIR/AGENTS.md"
+setup_codex_home
+agents_after="$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
+assert_contains "foreign region preserved"   "$agents_after" "CAVEMAN"
+assert_contains "base region still present"   "$agents_after" "New line."
+
+# idempotent: with the shared AGENTS.md unchanged and order already stable, a
+# further setup leaves AGENTS.md byte-identical
+before_agents="$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
+setup_codex_home
+assert_eq "AGENTS.md stable on re-run" "$before_agents" "$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
 
 # setup_shared_dirs makes the shared bin dir
 setup_shared_dirs

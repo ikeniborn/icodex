@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CODEX_HOME asset wiring — IDD→SDD chain</title>
+<style>
+:root{
+  --bg:#f6f7fb; --surface:#ffffff; --fg:#2b2b3a; --muted:#6b6b80;
+  --accent:#5c6bc0; --accent-2:#3949ab; --border:#d6d8e6; --line:#9aa0b4; --zebra:#eef0f8;
+  --ok:#43a047; --ok-2:#2e7d32; --warn:#fb8c00; --warn-2:#ef6c00; --danger:#e53935; --danger-2:#c62828;
+  --shadow:rgba(40,40,80,.18);
+}
+body:has(#theme-toggle:checked){
+  --bg:#181825; --surface:#262637; --fg:#cdd6f4; --muted:#a6adc8;
+  --accent:#89b4fa; --accent-2:#5e95f0; --border:#3a3b52; --line:#6c7086; --zebra:#21222f;
+  --ok:#a6e3a1; --ok-2:#74c46e; --warn:#f9e2af; --warn-2:#f5c95b; --danger:#f38ba8; --danger-2:#e8638a;
+  --shadow:rgba(0,0,0,.45);
+}
+body{
+  margin:0 auto; padding:1.5rem 2rem 4rem; max-width:1080px;
+  font:16px/1.55 system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 500px at 100% -10%, color-mix(in srgb,var(--accent) 10%, transparent), transparent),
+    var(--bg);
+  color:var(--fg);
+  transition:background .3s, color .3s;
+}
+.theme-btn{
+  position:sticky; top:.5rem; float:right;
+  cursor:pointer; user-select:none;
+  padding:.25rem .6rem; border:1px solid var(--border); border-radius:6px;
+  background:var(--surface);
+}
+header h1{ font-size:1.5rem; margin:.2rem 0 .1rem; }
+.sub{ color:var(--muted); margin:0 0 1rem; font-size:.92rem; }
+code{ font-family:ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size:.86em;
+  background:color-mix(in srgb,var(--accent) 12%, var(--surface)); padding:.08em .35em; border-radius:4px; }
+.note{ background:color-mix(in srgb,var(--accent) 10%, var(--surface)); border:1px solid var(--border);
+  border-left:4px solid var(--accent); padding:.6rem .9rem; border-radius:6px; margin:1rem 0; }
+.badge{ display:inline-block; padding:.12em .6em; border-radius:999px; font-size:.78rem; font-weight:600;
+  border:1px solid var(--border); }
+.badge.ok{ color:var(--ok-2); border-color:var(--ok); background:color-mix(in srgb,var(--ok) 16%, var(--surface)); }
+.badge.warn{ color:var(--warn-2); border-color:var(--warn); background:color-mix(in srgb,var(--warn) 16%, var(--surface)); }
+.badge.danger{ color:var(--danger-2); border-color:var(--danger); background:color-mix(in srgb,var(--danger) 16%, var(--surface)); }
+.badge.muted{ color:var(--muted); }
+table{ border-collapse:collapse; width:100%; margin:1rem 0; background:var(--surface);
+  border:1px solid var(--border); border-radius:8px; overflow:hidden; box-shadow:0 1px 3px var(--shadow); }
+th,td{ text-align:left; padding:.55rem .7rem; border-bottom:1px solid var(--border); vertical-align:top; }
+th{ background:color-mix(in srgb,var(--accent) 14%, var(--surface)); color:var(--accent-2); font-size:.84rem;
+  text-transform:uppercase; letter-spacing:.03em; }
+tbody tr:nth-child(even){ background:var(--zebra); }
+td small{ color:var(--muted); }
+.kpi-row{ display:flex; flex-wrap:wrap; gap:.8rem; margin:1rem 0; }
+.kpi{ flex:1 1 120px; background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:.7rem .9rem; box-shadow:0 1px 3px var(--shadow); }
+.kpi .n{ font-size:1.7rem; font-weight:700; line-height:1; }
+.kpi .l{ color:var(--muted); font-size:.8rem; text-transform:uppercase; letter-spacing:.03em; }
+.kpi.ok .n{ color:var(--ok-2); } .kpi.warn .n{ color:var(--warn-2); } .kpi.danger .n{ color:var(--danger-2); }
+.chain-flow{ display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; margin:1.2rem 0; }
+.chain-node{ background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:.45rem .8rem;
+  font-size:.85rem; box-shadow:0 1px 3px var(--shadow); }
+.chain-node.dim{ opacity:.55; border-style:dashed; }
+.chain-node.cur{ border-color:var(--accent); color:var(--accent-2); font-weight:600; }
+.chain-arrow{ color:var(--line); font-weight:700; }
+h2{ font-size:1.15rem; margin:1.6rem 0 .4rem; border-bottom:1px solid var(--border); padding-bottom:.25rem; }
+h3{ font-size:1rem; margin:1.2rem 0 .3rem; }
+ul.tight{ margin:.4rem 0; padding-left:1.3rem; } ul.tight li{ margin:.2rem 0; }
+.verdict-banner{ display:flex; align-items:center; gap:.8rem; padding:.9rem 1.1rem; border-radius:10px;
+  margin:1.2rem 0; border:1px solid var(--ok); background:color-mix(in srgb,var(--ok) 14%, var(--surface)); }
+.verdict-banner .v{ font-size:1.25rem; font-weight:800; color:var(--ok-2); }
+/* tabs */
+.tab-pane{ display:none; }
+body:has(#tab-intent:checked) #pane-intent,
+body:has(#tab-spec:checked)   #pane-spec,
+body:has(#tab-plan:checked)   #pane-plan,
+body:has(#tab-result:checked) #pane-result{ display:block; }
+.chain-tabs{ display:flex; gap:.3rem; margin:1rem 0 0; flex-wrap:wrap; }
+.chain-tabs label{ cursor:pointer; padding:.4rem .9rem; border:1px solid var(--border);
+  border-bottom:none; border-radius:8px 8px 0 0; background:var(--surface); color:var(--muted); }
+body:has(#tab-intent:checked) label[for="tab-intent"],
+body:has(#tab-spec:checked)   label[for="tab-spec"],
+body:has(#tab-plan:checked)   label[for="tab-plan"],
+body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); border-color:var(--accent); font-weight:600; }
+.tab-pane{ border:1px solid var(--border); border-radius:0 8px 8px 8px; padding:1rem 1.3rem; background:var(--surface);
+  box-shadow:0 1px 4px var(--shadow); }
+</style>
+</head>
+<body>
+<input type="checkbox" id="theme-toggle" hidden>
+<input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
+<header>
+  <label for="theme-toggle" class="theme-btn" title="Переключить тему">🌙 / ☀️</label>
+  <h1>CODEX_HOME asset wiring</h1>
+  <p class="sub">Цепочка IDD→SDD: Intent → Spec → Plan → Result &nbsp;·&nbsp; topic: <code>codex-home-asset-wiring</code></p>
+</header>
+<nav class="chain-tabs">
+  <label for="tab-intent">Intent</label>
+  <label for="tab-spec">Spec</label>
+  <label for="tab-plan">Plan</label>
+  <label for="tab-result">Result</label>
+</nav>
+
+<!-- TAB:intent START -->
+<section class="tab-pane" id="pane-intent">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:intent END -->
+
+<!-- TAB:spec START -->
+<section class="tab-pane" id="pane-spec">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:spec END -->
+
+<!-- TAB:plan START -->
+<section class="tab-pane" id="pane-plan">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:plan END -->
+
+<!-- TAB:result START -->
+<section class="tab-pane" id="pane-result">
+  <h2>Result Check — 2026-06-30</h2>
+
+  <div class="verdict-banner">
+    <span class="v">OK</span>
+    <span>Все шаги плана выполнены и подтверждены диффом / тестами. IDD-гейт проходит: body hash совпадает (<code>08f207ca06fb39bc</code>) И вердикт OK.</span>
+  </div>
+
+  <h3>Резюме сверки</h3>
+  <table>
+    <tbody>
+      <tr><th>Intent</th><td><span class="badge muted">отсутствует</span> &nbsp;<small>chain.intent: null</small></td></tr>
+      <tr><th>Spec</th><td><code>docs/superpowers/specs/2026-06-30-codex-home-asset-wiring-design.md</code></td></tr>
+      <tr><th>Plan</th><td><code>docs/superpowers/plans/2026-06-30-codex-home-asset-wiring.md</code></td></tr>
+      <tr><th>База диффа</th><td><code>git diff main...HEAD</code> на ветке <code>dev-home-asset-wiring</code><br>
+        <small>6 коммитов; 7 файлов изменено (2 из них — сами артефакты spec/plan).</small></td></tr>
+      <tr><th>plan_hash</th><td><code>08f207ca06fb39bc</code> <small>— совпадает с review.plan_hash, тело плана не дрейфовало.</small></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Покрытие шагов плана</h3>
+  <div class="kpi-row">
+    <div class="kpi ok"><div class="n">5</div><div class="l">DONE задач</div></div>
+    <div class="kpi"><div class="n">0</div><div class="l">PARTIAL</div></div>
+    <div class="kpi"><div class="n">0</div><div class="l">MISSING</div></div>
+  </div>
+
+  <table>
+    <thead><tr><th>Задача</th><th>Статус</th><th>Свидетельство в диффе / верификация</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Task 1</b><br>symlink <code>skills/</code> и <code>rules/</code></td>
+        <td><span class="badge ok">DONE</span></td>
+        <td>В <code>lib/config/isolated.sh</code> добавлены <code>_link_shared skills</code> и <code>_link_shared rules</code>. В <code>tests/test_isolated.sh</code> — фикстуры skills/rules и 4 ассерта (skills symlink, skills→shared, rules symlink, rules→shared). Зелёные.</td>
+      </tr>
+      <tr>
+        <td><b>Task 2</b><br>sync <code>AGENTS.md</code> base region</td>
+        <td><span class="badge ok">DONE</span></td>
+        <td>Добавлен helper <code>_sync_agents_base_region</code> + маркеры <code>&lt;!-- icodex:base:start/end --&gt;</code> + вызов в <code>setup_codex_home</code> (после копии config.toml, перед export CODEX_HOME). Фикстура AGENTS.md + 4 ассерта. Зелёные.</td>
+      </tr>
+      <tr>
+        <td><b>Task 3</b><br>re-sync / coexistence / idempotency тесты</td>
+        <td><span class="badge ok">DONE</span></td>
+        <td>5 динамических ассертов (base re-synced, old line removed, foreign region preserved, base still present, AGENTS.md stable). Прогон <code>test_isolated.sh</code>: <b>PASS=28 FAIL=0</b>.</td>
+      </tr>
+      <tr>
+        <td><b>Task 4</b><br>real-launch verification <small>(без файлов)</small></td>
+        <td><span class="badge ok">DONE</span></td>
+        <td>Ручная верификация. rules-симлинк оставлен (не откатан) — согласуется с подтверждением, что codex читает <code>$CODEX_HOME/rules</code> при старте. Диффа файлов не ожидается.</td>
+      </tr>
+      <tr>
+        <td><b>Task 5</b><br>wiki docs</td>
+        <td><span class="badge ok">DONE</span></td>
+        <td>Обновлён <code>docs/wiki/config.md</code> (skills/rules симлинки + AGENTS base sync). Пере-индексированы <code>.iwiki/index.jsonl</code> и <code>log.jsonl</code> только для config.md.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Findings</h3>
+  <p class="note">Расхождений не обнаружено — таблица findings пуста (CRITICAL: 0, WARNING: 0, INFO: 0).</p>
+
+  <h3>Покрытие Intent / Spec</h3>
+  <ul class="tight">
+    <li><b>Desired Outcomes (intent):</b> N/A — intent в цепочке отсутствует.</li>
+    <li><b>Spec requirements:</b> покрыто <b>3/3</b> —
+      <ul class="tight">
+        <li>(1) skills активны в home (symlink) — реализовано, под тестом;</li>
+        <li>(2) rules активны в home (symlink) — реализовано, под тестом;</li>
+        <li>(3) AGENTS.md base region присутствует и пере-синхронизируется без затирания caveman-региона / свободного текста — реализовано, под тестом.</li>
+      </ul>
+    </li>
+    <li><b>Spec non-goals соблюдены:</b> caveman-обвязка не тронута (<code>test_caveman_wiring.sh</code> проходит), <code>config.toml</code> copy-once не изменён, hooks.json churn не трогался, <code>AGENTS.override.md</code> не обрабатывается.</li>
+  </ul>
+
+  <h3>Excess Changes</h3>
+  <p class="note">Лишних изменений нет. Диффы <code>index.jsonl</code>/<code>log.jsonl</code> — механический артефакт пере-ингеста config.md (покрыт Task 5). Контекстные строки <code>hooks</code>/<code>hooks.json</code> в юнифайд-диффе — не добавления, существовали на <code>main</code>.</p>
+
+  <h3>Сводка</h3>
+  <p>
+    <span class="badge danger">CRITICAL: 0</span>
+    <span class="badge warn">WARNING: 0</span>
+    <span class="badge muted">INFO: 0</span>
+    &nbsp;·&nbsp; Вердикт: <b style="color:var(--ok-2)">OK</b>
+  </p>
+
+  <h3>Цепочка</h3>
+  <div class="chain-flow">
+    <span class="chain-node dim">intent (отсутствует)</span>
+    <span class="chain-arrow">→</span>
+    <span class="chain-node">spec: …codex-home-asset-wiring-design.md</span>
+    <span class="chain-arrow">→</span>
+    <span class="chain-node">plan: …codex-home-asset-wiring.md</span>
+    <span class="chain-arrow">→</span>
+    <span class="chain-node cur">result: OK</span>
+  </div>
+</section>
+<!-- TAB:result END -->
+
+</body>
+</html>
