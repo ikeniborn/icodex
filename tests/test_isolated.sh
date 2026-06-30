@@ -63,6 +63,26 @@ before="$(cat "$ICODEX_HOME_DIR/config.toml")"
 setup_codex_home
 assert_eq "config not clobbered on re-run" "$before" "$(cat "$ICODEX_HOME_DIR/config.toml")"
 
+# base region re-syncs when the shared AGENTS.md changes
+printf '# Base guidelines v2\nNew line.\n' > "$ICODEX_SHARED_DIR/AGENTS.md"
+setup_codex_home
+assert_contains "AGENTS base re-synced" "$(cat "$ICODEX_HOME_DIR/AGENTS.md")" "New line."
+assert_exit "old base line removed" 1 grep -qF "Line one." "$ICODEX_HOME_DIR/AGENTS.md"
+
+# a foreign (caveman-style) region outside the base markers must survive a re-sync;
+# this run also stabilizes region order to [foreign][base]
+printf '\n<!-- icodex:caveman:start -->\nCAVEMAN\n<!-- icodex:caveman:end -->\n' >> "$ICODEX_HOME_DIR/AGENTS.md"
+setup_codex_home
+agents_after="$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
+assert_contains "foreign region preserved"   "$agents_after" "CAVEMAN"
+assert_contains "base region still present"   "$agents_after" "New line."
+
+# idempotent: with the shared AGENTS.md unchanged and order already stable, a
+# further setup leaves AGENTS.md byte-identical
+before_agents="$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
+setup_codex_home
+assert_eq "AGENTS.md stable on re-run" "$before_agents" "$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
+
 # setup_shared_dirs makes the shared bin dir
 setup_shared_dirs
 assert_exit "shared bin dir" 0 test -d "$ICODEX_SHARED_DIR/bin"
