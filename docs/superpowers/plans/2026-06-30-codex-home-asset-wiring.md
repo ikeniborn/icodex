@@ -36,6 +36,10 @@ review:
         call setup_codex_home, inspect $ICODEX_HOME_DIR) and a single Expected
         block. Step 5 cleanup updated to "$ICODEX_HOME_DIR" (the $hd var is gone).
         Re-run of the verifiability checklist no longer detects the ambiguity.
+result_check:
+  verdict: OK
+  plan_hash: 08f207ca06fb39bc
+  last_run: 2026-06-30
 chain:
   intent: null
   spec: docs/superpowers/specs/2026-06-30-codex-home-asset-wiring-design.md
