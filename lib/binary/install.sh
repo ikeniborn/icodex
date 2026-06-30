@@ -13,19 +13,45 @@ _curl_proxy_args() {
   printf '%s\n' "--proxy" "$ICODEX_PROXY"
 }
 
+# Wget counterpart of _curl_proxy_args, used by the download fallback below.
+# wget takes the proxy via -e directives rather than curl's single --proxy flag.
+_wget_proxy_args() {
+  [[ -n "${ICODEX_PROXY:-}" ]] || return 0
+  (( ${ICODEX_DISABLE_PROXY:-0} )) && return 0
+  printf '%s\n' "-e" "use_proxy=yes" "-e" "https_proxy=$ICODEX_PROXY" "-e" "http_proxy=$ICODEX_PROXY"
+}
+
+# Download <url> to <dest>. curl is the primary path; on any curl failure we
+# retry with wget when it is present. The fallback matters on hosts whose curl
+# is linked against an OpenSSL build that cannot decode a GOST (or otherwise
+# unsupported) CA in the concatenated system trust bundle: curl aborts the whole
+# TLS handshake (x509_pubkey_decode: unsupported algorithm), while wget reads the
+# hashed CApath and only touches the issuer it needs, so it succeeds.
 _download() { # <url> <dest> [show_progress]
-  local pargs=(); while IFS= read -r a; do pargs+=("$a"); done < <(_curl_proxy_args)
+  local cargs=(); while IFS= read -r a; do cargs+=("$a"); done < <(_curl_proxy_args)
   if (( ${3:-0} )); then
-    curl -fL --progress-bar ${pargs[@]+"${pargs[@]}"} "$1" -o "$2"
+    curl -fL --progress-bar ${cargs[@]+"${cargs[@]}"} "$1" -o "$2" && return 0
   else
-    curl -fsSL ${pargs[@]+"${pargs[@]}"} "$1" -o "$2"
+    curl -fsSL ${cargs[@]+"${cargs[@]}"} "$1" -o "$2" && return 0
+  fi
+  command -v wget >/dev/null 2>&1 || return 1
+  local wargs=(); while IFS= read -r a; do wargs+=("$a"); done < <(_wget_proxy_args)
+  if (( ${3:-0} )); then
+    wget -q --show-progress ${wargs[@]+"${wargs[@]}"} -O "$2" "$1"
+  else
+    wget -q ${wargs[@]+"${wargs[@]}"} -O "$2" "$1"
   fi
 }
 
 _resolve_latest() {
-  local pargs=(); while IFS= read -r a; do pargs+=("$a"); done < <(_curl_proxy_args)
-  curl -fsSL ${pargs[@]+"${pargs[@]}"} "https://api.github.com/repos/$ICODEX_REPO/releases/latest" \
-    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
+  local api="https://api.github.com/repos/$ICODEX_REPO/releases/latest" body
+  local cargs=(); while IFS= read -r a; do cargs+=("$a"); done < <(_curl_proxy_args)
+  if ! body="$(curl -fsSL ${cargs[@]+"${cargs[@]}"} "$api")"; then
+    command -v wget >/dev/null 2>&1 || return 1
+    local wargs=(); while IFS= read -r a; do wargs+=("$a"); done < <(_wget_proxy_args)
+    body="$(wget -qO- ${wargs[@]+"${wargs[@]}"} "$api")" || return 1
+  fi
+  printf '%s\n' "$body" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
 }
 
 _release_url() { # <tag> <asset>
