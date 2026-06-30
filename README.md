@@ -6,6 +6,8 @@ a pinned static `codex` binary, **per-project** state, a **safe-by-default** fil
 sandbox, and optional proxy routing — so Codex never touches your home directory or other
 projects unless you ask it to.
 
+_Russian version / Русская версия: [`docs/README.ru.md`](docs/README.ru.md)._
+
 ## How isolation works
 
 icodex keeps Codex state in two layers:
@@ -14,10 +16,12 @@ icodex keeps Codex state in two layers:
   project: the pinned `codex` binary, `uv`, the vendored Superpowers plugin cache, the
   shared `auth.json`, and the tracked `config.toml` template.
 - **Per-project home** — each project you launch from gets its own `CODEX_HOME` under
-  `.codex-homes/<project>-<hash>/`. It symlinks the shared `plugins` and `auth.json`, copies
-  the `config.toml` template once, and keeps that project's sessions, logs, and sqlite
-  separate. The home is keyed by the project's git root (or working directory), so two repos
-  never share session state — but they do share one login and one binary.
+  `.codex-homes/<project>-<hash>/`. It symlinks the shared assets (`plugins`, `skills`,
+  `rules`, hook scripts, and `auth.json`), copies the `config.toml` template, keeps the global
+  `AGENTS.md` guidance in sync, and stores that project's sessions, logs, and sqlite separately
+  — see [What's in a per-project home](#whats-in-a-per-project-home). The home is keyed by the
+  project's git root (or working directory), so two repos never share session state — but they
+  do share one login and one binary.
 
 `.codex-homes/` is runtime state and is git-ignored.
 
@@ -182,6 +186,31 @@ files above, so secrets and runtime churn can never be committed by accident.
 > **Existing users with a custom `config.toml`:** the base `config.toml` is tracked and acts
 > as a **template** — it is copied into each per-project `CODEX_HOME` on first launch. Keep
 > secrets in `.codex_config` or `auth.json`, never in `config.toml`.
+
+## What's in a per-project home
+
+When you launch `icodex`, it builds that project's home under `.codex-homes/<project>-<hash>/`.
+Nothing heavy is duplicated: the home **points back** to the shared `.codex-isolated/` store
+for everything that is identical across projects, and keeps **real, private copies** only of
+what must differ per project.
+
+| In the home | How it's wired | Why |
+|-------------|----------------|-----|
+| Skills (`skills/`) | symlink to the shared store | the bundled skills (`context-awareness`, `git-workflow`, `html-report`, `intent`, `mermaid-obsidian`) are the same everywhere, so every project sees them; Codex still manages its own built-in `.system` skills alongside them |
+| Command rules (`rules/`) | symlink | the `rules/default.rules` policy that auto-approves safe commands (e.g. `git`) and blocks dangerous ones (e.g. `shutdown`) applies in every project |
+| Plugins, login, hook scripts (`plugins/`, `auth.json`, `hooks/`) | symlink | one shared plugin cache, one login, one set of hook scripts for all projects |
+| Global guidance (`AGENTS.md`) | copy, re-synced every launch | carries the shared `AGENTS.md` instructions; refreshed on each launch so edits to `.codex-isolated/AGENTS.md` reach existing project homes, while leaving the optional caveman block in place |
+| Runtime config (`config.toml`) | copied once | each project may diverge — later runs only re-apply the sandbox and project trust, and never clobber your edits |
+| Sessions, logs, sqlite | created by Codex, per project | your history stays isolated — two repos never share session state |
+
+Because the shared parts are symlinks, editing a skill, a rule, or the global `AGENTS.md` in
+`.codex-isolated/` takes effect on the **next launch** of every project — there is no
+per-project copy to update by hand. An existing home built before this wiring is converted
+automatically on its next launch (the old real `skills/` directory is replaced by the symlink).
+
+Two things stay out of the home on purpose: the `codex` **binary** (run directly from the
+shared `bin/`) and the **caveman template** (rendered into `AGENTS.md` at launch only when
+`ICODEX_CAVEMAN_MODE` is set — see [`docs/wiki/caveman.md`](docs/wiki/caveman.md)).
 
 ## Codex config quick guide
 
