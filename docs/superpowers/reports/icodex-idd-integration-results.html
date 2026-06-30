@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>icodex IDD→SDD integration — IDD/SDD chain report</title>
+<style>
+:root{
+  --bg:#f6f7fb; --surface:#ffffff; --fg:#2b2b3a; --muted:#6b6b80;
+  --accent:#5c6bc0; --accent-2:#3949ab; --border:#d6d8e6; --line:#9aa0b4; --zebra:#eef0f8;
+  --ok:#43a047; --ok-2:#2e7d32; --warn:#fb8c00; --warn-2:#ef6c00; --danger:#e53935; --danger-2:#c62828;
+  --shadow:rgba(40,40,80,.18);
+}
+body:has(#theme-toggle:checked){
+  --bg:#181825; --surface:#262637; --fg:#cdd6f4; --muted:#a6adc8;
+  --accent:#89b4fa; --accent-2:#5e95f0; --border:#3a3b52; --line:#6c7086; --zebra:#21222f;
+  --ok:#a6e3a1; --ok-2:#74c46e; --warn:#f9e2af; --warn-2:#f5c95b; --danger:#f38ba8; --danger-2:#e8638a;
+  --shadow:rgba(0,0,0,.45);
+}
+body{
+  margin:0 auto; padding:1.5rem 2rem 4rem; max-width:1080px;
+  font:16px/1.55 system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 500px at 100% -10%, color-mix(in srgb,var(--accent) 10%, transparent), transparent),
+    var(--bg);
+  color:var(--fg);
+  transition:background .3s, color .3s;
+}
+.theme-btn{
+  position:sticky; top:.5rem; float:right; z-index:5;
+  cursor:pointer; user-select:none;
+  padding:.25rem .6rem; border:1px solid var(--border); border-radius:6px;
+  background:var(--surface);
+}
+header h1{ font-size:1.5rem; margin:.2rem 0 1rem; }
+header .sub{ color:var(--muted); font-size:.9rem; margin-top:-.6rem; }
+.sub{ color:var(--muted); font-size:.9rem; }
+h2{ font-size:1.2rem; border-bottom:2px solid var(--border); padding-bottom:.25rem; margin-top:2rem; }
+h3{ font-size:1.02rem; color:var(--accent-2); margin-top:1.4rem; }
+body:has(#theme-toggle:checked) h3{ color:var(--accent); }
+table{ border-collapse:collapse; width:100%; margin:.8rem 0; font-size:.9rem; }
+th,td{ border:1px solid var(--border); padding:.45rem .6rem; text-align:left; vertical-align:top; }
+th{ background:var(--surface); color:var(--accent-2); }
+body:has(#theme-toggle:checked) th{ color:var(--accent); }
+tbody tr:nth-child(even){ background:var(--zebra); }
+code{ background:color-mix(in srgb,var(--accent) 12%, var(--surface)); padding:.05rem .3rem; border-radius:4px; font-size:.85em; }
+.note{ background:color-mix(in srgb,var(--accent) 10%, var(--surface)); border-left:4px solid var(--accent);
+  padding:.6rem .9rem; border-radius:4px; margin:1rem 0; }
+.badge{ display:inline-block; padding:.08rem .5rem; border-radius:999px; font-size:.78rem; font-weight:600; border:1px solid; }
+.b-ok{ color:var(--ok-2); border-color:var(--ok); background:color-mix(in srgb,var(--ok) 16%, transparent); }
+.b-warn{ color:var(--warn-2); border-color:var(--warn); background:color-mix(in srgb,var(--warn) 16%, transparent); }
+.b-danger{ color:var(--danger-2); border-color:var(--danger); background:color-mix(in srgb,var(--danger) 16%, transparent); }
+.b-prog{ color:var(--accent-2); border-color:var(--accent); background:color-mix(in srgb,var(--accent) 16%, transparent); }
+body:has(#theme-toggle:checked) .b-ok{ color:var(--ok); }
+body:has(#theme-toggle:checked) .b-warn{ color:var(--warn); }
+body:has(#theme-toggle:checked) .b-danger{ color:var(--danger); }
+body:has(#theme-toggle:checked) .b-prog{ color:var(--accent); }
+figure{ margin:1rem 0; }
+figcaption{ color:var(--muted); font-size:.82rem; margin-top:.3rem; }
+.rpt-graph svg{ max-width:100%; height:auto; background:var(--surface); border:1px solid var(--border); border-radius:8px; }
+.gnode{ fill:var(--surface); stroke:var(--accent); stroke-width:2; }
+.gnode.task{ stroke:var(--accent-2); }
+.glabel{ fill:var(--fg); font:11px system-ui,sans-serif; }
+.gsub{ fill:var(--muted); font:9px system-ui,sans-serif; }
+/* tabs */
+.tab-pane{ display:none; }
+body:has(#tab-intent:checked) #pane-intent,
+body:has(#tab-spec:checked)   #pane-spec,
+body:has(#tab-plan:checked)   #pane-plan,
+body:has(#tab-result:checked) #pane-result{ display:block; }
+.chain-tabs{ display:flex; gap:.3rem; margin-top:1rem; border-bottom:1px solid var(--border); }
+.chain-tabs label{ cursor:pointer; padding:.4rem .9rem; border:1px solid var(--border); border-bottom:none;
+  border-radius:8px 8px 0 0; background:var(--surface); color:var(--muted); }
+body:has(#tab-intent:checked) label[for="tab-intent"],
+body:has(#tab-spec:checked)   label[for="tab-spec"],
+body:has(#tab-plan:checked)   label[for="tab-plan"],
+body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); border-color:var(--accent); font-weight:600; }
+</style>
+</head>
+<body>
+<input type="checkbox" id="theme-toggle" hidden>
+<input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<label for="theme-toggle" class="theme-btn" title="Переключить тему">🌙 / ☀️</label>
+<header>
+  <h1>icodex IDD→SDD integration — цепочка IDD → SDD</h1>
+  <p class="sub">Единый отчёт цепочки. Тема: <code>icodex-idd-integration</code>. Этапы: Intent / Spec / Plan / Result.</p>
+</header>
+<nav class="chain-tabs">
+  <label for="tab-intent">Intent</label>
+  <label for="tab-spec">Spec</label>
+  <label for="tab-plan">Plan</label>
+  <label for="tab-result">Result</label>
+</nav>
+
+<!-- TAB:intent START -->
+<section class="tab-pane" id="pane-intent">
+  <p class="note">Этап ещё не проверен. (Цепочка без intent-документа: <code>chain.intent = null</code>.)</p>
+</section>
+<!-- TAB:intent END -->
+
+<!-- TAB:spec START -->
+<section class="tab-pane" id="pane-spec">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:spec END -->
+
+<!-- TAB:plan START -->
+<section class="tab-pane" id="pane-plan">
+
+  <h2>1. Резюме плана</h2>
+  <p class="sub">Источник: <code>docs/superpowers/plans/2026-06-30-icodex-idd-integration.md</code> · <code>plan_hash: 1c3203e14090a2bf</code> · <code>spec_hash: 53cf73c1480846c0</code></p>
+
+  <div class="note">Первичная проверка плана против спеки. Все 5 фаз — <b>passed</b>. 0 открытых CRITICAL, 2 открытых WARNING (F-001, F-002). Frontmatter <code>review:</code> инициализирован в плане (тело плана не менялось).</div>
+
+  <h3>Шаги и определения готовности (DoD)</h3>
+  <table>
+    <thead><tr><th>Задача</th><th>Шаг</th><th>DoD (определение готовности)</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="6"><b>1.</b> Shared path helper + <code>idd-gate.py</code> port<br><span class="gsub"><code>.codex-isolated/hooks/_codex_paths.py</code>, <code>idd-gate.py</code>, <code>tests/test_idd_gate.sh</code></span></td>
+        <td>1. Написать падающий тест gate</td><td>создан <code>tests/test_idd_gate.sh</code></td></tr>
+      <tr><td>2. Запустить тест (FAIL)</td><td>FAIL на «gate file exists»</td></tr>
+      <tr><td>3. Создать <code>_codex_paths.py</code></td><td><code>extract_paths</code>/<code>patch_paths</code>/<code>path_fields</code>/<code>patch_text_from_input</code></td></tr>
+      <tr><td>4. Создать <code>idd-gate.py</code> (cp + правки 4a–4f)</td><td>helper-импорт, <code>CODEX_HOME</code> ledger, per-path <code>handle_write</code>, <code>apply_patch</code> dispatch, reword block</td></tr>
+      <tr><td>5. Запустить тест gate (PASS)</td><td><code>PASS=… FAIL=0</code></td></tr>
+      <tr><td>6. Commit</td><td><code>feat(idd): port idd-gate PreToolUse phase gate to Codex</code></td></tr>
+
+      <tr><td rowspan="5"><b>2.</b> <code>idd-nudge.py</code> port<br><span class="gsub"><code>.codex-isolated/hooks/idd-nudge.py</code>, <code>tests/test_idd_nudge.sh</code></span></td>
+        <td>1. Написать падающий тест nudge</td><td>создан <code>tests/test_idd_nudge.sh</code></td></tr>
+      <tr><td>2. Запустить тест (FAIL)</td><td>FAIL на «nudge file exists»</td></tr>
+      <tr><td>3. Создать <code>idd-nudge.py</code> (cp + правки 3a–3d)</td><td>helper-импорт, <code>fix</code>=имена скиллов, reword nudge, match <code>Write|apply_patch</code> per-path</td></tr>
+      <tr><td>4. Запустить тест nudge (PASS)</td><td><code>PASS=… FAIL=0</code></td></tr>
+      <tr><td>5. Commit</td><td><code>feat(idd): port idd-nudge PostToolUse hook to Codex</code></td></tr>
+
+      <tr><td rowspan="7"><b>3.</b> Wiring <code>lib/idd/idd.sh</code> + <code>icodex.sh</code><br><span class="gsub"><code>lib/idd/idd.sh</code>, <code>icodex.sh</code>, <code>tests/test_idd_wiring.sh</code></span></td>
+        <td>1. Написать падающий тест wiring</td><td>создан <code>tests/test_idd_wiring.sh</code></td></tr>
+      <tr><td>2. Запустить тест (FAIL)</td><td>FAIL на «idd module exists»</td></tr>
+      <tr><td>3. Создать <code>lib/idd/idd.sh</code></td><td><code>ensure_idd_wiring</code>, <code>_idd_disabled</code>, <code>_idd_apply_hooks_json</code></td></tr>
+      <tr><td>4. Запустить тест wiring (PASS)</td><td><code>PASS=… FAIL=0</code></td></tr>
+      <tr><td>5. Включить в <code>icodex.sh</code></td><td>источник <code>idd/idd</code>; вызов после <code>ensure_caveman_wiring</code></td></tr>
+      <tr><td>6. Проверить композицию с caveman <span class="badge b-warn">F-001</span></td><td>wiring тест PASS + <code>icodex.sh</code> syntax OK <span class="gsub">(композиция с caveman не утверждается тестом — см. F-001)</span></td></tr>
+      <tr><td>7. Commit</td><td><code>feat(idd): wire idd-gate/idd-nudge into the home hooks.json</code></td></tr>
+
+      <tr><td rowspan="5"><b>4.</b> Validator skills <code>check-{intent,spec,plan,result}</code><br><span class="gsub">4× <code>.codex-isolated/skills/check-*/SKILL.md</code>, <code>tests/test_idd_skills.sh</code></span></td>
+        <td>1. Написать падающий тест skills</td><td>создан <code>tests/test_idd_skills.sh</code></td></tr>
+      <tr><td>2. Запустить тест (FAIL)</td><td>FAIL на «check-intent SKILL.md exists»</td></tr>
+      <tr><td>3. Собрать каждый <code>SKILL.md</code></td><td>frontmatter + execution-context + ported body (4 файла)</td></tr>
+      <tr><td>4. Запустить тест skills (PASS)</td><td><code>PASS=… FAIL=0</code></td></tr>
+      <tr><td>5. Commit</td><td><code>feat(idd): add check-intent/spec/plan/result validator skills</code></td></tr>
+
+      <tr><td rowspan="4"><b>5.</b> Full suite + docs<br><span class="gsub"><code>docs/wiki/</code> (через iwiki)</span></td>
+        <td>1. Прогнать весь набор <code>tests/test_*.sh</code></td><td>каждый файл <code>PASS=… FAIL=0</code>; цикл exit 0</td></tr>
+      <tr><td>2. Подтвердить активацию standalone-скилла (spec open item)</td><td><code>check-spec</code> активируется в живой сессии; STOP+report если нет; исход записан</td></tr>
+      <tr><td>3. Обновить wiki</td><td><code>iwiki-ingest</code> (idd.sh + idd-gate.py) → <code>iwiki-lint</code> без битых ссылок/сирот</td></tr>
+      <tr><td>4. Commit docs</td><td><code>docs(wiki): document the IDD→SDD integration</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Схемы зависимостей и пересечений</h2>
+
+  <h3>Граф зависимостей задач (M → N = «результат задачи M используется в задаче N», M&lt;N)</h3>
+  <figure class="rpt-graph">
+    <svg viewBox="0 0 760 260" role="img" aria-label="граф зависимостей задач плана">
+      <defs>
+        <marker id="arr-plan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+        </marker>
+      </defs>
+      <g stroke="var(--line)" stroke-width="1.6" marker-end="url(#arr-plan)" fill="none">
+        <line x1="150" y1="60" x2="270" y2="60"/>    <!-- T1 -> T2 -->
+        <line x1="340" y1="80" x2="540" y2="60"/>    <!-- T2 -> T3 -->
+        <line x1="150" y1="75" x2="540" y2="72"/>    <!-- T1 -> T3 -->
+        <line x1="90"  y1="80" x2="115" y2="170"/>   <!-- T1 -> T4 -->
+        <line x1="600" y1="80" x2="640" y2="170"/>   <!-- T3 -> T5 -->
+        <line x1="170" y1="190" x2="610" y2="190"/>  <!-- T4 -> T5 -->
+      </g>
+      <g>
+        <rect class="gnode task" x="30"  y="40" width="120" height="40" rx="6"/><text class="glabel" x="90"  y="58" text-anchor="middle">Задача 1</text><text class="gsub" x="90"  y="72" text-anchor="middle">helper + gate</text>
+        <rect class="gnode task" x="280" y="40" width="120" height="40" rx="6"/><text class="glabel" x="340" y="58" text-anchor="middle">Задача 2</text><text class="gsub" x="340" y="72" text-anchor="middle">nudge</text>
+        <rect class="gnode task" x="540" y="40" width="130" height="40" rx="6"/><text class="glabel" x="605" y="58" text-anchor="middle">Задача 3</text><text class="gsub" x="605" y="72" text-anchor="middle">wiring + icodex.sh</text>
+        <rect class="gnode task" x="40"  y="170" width="130" height="40" rx="6"/><text class="glabel" x="105" y="188" text-anchor="middle">Задача 4</text><text class="gsub" x="105" y="202" text-anchor="middle">validator skills</text>
+        <rect class="gnode task" x="595" y="170" width="130" height="40" rx="6"/><text class="glabel" x="660" y="188" text-anchor="middle">Задача 5</text><text class="gsub" x="660" y="202" text-anchor="middle">suite + docs</text>
+      </g>
+    </svg>
+    <figcaption>Задача 1 → Задача 2 (импорт <code>_codex_paths.extract_paths</code>); Задача 1 + Задача 2 → Задача 3 (регистрация <code>idd-gate.py</code>/<code>idd-nudge.py</code>); Задача 1 → Задача 4 (ключи <code>GATE_MAP</code>); Задачи 3 + 4 → Задача 5 (полный прогон + проверка активации). Граф ацикличен, нарушений порядка нет (все рёбра M&lt;N).</figcaption>
+  </figure>
+
+  <h3>Пересечения по артефактам (задача × файл) — пересечений по записи нет</h3>
+  <table>
+    <thead><tr><th>Артефакт</th><th>Создаёт / изменяет</th><th>Потребляет (читает / регистрирует)</th></tr></thead>
+    <tbody>
+      <tr><td><code>.codex-isolated/hooks/_codex_paths.py</code></td><td>Задача 1 (создаёт)</td><td>Задача 1 (gate), Задача 2 (nudge)</td></tr>
+      <tr><td><code>.codex-isolated/hooks/idd-gate.py</code></td><td>Задача 1 (создаёт)</td><td>Задача 3 (регистрирует в hooks.json)</td></tr>
+      <tr><td><code>.codex-isolated/hooks/idd-nudge.py</code></td><td>Задача 2 (создаёт)</td><td>Задача 3 (регистрирует в hooks.json)</td></tr>
+      <tr><td><code>lib/idd/idd.sh</code></td><td>Задача 3 (создаёт)</td><td>Задача 3 (вызывает из icodex.sh)</td></tr>
+      <tr><td><code>icodex.sh</code></td><td>Задача 3 (изменяет)</td><td>—</td></tr>
+      <tr><td>4× <code>skills/check-*/SKILL.md</code></td><td>Задача 4 (создаёт)</td><td>Задача 5 (проверка активации)</td></tr>
+      <tr><td><code>tests/test_idd_*.sh</code></td><td>каждый в своей задаче</td><td>Задача 5 (полный прогон)</td></tr>
+    </tbody>
+  </table>
+  <p class="sub">Каждое требование спеки закрыто ≥1 задачей; дублирующего покрытия нет. Один файл не пишется из двух задач (нет write-конфликтов).</p>
+
+  <h2>3. Результаты проверки</h2>
+
+  <h3>Фазы</h3>
+  <table>
+    <thead><tr><th>Фаза</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>structure</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>coverage</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>dependencies</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>verifiability</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>consistency</td><td><span class="badge b-ok">passed</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Findings</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Severity</th><th>Раздел</th><th>Fragment</th><th>Проблема</th><th>Fix</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>F-001</td>
+        <td><span class="badge b-warn">WARNING</span></td>
+        <td>Task 3 / Step 1 (<code>test_idd_wiring.sh</code>)</td>
+        <td><code>assert_contains "base block-secrets preserved" "$hooks" "block-secrets.py"</code></td>
+        <td>Спека (Testing) требует проверки композиции с caveman: после caveman-merge результат содержит block-secrets + redact-secrets + idd-gate + idd-nudge + caveman-запись. Тест wiring не сеет caveman-запись и проверяет только block-secrets; Step 6 добавляет лишь <code>bash -n</code> синтаксис-чек.</td>
+        <td>В <code>test_idd_wiring.sh</code> засеять caveman-запись (или вызвать <code>ensure_caveman_wiring</code>) до <code>ensure_idd_wiring</code> и утвердить наличие caveman + redact-secrets рядом с idd-gate/idd-nudge.</td>
+        <td><span class="badge b-prog">open</span></td>
+      </tr>
+      <tr>
+        <td>F-002</td>
+        <td><span class="badge b-warn">WARNING</span></td>
+        <td>Global Constraints (стр.19) vs spec Component 3 (стр.206)</td>
+        <td><code>.gitignore</code> уже whitelist'ит <code>!.codex-isolated/hooks/**</code> и <code>!.codex-isolated/skills/**</code> → изменение не нужно</td>
+        <td>Спека перечисляет <code>.gitignore</code> whitelisting как требуемое изменение; план утверждает, что изменение не нужно (широкие globs уже whitelist'ят пути). Проверено: <code>git check-ignore</code> подтверждает, что пути трекаются — план фактически прав, спека устарела на этом пункте.</td>
+        <td>Изменений плана не требуется; опционально отметить расхождение в спеке.</td>
+        <td><span class="badge b-prog">open</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Сводка</h3>
+  <p>
+    <span class="badge b-danger">CRITICAL open: 0</span>
+    <span class="badge b-warn">WARNING open: 2</span>
+  </p>
+  <div class="note"><b>Итоговый вердикт: OK.</b> Открытых CRITICAL нет — план готов к исполнению. 2 WARNING (F-001, F-002) на усмотрение автора: F-001 — недостающая composition-проверка в тесте wiring; F-002 — устаревшее требование спеки по <code>.gitignore</code> (план фактически прав).</div>
+
+  <h3>Цепочка</h3>
+  <p class="sub">intent: <i>нет</i> (<code>chain.intent = null</code>) → spec: <code>docs/superpowers/specs/2026-06-30-icodex-idd-integration-design.md</code> → plan: <code>docs/superpowers/plans/2026-06-30-icodex-idd-integration.md</code></p>
+
+</section>
+<!-- TAB:plan END -->
+
+<!-- TAB:result START -->
+<section class="tab-pane" id="pane-result">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:result END -->
+
+</body>
+</html>
