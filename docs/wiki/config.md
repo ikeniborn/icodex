@@ -14,8 +14,9 @@ the git-ignored `.codex_config`. See [[architecture#Two-config model]].
 
 `setup_codex_home` builds a per-project home under `ICODEX_HOMES_DIR` and exports `CODEX_HOME`.
 
-Expensive, stable assets — the codex binary, `uv`, the vendored plugin cache, and
-`auth.json` — live once in the shared store `ICODEX_SHARED_DIR` (`.codex-isolated`).
+Expensive, stable assets — the codex binary, `uv`, the vendored plugin cache,
+standalone skills, and `auth.json` — live once in the shared store
+`ICODEX_SHARED_DIR` (`.codex-isolated`).
 Per-project state lives in a home `ICODEX_HOMES_DIR/<basename>-<short-sha256>`
 (`.codex-homes/<id>`), keyed by the target project root via `resolve_project_root`
 (the git toplevel of the CWD, else `pwd -P`). `setup_codex_home` symlinks `plugins`,
@@ -97,6 +98,15 @@ with the caveman entry. When unset or `off`, the block is removed and the symlin
 the shared `hooks.json` is restored. The value at launch becomes the **active launch
 mode**; in-session `/caveman` switches can override it for the remainder of the
 session. See [[caveman]] for full details.
+
+## ICODEX_IDD
+
+`ICODEX_IDD` controls the IDD->SDD gate and nudge hooks.
+
+IDD is enabled by default. Set `ICODEX_IDD=off` to strip the `idd-gate.py` and
+`idd-nudge.py` hook entries from the per-project `hooks.json`. When stripping leaves
+the home hook config identical to the shared base, the wrapper restores the home
+`hooks.json` symlink. See [[idd#Opt-out]].
 
 ## API key mapping
 

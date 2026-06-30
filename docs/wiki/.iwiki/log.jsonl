@@ -23,3 +23,8 @@
 {"op":"ingest","source":"lib/binary/install.sh","page":"docs/wiki/binary.md","date":"2026-06-30"}
 {"op":"ingest","source":"lib/symlink/symlink.sh","page":"docs/wiki/architecture.md","date":"2026-06-30"}
 {"op":"ingest","source":"lib/config/isolated.sh","page":"docs/wiki/config.md","date":"2026-06-30"}
+{"op":"manual-ingest","source":"lib/idd/idd.sh","page":"docs/wiki/idd.md","date":"2026-06-30"}
+{"op":"manual-ingest","source":".codex-isolated/hooks/idd-gate.py","page":"docs/wiki/idd.md","date":"2026-06-30"}
+{"op":"manual-ingest","source":".codex-isolated/hooks/idd-nudge.py","page":"docs/wiki/idd.md","date":"2026-06-30"}
+{"op":"manual-ingest","source":"lib/config/isolated.sh","page":"docs/wiki/config.md","date":"2026-06-30"}
+{"op":"manual-lint","source":"docs/wiki","page":"docs/wiki/idd.md","date":"2026-06-30","note":"iwiki engine unavailable; markdown wiki links checked locally"}

@@ -16,7 +16,7 @@ export ICODEX_ROOT
 for m in core/logging core/init core/validation command/args \
          binary/detect binary/lockfile binary/install \
          config/isolated config/permissions config/sandbox config/env proxy/proxy symlink/symlink \
-         plugin/superpowers caveman/caveman launcher/launch; do
+         plugin/superpowers caveman/caveman idd/idd launcher/launch; do
   # shellcheck source=/dev/null
   source "$ICODEX_ROOT/lib/$m.sh"
 done
@@ -57,6 +57,7 @@ main() {
   ensure_launcher_binary_permission
   ensure_superpowers_wiring
   ensure_caveman_wiring
+  ensure_idd_wiring
   install_ensure || exit 1
   ensure_uv_dependency || exit 1
   (( ICODEX_DISABLE_PROXY )) || proxy_ensure
