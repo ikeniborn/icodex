@@ -77,3 +77,11 @@
 #   full   drop articles + filler + pleasantries (recommended)
 #   ultra  fragments + maximum abbreviation
 #ICODEX_CAVEMAN_MODE=full
+
+# iwiki MCP server (always on in every Codex home). All non-secret settings are
+# fixed in the [mcp_servers.iwiki] block (see lib/iwiki/iwiki.sh): base dir, LLM
+# base URL, embed model/dimensions. The ONLY key needed here is the secret API
+# key, forwarded to the server as IWIKI_LLM_KEY via the config.toml `env_vars`
+# allowlist. Keep it here (this file is git-ignored, chmod 600) — never in a
+# tracked config.
+#ICODEX_IWIKI_LLM_KEY=sk-...

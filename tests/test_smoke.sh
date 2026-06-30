@@ -38,8 +38,10 @@ assert_eq "does not source iwiki plugin module" "0" \
   "$(grep -c 'plugin/iwiki' "$ROOT/icodex.sh")"
 assert_eq "calls wiring on launch" "1" \
   "$(grep -Ec '^[[:space:]]*ensure_superpowers_wiring[[:space:]]*$' "$ROOT/icodex.sh")"
-assert_eq "does not call iwiki wiring on launch" "0" \
+assert_eq "calls iwiki wiring on launch" "1" \
   "$(grep -Ec '^[[:space:]]*ensure_iwiki_wiring[[:space:]]*$' "$ROOT/icodex.sh")"
+assert_eq "calls iwiki binding on launch" "1" \
+  "$(grep -Ec '^[[:space:]]*ensure_iwiki_binding[[:space:]]*$' "$ROOT/icodex.sh")"
 assert_eq "calls binary permission wiring on launch" "1" \
   "$(grep -Ec '^[[:space:]]*ensure_launcher_binary_permission[[:space:]]*$' "$ROOT/icodex.sh")"
 assert_eq "calls apply_mode on launch" "1" \

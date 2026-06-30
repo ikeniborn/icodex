@@ -5,8 +5,8 @@
 
 _config_key_allowed() { # <key>
   case "$1" in
-    ICODEX_IWIKI_*|IWIKI_[A-Z0-9_]*) return 1 ;;
-    ICODEX_[A-Z0-9_]*) return 0 ;;
+    IWIKI_[A-Z0-9_]*) return 1 ;;   # raw IWIKI_* must go through the ICODEX_ wrapper
+    ICODEX_[A-Z0-9_]*) return 0 ;;  # includes ICODEX_IWIKI_* (e.g. ICODEX_IWIKI_LLM_KEY)
     *) return 1 ;;
   esac
 }
@@ -31,6 +31,15 @@ load_config() { # <config_file>
 apply_api_key() {
   [[ -n "${ICODEX_API_KEY:-}" ]] || return 0
   export OPENAI_API_KEY="${OPENAI_API_KEY:-$ICODEX_API_KEY}"
+}
+
+# apply_iwiki_env — map ICODEX_IWIKI_LLM_KEY (from .codex_config) to IWIKI_LLM_KEY
+# for the iwiki MCP server. The config.toml [mcp_servers.iwiki] block forwards
+# IWIKI_LLM_KEY via env_vars; all other iwiki settings are literal in that block.
+# An IWIKI_LLM_KEY already in the environment takes precedence.
+apply_iwiki_env() {
+  [[ -n "${ICODEX_IWIKI_LLM_KEY:-}" ]] || return 0
+  export IWIKI_LLM_KEY="${IWIKI_LLM_KEY:-$ICODEX_IWIKI_LLM_KEY}"
 }
 
 # _config_set <file> <key> <value> — upsert KEY=value, preserving other lines.
