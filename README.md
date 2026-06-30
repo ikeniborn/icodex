@@ -6,6 +6,8 @@ a pinned static `codex` binary, **per-project** state, a **safe-by-default** fil
 sandbox, and optional proxy routing — so Codex never touches your home directory or other
 projects unless you ask it to.
 
+_Russian version / Русская версия: [`docs/README.ru.md`](docs/README.ru.md)._
+
 ## How isolation works
 
 icodex keeps Codex state in two layers:
@@ -208,8 +210,7 @@ automatically on its next launch (the old real `skills/` directory is replaced b
 
 Two things stay out of the home on purpose: the `codex` **binary** (run directly from the
 shared `bin/`) and the **caveman template** (rendered into `AGENTS.md` at launch only when
-`ICODEX_CAVEMAN_MODE` is set — see [`docs/wiki/caveman.md`](docs/wiki/caveman.md)). A Russian
-walkthrough of this section lives in [`docs/per-project-home.ru.md`](docs/per-project-home.ru.md).
+`ICODEX_CAVEMAN_MODE` is set — see [`docs/wiki/caveman.md`](docs/wiki/caveman.md)).
 
 ## Codex config quick guide
 
