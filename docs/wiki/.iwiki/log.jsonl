@@ -21,3 +21,4 @@
 {"op":"ingest","source":"lib/config/permissions.sh","page":"docs/wiki/config.md","date":"2026-06-29"}
 {"op":"ingest","source":"lib/caveman/caveman.sh","page":"docs/wiki/caveman.md","date":"2026-06-30"}
 {"op":"ingest","source":"lib/binary/install.sh","page":"docs/wiki/binary.md","date":"2026-06-30"}
+{"op":"ingest","source":"lib/symlink/symlink.sh","page":"docs/wiki/architecture.md","date":"2026-06-30"}
