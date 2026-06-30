@@ -34,3 +34,13 @@ It covers the synopsis, each icodex flag with a one-line description, the
 `.codex_config` precedence rule (defaults < config < flags), the `ICODEX_MODE`
 run-profile presets (`ro` / `safe` / `full-ask` / `full-auto`), and the passthrough
 behavior. It is printed for the `help` command, which exits before tool checks.
+
+## Launch sequence
+
+On the default `run` path, after flags are parsed and `install`/`update` are ruled out,
+`main()` calls in order: `setup_codex_home`, `apply_mode`, `ensure_project_trust`,
+`ensure_launcher_binary_permission`, `ensure_superpowers_wiring`, then
+`ensure_caveman_wiring` (gated on `ICODEX_CAVEMAN_MODE` — renders the caveman
+`AGENTS.md` block and merges the `UserPromptSubmit` hook into the home `hooks.json`),
+followed by binary and `uv` checks, optional proxy setup, and finally `launch_codex`.
+See [[caveman#Launch-path wiring]] and [[architecture#Default run path]].

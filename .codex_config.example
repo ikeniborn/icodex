@@ -68,3 +68,12 @@
 # Directory for the `icodex` symlink created on --install (default: ~/.local/bin).
 # A leading ~/ is expanded. Put this dir on your PATH to run `icodex` directly.
 #ICODEX_LINK_DIR=~/.local/bin
+
+# Caveman token-compression of model output. Unset/off disables (ship default).
+# When set, a small caveman instruction block is added to the isolated CODEX_HOME
+# AGENTS.md (prompt-cached, ~0 per-turn token overhead) and a UserPromptSubmit hook
+# is registered. Switch in-session with `/caveman lite|full|ultra|off`.
+#   lite   drop filler only
+#   full   drop articles + filler + pleasantries (recommended)
+#   ultra  fragments + maximum abbreviation
+# ICODEX_CAVEMAN_MODE=full

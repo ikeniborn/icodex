@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caveman integration for icodex — IDD/SDD chain report</title>
+<style>
+:root{
+  --bg:#f6f7fb; --surface:#ffffff; --fg:#2b2b3a; --muted:#6b6b80;
+  --accent:#5c6bc0; --accent-2:#3949ab; --border:#d6d8e6; --line:#9aa0b4; --zebra:#eef0f8;
+  --ok:#43a047; --ok-2:#2e7d32; --warn:#fb8c00; --warn-2:#ef6c00; --danger:#e53935; --danger-2:#c62828;
+  --shadow:rgba(40,40,80,.18);
+}
+body:has(#theme-toggle:checked){
+  --bg:#181825; --surface:#262637; --fg:#cdd6f4; --muted:#a6adc8;
+  --accent:#89b4fa; --accent-2:#5e95f0; --border:#3a3b52; --line:#6c7086; --zebra:#21222f;
+  --ok:#a6e3a1; --ok-2:#74c46e; --warn:#f9e2af; --warn-2:#f5c95b; --danger:#f38ba8; --danger-2:#e8638a;
+  --shadow:rgba(0,0,0,.45);
+}
+body{
+  margin:0 auto; padding:1.5rem 2rem 4rem; max-width:1080px;
+  font:16px/1.55 system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 500px at 100% -10%, color-mix(in srgb,var(--accent) 10%, transparent), transparent),
+    var(--bg);
+  color:var(--fg);
+  transition:background .3s, color .3s;
+}
+.theme-btn{
+  position:sticky; top:.5rem; float:right; z-index:5;
+  cursor:pointer; user-select:none;
+  padding:.25rem .6rem; border:1px solid var(--border); border-radius:6px;
+  background:var(--surface);
+}
+header h1{ font-size:1.5rem; margin:.2rem 0 1rem; }
+header .sub{ color:var(--muted); font-size:.9rem; margin-top:-.6rem; }
+h2{ font-size:1.2rem; border-bottom:2px solid var(--border); padding-bottom:.25rem; margin-top:2rem; }
+h3{ font-size:1.02rem; color:var(--accent-2); margin-top:1.4rem; }
+body:has(#theme-toggle:checked) h3{ color:var(--accent); }
+table{ border-collapse:collapse; width:100%; margin:.8rem 0; font-size:.9rem; }
+th,td{ border:1px solid var(--border); padding:.45rem .6rem; text-align:left; vertical-align:top; }
+th{ background:var(--surface); color:var(--accent-2); }
+body:has(#theme-toggle:checked) th{ color:var(--accent); }
+tbody tr:nth-child(even){ background:var(--zebra); }
+code{ background:color-mix(in srgb,var(--accent) 12%, var(--surface)); padding:.05rem .3rem; border-radius:4px; font-size:.85em; }
+.note{ background:color-mix(in srgb,var(--accent) 10%, var(--surface)); border-left:4px solid var(--accent);
+  padding:.6rem .9rem; border-radius:4px; margin:1rem 0; }
+.badge{ display:inline-block; padding:.08rem .5rem; border-radius:999px; font-size:.78rem; font-weight:600; border:1px solid; }
+.b-ok{ color:var(--ok-2); border-color:var(--ok); background:color-mix(in srgb,var(--ok) 16%, transparent); }
+.b-warn{ color:var(--warn-2); border-color:var(--warn); background:color-mix(in srgb,var(--warn) 16%, transparent); }
+.b-danger{ color:var(--danger-2); border-color:var(--danger); background:color-mix(in srgb,var(--danger) 16%, transparent); }
+.b-prog{ color:var(--accent-2); border-color:var(--accent); background:color-mix(in srgb,var(--accent) 16%, transparent); }
+body:has(#theme-toggle:checked) .b-ok{ color:var(--ok); }
+body:has(#theme-toggle:checked) .b-warn{ color:var(--warn); }
+body:has(#theme-toggle:checked) .b-danger{ color:var(--danger); }
+body:has(#theme-toggle:checked) .b-prog{ color:var(--accent); }
+/* flow diagram */
+.flow{ display:flex; flex-direction:column; gap:.6rem; margin:1rem 0; }
+.flow-row{ display:flex; gap:.6rem; flex-wrap:wrap; align-items:stretch; }
+.fnode{ border:1px solid var(--accent); border-radius:8px; background:var(--surface);
+  padding:.5rem .7rem; font-size:.82rem; box-shadow:0 1px 4px var(--shadow); flex:1 1 0; min-width:140px; }
+.fnode b{ display:block; color:var(--accent-2); margin-bottom:.2rem; }
+body:has(#theme-toggle:checked) .fnode b{ color:var(--accent); }
+.fnode.alt{ border-color:var(--line); }
+.farrow{ align-self:center; color:var(--muted); font-weight:700; }
+figure{ margin:1rem 0; }
+figcaption{ color:var(--muted); font-size:.82rem; margin-top:.3rem; }
+.rpt-graph svg{ max-width:100%; height:auto; background:var(--surface); border:1px solid var(--border); border-radius:8px; }
+.gnode{ fill:var(--surface); stroke:var(--accent); stroke-width:2; }
+.gnode.task{ stroke:var(--accent-2); }
+.glabel{ fill:var(--fg); font:11px system-ui,sans-serif; }
+.gsub{ fill:var(--muted); font:9px system-ui,sans-serif; }
+/* tabs */
+.tab-pane{ display:none; }
+body:has(#tab-intent:checked) #pane-intent,
+body:has(#tab-spec:checked)   #pane-spec,
+body:has(#tab-plan:checked)   #pane-plan,
+body:has(#tab-result:checked) #pane-result{ display:block; }
+.chain-tabs{ display:flex; gap:.3rem; margin-top:1rem; border-bottom:1px solid var(--border); }
+.chain-tabs label{ cursor:pointer; padding:.4rem .9rem; border:1px solid var(--border); border-bottom:none;
+  border-radius:8px 8px 0 0; background:var(--surface); color:var(--muted); }
+body:has(#tab-intent:checked) label[for="tab-intent"],
+body:has(#tab-spec:checked)   label[for="tab-spec"],
+body:has(#tab-plan:checked)   label[for="tab-plan"],
+body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); border-color:var(--accent); font-weight:600; }
+</style>
+</head>
+<body>
+<input type="checkbox" id="theme-toggle" hidden>
+<input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
+<label for="theme-toggle" class="theme-btn" title="Переключить тему">🌙 / ☀️</label>
+<header>
+  <h1>Caveman integration for icodex — цепочка IDD → SDD</h1>
+  <p class="sub">Единый отчёт цепочки. Тема: <code>caveman-icodex</code>. Этапы: Intent / Spec / Plan / Result.</p>
+</header>
+<nav class="chain-tabs">
+  <label for="tab-intent">Intent</label>
+  <label for="tab-spec">Spec</label>
+  <label for="tab-plan">Plan</label>
+  <label for="tab-result">Result</label>
+</nav>
+
+<!-- TAB:intent START -->
+<section class="tab-pane" id="pane-intent">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:intent END -->
+
+<!-- TAB:spec START -->
+<section class="tab-pane" id="pane-spec">
+
+  <h2>1. Резюме спецификации</h2>
+  <p class="sub">Источник: <code>docs/superpowers/specs/2026-06-29-caveman-icodex-design.md</code> · <code>spec_hash: 12d0ef2ea1b81b29</code></p>
+
+  <div class="note">Повторная проверка после правки механизма регистрации Layer-2 хука: вместо переписывания <code>config.toml [hooks]</code> caveman теперь подключается в per-project home <code>hooks.json</code> — реальный файл = merge(общие secret-guard хуки, caveman <code>UserPromptSubmit</code>); при off/unset — симлинк на общий <code>.codex-isolated/hooks.json</code>. Все 4 фазы passed, новых findings нет.</div>
+
+  <h3>Требования по разделам</h3>
+  <table>
+    <thead><tr><th>Раздел / требование</th><th>Суть</th></tr></thead>
+    <tbody>
+      <tr><td><b>Problem</b></td><td>Терсный вывод модели в Codex (экономия <b>output</b>-токенов ~65–75% на prose-heavy ходах) при ~0 input-overhead самого caveman-механизма.</td></tr>
+      <tr><td><b>Terminology</b> <span class="badge b-ok">новый</span></td><td><b>Ship default</b> = caveman off, когда <code>ICODEX_CAVEMAN_MODE</code> не задан (out-of-the-box). <b>Active launch mode</b> = значение <code>ICODEX_CAVEMAN_MODE</code> на старте (lite|full|ultra), подставляется в <code>AGENTS.md</code>-блок при рендере.</td></tr>
+      <tr><td><b>SC1</b></td><td>При <code>ICODEX_CAVEMAN_MODE=full</code> вывод Codex терсный (caveman-стиль).</td></tr>
+      <tr><td><b>SC2</b></td><td>Пока текущий режим сессии == active launch mode, per-turn hook инжектит 0 токенов (вся стоячая инструкция в prompt-cached <code>AGENTS.md</code>).</td></tr>
+      <tr><td><b>SC3</b></td><td><code>/caveman lite|full|ultra|off</code> (+ <code>stop caveman</code> / <code>normal mode</code>) переключает режим в середине сессии.</td></tr>
+      <tr><td><b>SC4</b></td><td>Файлы целевого проекта не трогаются — caveman живёт в icodex-owned <code>CODEX_HOME</code>.</td></tr>
+      <tr><td><b>SC5</b></td><td>Ship default = off; caveman активируется только когда <code>ICODEX_CAVEMAN_MODE</code> задан.</td></tr>
+      <tr><td><b>Background</b></td><td>Точки расширения icodex: глобальный <code>$CODEX_HOME/AGENTS.md</code>; lifecycle-хуки (<code>SessionStart</code>, <code>UserPromptSubmit</code>) через top-level <code>config.toml</code> или <code>hooks.json</code>; icodex уже поставляет общий <code>.codex-isolated/hooks.json</code> (PreToolUse secret-guards), симлинк в каждый home, авто-обнаружение из <code>$CODEX_HOME/hooks.json</code> — caveman-хук подключается в этот же файл; обход repo-local hook-бага.</td></tr>
+      <tr><td><b>Decisions</b></td><td>Scope = always-on once enabled + in-session switch/off; механизм hybrid (cached AGENTS.md + лёгкий hook); source hybrid (правила из upstream SKILL.md, hook нативный); ship default off; один <code>UserPromptSubmit</code> hook без <code>SessionStart</code>; язык хука python3.</td></tr>
+      <tr><td><b>Layer 1 — AGENTS.md base block</b></td><td>Статический кэшируемый блок (persona + правила сжатия, mode table, исключения авто-ясности, языковое правило, <code>/caveman</code>-контракт). &lt;2&nbsp;KiB, delimited region, идемпотентный rewrite. Active launch mode подставляется при рендере.</td></tr>
+      <tr><td><b>Layer 2 — UserPromptSubmit hook</b></td><td>Регистрируется через per-project home <code>hooks.json</code> (авто-обнаружение из <code>$CODEX_HOME/hooks.json</code>). Один python3-скрипт (stdlib): lazy-init режима из state-файла; <code>/caveman</code> switch → запись + <code>additionalContext</code>; current == active launch mode → пустой stdout (0 токенов); deviation → <code>ACTIVE MODE</code> reminder; <code>off</code> → disable line. State по <code>session_id</code> под <code>$CODEX_HOME/.caveman/</code>.</td></tr>
+      <tr><td><b>Data flow</b></td><td><code>icodex.sh launch</code> → <code>ensure_caveman_wiring</code> → (1) AGENTS.md регион; (2) <code>$CODEX_HOME/hooks.json</code>: mode set → реальный файл = merge(shared secret-guards, caveman <code>UserPromptSubmit</code> → <code>python3 caveman-hook.py</code>); off/unset → симлинк на shared <code>hooks.json</code>. Codex turn → <code>UserPromptSubmit</code> → <code>caveman-hook.py</code>.</td></tr>
+      <tr><td><b>Asset layout</b></td><td><code>.codex-isolated/hooks/caveman-hook.py</code> (рядом с <code>block-secrets.py</code>), <code>.codex-isolated/caveman/agents-block.md</code>, <code>scripts/vendor-caveman.sh</code>, <code>lib/caveman/caveman.sh</code> (<code>ensure_caveman_wiring</code>: рендер AGENTS.md регион + рендер/merge home <code>hooks.json</code>).</td></tr>
+      <tr><td><b>Config and wiring</b></td><td><code>ICODEX_CAVEMAN_MODE</code> в <code>.codex_config</code>; <code>ensure_caveman_wiring</code> после <code>ensure_superpowers_wiring</code>; две идемпотентные операции (AGENTS.md регион; home <code>hooks.json</code> merge/симлинк); <code>setup_codex_home</code> сначала (<code>_link_shared hooks.json</code>), caveman переопределяет только при включении; <code>bypass_hook_trust=true</code>.</td></tr>
+      <tr><td><b>Token-overhead accounting (goal 2)</b></td><td>Таблица состояний: == launch mode → 0; switched → ~10–20 ток; off → ~10 ток.</td></tr>
+      <tr><td><b>Tests</b></td><td><code>test_caveman_wiring.sh</code> + <code>test_caveman_hook.sh</code>. Без сети, temp-dirs.</td></tr>
+      <tr><td><b>Documentation (iwiki)</b></td><td>Новый <code>docs/wiki/caveman.md</code>; обновить <code>config.md</code>, <code>architecture.md</code>, <code>command.md</code>; iwiki-ingest + iwiki-lint.</td></tr>
+      <tr><td><b>Out of scope (v1)</b></td><td>Stats/statusline; <code>wenyan-*</code>/commit/review/compress режимы; verbatim-порт upstream Node-хуков.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Success Criteria</h3>
+  <table>
+    <thead><tr><th>#</th><th>Критерий</th></tr></thead>
+    <tbody>
+      <tr><td>SC1</td><td><code>ICODEX_CAVEMAN_MODE=full</code> → терсный вывод Codex.</td></tr>
+      <tr><td>SC2</td><td>Пока текущий режим сессии == <b>active launch mode</b>, per-turn hook инжектит <b>0 токенов</b> (вся стоячая инструкция в prompt-cached <code>AGENTS.md</code>).</td></tr>
+      <tr><td>SC3</td><td><code>/caveman lite|full|ultra|off</code> (+ <code>stop caveman</code> / <code>normal mode</code>) переключает режим в середине сессии.</td></tr>
+      <tr><td>SC4</td><td>Файлы целевого проекта никогда не трогаются — caveman живёт только в изолированном icodex-owned <code>CODEX_HOME</code>.</td></tr>
+      <tr><td>SC5</td><td><b>Ship default</b> = off: caveman активируется только когда <code>ICODEX_CAVEMAN_MODE</code> установлен.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Схемы решения и зависимостей</h2>
+
+  <h3>Схема решения (поток управления / данных)</h3>
+  <figure>
+  <div class="flow">
+    <div class="flow-row">
+      <div class="fnode"><b>icodex.sh launch</b>Точка входа обёртки</div>
+      <span class="farrow">→</span>
+      <div class="fnode"><b>ensure_caveman_wiring</b>Запускается ТОЛЬКО если <code>ICODEX_CAVEMAN_MODE</code> set (gate для SC5)</div>
+    </div>
+    <div class="flow-row">
+      <div class="fnode"><b>render AGENTS.md</b>из <code>agents-block.md</code>, подстановка режима → <code>$CODEX_HOME/AGENTS.md</code> (delimited region, идемпотентно)</div>
+      <span class="farrow">+</span>
+      <div class="fnode"><b>home hooks.json</b>mode set → реальный файл = merge(shared secret-guards, caveman <code>UserPromptSubmit</code> → <code>caveman-hook.py</code>); off/unset → симлинк на shared <code>.codex-isolated/hooks.json</code></div>
+    </div>
+    <div class="flow-row">
+      <div class="fnode alt"><b>Codex turn: UserPromptSubmit</b>→ <code>caveman-hook.py</code> (stdin JSON), читает per-session state под <code>$CODEX_HOME/.caveman/</code></div>
+      <span class="farrow">→</span>
+      <div class="fnode alt"><b>Вывод хука</b>default → <i>пустой stdout</i> (0 токенов); switch/non-default/off → <code>additionalContext</code></div>
+    </div>
+  </div>
+  <figcaption>Wiring при запуске (Layer 1 + Layer 2) и решение хука на каждом ходе. Кэшируемый блок несёт стоячую инструкцию; хук молчит в steady state.</figcaption>
+  </figure>
+
+  <h3>Граф зависимостей (A → B = «A зависит от B»)</h3>
+  <figure class="rpt-graph">
+    <svg viewBox="0 0 760 360" role="img" aria-label="граф зависимостей требований">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+        </marker>
+      </defs>
+      <!-- edges -->
+      <g stroke="var(--line)" stroke-width="1.6" marker-end="url(#arr)" fill="none">
+        <line x1="80"  y1="55"  x2="300" y2="55"/>   <!-- SC1 -> Layer1 -->
+        <line x1="80"  y1="115" x2="300" y2="70"/>   <!-- SC2 -> Layer1 -->
+        <line x1="80"  y1="115" x2="300" y2="175"/>  <!-- SC2 -> Layer2 step4 -->
+        <line x1="80"  y1="175" x2="300" y2="185"/>  <!-- SC3 -> Layer2 step3 -->
+        <line x1="80"  y1="235" x2="300" y2="285"/>  <!-- SC4 -> CODEX_HOME/write -->
+        <line x1="80"  y1="295" x2="540" y2="120"/>  <!-- SC5 -> ensure_caveman_wiring -->
+        <line x1="350" y1="55"  x2="560" y2="55"/>   <!-- Layer1 -> agents-block asset -->
+        <line x1="350" y1="180" x2="560" y2="200"/>  <!-- Layer2 -> hook asset -->
+        <line x1="350" y1="185" x2="560" y2="255"/>  <!-- Layer2 -> state file -->
+        <line x1="540" y1="120" x2="350" y2="65"/>   <!-- wiring -> Layer1 -->
+        <line x1="540" y1="125" x2="350" y2="175"/>  <!-- wiring -> Layer2 -->
+      </g>
+      <!-- success-criteria nodes (left column) -->
+      <g>
+        <rect class="gnode task" x="20" y="40"  width="60" height="30" rx="6"/><text class="glabel" x="50" y="59" text-anchor="middle">SC1</text>
+        <rect class="gnode task" x="20" y="100" width="60" height="30" rx="6"/><text class="glabel" x="50" y="119" text-anchor="middle">SC2</text>
+        <rect class="gnode task" x="20" y="160" width="60" height="30" rx="6"/><text class="glabel" x="50" y="179" text-anchor="middle">SC3</text>
+        <rect class="gnode task" x="20" y="220" width="60" height="30" rx="6"/><text class="glabel" x="50" y="239" text-anchor="middle">SC4</text>
+        <rect class="gnode task" x="20" y="280" width="60" height="30" rx="6"/><text class="glabel" x="50" y="299" text-anchor="middle">SC5</text>
+      </g>
+      <!-- middle column: components -->
+      <g>
+        <rect class="gnode" x="300" y="40"  width="100" height="40" rx="6"/><text class="glabel" x="350" y="56" text-anchor="middle">Layer 1</text><text class="gsub" x="350" y="70" text-anchor="middle">AGENTS.md block</text>
+        <rect class="gnode" x="300" y="160" width="100" height="46" rx="6"/><text class="glabel" x="350" y="178" text-anchor="middle">Layer 2 hook</text><text class="gsub" x="350" y="192" text-anchor="middle">step3 switch / step4</text>
+        <rect class="gnode" x="300" y="265" width="120" height="40" rx="6"/><text class="glabel" x="360" y="281" text-anchor="middle">CODEX_HOME</text><text class="gsub" x="360" y="295" text-anchor="middle">+ write-semantics</text>
+        <rect class="gnode" x="500" y="105" width="100" height="40" rx="6"/><text class="glabel" x="550" y="121" text-anchor="middle">ensure_</text><text class="gsub" x="550" y="135" text-anchor="middle">caveman_wiring</text>
+      </g>
+      <!-- right column: assets -->
+      <g>
+        <rect class="gnode" x="560" y="40"  width="170" height="34" rx="6"/><text class="gsub" x="645" y="61" text-anchor="middle">agents-block.md</text>
+        <rect class="gnode" x="560" y="185" width="170" height="34" rx="6"/><text class="gsub" x="645" y="206" text-anchor="middle">caveman-hook.py</text>
+        <rect class="gnode" x="560" y="240" width="170" height="34" rx="6"/><text class="gsub" x="645" y="261" text-anchor="middle">state file (.caveman/)</text>
+      </g>
+    </svg>
+    <figcaption>Узлы — требования / компоненты / ассеты; рёбра направлены «зависит от». Граф ацикличен — циклов нет.</figcaption>
+  </figure>
+
+  <h3>Карта покрытия (задача → требование(я))</h3>
+  <table>
+    <thead><tr><th>Задача</th><th>Покрывающее(ие) требование(я)</th></tr></thead>
+    <tbody>
+      <tr><td>Эффективность токенов вывода</td><td>SC1 · Layer 1 (compression rules) · Token-overhead table</td></tr>
+      <tr><td>Минимальный self-overhead (0 input/ход)</td><td>SC2 · Layer 1 (cached) · Layer 2 step 4</td></tr>
+      <tr><td>In-session переключение режима</td><td>SC3 · Layer 2 steps 3/5/6</td></tr>
+      <tr><td>Изоляция файлов проекта</td><td>SC4 · Background (CODEX_HOME) · Config and wiring</td></tr>
+      <tr><td>Opt-in активация</td><td>SC5 · Terminology (ship default) · Config and wiring</td></tr>
+      <tr><td>Смена регистрации Layer-2 хука: <code>config.toml [hooks]</code> → home <code>hooks.json</code> (merge shared secret-guards + caveman; off/unset → симлинк)</td><td>Background (hooks bullet) · Layer 2 intro · Data flow · Asset layout · Config and wiring · Tests/<code>test_caveman_wiring.sh</code> · Risks (repo-local hook bug)</td></tr>
+      <tr><td>Тесты</td><td>Раздел Tests</td></tr>
+      <tr><td>Документация</td><td>Раздел Documentation</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Результаты проверки</h2>
+
+  <h3>Статус фаз</h3>
+  <table>
+    <thead><tr><th>Фаза</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>structure</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>coverage</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>clarity</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>consistency</td><td><span class="badge b-ok">passed</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Findings</h3>
+  <table>
+    <thead><tr><th>id</th><th>severity</th><th>раздел</th><th>fragment</th><th>проблема</th><th>fix</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>F-001</td>
+        <td><span class="badge b-danger">CRITICAL</span></td>
+        <td>Success criteria / Architecture (Layer 1 &amp; 2)</td>
+        <td><i>«While the session's current mode equals the active launch mode, the per-turn hook injects 0 tokens … current mode == active launch mode: emit empty stdout»</i></td>
+        <td>Перегрузка термина «default» создавала непроверяемое требование: SC2 и тихая ветка хука ссылались на неопределённое «baked-in default».</td>
+        <td>Определить термин явно и развести с ship default.</td>
+        <td><span class="badge b-ok">fixed</span> — устранено новым разделом <code>## Terminology</code>; «baked-in default» удалён; SC2 и Layer 2 step 4 ссылаются на определённый «active launch mode».</td>
+      </tr>
+      <tr>
+        <td>F-002</td>
+        <td><span class="badge b-warn">WARNING</span></td>
+        <td>Decisions taken during brainstorming</td>
+        <td><i>«Scope: always-on once enabled + in-session mode switch/off … Ship default: off (opt-in via ICODEX_CAVEMAN_MODE)»</i></td>
+        <td>Несогласованные термины: «always-on default» vs «Default: off» читались как противоречие.</td>
+        <td>Переформулировать в «always-on once enabled».</td>
+        <td><span class="badge b-ok">fixed</span> — блок Decisions теперь «always-on once enabled» + «Ship default: off»; коллизия устранена.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Сводка</h3>
+  <table>
+    <tbody>
+      <tr><th>CRITICAL open</th><td>0</td></tr>
+      <tr><th>WARNING open</th><td>0</td></tr>
+      <tr><th>Финальный вердикт</th><td><span class="badge b-ok">OK (pass)</span> — все 4 фазы passed, 0 open findings</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Цепочка</h3>
+  <p class="note">intent → <b>spec</b>. <code>intent_path = null</code> (intent-документ не найден). spec = <code>docs/superpowers/specs/2026-06-29-caveman-icodex-design.md</code>.</p>
+
+</section>
+<!-- TAB:spec END -->
+
+<!-- TAB:plan START -->
+<section class="tab-pane" id="pane-plan">
+
+  <h2>1. Резюме плана</h2>
+  <p class="sub">Источник: <code>docs/superpowers/plans/2026-06-29-caveman-icodex.md</code> · <code>plan_hash: 1e7060ab0c91f233</code> (пред.: <code>b38ade5c70d716eb</code>) · <code>spec_hash: 12d0ef2ea1b81b29</code></p>
+
+  <div class="note">Повторный прогон после правки Task 5. Тело плана отредактировано: Task 5 получил новый Step 3 (запись launch-path шага в <code>architecture.md</code>/<code>command.md</code>) и новый Step 4 (<code>iwiki:iwiki-ingest</code> + <code>/iwiki-lint</code>), обновлён список Files и self-review. <b>F-003 закрыт (fixed)</b>. Все 5 фаз — passed; 0 CRITICAL, 0 open WARNING.</div>
+
+  <h3>Шаги и определения готовности (DoD)</h3>
+  <table>
+    <thead><tr><th>Задача</th><th>Шаг</th><th>DoD (определение готовности)</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="5"><b>1.</b> Caveman <code>UserPromptSubmit</code> hook<br><span class="gsub"><code>.codex-isolated/hooks/caveman-hook.py</code>, <code>tests/test_caveman_hook.sh</code></span></td>
+        <td>1. Написать падающий тест</td><td>создан <code>tests/test_caveman_hook.sh</code></td></tr>
+      <tr><td>2. Запустить тест (FAIL)</td><td>тест падает («hook file exists»)</td></tr>
+      <tr><td>3. Реализовать hook</td><td>создан <code>caveman-hook.py</code></td></tr>
+      <tr><td>4. Запустить тест (PASS)</td><td><code>PASS=N FAIL=0</code></td></tr>
+      <tr><td>5. Commit</td><td><code>feat(caveman): add UserPromptSubmit compression hook</code></td></tr>
+
+      <tr><td rowspan="6"><b>2.</b> Wiring module + AGENTS.md block<br><span class="gsub"><code>.codex-isolated/caveman/agents-block.md</code>, <code>lib/caveman/caveman.sh</code>, <code>tests/test_caveman_wiring.sh</code></span></td>
+        <td>1. Создать шаблон <code>agents-block.md</code> (&lt;2&nbsp;KiB, токен <code>__CAVEMAN_MODE__</code>)</td><td>файл существует</td></tr>
+      <tr><td>2. Написать падающий тест</td><td>создан <code>tests/test_caveman_wiring.sh</code></td></tr>
+      <tr><td>3. Запустить тест (FAIL)</td><td><code>ensure_caveman_wiring</code> не определён</td></tr>
+      <tr><td>4. Написать модуль <code>caveman.sh</code></td><td>модуль с <code>ensure_caveman_wiring</code> существует</td></tr>
+      <tr><td>5. Запустить тест (PASS)</td><td><code>PASS=N FAIL=0</code></td></tr>
+      <tr><td>6. Commit</td><td><code>feat(caveman): wire AGENTS.md block and home hooks.json merge</code></td></tr>
+
+      <tr><td rowspan="8"><b>3.</b> Launch-path integration + config example<br><span class="gsub"><code>icodex.sh</code>, <code>.codex_config.example</code>, <code>tests/test_caveman_launch.sh</code></span></td>
+        <td>1. Написать падающий тест</td><td>создан <code>tests/test_caveman_launch.sh</code></td></tr>
+      <tr><td>2. Запустить тест (FAIL)</td><td><code>icodex.sh</code> ещё не подключает модуль</td></tr>
+      <tr><td>3. Добавить модуль в список source</td><td><code>caveman/caveman</code> в цикле <code>for m</code></td></tr>
+      <tr><td>4. Вызвать <code>ensure_caveman_wiring</code> после <code>ensure_superpowers_wiring</code></td><td>вызов на run-path</td></tr>
+      <tr><td>5. Документировать <code>ICODEX_CAVEMAN_MODE</code></td><td>переменная описана в <code>.codex_config.example</code></td></tr>
+      <tr><td>6. Запустить тест (PASS)</td><td><code>PASS=N FAIL=0</code></td></tr>
+      <tr><td>7. Полный прогон набора тестов</td><td>каждый файл <code>PASS=N FAIL=0</code></td></tr>
+      <tr><td>8. Commit</td><td><code>feat(caveman): run caveman wiring on launch</code></td></tr>
+
+      <tr><td rowspan="5"><b>4.</b> Upstream rules refresh helper<br><span class="gsub"><code>scripts/vendor-caveman.sh</code>, <code>tests/test_caveman_vendor.sh</code></span></td>
+        <td>1. Написать падающий тест (только структура, без сети)</td><td>создан <code>tests/test_caveman_vendor.sh</code></td></tr>
+      <tr><td>2. Запустить тест (FAIL)</td><td><code>vendor-caveman.sh</code> отсутствует</td></tr>
+      <tr><td>3. Написать vendor helper + <code>chmod +x</code></td><td>скрипт существует и исполняемый</td></tr>
+      <tr><td>4. Запустить тест (PASS)</td><td><code>PASS=N FAIL=0</code></td></tr>
+      <tr><td>5. Commit</td><td><code>feat(caveman): add upstream SKILL.md refresh helper</code></td></tr>
+
+      <tr><td rowspan="5"><b>5.</b> Documentation (iwiki)<br><span class="gsub"><code>docs/wiki/caveman.md</code>, <code>docs/wiki/config.md</code>, <code>docs/wiki/architecture.md</code>, <code>docs/wiki/command.md</code></span></td>
+        <td>1. Написать <code>docs/wiki/caveman.md</code></td><td>страница создана; кросс-ссылки <code>[[config]]</code> <code>[[plugins]]</code> <code>[[architecture]]</code></td></tr>
+      <tr><td>2. Добавить запись <code>ICODEX_CAVEMAN_MODE</code> в <code>config.md</code></td><td>запись с <code>[[caveman]]</code></td></tr>
+      <tr><td>3. <span class="badge b-ok">новый</span> Записать launch-path шаг в <code>architecture.md</code> / <code>command.md</code></td><td><code>ensure_caveman_wiring</code> после <code>ensure_superpowers_wiring</code> задокументирован + <code>[[caveman]]</code> ссылка (закрывает F-003 п. a)</td></tr>
+      <tr><td>4. <span class="badge b-ok">новый</span> <code>iwiki:iwiki-ingest lib/caveman/caveman.sh</code> → <code>/iwiki-lint</code></td><td>нет битых ссылок / сирот / устаревших (закрывает F-003 п. b)</td></tr>
+      <tr><td>5. Commit</td><td><code>docs(wiki): document caveman integration and ICODEX_CAVEMAN_MODE</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Схемы зависимостей и пересечений</h2>
+
+  <h3>Граф зависимостей задач (M → N = «результат задачи M используется в задаче N», M&lt;N)</h3>
+  <figure class="rpt-graph">
+    <svg viewBox="0 0 760 250" role="img" aria-label="граф зависимостей задач плана">
+      <defs>
+        <marker id="arr-plan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+        </marker>
+      </defs>
+      <g stroke="var(--line)" stroke-width="1.6" marker-end="url(#arr-plan)" fill="none">
+        <line x1="150" y1="70" x2="270" y2="70"/>   <!-- T1 -> T2 -->
+        <line x1="400" y1="70" x2="520" y2="70"/>   <!-- T2 -> T3 -->
+        <line x1="340" y1="95" x2="610" y2="165"/>  <!-- T2 -> T5 -->
+        <line x1="600" y1="95" x2="650" y2="150"/>  <!-- T3 -> T5 -->
+      </g>
+      <g>
+        <rect class="gnode task" x="30"  y="50" width="120" height="40" rx="6"/><text class="glabel" x="90"  y="68" text-anchor="middle">Задача 1</text><text class="gsub" x="90"  y="82" text-anchor="middle">hook</text>
+        <rect class="gnode task" x="280" y="50" width="120" height="40" rx="6"/><text class="glabel" x="340" y="68" text-anchor="middle">Задача 2</text><text class="gsub" x="340" y="82" text-anchor="middle">wiring + block</text>
+        <rect class="gnode task" x="530" y="50" width="120" height="40" rx="6"/><text class="glabel" x="590" y="68" text-anchor="middle">Задача 3</text><text class="gsub" x="590" y="82" text-anchor="middle">launch + config</text>
+        <rect class="gnode task" x="595" y="150" width="130" height="40" rx="6"/><text class="glabel" x="660" y="168" text-anchor="middle">Задача 5</text><text class="gsub" x="660" y="182" text-anchor="middle">docs (iwiki)</text>
+        <rect class="gnode" x="30"  y="150" width="170" height="40" rx="6"/><text class="glabel" x="115" y="168" text-anchor="middle">Задача 4</text><text class="gsub" x="115" y="182" text-anchor="middle">vendor helper (независимая)</text>
+      </g>
+    </svg>
+    <figcaption>Задача 1 → Задача 2 (модуль ссылается на команду хука) → Задача 3 (icodex.sh вызывает <code>ensure_caveman_wiring</code>); Задачи 2+3 → Задача 5 (доки). Задача 4 независима. Граф ацикличен, нарушений порядка нет.</figcaption>
+  </figure>
+
+  <h3>Пересечения по артефактам (задача × файл) — пересечений по записи нет</h3>
+  <table>
+    <thead><tr><th>Артефакт</th><th>Задача (создаёт / изменяет)</th></tr></thead>
+    <tbody>
+      <tr><td><code>.codex-isolated/hooks/caveman-hook.py</code></td><td>Задача 1 (создаёт)</td></tr>
+      <tr><td><code>.codex-isolated/caveman/agents-block.md</code></td><td>Задача 2 (создаёт)</td></tr>
+      <tr><td><code>lib/caveman/caveman.sh</code></td><td>Задача 2 (создаёт)</td></tr>
+      <tr><td><code>icodex.sh</code></td><td>Задача 3 (изменяет)</td></tr>
+      <tr><td><code>.codex_config.example</code></td><td>Задача 3 (изменяет)</td></tr>
+      <tr><td><code>scripts/vendor-caveman.sh</code></td><td>Задача 4 (создаёт)</td></tr>
+      <tr><td><code>docs/wiki/caveman.md</code>, <code>docs/wiki/config.md</code></td><td>Задача 5 (создаёт / изменяет)</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Логическое пересечение (ссылка, не запись): команда хука <code>python3 "$CODEX_HOME/hooks/caveman-hook.py"</code> встречается в Задаче 1 (путь), Задаче 2 (merge) и тестах — строки идентичны.</p>
+
+  <h3>Покрытие требований (требование → задача)</h3>
+  <table>
+    <thead><tr><th>Требование спеки</th><th>Покрывающая задача</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>SC1 — терсный вывод при <code>ICODEX_CAVEMAN_MODE=full</code></td><td>Задача 2 + Задача 3</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>SC2 — 0 токенов при current == active launch mode</td><td>Задача 1 (тест-кейс steady)</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>SC3 — переключение <code>/caveman</code> + <code>stop caveman</code>/<code>normal mode</code></td><td>Задача 1</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>SC4 — файлы проекта не трогаются (всё в <code>$ICODEX_HOME_DIR</code>)</td><td>Задача 2</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>SC5 — ship default off</td><td>Задача 2 (<code>_caveman_mode</code> пустая ветка) + тест disabled</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>Layer 1 — cached AGENTS.md &lt;2&nbsp;KiB</td><td>Задача 2</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>Layer 2 — один python3 <code>UserPromptSubmit</code> hook</td><td>Задача 1</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>Wiring — merge <code>hooks.json</code>, идемпотентно, после superpowers</td><td>Задача 2 + Задача 3</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>Asset layout</td><td>Задачи 1, 2, 4</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>Documentation (4 действия по спеке)</td><td>Задача 5 (Steps 1–4)</td><td><span class="badge b-ok">покрыто</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Результаты проверки</h2>
+
+  <h3>Статус фаз</h3>
+  <table>
+    <thead><tr><th>Фаза</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>structure</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>coverage</td><td><span class="badge b-ok">passed</span> <span class="gsub">(0 open findings)</span></td></tr>
+      <tr><td>dependencies</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>verifiability</td><td><span class="badge b-ok">passed</span></td></tr>
+      <tr><td>consistency</td><td><span class="badge b-ok">passed</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Findings</h3>
+  <table>
+    <thead><tr><th>id</th><th>severity</th><th>раздел</th><th>fragment</th><th>проблема</th><th>fix</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>F-003</td>
+        <td><span class="badge b-warn">WARNING</span></td>
+        <td>Task 5: Documentation (iwiki)</td>
+        <td><i>«Run: <code>/iwiki-lint</code>»</i></td>
+        <td>Раздел Documentation спеки (строки 274–279) перечисляет четыре действия по докам, Task 5 покрывает три. Не покрыто: (a) обновление <code>docs/wiki/architecture.md</code> / <code>docs/wiki/command.md</code> (шаг launch-path) и (b) запуск <code>iwiki:iwiki-ingest</code> на изменённых источниках. Не блокирует: только doc-кросс-ссылки, ни один критерий успеха не становится непроверяемым.</td>
+        <td>Добавить в Task 5 шаг обновления <code>architecture.md</code>/<code>command.md</code> (<code>ensure_caveman_wiring</code> после <code>ensure_superpowers_wiring</code>) и вызов <code>iwiki:iwiki-ingest</code> перед <code>/iwiki-lint</code> (строки спеки 278–279).</td>
+        <td><span class="badge b-ok">fixed</span> — Task 5 теперь содержит Step 3 (<code>architecture.md</code>/<code>command.md</code>) и Step 4 (<code>iwiki:iwiki-ingest</code> → <code>/iwiki-lint</code>), закрывающие оба пункта; <code>section_hash</code> изменился <code>1afd1a71fd476e30</code> → <code>aff67d847ae44527</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Сводка</h3>
+  <table>
+    <tbody>
+      <tr><th>CRITICAL open</th><td>0</td></tr>
+      <tr><th>WARNING open</th><td>0</td></tr>
+      <tr><th>Финальный вердикт</th><td><span class="badge b-ok">OK (pass)</span> — 0 CRITICAL, 0 open findings; F-003 закрыт (fixed)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Цепочка</h3>
+  <p class="note">intent → spec → <b>plan</b>. <code>intent_path = null</code> (intent-документ не найден). spec = <code>docs/superpowers/specs/2026-06-29-caveman-icodex-design.md</code> → plan = <code>docs/superpowers/plans/2026-06-29-caveman-icodex.md</code>.</p>
+
+</section>
+<!-- TAB:plan END -->
+
+<!-- TAB:result START -->
+<section class="tab-pane" id="pane-result">
+
+  <h2>1. Резюме сверки</h2>
+  <table>
+    <tbody>
+      <tr><th>Plan</th><td><code>docs/superpowers/plans/2026-06-29-caveman-icodex.md</code></td></tr>
+      <tr><th>Spec</th><td><code>docs/superpowers/specs/2026-06-29-caveman-icodex-design.md</code></td></tr>
+      <tr><th>Intent</th><td>отсутствует (<code>chain.intent: null</code>)</td></tr>
+      <tr><th>Diff base</th><td><code>git diff 720398b..HEAD</code> — 27 файлов изменено, +2529 / −6 строк</td></tr>
+      <tr><th>Ветка</th><td><code>dev-caveman-icodex</code></td></tr>
+      <tr><th>Дата проверки</th><td>2026-06-30</td></tr>
+      <tr><th>plan_hash</th><td><code>1e7060ab0c91f233</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Покрытие шагов плана</h2>
+  <table>
+    <thead><tr><th>Статус</th><th>Кол-во задач</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge b-ok">DONE</span></td><td>5 из 5</td></tr>
+      <tr><td><span class="badge b-warn">PARTIAL</span></td><td>0</td></tr>
+      <tr><td><span class="badge b-danger">MISSING</span></td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Task 1 — Caveman <code>UserPromptSubmit</code> hook</h3>
+  <table>
+    <thead><tr><th>Артефакт</th><th>Свидетельство в diff</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td><code>.codex-isolated/hooks/caveman-hook.py</code></td><td>новый файл, 96 строк, python3 stdlib; коммиты <code>cde1112</code> + <code>2c68261</code> + <code>680bc2d</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td><code>tests/test_caveman_hook.sh</code></td><td>новый файл, 73 строки, 5 тест-кейсов</td><td><span class="badge b-ok">DONE</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Task 2 — Wiring module + AGENTS.md block template</h3>
+  <table>
+    <thead><tr><th>Артефакт</th><th>Свидетельство в diff</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td><code>.codex-isolated/caveman/agents-block.md</code></td><td>новый файл, 26 строк, placeholder <code>__CAVEMAN_MODE__</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td><code>lib/caveman/caveman.sh</code></td><td>новый файл, 107 строк, <code>ensure_caveman_wiring</code>; коммиты <code>938dd91</code> + <code>c833552</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td><code>tests/test_caveman_wiring.sh</code></td><td>новый файл, 58 строк, 3 тест-кейса (enabled / idempotent / disabled)</td><td><span class="badge b-ok">DONE</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Task 3 — Launch-path integration + config example</h3>
+  <table>
+    <thead><tr><th>Артефакт</th><th>Свидетельство в diff</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td><code>icodex.sh</code></td><td><code>caveman/caveman</code> добавлен в список модулей; <code>ensure_caveman_wiring</code> вызван после <code>ensure_superpowers_wiring</code>; коммит <code>c604eef</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td><code>.codex_config.example</code></td><td>добавлена секция <code>ICODEX_CAVEMAN_MODE</code> с описанием режимов</td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td><code>tests/test_caveman_launch.sh</code></td><td>новый файл, 19 строк</td><td><span class="badge b-ok">DONE</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Task 4 — Upstream rules refresh helper</h3>
+  <table>
+    <thead><tr><th>Артефакт</th><th>Свидетельство в diff</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td><code>scripts/vendor-caveman.sh</code></td><td>новый исполняемый файл, 18 строк; ссылается на <code>JuliusBrussee/caveman</code>; пишет <code>upstream-SKILL.md</code>; коммит <code>3ddb0fa</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td><code>tests/test_caveman_vendor.sh</code></td><td>новый файл, 13 строк</td><td><span class="badge b-ok">DONE</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Task 5 — Documentation (iwiki)</h3>
+  <table>
+    <thead><tr><th>Артефакт</th><th>Свидетельство в diff</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td><code>docs/wiki/caveman.md</code></td><td>новый файл, 141 строка; кросс-ссылки <code>[[config]]</code>, <code>[[architecture]]</code>, <code>[[plugins]]</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td><code>docs/wiki/config.md</code></td><td>добавлена секция <code>ICODEX_CAVEMAN_MODE</code> с <code>[[caveman]]</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td><code>docs/wiki/architecture.md</code></td><td><code>ensure_caveman_wiring</code> в «Default run path» + <code>[[caveman#Launch-path wiring]]</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td><code>docs/wiki/command.md</code></td><td>раздел <code>## Launch sequence</code> с полным описанием + <code>[[caveman#Launch-path wiring]]</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td><code>docs/wiki/tooling.md</code></td><td>добавлены <code>test_caveman_*</code> тесты в список</td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td><code>docs/wiki/.iwiki/index.jsonl</code>, <code>log.jsonl</code></td><td>переиндексированы; коммиты <code>ad7888b</code> + <code>9c1ed76</code> + <code>11032a8</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Таблица находок</h2>
+  <table>
+    <thead><tr><th>Severity</th><th>Шаг / область</th><th>Plan</th><th>Diff</th><th>Fix options</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="badge b-warn">WARNING</span></td>
+        <td>EXCESS — коммит <code>34fd3f1 feat(hooks)</code></td>
+        <td>Нет соответствующего шага в плане</td>
+        <td>7 файлов добавлены вне плана: <code>.codex-isolated/hooks.json</code>, <code>hooks/block-secrets.py</code>, <code>hooks/redact-secrets.py</code>, <code>tests/test_codex_hooks.sh</code>, <code>lib/config/isolated.sh</code>, <code>tests/test_isolated.sh</code>, <code>.gitignore</code></td>
+        <td>1. Принять как обоснованный пре-реквизит — shared <code>hooks.json</code> необходим для <code>_caveman_enable_hooks_json</code>; добавить ретроспективный шаг в план.<br>2. Оставить как есть — изменения не мешают caveman-функциональности, тесты зелёные.</td>
+      </tr>
+      <tr>
+        <td><span class="badge b-prog">INFO</span></td>
+        <td>Task 1, Step 3 — реализация hook</td>
+        <td>Код в плане: <code>prompt = data.get("prompt", "") or ""</code></td>
+        <td>Итоговый код: <code>prompt = str(data.get("prompt") or "")</code> + защита <code>if not isinstance(data, dict)</code> (коммиты <code>2c68261</code>, <code>680bc2d</code>)</td>
+        <td>Семантически эквивалентно плану, дополнительно усилено. Расхождение несущественно, доработки не требует.</td>
+      </tr>
+      <tr>
+        <td><span class="badge b-prog">INFO</span></td>
+        <td>Task 2, Step 4 — wiring module</td>
+        <td>Код в плане: <code>_caveman_write_agents_region "$agents" ""</code> только при disable</td>
+        <td>Итоговый код (коммит <code>c833552</code>): запись AGENTS.md безусловна — более надёжная очистка</td>
+        <td>Расширение поведения, не регрессия. Доработки не требует.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>4. Покрытие spec (Intent / Spec)</h2>
+
+  <div class="note"><b>Intent:</b> отсутствует (<code>chain.intent: null</code>) — проверка intent пропущена.</div>
+
+  <h3>Spec Success Criteria — 5/5 покрыто</h3>
+  <table>
+    <thead><tr><th>#</th><th>Критерий</th><th>Покрывающий шаг</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>SC1</td><td><code>ICODEX_CAVEMAN_MODE=full</code> → терсный вывод</td><td>Task 2 (AGENTS.md block) + Task 3 (launch wiring)</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>SC2</td><td>0 токенов при current == active launch mode</td><td>Task 1 тест-кейс 1 (steady-state пустой stdout)</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>SC3</td><td><code>/caveman</code> + <code>stop caveman</code>/<code>normal mode</code> переключают режим</td><td>Task 1 (hook switch logic, тест-кейсы 2–4)</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>SC4</td><td>Файлы проекта не трогаются</td><td>Task 2 (все записи идут в <code>ICODEX_HOME_DIR</code>); изолированный тест-харнесс</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>SC5</td><td>Ship default = off</td><td>Task 2 <code>_caveman_mode</code> пустая ветка + тест-кейс disabled</td><td><span class="badge b-ok">покрыто</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Spec Documentation requirements — 4/4 покрыто</h3>
+  <table>
+    <thead><tr><th>Требование (spec lines 274–279)</th><th>Свидетельство</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>Новый <code>docs/wiki/caveman.md</code></td><td>файл создан, 141 строка</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>Обновить <code>docs/wiki/config.md</code> (<code>ICODEX_CAVEMAN_MODE</code>)</td><td>секция добавлена с <code>[[caveman]]</code></td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td>Обновить <code>architecture.md</code> / <code>command.md</code> (launch-path step)</td><td><code>ensure_caveman_wiring</code> задокументирован в обоих файлах</td><td><span class="badge b-ok">покрыто</span></td></tr>
+      <tr><td><code>iwiki:iwiki-ingest</code> на изменённых источниках + <code>/iwiki-lint</code></td><td><code>.iwiki/index.jsonl</code>, <code>log.jsonl</code> переиндексированы; lint пройден (0 broken, 0 orphans)</td><td><span class="badge b-ok">покрыто</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Excess-изменения</h2>
+  <p>Коммит <code>34fd3f1 feat(hooks): add Codex secret guards</code> добавил 7 файлов без соответствующего шага плана:</p>
+  <table>
+    <thead><tr><th>Файл</th><th>Связь с caveman</th></tr></thead>
+    <tbody>
+      <tr><td><code>.codex-isolated/hooks.json</code></td><td>пре-реквизит — shared hooks.json нужен для <code>_caveman_enable_hooks_json</code> merge</td></tr>
+      <tr><td><code>.codex-isolated/hooks/block-secrets.py</code></td><td>пре-реквизит — hook регистрируется в том же файле</td></tr>
+      <tr><td><code>.codex-isolated/hooks/redact-secrets.py</code></td><td>пре-реквизит — hook регистрируется в том же файле</td></tr>
+      <tr><td><code>tests/test_codex_hooks.sh</code></td><td>тест для пре-реквизита</td></tr>
+      <tr><td><code>lib/config/isolated.sh</code></td><td>незначительное расширение</td></tr>
+      <tr><td><code>tests/test_isolated.sh</code></td><td>тест для расширения</td></tr>
+      <tr><td><code>.gitignore</code></td><td>whitelist <code>.codex-isolated/caveman</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. Итог</h2>
+  <table>
+    <thead><tr><th>Метрика</th><th>Значение</th></tr></thead>
+    <tbody>
+      <tr><td>DONE</td><td>5 / 5 задач</td></tr>
+      <tr><td>PARTIAL</td><td>0</td></tr>
+      <tr><td>MISSING</td><td>0</td></tr>
+      <tr><td><span class="badge b-danger">CRITICAL</span></td><td>0</td></tr>
+      <tr><td><span class="badge b-warn">WARNING</span></td><td>1 (excess changes — пре-реквизитные secret guards без шага плана)</td></tr>
+      <tr><td><span class="badge b-prog">INFO</span></td><td>2 (незначительные расхождения кода, неблокирующие)</td></tr>
+      <tr><td>SC покрыто</td><td>5 / 5</td></tr>
+      <tr><td>Doc требования покрыто</td><td>4 / 4</td></tr>
+      <tr><td><b>Вердикт</b></td><td><span class="badge b-ok">OK</span> — 0 CRITICAL, всё задокументировано, все тесты зелёные</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p><b>Цепочка:</b> (intent отсутствует) → <code>docs/superpowers/specs/2026-06-29-caveman-icodex-design.md</code> → <code>docs/superpowers/plans/2026-06-29-caveman-icodex.md</code></p>
+    <p><b>plan_hash:</b> <code>1e7060ab0c91f233</code> · <b>last_run:</b> 2026-06-30</p>
+  </div>
+
+</section>
+<!-- TAB:result END -->
+
+</body>
+</html>

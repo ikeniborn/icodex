@@ -10,7 +10,10 @@ source "$ROOT/lib/config/isolated.sh"
 
 # Build a shared store fixture: plugins dir + config template
 mkdir -p "$ICODEX_SHARED_DIR/plugins"
+mkdir -p "$ICODEX_SHARED_DIR/hooks"
 printf 'sandbox_mode = "workspace-write"\n' > "$ICODEX_SHARED_DIR/config.toml"
+printf '{"hooks":{}}\n' > "$ICODEX_SHARED_DIR/hooks.json"
+printf '#!/usr/bin/env python3\n' > "$ICODEX_SHARED_DIR/hooks/example.py"
 
 # Run from a non-git working dir so resolve_project_root falls back to pwd -P
 work="$tmp/work/sub"; mkdir -p "$work"
@@ -29,6 +32,10 @@ assert_eq  "CODEX_HOME exported" "$ICODEX_HOME_DIR" "${CODEX_HOME:-}"
 assert_exit "home created"       0 test -d "$ICODEX_HOME_DIR"
 assert_exit "plugins symlink"    0 test -L "$ICODEX_HOME_DIR/plugins"
 assert_eq  "plugins -> shared"   "$ICODEX_SHARED_DIR/plugins" "$(readlink "$ICODEX_HOME_DIR/plugins")"
+assert_exit "hooks symlink"      0 test -L "$ICODEX_HOME_DIR/hooks"
+assert_eq  "hooks -> shared"     "$ICODEX_SHARED_DIR/hooks" "$(readlink "$ICODEX_HOME_DIR/hooks")"
+assert_exit "hooks json symlink" 0 test -L "$ICODEX_HOME_DIR/hooks.json"
+assert_eq  "hooks json -> shared" "$ICODEX_SHARED_DIR/hooks.json" "$(readlink "$ICODEX_HOME_DIR/hooks.json")"
 assert_exit "auth symlink"       0 test -L "$ICODEX_HOME_DIR/auth.json"
 assert_eq  "auth -> shared"      "$ICODEX_SHARED_DIR/auth.json" "$(readlink "$ICODEX_HOME_DIR/auth.json")"
 assert_exit "config copied"      0 test -f "$ICODEX_HOME_DIR/config.toml"

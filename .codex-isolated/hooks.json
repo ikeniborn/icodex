@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write|Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CODEX_HOME/hooks/block-secrets.py\"",
+            "timeout": 30,
+            "statusMessage": "Checking sensitive paths"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CODEX_HOME/hooks/redact-secrets.py\"",
+            "timeout": 30,
+            "statusMessage": "Checking secret content"
+          }
+        ]
+      }
+    ]
+  }
+}
