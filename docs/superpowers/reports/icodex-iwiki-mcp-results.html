@@ -74,9 +74,9 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
 <body>
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden checked>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
 <input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
 <header>
   <h1>Цепочка IDD→SDD — <code>icodex-iwiki-mcp</code></h1>
   <label for="theme-toggle" class="theme-btn" title="Переключить тему">🌙 / ☀️</label>
@@ -373,7 +373,104 @@ svg text{ fill:var(--fg); font:12px system-ui,sans-serif; }
 
 <!-- TAB:result START -->
 <section class="tab-pane" id="pane-result">
-  <p class="note">Этап ещё не проверен.</p>
+
+  <h2>1. Резюме сверки</h2>
+  <p>Сверка выполненных изменений ветки <code>dev-iwiki-mcp</code> с цепочкой IDD→SDD.
+  Intent отсутствует (<code>chain.intent = null</code>) — корнем цепочки служит спецификация.
+  Изменения закоммичены, поэтому база diff — вклад ветки относительно <code>main</code>
+  (<code>git diff main...HEAD</code>, merge-base <code>eb9bfc8</code>). Хеш тела плана
+  <code>bf79f24ecdb032b9</code> совпадает с <code>review.plan_hash</code> — тело плана не менялось.</p>
+
+  <table>
+    <thead><tr><th>Документ</th><th>Путь</th></tr></thead>
+    <tbody>
+      <tr><td>Plan</td><td><code>docs/superpowers/plans/2026-06-30-icodex-iwiki-mcp.md</code></td></tr>
+      <tr><td>Spec</td><td><code>docs/superpowers/specs/2026-06-30-icodex-iwiki-mcp-design.md</code></td></tr>
+      <tr><td>Intent</td><td>не найден (<code>chain.intent = null</code>)</td></tr>
+      <tr><td>База diff</td><td><code>git diff main...HEAD</code> — 12 файлов изменено (8 реализация/тесты/конфиг, 4 артефакта цепочки)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Результаты проверки</h2>
+
+  <h3>Покрытие шагов плана</h3>
+  <table>
+    <thead><tr><th>Метрика</th><th>Значение</th></tr></thead>
+    <tbody>
+      <tr><td>DONE</td><td>5 задач (T1–T5)</td></tr>
+      <tr><td>PARTIAL</td><td>0</td></tr>
+      <tr><td>MISSING</td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <table>
+    <thead><tr><th>Задача</th><th>Статус</th><th>Свидетельство в diff / проверке</th></tr></thead>
+    <tbody>
+      <tr><td><b>T1</b> — <code>env.sh</code> allowlist + <code>apply_iwiki_env</code></td><td><span class="badge b-ok">DONE</span></td><td><code>_config_key_allowed</code> переписан (raw <code>IWIKI_*</code> отвергается, <code>ICODEX_IWIKI_*</code> разрешён); <code>apply_iwiki_env</code> добавлен после <code>apply_api_key</code>; <code>tests/test_iwiki_env.sh</code> — <code>PASS=10 FAIL=0</code>.</td></tr>
+      <tr><td><b>T2</b> — <code>lib/iwiki/iwiki.sh</code> ×2 функции</td><td><span class="badge b-ok">DONE</span></td><td>Новый модуль с <code>ensure_iwiki_wiring</code> + <code>ensure_iwiki_binding</code> (тело совпадает со спецификацией дословно); <code>test_iwiki_wiring.sh</code> — <code>16/0</code>, <code>test_iwiki_binding.sh</code> — <code>14/0</code>.</td></tr>
+      <tr><td><b>T3</b> — <code>icodex.sh</code> launch wiring</td><td><span class="badge b-ok">DONE</span></td><td><code>iwiki/iwiki</code> в source-loop, <code>apply_iwiki_env</code> после <code>apply_api_key</code>, <code>ensure_iwiki_wiring</code> + <code>ensure_iwiki_binding</code> после <code>ensure_idd_wiring</code>; <code>bash -n</code> OK; grep — 4 совпадения.</td></tr>
+      <tr><td><b>T4</b> — Документация конфига</td><td><span class="badge b-ok">DONE</span></td><td><code>.codex_config.example</code> документирует только <code>#ICODEX_IWIKI_LLM_KEY=sk-...</code> (count=1, утечек=0); живой секрет в <code>.codex_config</code> намеренно не закоммичен (git-ignored).</td></tr>
+      <tr><td><b>T5</b> — Сквозная проверка</td><td><span class="badge b-ok">DONE</span></td><td>Верификация на живом home: регион в конце <code>config.toml</code>, валидный TOML (<code>tomllib</code>), <code>IDEMPOTENT</code>, seed+симлинк <code>.iwiki.toml</code>. Кода не предполагалось.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Находки</h3>
+  <table>
+    <thead><tr><th>severity</th><th>шаг</th><th>Plan</th><th>Diff</th><th>Fix options</th></tr></thead>
+    <tbody>
+      <tr><td colspan="5" style="text-align:center; color:var(--muted)">Находок нет — ни MISSING, ни PARTIAL, ни несвязанных изменений.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Покрытие Intent / Spec</h3>
+  <table>
+    <thead><tr><th>Источник</th><th>Покрыто</th><th>Комментарий</th></tr></thead>
+    <tbody>
+      <tr><td>Desired Outcomes (intent)</td><td>n/a</td><td>Intent отсутствует; цепочка начинается со спецификации.</td></tr>
+      <tr><td>Spec requirements</td><td>5/5 компонентов</td><td>Component 1–5 покрыты (см. вкладку Plan, карта компонент→задача); SC1–SC5 подтверждены прогоном тестов.</td></tr>
+      <tr><td>Out-of-scope соблюдён</td><td>да</td><td>Нет iclaude-изменений, нет изолированной установки, нет <code>IWIKI_PROJECT_DIR</code>, нет gate, несекретные настройки литералом в блоке.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Несвязанные изменения (excess)</h3>
+  <table>
+    <thead><tr><th>Файл</th><th>Оценка</th></tr></thead>
+    <tbody>
+      <tr><td><code>tests/test_smoke.sh</code></td><td><span class="badge b-ok">связано</span> — guard перевёрнут на «iwiki wiring/binding присутствуют», прямо следует из T3 (ожидаемо).</td></tr>
+      <tr><td><code>docs/TODO.md</code>, plan/spec/report</td><td><span class="badge b-ok">артефакты цепочки</span> — не реализация, ведутся IDD-командами.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Проверки целостности (выполнены при сверке)</h3>
+  <table>
+    <thead><tr><th>Проверка</th><th>Результат</th></tr></thead>
+    <tbody>
+      <tr><td>Полный набор тестов</td><td><span class="badge b-ok">31 файл · FAIL=0</span></td></tr>
+      <tr><td><code>bash -n icodex.sh</code></td><td><span class="badge b-ok">syntax OK</span></td></tr>
+      <tr><td>E2E: регион в живом home + валидный TOML + идемпотентность</td><td><span class="badge b-ok">OK</span></td></tr>
+      <tr><td>Скан секрета в tracked-файлах (<code>sk-[A-Za-z0-9]{16,}</code>)</td><td><span class="badge b-ok">0 совпадений</span> (только плейсхолдер <code>sk-...</code> и имя env-переменной)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Цепочка</h2>
+  <div class="flow">
+    <div class="block"><b>Intent</b><span>отсутствует (null)</span></div>
+    <span class="arrow">→</span>
+    <div class="block"><b>Spec</b><span>OK · d39d942250d15e05</span></div>
+    <span class="arrow">→</span>
+    <div class="block"><b>Plan</b><span>OK · bf79f24ecdb032b9</span></div>
+    <span class="arrow">→</span>
+    <div class="block"><b>Result</b><span>OK · bf79f24ecdb032b9</span></div>
+  </div>
+
+  <div class="note">
+    <b>Сводка:</b> CRITICAL: 0 &nbsp;·&nbsp; WARNING: 0 &nbsp;·&nbsp; INFO: 0<br>
+    <b>Вердикт:</b> <span class="badge b-ok">OK</span><br>
+    <b>Цепочка:</b> intent → spec → plan → <b>result</b> (intent не найден; <code>chain.intent = null</code>).<br>
+    <span class="legend">Шаги плана: DONE 5 / PARTIAL 0 / MISSING 0. Spec-компоненты 5/5. Несвязанных изменений реализации нет.</span><br>
+    <span class="legend">result_check: verdict OK · plan_hash <code>bf79f24ecdb032b9</code> · last_run 2026-07-01</span>
+  </div>
+
 </section>
 <!-- TAB:result END -->
 
