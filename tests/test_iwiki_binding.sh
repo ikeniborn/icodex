@@ -44,4 +44,22 @@ assert_exit "unset project root -> noop 0" 0 ensure_iwiki_binding
 export ICODEX_PROJECT_ROOT="$tmp/myproj"; unset ICODEX_HOME_DIR
 assert_exit "unset home -> noop 0" 0 ensure_iwiki_binding
 
+# --- pre-existing REAL file at home .iwiki.toml is left untouched ---
+export ICODEX_PROJECT_ROOT="$tmp/proj2"
+export ICODEX_HOME_DIR="$tmp/home2"
+mkdir -p "$ICODEX_PROJECT_ROOT" "$ICODEX_HOME_DIR"
+printf 'sentinel\n' > "$ICODEX_HOME_DIR/.iwiki.toml"
+ensure_iwiki_binding
+assert_eq "home real file not symlink" "1" "$([[ -L "$ICODEX_HOME_DIR/.iwiki.toml" ]] && echo 0 || echo 1)"
+assert_contains "home real file untouched" "$(cat "$ICODEX_HOME_DIR/.iwiki.toml")" "sentinel"
+
+# --- dangling symlink at project root .iwiki.toml is preserved ---
+export ICODEX_PROJECT_ROOT="$tmp/proj3"
+export ICODEX_HOME_DIR="$tmp/home3"
+mkdir -p "$ICODEX_PROJECT_ROOT" "$ICODEX_HOME_DIR"
+ln -s "$tmp/nonexistent-target" "$ICODEX_PROJECT_ROOT/.iwiki.toml"
+ensure_iwiki_binding
+assert_eq "project dangling symlink is symlink" "0" "$([[ -L "$ICODEX_PROJECT_ROOT/.iwiki.toml" ]] && echo 0 || echo 1)"
+assert_eq "project dangling symlink target preserved" "$tmp/nonexistent-target" "$(readlink "$ICODEX_PROJECT_ROOT/.iwiki.toml")"
+
 finish
