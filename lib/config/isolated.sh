@@ -36,6 +36,7 @@ setup_codex_home() {
   resolve_codex_home
   mkdir -p "$ICODEX_HOME_DIR"
   _link_shared plugins
+  _link_shared skills
   _link_shared hooks
   _link_shared hooks.json
   _link_shared auth.json
