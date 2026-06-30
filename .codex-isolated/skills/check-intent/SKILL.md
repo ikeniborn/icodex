@@ -4,16 +4,6 @@ description: >-
   Validate an intent doc (docs/superpowers/intents/*-intent.md) against the IDD->SDD phase model before brainstorming. Triggers on "/check-intent", "check the intent", "validate intent". Run from a clean-context subagent after an intent is written; reports verdicts to the main session. Skip for hotfixes.
 ---
 
-## Execution context
-
-This validator runs in a **clean-context subagent** (the check-runner protocol):
-the subagent runs the deterministic phases on the artifact body, writes findings
-into the artifact's `review:` or `result_check:` frontmatter with open verdicts, and returns the
-phase statuses + findings to the main session, which collects verdicts with the
-user. Advisory alignment/coverage-context steps are skipped silently when their
-inputs (conversation tasks, `iwiki`/`lat_*` MCP) are unavailable. Never edit the
-artifact body; only the validation frontmatter (`review:` or `result_check:`) may be updated.
-
 Check the intent doc (root of the IDD→SDD chain) for self-consistency, using the phase model and the state in frontmatter.
 
 Supported arguments:
@@ -45,7 +35,7 @@ If there is frontmatter with a `review:` block and `current_body_hash == review.
 
 ### Step 1. Determine scope
 
-- If a path is passed in the skill invocation argument — work with the specified file
+- If a path is passed in `$ARGUMENTS` — work with the specified file
 - Otherwise, if the task topic is known from context — find the file by name in `docs/superpowers/intents/`
 - Otherwise — the most recently modified file in `docs/superpowers/intents/`
 - If not found — report: «Не найден intent doc. Укажи путь: `/check-intent path/to/intent.md`»
@@ -220,3 +210,5 @@ Append to the end of the report (intent is the root of the chain, the footer loo
 ---
 Next step: superpowers:brainstorming
 ```
+
+$ARGUMENTS

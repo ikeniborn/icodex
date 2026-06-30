@@ -4,16 +4,6 @@ description: >-
   Validate a plan doc (docs/superpowers/plans/*.md) against the IDD->SDD phase model before executing-plans or subagent-driven-development. Triggers on "/check-plan", "check the plan", "validate plan". Run from a clean-context subagent after a plan is written; reports verdicts to the main session. Skip for hotfixes.
 ---
 
-## Execution context
-
-This validator runs in a **clean-context subagent** (the check-runner protocol):
-the subagent runs the deterministic phases on the artifact body, writes findings
-into the artifact's `review:` or `result_check:` frontmatter with open verdicts, and returns the
-phase statuses + findings to the main session, which collects verdicts with the
-user. Advisory alignment/coverage-context steps are skipped silently when their
-inputs (conversation tasks, `iwiki`/`lat_*` MCP) are unavailable. Never edit the
-artifact body; only the validation frontmatter (`review:` or `result_check:`) may be updated.
-
 Check the plan against the specification, using the phase model and the state in frontmatter.
 
 Supported arguments:
@@ -45,7 +35,7 @@ If the plan has frontmatter with a `review:` block, `plan_hash` matches the plan
 ### Step 1. Determine scope
 
 - If the task name/topic is known — find the plan in `docs/superpowers/plans/`, the spec in `docs/superpowers/specs/`
-- If a path is passed in the skill invocation argument — work with the specified plan
+- If a path is passed in `$ARGUMENTS` — work with the specified plan
 - Otherwise — the most recently modified file in `docs/superpowers/plans/`
 - Spec: match by name, or the most recently modified file in `docs/superpowers/specs/`
 - If not found — report: «Не найден план. Укажи путь: `/check-plan path/to/plan.md`»
@@ -212,3 +202,5 @@ If `intent_path` is known — also add the line:
 ```
 Chain: <intent_path> → <spec_path> → <plan_path>
 ```
+
+$ARGUMENTS

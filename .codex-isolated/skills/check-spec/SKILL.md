@@ -4,16 +4,6 @@ description: >-
   Validate a specification doc (docs/superpowers/specs/*-design.md) against the IDD->SDD phase model before writing-plans. Triggers on "/check-spec", "check the spec", "validate spec". Run from a clean-context subagent after a spec is written; reports verdicts to the main session. Skip for hotfixes.
 ---
 
-## Execution context
-
-This validator runs in a **clean-context subagent** (the check-runner protocol):
-the subagent runs the deterministic phases on the artifact body, writes findings
-into the artifact's `review:` or `result_check:` frontmatter with open verdicts, and returns the
-phase statuses + findings to the main session, which collects verdicts with the
-user. Advisory alignment/coverage-context steps are skipped silently when their
-inputs (conversation tasks, `iwiki`/`lat_*` MCP) are unavailable. Never edit the
-artifact body; only the validation frontmatter (`review:` or `result_check:`) may be updated.
-
 Check the specification against the tasks, using the phase model and the state in frontmatter.
 
 Supported arguments:
@@ -45,12 +35,12 @@ If there is frontmatter with a `review:` block and `current_body_hash == review.
 ### Step 1. Determine scope
 
 - If the task name/topic is known from context — find the file by name in `docs/superpowers/specs/`
-- If a path is passed in the skill invocation argument — work with the specified file
+- If a path is passed in `$ARGUMENTS` — work with the specified file
 - Otherwise — the most recently modified file in `docs/superpowers/specs/`
 - If not found — report: «Не найдена спецификация. Укажи путь: `/check-spec path/to/spec.md`»
 
 Additionally — determine the path to the intent doc:
-- If the skill invocation argument contains a second path (to a `*intent.md` file) — use it
+- If `$ARGUMENTS` contains a second path (to a `*intent.md` file) — use it
 - If the intent doc is mentioned in the conversation context — use it
 - Otherwise — extract `<topic>` from the spec filename (`YYYY-MM-DD-<topic>-design.md`) and run:
   ```bash
@@ -209,3 +199,5 @@ If `intent_path` is known — append to the end of the report:
 ---
 Previous step: <intent_path>
 ```
+
+$ARGUMENTS

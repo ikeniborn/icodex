@@ -4,16 +4,6 @@ description: >-
   Reconcile implementation results with the IDD->SDD chain before finishing-a-development-branch. Triggers on "/check-result", "check the result", "validate result". Run from a clean-context subagent after implementation; writes result_check frontmatter and reports verdicts to the main session. Skip for hotfixes.
 ---
 
-## Execution context
-
-This validator runs in a **clean-context subagent** (the check-runner protocol):
-the subagent runs the deterministic phases on the artifact body, writes findings
-into the artifact's `review:` or `result_check:` frontmatter with open verdicts, and returns the
-phase statuses + findings to the main session, which collects verdicts with the
-user. Advisory alignment/coverage-context steps are skipped silently when their
-inputs (conversation tasks, `iwiki`/`lat_*` MCP) are unavailable. Never edit the
-artifact body; only the validation frontmatter (`review:` or `result_check:`) may be updated.
-
 Reconcile the plan's execution results with the IDD→SDD chain: intent + spec + plan vs git diff.
 
 Supported arguments:
@@ -32,7 +22,7 @@ awk 'BEGIN{fm=0} /^---$/{fm++; next} fm>=2{print}' <PLAN_FILE> | sha256sum | cut
 
 ### Step 1. Load the plan
 
-- Read the plan file from the skill invocation argument
+- Read the plan file from `$ARGUMENTS`
 - Extract `chain.intent` and `chain.spec` from the frontmatter
 - If absent — extract `<topic>` from the plan filename (`YYYY-MM-DD-<topic>-plan.md`) and run:
   ```bash
@@ -191,3 +181,5 @@ Chain: <intent_path> → <spec_path> → <plan_path>
 - Emitting a finding without a reference to a specific plan step or outcome — an unanchored finding is unprovable and the author cannot resolve it
 - Running a code review (syntax, security) — that is not this command's purpose; it duplicates `/review` and dilutes the plan↔diff reconciliation focus
 - Writing «вероятно выполнено» without evidence in the diff — a verdict without evidence yields a false OK and lets an unfinished step slip through
+
+$ARGUMENTS
