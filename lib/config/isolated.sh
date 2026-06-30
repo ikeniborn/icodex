@@ -26,6 +26,34 @@ _link_shared() { # <name>
   ln -s "$src" "$target"
 }
 
+_AGENTS_BASE_REGION_START="<!-- icodex:base:start -->"
+_AGENTS_BASE_REGION_END="<!-- icodex:base:end -->"
+
+# Maintain a delimited base region in <file>, re-synced from the shared AGENTS.md
+# on every launch so edits to .codex-isolated/AGENTS.md propagate to every home.
+# Strips any existing base region and re-appends the current shared content; any
+# other region (e.g. caveman) or free text outside the markers is preserved.
+# Idempotent: writes only when the result differs. Mirrors the region mechanism
+# in lib/caveman/caveman.sh (_caveman_write_agents_region).
+_sync_agents_base_region() { # <file>
+  local file="$1" src="$ICODEX_SHARED_DIR/AGENTS.md" base tmp
+  [[ -f "$src" ]] || return 0
+  base="$(cat "$src")"
+  tmp="$(mktemp)"
+  if [[ -f "$file" ]]; then
+    awk -v s="$_AGENTS_BASE_REGION_START" -v e="$_AGENTS_BASE_REGION_END" '
+      $0 == s { skip=1; next }
+      $0 == e { skip=0; next }
+      !skip { print }
+    ' "$file" > "$tmp"
+  fi
+  printf '%s\n%s\n%s\n' "$_AGENTS_BASE_REGION_START" "$base" "$_AGENTS_BASE_REGION_END" >> "$tmp"
+  if [[ ! -f "$file" ]] || ! cmp -s "$tmp" "$file"; then
+    cat "$tmp" > "$file"
+  fi
+  rm -f "$tmp"
+}
+
 # Create the shared bin dir (install/update path; no per-project home needed).
 setup_shared_dirs() {
   mkdir -p "$ICODEX_SHARED_DIR/bin"
@@ -43,5 +71,6 @@ setup_codex_home() {
   _link_shared rules       # codex execution-policy → runtime
   [[ -f "$ICODEX_HOME_DIR/config.toml" ]] \
     || cp "$ICODEX_SHARED_DIR/config.toml" "$ICODEX_HOME_DIR/config.toml"
+  _sync_agents_base_region "$ICODEX_HOME_DIR/AGENTS.md"
   export CODEX_HOME="$ICODEX_HOME_DIR"
 }

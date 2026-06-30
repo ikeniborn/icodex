@@ -20,6 +20,8 @@ printf 'name: sample\n' > "$ICODEX_SHARED_DIR/skills/sample-skill/SKILL.md"
 # rules fixture: the execution-policy file
 mkdir -p "$ICODEX_SHARED_DIR/rules"
 printf 'prefix_rule(pattern=["git"], decision="allow")\n' > "$ICODEX_SHARED_DIR/rules/default.rules"
+# AGENTS.md base fixture (the global guidance that must reach the home)
+printf '# Base guidelines\nLine one.\n' > "$ICODEX_SHARED_DIR/AGENTS.md"
 
 # Run from a non-git working dir so resolve_project_root falls back to pwd -P
 work="$tmp/work/sub"; mkdir -p "$work"
@@ -49,6 +51,11 @@ assert_exit "skills symlink"     0 test -L "$ICODEX_HOME_DIR/skills"
 assert_eq  "skills -> shared"    "$ICODEX_SHARED_DIR/skills" "$(readlink "$ICODEX_HOME_DIR/skills")"
 assert_exit "rules symlink"      0 test -L "$ICODEX_HOME_DIR/rules"
 assert_eq  "rules -> shared"     "$ICODEX_SHARED_DIR/rules" "$(readlink "$ICODEX_HOME_DIR/rules")"
+assert_exit "AGENTS.md created"  0 test -f "$ICODEX_HOME_DIR/AGENTS.md"
+agents="$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
+assert_contains "AGENTS base marker start" "$agents" "<!-- icodex:base:start -->"
+assert_contains "AGENTS base content"      "$agents" "Base guidelines"
+assert_contains "AGENTS base marker end"   "$agents" "<!-- icodex:base:end -->"
 
 # idempotent: a second setup leaves the symlinks intact and does not clobber config edits
 printf 'edited = true\n' >> "$ICODEX_HOME_DIR/config.toml"
