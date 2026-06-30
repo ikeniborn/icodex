@@ -209,4 +209,3 @@ If `intent_path` is known — append to the end of the report:
 ---
 Previous step: <intent_path>
 ```
-

@@ -212,4 +212,3 @@ If `intent_path` is known — also add the line:
 ```
 Chain: <intent_path> → <spec_path> → <plan_path>
 ```
-

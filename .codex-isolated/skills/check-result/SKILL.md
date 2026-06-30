@@ -191,4 +191,3 @@ Chain: <intent_path> → <spec_path> → <plan_path>
 - Emitting a finding without a reference to a specific plan step or outcome — an unanchored finding is unprovable and the author cannot resolve it
 - Running a code review (syntax, security) — that is not this command's purpose; it duplicates `/review` and dilutes the plan↔diff reconciliation focus
 - Writing «вероятно выполнено» without evidence in the diff — a verdict without evidence yields a false OK and lets an unfinished step slip through
-

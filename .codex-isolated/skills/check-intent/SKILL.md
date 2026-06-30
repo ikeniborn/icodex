@@ -220,4 +220,3 @@ Append to the end of the report (intent is the root of the chain, the footer loo
 ---
 Next step: superpowers:brainstorming
 ```
-
