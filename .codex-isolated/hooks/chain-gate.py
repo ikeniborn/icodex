@@ -1,26 +1,33 @@
 #!/usr/bin/env python3
 """
-PreToolUse hook — IDD→SDD phase gate.
+IDD→SDD chain gate — unified PreToolUse gate + PostToolUse nudge (Codex).
 
-Перехватывает вызовы инструмента Skill и блокирует переход к следующему
-этапу цепи IDD→SDD, пока upstream-артефакт не прошёл валидацию
-(нет открытых CRITICAL, все фазы passed, хеш тела совпадает).
+One hook file, two roles selected by argv:
+  (no flag) PreToolUse  → gate. Block (exit 2) an invalid chain transition until the
+            upstream artifact passes validation.
+  --post    PostToolUse → nudge. After an intent/spec/plan artifact is written and is
+            not yet validated, suggest the check-chain skill via additionalContext.
 
-Роль хука — ТОЛЬКО gate (block/allow); он никогда не валидирует. Валидацию
-выполняет check-* skill в субагенте, вердикты собираются в основной сессии.
-Коммуникация — через frontmatter review:/result_check:.
+Replaces the split idd-gate.py + idd-nudge.py. Codex adaptation of the iclaude
+chain-gate.py: ledger under CODEX_HOME, apply_patch/Write/Edit path extraction via
+_codex_paths, chain.spec resolution from an apply_patch Add File body, and the
+fail-closed-on-malformed-frontmatter hardening the icodex test-suite asserts.
 
-Session scoping — гейт резолвит кандидата ТОЛЬКО среди артефактов, которыми
-владеет текущая сессия (session_id из payload), записанных в ledger
-$CODEX_HOME/state/idd-sessions.json. Сессия, не создававшая артефакт,
-не гейтится чужим артефактом. Нет session_id / ledger недоступен → fail-open.
+The hook only GATES/NUDGES; it never validates. Validation is the check-chain skill
+run in a clean-context subagent; verdicts are collected in the main session.
+Communication is via frontmatter review:/result_check:.
+
+Session scoping — the gate resolves a candidate ONLY among artifacts owned by the
+current session (session_id), recorded in $CODEX_HOME/state/idd-sessions.json. A
+session that did not create an artifact is not gated by it. No session_id / no ledger
+→ fail-open.
 
 Exit codes:
-  0 — разрешить (Skill выполняется)
-  2 — заблокировать (Skill не выполняется, Codex получает stderr)
+  0 — allow (gate) / silent-or-nudge (nudge)
+  2 — block (gate only)
 
-Fail-open: любое внутреннее исключение → exit 0. Баг в гейте НЕ должен
-ломать каждый вызов Skill. Это противоположность block-secrets.py (fail-closed).
+Fail-open: any internal exception → exit 0. A bug here must never break a real tool
+call. (This is the opposite of block-secrets.py, which is fail-closed.)
 """
 
 import sys
@@ -29,70 +36,62 @@ import os
 import glob
 import time
 import subprocess
+import fnmatch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _codex_paths import extract_paths, patch_text_from_input
+from _codex_paths import extract_paths, patch_text_from_input  # noqa: E402
 
 DOCS_ROOT = "docs/superpowers"
 PLANS_DIR = os.path.join(DOCS_ROOT, "plans")
 
-# Единственный тюнинг строгости: какие severity блокируют переход.
 BLOCK_ON = {"CRITICAL"}
+IMPL_GATE_FRESH_SECONDS = 7200  # 2h: only a freshly edited plan gates code edits
 
-# Recency window for the plan→impl gate: only a plan edited within this many
-# seconds gates code edits; older (stale) drafts pass through. 2h.
-IMPL_GATE_FRESH_SECONDS = 7200
+# Sentinel returned by the frontmatter parser when the YAML is malformed. Cannot
+# collide with a real key (double-underscore name is not valid document content here).
+MALFORMED_FRONTMATTER_KEY = "__malformed_frontmatter__"
 
-# skill (суффикс после последнего ':') → правило гейта:
-#   dir      — поддиректория docs/superpowers/
-#   glob     — шаблон файла-артефакта
-#   block    — имя блока state во frontmatter ('review' | 'result_check')
-#   hash_key — поле с хешем тела внутри блока
-#   fix      — команда-валидатор для сообщения о блокировке
-GATE_MAP = {
-    "brainstorming": {
-        "dir": "intents", "glob": "*-intent.md",
-        "block": "review", "hash_key": "intent_hash", "fix": "check-intent",
-    },
-    "writing-plans": {
-        "dir": "specs", "glob": "*-design.md",
-        "block": "review", "hash_key": "spec_hash", "fix": "check-spec",
-    },
-    "executing-plans": {
-        "dir": "plans", "glob": "*.md",
-        "block": "review", "hash_key": "plan_hash", "fix": "check-plan",
-    },
-    "subagent-driven-development": {
-        "dir": "plans", "glob": "*.md",
-        "block": "review", "hash_key": "plan_hash", "fix": "check-plan",
-    },
-    "finishing-a-development-branch": {
-        "dir": "plans", "glob": "*.md",
-        "block": "result_check", "hash_key": "plan_hash", "fix": "check-result",
-    },
+# One rule per stage: dir + glob (artifact), state block + body-hash key (frontmatter
+# contract), fix (remediation shown on block/nudge — Codex skill form: name + stage arg).
+STAGE_RULES = {
+    "intent": {"dir": "intents", "glob": "*-intent.md", "block": "review",
+               "hash_key": "intent_hash", "fix": "check-chain intent"},
+    "spec":   {"dir": "specs", "glob": "*-design.md", "block": "review",
+               "hash_key": "spec_hash", "fix": "check-chain spec"},
+    "plan":   {"dir": "plans", "glob": "*.md", "block": "review",
+               "hash_key": "plan_hash", "fix": "check-chain plan"},
+    "result": {"dir": "plans", "glob": "*.md", "block": "result_check",
+               "hash_key": "plan_hash", "fix": "check-chain result"},
 }
 
-# Write-trigger rules reuse existing GATE_MAP rows (same predicate, new trigger).
-SPEC_RULE = GATE_MAP["writing-plans"]      # specs/*-design.md, review/spec_hash
-PLAN_RULE = GATE_MAP["executing-plans"]    # plans/*.md, review/plan_hash
-MALFORMED_FRONTMATTER_KEY = "__idd_malformed_frontmatter__"
+# PreToolUse skill → stage rule. Keys are the skill-name suffix after the last ':'.
+GATE_MAP = {
+    "brainstorming": STAGE_RULES["intent"],
+    "writing-plans": STAGE_RULES["spec"],
+    "executing-plans": STAGE_RULES["plan"],
+    "subagent-driven-development": STAGE_RULES["plan"],
+    "finishing-a-development-branch": STAGE_RULES["result"],
+}
+
+SPEC_RULE = STAGE_RULES["spec"]
+PLAN_RULE = STAGE_RULES["plan"]
+
+# PostToolUse nudge rules (artifact-keyed). result is excluded — it needs git diff + a
+# plan path and runs at branch finish, covered by the gate.
+NUDGE_RULES = [STAGE_RULES["intent"], STAGE_RULES["spec"], STAGE_RULES["plan"]]
 
 # ── session-ownership ledger ────────────────────────────────────────────
-LEDGER_MAX_AGE_SECONDS = 7 * 24 * 3600  # prune backstop for stale entries
+LEDGER_MAX_AGE_SECONDS = 7 * 24 * 3600
 ARTIFACT_DIRS = ("intents", "specs", "plans")
 CLAIM_SKILLS = {"executing-plans", "subagent-driven-development"}
 
 
 def ledger_path():
-    """Path to the ownership ledger, or None when CODEX_HOME is unset
-    (→ ledger unreachable → every session owns nothing → all gates open)."""
     cfg = os.environ.get("CODEX_HOME")
     return os.path.join(cfg, "state", "idd-sessions.json") if cfg else None
 
 
 def load_ledger():
-    """Ledger {abspath: {"session", "ts"}}; {} on missing/corrupt (fail-open).
-    Prunes entries whose artifact is gone or older than the max-age backstop."""
     path = ledger_path()
     if not path or not os.path.exists(path):
         return {}
@@ -115,8 +114,6 @@ def load_ledger():
 
 
 def record_owner(path, sid):
-    """Stamp `sid` as owner of `path` (abspath-keyed, last-writer-wins).
-    Atomic write; failures are swallowed (ownership is best-effort)."""
     lp = ledger_path()
     if not lp or not sid:
         return
@@ -124,7 +121,7 @@ def record_owner(path, sid):
     ledger[os.path.abspath(path)] = {"session": sid, "ts": int(time.time())}
     try:
         os.makedirs(os.path.dirname(lp), exist_ok=True)
-        tmp = "%s.%d.tmp" % (lp, os.getpid())  # per-process temp: no shared-temp race
+        tmp = "%s.%d.tmp" % (lp, os.getpid())
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(ledger, f)
         os.replace(tmp, lp)
@@ -133,7 +130,6 @@ def record_owner(path, sid):
 
 
 def owns(path, sid, ledger):
-    """True if `sid` owns `path` per the (pre-loaded) ledger."""
     if not sid:
         return False
     entry = ledger.get(os.path.abspath(path))
@@ -141,17 +137,10 @@ def owns(path, sid, ledger):
 
 
 def _is_artifact(path):
-    """True if `path` lies under one of the IDD artifact directories. Directory
-    membership is sufficient — recording is intentionally permissive; a file that
-    does not match a rule's glob simply never becomes a candidate (resolve_candidate
-    re-filters by glob), so a spurious ledger entry is harmless and gets pruned."""
     return any(_under(path, os.path.join(DOCS_ROOT, d)) for d in ARTIFACT_DIRS)
 
 
 def record_ownership(data, tool, sid):
-    """Stamp ownership for the artifact this call touches (apply_patch/Write/Edit
-    of an artifact) or claims (executing-plans / subagent-driven-development →
-    the newest plan, so an implementing session is gated by it)."""
     if tool in ("apply_patch", "Write", "Edit"):
         for path in extract_paths(tool, data.get("tool_input") or {}):
             if _is_artifact(path):
@@ -165,14 +154,10 @@ def record_ownership(data, tool, sid):
 
 
 def normalize_skill(name):
-    """Суффикс после последнего ':' ('superpowers:writing-plans' → 'writing-plans')."""
     return name.rsplit(":", 1)[-1].strip()
 
 
 def resolve_candidate(rule, sid):
-    """Newest glob-matching artifact OWNED BY `sid`. None if none owned —
-    escape: a session is gated only by artifacts it owns. None with no matches
-    at all is the existing hotfix escape (no IDD docs)."""
     pattern = os.path.join(DOCS_ROOT, rule["dir"], rule["glob"])
     matches = glob.glob(pattern)
     if not matches:
@@ -185,15 +170,12 @@ def resolve_candidate(rule, sid):
 
 
 def newest_plan():
-    """Newest plan across the repo, ignoring ownership — used at claim time."""
     pattern = os.path.join(DOCS_ROOT, PLAN_RULE["dir"], PLAN_RULE["glob"])
     matches = glob.glob(pattern)
     return max(matches, key=os.path.getmtime) if matches else None
 
 
 def body_hash(path):
-    """Хеш тела документа — ИДЕНТИЧНЫЙ пайплайн валидаторов (исключаем дрейф,
-    шеллясь в тот же bash, а не переписывая на Python)."""
     pipeline = (
         "set -o pipefail; "
         "awk 'BEGIN{fm=0} /^---$/{fm++; next} fm>=2{print}' "
@@ -207,8 +189,7 @@ def body_hash(path):
 
 
 def _frontmatter_from_lines(lines):
-    """YAML-frontmatter между первыми двумя '---'. {} если его нет."""
-    import yaml  # отложенный импорт: отсутствие → исключение → fail-open в main()
+    import yaml  # lazy import: missing → exception → fail-open in main()
     if not lines or lines[0].strip() != "---":
         return {}
     fm = []
@@ -228,14 +209,11 @@ def _frontmatter_from_lines(lines):
 
 
 def read_frontmatter(path):
-    """YAML-frontmatter файла. {} если его нет."""
     with open(path, "r", encoding="utf-8") as f:
         return _frontmatter_from_lines(f.read().splitlines())
 
 
 def resolve_spec_from_chain(content):
-    """Путь к спеке из chain.spec в теле плана (tool_input.content).
-    None, если frontmatter/chain.spec нет или файла нет на диске."""
     data = _frontmatter_from_lines((content or "").splitlines())
     chain = data.get("chain")
     spec = chain.get("spec") if isinstance(chain, dict) else None
@@ -245,39 +223,37 @@ def resolve_spec_from_chain(content):
 
 
 def _under(path, root):
-    """True, если path лежит внутри root (оба приводятся к абсолютным от cwd)."""
     ap = os.path.abspath(path)
     ar = os.path.abspath(root)
     return ap == ar or ap.startswith(ar + os.sep)
 
 
 def fresh(path, seconds):
-    """True, если файл изменён не позже `seconds` секунд назад."""
     return time.time() - os.path.getmtime(path) <= seconds
 
 
-def evaluate_gate(path, rule):
-    """Возвращает None, если гейт ОТКРЫТ (allow), либо строку-причину BLOCK."""
+def gate_reason(path, rule):
+    """None if the gate is OPEN for `path` under `rule` (validated), else a reason
+    string. The nudge's "validated" predicate is `gate_reason(...) is None`."""
     fm = read_frontmatter(path)
     if fm.get(MALFORMED_FRONTMATTER_KEY):
         return "malformed frontmatter"
-    block = fm.get(rule["block"])
-    if not isinstance(block, dict):
+    block_data = fm.get(rule["block"])
+    if not isinstance(block_data, dict):
         return "no %s: block" % rule["block"]
 
-    if block.get(rule["hash_key"]) != body_hash(path):
+    if block_data.get(rule["hash_key"]) != body_hash(path):
         return "hash stale (edited after last check)"
 
     if rule["block"] == "result_check":
-        if block.get("verdict") != "OK":
-            return "result_check verdict: %s" % block.get("verdict")
+        if block_data.get("verdict") != "OK":
+            return "result_check verdict: %s" % block_data.get("verdict")
         return None
 
-    # review-based gate: все фазы passed + нет открытых CRITICAL
-    phases = block.get("phases")
+    phases = block_data.get("phases")
     if not isinstance(phases, dict):
         return "malformed phases"
-    findings = block.get("findings", [])
+    findings = block_data.get("findings", [])
     if not isinstance(findings, list):
         return "malformed findings"
 
@@ -299,15 +275,19 @@ def evaluate_gate(path, rule):
     return None
 
 
+def validated(path, rule):
+    return gate_reason(path, rule) is None
+
+
 def block(candidate, reason, fix):
-    """Печатает причину в stderr и завершает с кодом 2 (блокировка)."""
+    stage = fix.split()[-1]
     sys.stderr.write(
         "🚧 IDD gate: %s has not passed validation.\n"
         "Reason: %s\n"
-        "Action: dispatch a clean-context subagent to invoke the %s skill on %s\n"
-        "(check-runner protocol: run the validator in the subagent, collect\n"
-        "verdicts in the main session), resolve the CRITICAL findings, then retry.\n"
-        % (candidate, reason, fix, candidate)
+        "Action: dispatch a clean-context subagent to invoke the check-chain skill\n"
+        "with argument %s on %s, collect verdicts in the main session, resolve the\n"
+        "CRITICAL findings, then retry.\n"
+        % (candidate, reason, stage, candidate)
     )
     sys.exit(2)
 
@@ -335,14 +315,13 @@ def patch_added_body(patch, target_path):
 
 
 def patch_or_content(params, path=None):
-    """The new-file body for chain resolution: apply_patch patch text or Write content."""
+    """New-file body for chain resolution: apply_patch patch text or Write content."""
     text = patch_text_from_input(params)
     body = patch_added_body(text, path)
     return body if body else text
 
 
 def handle_write(data, tool, sid):
-    """Gate downstream-artifact writes (spec->plan creation, plan->impl edits)."""
     params = data.get("tool_input") or {}
     paths = extract_paths(tool, params)
     if not paths:
@@ -353,7 +332,7 @@ def handle_write(data, tool, sid):
             content = patch_or_content(params, path)
             spec = resolve_spec_from_chain(content) or resolve_candidate(SPEC_RULE, sid)
             if spec is not None:
-                reason = evaluate_gate(spec, SPEC_RULE)
+                reason = gate_reason(spec, SPEC_RULE)
                 if reason is not None:
                     block(spec, reason, SPEC_RULE["fix"])
             continue
@@ -364,7 +343,7 @@ def handle_write(data, tool, sid):
                 continue
             if not fresh(plan, IMPL_GATE_FRESH_SECONDS):
                 continue
-            reason = evaluate_gate(plan, PLAN_RULE)
+            reason = gate_reason(plan, PLAN_RULE)
             if reason is not None:
                 block(plan, reason, PLAN_RULE["fix"])
 
@@ -372,29 +351,80 @@ def handle_write(data, tool, sid):
 
 
 def handle_skill(data, sid):
-    """Gate по вызову Skill (существующий путь IDD→SDD)."""
     skill = normalize_skill((data.get("tool_input") or {}).get("skill", ""))
     rule = GATE_MAP.get(skill)
     if rule is None:
-        sys.exit(0)  # скилл не гейтируется
+        sys.exit(0)
     candidate = resolve_candidate(rule, sid)
     if candidate is None:
-        sys.exit(0)  # нет артефакта → escape
-    reason = evaluate_gate(candidate, rule)
+        sys.exit(0)
+    reason = gate_reason(candidate, rule)
     if reason is None:
         sys.exit(0)
     block(candidate, reason, rule["fix"])
 
 
+def rule_for(path):
+    ap = os.path.abspath(path)
+    for rule in NUDGE_RULES:
+        root = os.path.abspath(os.path.join(DOCS_ROOT, rule["dir"]))
+        if (ap == root or ap.startswith(root + os.sep)) and \
+           fnmatch.fnmatch(os.path.basename(ap), rule["glob"]):
+            return rule
+    return None
+
+
+def emit_nudge(path, fix):
+    stage = fix.split()[-1]
+    msg = (
+        "IDD artifact %s was just written and has not passed validation yet. "
+        "Dispatch a clean-context subagent to invoke the check-chain skill with "
+        "argument %s on it, then collect verdicts in the main session, so the IDD "
+        "gate is open before the next chain transition." % (path, stage)
+    )
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PostToolUse",
+            "additionalContext": msg,
+        }
+    }))
+
+
+def handle_nudge(data):
+    tool = data.get("tool_name")
+    if tool not in ("Write", "apply_patch"):
+        return
+    for path in extract_paths(tool, data.get("tool_input") or {}):
+        rule = rule_for(path)
+        if rule is None:
+            continue
+        if not os.path.exists(path):
+            continue
+        if validated(path, rule):
+            continue
+        emit_nudge(path, rule["fix"])
+        return  # one nudge per write is enough
+
+
 def main():
+    post = "--post" in sys.argv[1:]
     try:
         data = json.loads(sys.stdin.read())
     except (json.JSONDecodeError, ValueError):
-        sys.exit(0)  # битый stdin → fail-open
+        sys.exit(0)  # broken stdin → fail-open
+
+    if post:
+        event = "PostToolUse"
+    else:
+        event = data.get("hook_event_name") or (
+            "PostToolUse" if "tool_response" in data else "PreToolUse")
 
     tool = data.get("tool_name")
     sid = data.get("session_id")
     try:
+        if event == "PostToolUse":
+            handle_nudge(data)
+            sys.exit(0)
         record_ownership(data, tool, sid)
         if tool == "Skill":
             handle_skill(data, sid)
@@ -402,8 +432,8 @@ def main():
             handle_write(data, tool, sid)
         else:
             sys.exit(0)
-    except Exception as exc:  # fail-open на любой внутренней ошибке
-        print("idd-gate: внутренняя ошибка, пропускаю (fail-open): %s" % exc,
+    except Exception as exc:  # fail-open
+        print("chain-gate: internal error, skipping (fail-open): %s" % exc,
               file=sys.stderr)
         sys.exit(0)
 

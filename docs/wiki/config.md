@@ -103,8 +103,8 @@ session. See [[caveman]] for full details.
 
 `ICODEX_IDD` controls the IDD->SDD gate and nudge hooks.
 
-IDD is enabled by default. Set `ICODEX_IDD=off` to strip the `idd-gate.py` and
-`idd-nudge.py` hook entries from the per-project `hooks.json`. When stripping leaves
+IDD is enabled by default. Set `ICODEX_IDD=off` to strip the `chain-gate.py` gate
+and nudge hook entries from the per-project `hooks.json`. When stripping leaves
 the home hook config identical to the shared base, the wrapper restores the home
 `hooks.json` symlink. See [[idd#Opt-out]].
 
