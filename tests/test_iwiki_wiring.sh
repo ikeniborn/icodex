@@ -107,4 +107,22 @@ mkdir -p "$ICODEX_HOME_DIR"
 assert_exit "absent config -> noop 0" 0 ensure_iwiki_wiring
 assert_eq "absent config not created" "1" "$([[ -f "$ICODEX_HOME_DIR/config.toml" ]] && echo 0 || echo 1)"
 
+# --- regression: under the launcher's `set -e`, wiring must not abort when the
+# --- LAST optional var is unset (a `[[..]] && cmd` tail would return non-zero) ---
+(
+  set -euo pipefail
+  export ICODEX_IWIKI_COMMAND="$tmp/bin/iwiki-mcp"
+  export ICODEX_IWIKI_BASE_DIR="$tmp/wiki-base"
+  export ICODEX_IWIKI_LLM_BASE_URL="http://test-llm:1234/v1"
+  export ICODEX_IWIKI_LLM_KEY="test-key"
+  unset ICODEX_IWIKI_EMBED_MODEL ICODEX_IWIKI_EMBED_DIMENSIONS ICODEX_IWIKI_TOP_K \
+        ICODEX_IWIKI_SCORE_THRESHOLD ICODEX_IWIKI_GRAPH_DEPTH ICODEX_IWIKI_CHUNK_SIZE \
+        ICODEX_IWIKI_CHUNK_OVERLAP ICODEX_IWIKI_SUMMARY_MAX_CHARS
+  export ICODEX_HOME_DIR="$tmp/home-sete"
+  mkdir -p "$ICODEX_HOME_DIR"
+  printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
+  ensure_iwiki_wiring
+)
+assert_eq "wiring survives set -e with all optionals unset" "0" "$?"
+
 finish

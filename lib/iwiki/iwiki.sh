@@ -30,7 +30,12 @@ _iwiki_region_body() { # <command> <base_dir> <llm_base_url>
   for name in $_IWIKI_OPTIONAL_VARS; do
     cfg="ICODEX_IWIKI_${name}"
     val="${!cfg:-}"
-    [[ -n "$val" ]] && printf 'IWIKI_%s = "%s"\n' "$name" "$val"
+    # Use an if-block (not `[[ ... ]] && cmd`): a false test on the LAST iteration
+    # would make the function exit non-zero, which under the launcher's `set -e`
+    # aborts `body="$(_iwiki_region_body ...)"` and silently kills the launch.
+    if [[ -n "$val" ]]; then
+      printf 'IWIKI_%s = "%s"\n' "$name" "$val"
+    fi
   done
 }
 
