@@ -21,8 +21,13 @@ home, enable = sys.argv[1], sys.argv[2] == "1"
 with open(home, encoding="utf-8") as fh:
     cfg = json.load(fh)
 hooks = cfg.setdefault("hooks", {})
-GATE = 'python3 "$CODEX_HOME/hooks/idd-gate.py"'
-NUDGE = 'python3 "$CODEX_HOME/hooks/idd-nudge.py"'
+GATE = 'python3 "$CODEX_HOME/hooks/chain-gate.py"'
+NUDGE = 'python3 "$CODEX_HOME/hooks/chain-gate.py" --post'
+# Legacy split-hook commands to strip on upgrade (self-healing migration).
+LEGACY = [
+    'python3 "$CODEX_HOME/hooks/idd-gate.py"',
+    'python3 "$CODEX_HOME/hooks/idd-nudge.py"',
+]
 
 def strip(event, cmd):
     arr = hooks.get(event, [])
@@ -48,6 +53,9 @@ def add(event, matcher, cmd, status):
 
 strip("PreToolUse", GATE)
 strip("PostToolUse", NUDGE)
+for cmd in LEGACY:
+    strip("PreToolUse", cmd)
+    strip("PostToolUse", cmd)
 if enable:
     add("PreToolUse", "Skill|apply_patch|Write|Edit", GATE, "IDD phase gate")
     add("PostToolUse", "apply_patch|Write", NUDGE, "IDD nudge")
