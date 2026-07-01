@@ -3,7 +3,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/helpers.sh"
 
-GATE="$ROOT/.codex-isolated/hooks/idd-gate.py"
+GATE="$ROOT/.codex-isolated/hooks/chain-gate.py"
 assert_exit "gate file exists" 0 test -f "$GATE"
 
 # Build a temp repo CWD with a docs/superpowers tree + a ledger home.

@@ -3,7 +3,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/helpers.sh"
 
-NUDGE="$ROOT/.codex-isolated/hooks/idd-nudge.py"
+NUDGE="$ROOT/.codex-isolated/hooks/chain-gate.py"
 assert_exit "nudge file exists" 0 test -f "$NUDGE"
 
 WORK="$(mktemp -d)"
@@ -13,7 +13,7 @@ SPEC="docs/superpowers/specs/2026-06-30-bar-design.md"
 printf '# Bar\n\nBody.\n' > "$WORK/$SPEC"
 
 run_nudge() { # <json> -> prints stdout
-  ( cd "$WORK" && python3 "$NUDGE" 2>/dev/null <<<"$1" )
+  ( cd "$WORK" && python3 "$NUDGE" --post 2>/dev/null <<<"$1" )
 }
 
 body_hash() { # <path>
@@ -43,15 +43,15 @@ make_valid_spec() { # <path>
       status: passed" "  findings: []"
 }
 
-# 1. Write of an unvalidated spec -> nudge mentions check-spec.
+# 1. Write of an unvalidated spec -> nudge mentions check-chain.
 w='{"tool_name":"Write","tool_input":{"file_path":"'"$SPEC"'","content":"x"}}'
 out="$(run_nudge "$w")"
 assert_contains "nudge emitted for new spec" "$out" "additionalContext"
-assert_contains "nudge names check-spec" "$out" "check-spec"
+assert_contains "nudge names check-chain" "$out" "check-chain"
 
 # 2. apply_patch Add File of the spec -> also nudges.
 p='{"tool_name":"apply_patch","tool_input":{"patch":"*** Begin Patch\n*** Add File: '"$SPEC"'\n+# Bar\n*** End Patch\n"}}'
-assert_contains "nudge emitted for apply_patch spec" "$(run_nudge "$p")" "check-spec"
+assert_contains "nudge emitted for apply_patch spec" "$(run_nudge "$p")" "check-chain"
 
 # 3. Write of a non-artifact path -> silent.
 n='{"tool_name":"Write","tool_input":{"file_path":"README.md","content":"x"}}'
@@ -68,23 +68,23 @@ assert_eq "validated artifact silent" "" "$(run_nudge "$w")"
 write_review_spec "$SPEC" "stalehash" "  phases:
     design:
       status: passed" "  findings: []"
-assert_contains "stale hash nudges" "$(run_nudge "$w")" "check-spec"
+assert_contains "stale hash nudges" "$(run_nudge "$w")" "check-chain"
 
 # 7. Malformed review state -> nudge.
 hash="$(body_hash "$SPEC")"
 write_review_spec "$SPEC" "$hash" "" "  findings: []"
-assert_contains "missing phases nudges" "$(run_nudge "$w")" "check-spec"
+assert_contains "missing phases nudges" "$(run_nudge "$w")" "check-chain"
 
 write_review_spec "$SPEC" "$hash" "  phases: nope" "  findings: []"
-assert_contains "non-dict phases nudges" "$(run_nudge "$w")" "check-spec"
+assert_contains "non-dict phases nudges" "$(run_nudge "$w")" "check-chain"
 
 write_review_spec "$SPEC" "$hash" "  phases:
     design:
       status: passed" "  findings: nope"
-assert_contains "non-list findings nudges" "$(run_nudge "$w")" "check-spec"
+assert_contains "non-list findings nudges" "$(run_nudge "$w")" "check-chain"
 
 printf '%s\n' '---' 'review: [' '---' '# Bar' '' 'Body.' > "$WORK/$SPEC"
-assert_contains "invalid YAML frontmatter nudges" "$(run_nudge "$w")" "check-spec"
+assert_contains "invalid YAML frontmatter nudges" "$(run_nudge "$w")" "check-chain"
 
 # 8. Shell metacharacters in path must not execute command substitution.
 META_SPEC='docs/superpowers/specs/2026-06-30-$(touch PROOF)-design.md'
