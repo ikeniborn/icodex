@@ -5,7 +5,7 @@ chain:
   intent: null
   spec: docs/superpowers/specs/2026-07-01-icodex-iwiki-path-config-design.md
 review:
-  plan_hash: dcc4a4f8e0fc6c19
+  plan_hash: 0c46f2def75b9e52
   spec_hash: c49c1770bb5cff4b
   last_run: 2026-07-01
   phases:
@@ -15,6 +15,10 @@ review:
     verifiability: { status: passed }
     consistency:   { status: passed }
   findings: []
+result_check:
+  verdict: OK
+  plan_hash: 0c46f2def75b9e52
+  last_run: 2026-07-01
 ---
 
 # icodex iwiki Full Config Externalization Implementation Plan
@@ -58,6 +62,9 @@ url="$(sed -n 's/^[[:space:]]*IWIKI_LLM_BASE_URL = "\(.*\)"$/\1/p' lib/iwiki/iwi
 model="$(sed -n 's/^[[:space:]]*IWIKI_EMBED_MODEL = "\(.*\)"$/\1/p' lib/iwiki/iwiki.sh)"
 dims="$(sed -n 's/^[[:space:]]*IWIKI_EMBED_DIMENSIONS = "\(.*\)"$/\1/p' lib/iwiki/iwiki.sh)"
 sed -i '/^ICODEX_IWIKI_BASE_DIR=/d;/^ICODEX_IWIKI_LLM_BASE_URL=/d;/^ICODEX_IWIKI_EMBED_MODEL=/d;/^ICODEX_IWIKI_EMBED_DIMENSIONS=/d' .codex_config
+# ensure the file ends with a newline so the append below cannot glue onto the
+# last existing line (e.g. an ICODEX_IWIKI_LLM_KEY line written without a trailing \n)
+[ -s .codex_config ] && [ -n "$(tail -c1 .codex_config)" ] && printf '\n' >> .codex_config
 {
   echo "ICODEX_IWIKI_BASE_DIR=/home/altuser/Документы/Project/iwiki-personal"
   echo "ICODEX_IWIKI_LLM_BASE_URL=$url"

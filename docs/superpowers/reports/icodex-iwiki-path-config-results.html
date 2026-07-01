@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>icodex-iwiki-path-config — IDD Chain Results</title>
+<style>
+/* ── Theme custom properties ── */
+:root{
+  --bg:#f6f7fb; --surface:#ffffff; --fg:#2b2b3a; --muted:#6b6b80;
+  --accent:#5c6bc0; --accent-2:#3949ab; --border:#d6d8e6; --line:#9aa0b4; --zebra:#eef0f8;
+  --ok:#43a047; --ok-2:#2e7d32; --warn:#fb8c00; --warn-2:#ef6c00; --danger:#e53935; --danger-2:#c62828;
+  --shadow:rgba(40,40,80,.18);
+}
+body:has(#theme-toggle:checked){
+  --bg:#181825; --surface:#262637; --fg:#cdd6f4; --muted:#a6adc8;
+  --accent:#89b4fa; --accent-2:#5e95f0; --border:#3a3b52; --line:#6c7086; --zebra:#21222f;
+  --ok:#a6e3a1; --ok-2:#74c46e; --warn:#f9e2af; --warn-2:#f5c95b; --danger:#f38ba8; --danger-2:#e8638a;
+  --shadow:rgba(0,0,0,.45);
+}
+body{
+  margin:0 auto; padding:1.5rem 2rem 4rem; max-width:1100px;
+  font:16px/1.55 system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 500px at 100% -10%, color-mix(in srgb,var(--accent) 10%, transparent), transparent),
+    var(--bg);
+  color:var(--fg);
+  transition:background .3s, color .3s;
+}
+.theme-btn{
+  position:sticky; top:.5rem; float:right;
+  cursor:pointer; user-select:none;
+  padding:.25rem .6rem; border:1px solid var(--border); border-radius:6px;
+  background:var(--surface); font-size:.9rem;
+}
+/* ── Tab switcher ── */
+.tab-pane{ display:none; }
+body:has(#tab-intent:checked) #pane-intent{ display:block; }
+body:has(#tab-spec:checked)   #pane-spec  { display:block; }
+body:has(#tab-plan:checked)   #pane-plan  { display:block; }
+body:has(#tab-result:checked) #pane-result{ display:block; }
+
+.chain-tabs{
+  display:flex; gap:.25rem; border-bottom:2px solid var(--border);
+  margin:.5rem 0 1.5rem; flex-wrap:wrap;
+}
+.chain-tabs label{
+  cursor:pointer; padding:.4rem .9rem;
+  border:1px solid var(--border); border-bottom:none;
+  border-radius:8px 8px 0 0;
+  background:var(--surface); color:var(--muted);
+  font-size:.92rem; transition:color .2s, border-color .2s;
+}
+body:has(#tab-intent:checked) label[for="tab-intent"],
+body:has(#tab-spec:checked)   label[for="tab-spec"],
+body:has(#tab-plan:checked)   label[for="tab-plan"],
+body:has(#tab-result:checked) label[for="tab-result"]{
+  color:var(--accent); border-color:var(--accent); font-weight:600;
+}
+/* ── Tables ── */
+.rpt-table{
+  border-collapse:separate; border-spacing:0; width:100%;
+  background:var(--surface); margin:1rem 0; font-size:.88rem;
+  border:1px solid var(--border); border-radius:10px;
+  overflow:hidden; box-shadow:0 2px 12px var(--shadow);
+}
+.rpt-table th, .rpt-table td{
+  border-bottom:1px solid var(--border); padding:.5rem .75rem;
+  text-align:left; vertical-align:top;
+}
+.rpt-table tbody tr:last-child td{ border-bottom:none; }
+.rpt-table thead th{ background:var(--accent); color:var(--bg); }
+.rpt-table tbody tr:nth-child(even){ background:var(--zebra); }
+.rpt-table tbody tr:hover{ background:color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.rpt-table td code, .rpt-table th code{ white-space:nowrap; font-size:.85rem; }
+/* ── Badges ── */
+.badge{
+  display:inline-block; padding:.1rem .45rem; border-radius:4px;
+  font-size:.75rem; font-weight:700; letter-spacing:.03em; white-space:nowrap;
+}
+.badge-ok   { background:var(--ok);     color:#fff; }
+.badge-warn { background:var(--warn);   color:#fff; }
+.badge-err  { background:var(--danger); color:#fff; }
+.badge-info { background:var(--accent); color:#fff; }
+.badge-muted{ background:var(--border); color:var(--fg); }
+/* ── Note ── */
+.note{
+  background:color-mix(in srgb, var(--accent) 9%, var(--surface));
+  border-left:4px solid var(--accent); border-radius:0 8px 8px 0;
+  padding:.7rem 1rem; margin:1rem 0; font-size:.9rem; color:var(--fg);
+}
+/* ── Phase status row ── */
+.phase-row{ display:flex; align-items:center; gap:.6rem; margin:.35rem 0; font-size:.9rem; }
+.phase-name{ min-width:8rem; color:var(--muted); }
+/* ── SVG dependency graph ── */
+.svg-wrap{ background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:1rem; margin:1rem 0; box-shadow:0 2px 10px var(--shadow); overflow-x:auto; }
+/* ── Artifact matrix ── */
+.matrix-cell-yes{ color:var(--ok-2); font-weight:600; font-size:.82rem; }
+.matrix-cell-no { color:var(--muted); font-size:.82rem; }
+/* ── Section headings ── */
+h1{ font-size:1.6rem; margin:.5rem 0 .25rem; }
+h2{ font-size:1.25rem; margin:1.5rem 0 .5rem; border-bottom:1px solid var(--border); padding-bottom:.25rem; }
+h3{ font-size:1.05rem; margin:1.2rem 0 .4rem; color:var(--accent); }
+.chain-meta{ font-size:.82rem; color:var(--muted); margin-bottom:1rem; }
+</style>
+</head>
+<body>
+<input type="checkbox" id="theme-toggle" hidden>
+<input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<header>
+  <label for="theme-toggle" class="theme-btn" title="Toggle dark/light">🌙 / ☀️</label>
+  <h1>icodex-iwiki-path-config</h1>
+  <p class="chain-meta">IDD→SDD Chain Results &nbsp;|&nbsp; 2026-07-01</p>
+</header>
+<nav class="chain-tabs">
+  <label for="tab-intent">Intent</label>
+  <label for="tab-spec">Spec</label>
+  <label for="tab-plan">Plan</label>
+  <label for="tab-result">Result</label>
+</nav>
+
+<!-- TAB:intent START -->
+<section class="tab-pane" id="pane-intent">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:intent END -->
+
+<!-- TAB:spec START -->
+<section class="tab-pane" id="pane-spec">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:spec END -->
+
+<!-- TAB:plan START -->
+<section class="tab-pane" id="pane-plan">
+
+<h2>Проверка плана — 2026-07-01</h2>
+<p class="chain-meta">
+  <strong>План:</strong> <code>docs/superpowers/plans/2026-07-01-icodex-iwiki-path-config.md</code>
+  &nbsp;|&nbsp; plan_hash: <code>0c46f2def75b9e52</code> (prev: <code>dcc4a4f8e0fc6c19</code>)<br>
+  <strong>Спека:</strong> <code>docs/superpowers/specs/2026-07-01-icodex-iwiki-path-config-design.md</code>
+  &nbsp;|&nbsp; spec_hash: <code>c49c1770bb5cff4b</code> (без изменений)
+</p>
+
+<h2>Резюме плана — шаги и DoD</h2>
+<table class="rpt-table">
+  <thead>
+    <tr><th>Задача / Шаг</th><th>Файл(ы)</th><th>DoD / Верификация</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Task 1 Step 1</strong> — Дописать required + embedding ключи в <code>.codex_config</code></td>
+      <td><code>.codex_config</code> (git-ignored)</td>
+      <td>Команды sed/echo выполнены, файл обновлён</td>
+    </tr>
+    <tr>
+      <td><strong>Task 1 Step 2</strong> — Проверить, что значения резолвятся из конфига</td>
+      <td><code>.codex_config</code>, <code>lib/config/env.sh</code></td>
+      <td><code>bash -c 'source ...; load_config ...'</code> выводит непустые base/url/model/dims/key_set</td>
+    </tr>
+    <tr>
+      <td><strong>Task 2 Step 1</strong> — Переписать тест (config-driven, optional emit-if-set, guards)</td>
+      <td><code>tests/test_iwiki_wiring.sh</code></td>
+      <td>Файл заменён новым содержимым</td>
+    </tr>
+    <tr>
+      <td><strong>Task 2 Step 2</strong> — Прогнать тест: ожидается FAIL <span class="badge badge-err">RED</span></td>
+      <td><code>tests/test_iwiki_wiring.sh</code></td>
+      <td><code>bash tests/test_iwiki_wiring.sh</code> завершается с FAIL</td>
+    </tr>
+    <tr>
+      <td><strong>Task 2 Step 3</strong> — Заменить заголовок + <code>_iwiki_region_body</code></td>
+      <td><code>lib/iwiki/iwiki.sh</code> (строки 1–25)</td>
+      <td>Старый блок удалён, новый с <code>printf</code>-loop добавлен</td>
+    </tr>
+    <tr>
+      <td><strong>Task 2 Step 4</strong> — Заменить голову <code>ensure_iwiki_wiring</code> на resolve + guard</td>
+      <td><code>lib/iwiki/iwiki.sh</code></td>
+      <td>Новый код с <code>cmd/base/url/key</code> и <code>log_warn</code> guard</td>
+    </tr>
+    <tr>
+      <td><strong>Task 2 Step 5</strong> — Прогнать тест: ожидается PASS <span class="badge badge-ok">GREEN</span></td>
+      <td><code>tests/test_iwiki_wiring.sh</code></td>
+      <td><code>bash tests/test_iwiki_wiring.sh</code> → <code>PASS=N FAIL=0</code></td>
+    </tr>
+    <tr>
+      <td><strong>Task 2 Step 6</strong> — Проверить синтаксис</td>
+      <td><code>lib/iwiki/iwiki.sh</code></td>
+      <td><code>bash -n lib/iwiki/iwiki.sh</code> → exit 0, нет вывода</td>
+    </tr>
+    <tr>
+      <td><strong>Task 2 Step 7</strong> — Коммит</td>
+      <td><code>lib/iwiki/iwiki.sh</code>, <code>tests/test_iwiki_wiring.sh</code></td>
+      <td><code>git commit</code> с <code>feat(iwiki): ...</code></td>
+    </tr>
+    <tr>
+      <td><strong>Task 3 Step 1</strong> — Заменить iwiki-блок в <code>.codex_config.example</code></td>
+      <td><code>.codex_config.example</code></td>
+      <td>Старый блок заменён документацией полного набора ключей</td>
+    </tr>
+    <tr>
+      <td><strong>Task 3 Step 2</strong> — Коммит <code>.codex_config.example</code></td>
+      <td><code>.codex_config.example</code></td>
+      <td><code>git add .codex_config.example &amp;&amp; git commit</code></td>
+    </tr>
+    <tr>
+      <td><strong>Task 4 Step 1</strong> — Подтвердить отсутствие hardcoded путей и литералов</td>
+      <td><code>lib/</code>, <code>tests/</code></td>
+      <td>Все 4 grep возвращают exit 1 (нет совпадений)</td>
+    </tr>
+    <tr>
+      <td><strong>Task 4 Step 2</strong> — Полный прогон тестового сьюта</td>
+      <td><code>tests/test_*.sh</code></td>
+      <td><code>ALL GREEN</code> — нет строк FAILED</td>
+    </tr>
+    <tr>
+      <td><strong>Task 4 Step 3</strong> — Обновить wiki-страницу</td>
+      <td>wiki (iwiki MCP)</td>
+      <td><code>wiki_write_page</code> + <code>wiki_index</code> + <code>wiki_lint</code></td>
+    </tr>
+    <tr>
+      <td><strong>Task 4 Step 4</strong> — Запустить check-result для закрытия IDD</td>
+      <td><code>docs/superpowers/plans/...</code></td>
+      <td>check-result вернул <code>OK</code>, <code>docs/TODO.md</code> закрыт</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Схемы зависимостей и пересечений</h2>
+
+<h3>Граф зависимостей шагов</h3>
+<div class="svg-wrap">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" style="width:100%;min-width:700px;font-family:system-ui,sans-serif;font-size:12px">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#9aa0b4"/>
+    </marker>
+    <filter id="shd" x="-20%" y="-30%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(40,40,80,.18)" flood-opacity="1"/>
+    </filter>
+  </defs>
+
+  <!-- Task 1 row -->
+  <!-- T1S1 -->
+  <rect x="10"  y="10"  width="100" height="36" rx="7" fill="#5c6bc0" filter="url(#shd)"/>
+  <text x="60"  y="25" text-anchor="middle" fill="#fff" font-weight="600">T1·S1</text>
+  <text x="60"  y="39" text-anchor="middle" fill="#e8eaf6" font-size="10">.codex_config</text>
+
+  <!-- arrow T1S1→T1S2 -->
+  <line x1="110" y1="28" x2="155" y2="28" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- T1S2 -->
+  <rect x="155" y="10"  width="100" height="36" rx="7" fill="#5c6bc0" filter="url(#shd)"/>
+  <text x="205" y="25" text-anchor="middle" fill="#fff" font-weight="600">T1·S2</text>
+  <text x="205" y="39" text-anchor="middle" fill="#e8eaf6" font-size="10">verify config</text>
+
+  <!-- vertical arrow T1S1 → T2S1 -->
+  <line x1="60"  y1="46" x2="60"  y2="98" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)" stroke-dasharray="4,3"/>
+  <text x="65" y="76" fill="#9aa0b4" font-size="10">values needed</text>
+
+  <!-- Task 2 row -->
+  <!-- T2S1 -->
+  <rect x="10"  y="98"  width="100" height="36" rx="7" fill="#5c6bc0" filter="url(#shd)"/>
+  <text x="60"  y="113" text-anchor="middle" fill="#fff" font-weight="600">T2·S1</text>
+  <text x="60"  y="127" text-anchor="middle" fill="#e8eaf6" font-size="10">rewrite test</text>
+
+  <!-- T2S1→T2S2 -->
+  <line x1="110" y1="116" x2="155" y2="116" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- T2S2 RED -->
+  <rect x="155" y="98"  width="100" height="36" rx="7" fill="#e53935" filter="url(#shd)"/>
+  <text x="205" y="113" text-anchor="middle" fill="#fff" font-weight="600">T2·S2</text>
+  <text x="205" y="127" text-anchor="middle" fill="#ffcdd2" font-size="10">RED (FAIL)</text>
+
+  <!-- T2S2→T2S3 -->
+  <line x1="255" y1="116" x2="300" y2="116" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- T2S3 -->
+  <rect x="300" y="98"  width="100" height="36" rx="7" fill="#5c6bc0" filter="url(#shd)"/>
+  <text x="350" y="113" text-anchor="middle" fill="#fff" font-weight="600">T2·S3</text>
+  <text x="350" y="127" text-anchor="middle" fill="#e8eaf6" font-size="10">region_body</text>
+
+  <!-- T2S3→T2S4 -->
+  <line x1="400" y1="116" x2="445" y2="116" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- T2S4 -->
+  <rect x="445" y="98"  width="100" height="36" rx="7" fill="#5c6bc0" filter="url(#shd)"/>
+  <text x="495" y="113" text-anchor="middle" fill="#fff" font-weight="600">T2·S4</text>
+  <text x="495" y="127" text-anchor="middle" fill="#e8eaf6" font-size="10">guard+resolve</text>
+
+  <!-- T2S4→T2S5 -->
+  <line x1="545" y1="116" x2="590" y2="116" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- T2S5 GREEN -->
+  <rect x="590" y="98"  width="100" height="36" rx="7" fill="#43a047" filter="url(#shd)"/>
+  <text x="640" y="113" text-anchor="middle" fill="#fff" font-weight="600">T2·S5</text>
+  <text x="640" y="127" text-anchor="middle" fill="#c8e6c9" font-size="10">GREEN (PASS)</text>
+
+  <!-- T2S5→T2S6 -->
+  <line x1="690" y1="116" x2="735" y2="116" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- T2S6 -->
+  <rect x="735" y="98"  width="100" height="36" rx="7" fill="#5c6bc0" filter="url(#shd)"/>
+  <text x="785" y="113" text-anchor="middle" fill="#fff" font-weight="600">T2·S6</text>
+  <text x="785" y="127" text-anchor="middle" fill="#e8eaf6" font-size="10">bash -n</text>
+
+  <!-- T2S6→T2S7 -->
+  <line x1="835" y1="116" x2="880" y2="116" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- T2S7 commit -->
+  <rect x="880" y="98"  width="70" height="36" rx="7" fill="#3949ab" filter="url(#shd)"/>
+  <text x="915" y="113" text-anchor="middle" fill="#fff" font-weight="600">T2·S7</text>
+  <text x="915" y="127" text-anchor="middle" fill="#c5cae9" font-size="10">commit</text>
+
+  <!-- vertical arrow T2S7 → Task3 row -->
+  <line x1="785" y1="134" x2="785" y2="208" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)" stroke-dasharray="4,3"/>
+
+  <!-- Task 3 row -->
+  <!-- T3S1 -->
+  <rect x="735" y="208"  width="100" height="36" rx="7" fill="#5c6bc0" filter="url(#shd)"/>
+  <text x="785" y="223" text-anchor="middle" fill="#fff" font-weight="600">T3·S1</text>
+  <text x="785" y="237" text-anchor="middle" fill="#e8eaf6" font-size="10">.example rewrite</text>
+
+  <!-- T3S1→T3S2 -->
+  <line x1="835" y1="226" x2="880" y2="226" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- T3S2 -->
+  <rect x="880" y="208"  width="70" height="36" rx="7" fill="#3949ab" filter="url(#shd)"/>
+  <text x="915" y="223" text-anchor="middle" fill="#fff" font-weight="600">T3·S2</text>
+  <text x="915" y="237" text-anchor="middle" fill="#c5cae9" font-size="10">commit</text>
+
+  <!-- vertical arrow T3S2 → Task4 row -->
+  <line x1="785" y1="244" x2="785" y2="318" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)" stroke-dasharray="4,3"/>
+
+  <!-- Task 4 row -->
+  <!-- T4S1 -->
+  <rect x="590" y="318"  width="100" height="36" rx="7" fill="#5c6bc0" filter="url(#shd)"/>
+  <text x="640" y="333" text-anchor="middle" fill="#fff" font-weight="600">T4·S1</text>
+  <text x="640" y="347" text-anchor="middle" fill="#e8eaf6" font-size="10">grep checks</text>
+
+  <!-- T4S1→T4S2 -->
+  <line x1="690" y1="336" x2="735" y2="336" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- T4S2 -->
+  <rect x="735" y="318"  width="100" height="36" rx="7" fill="#5c6bc0" filter="url(#shd)"/>
+  <text x="785" y="333" text-anchor="middle" fill="#fff" font-weight="600">T4·S2</text>
+  <text x="785" y="347" text-anchor="middle" fill="#e8eaf6" font-size="10">full test suite</text>
+
+  <!-- T4S2→T4S3 -->
+  <line x1="835" y1="336" x2="860" y2="336" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- T4S3 -->
+  <rect x="860" y="318"  width="100" height="36" rx="7" fill="#5c6bc0" filter="url(#shd)"/>
+  <text x="910" y="333" text-anchor="middle" fill="#fff" font-weight="600">T4·S3</text>
+  <text x="910" y="347" text-anchor="middle" fill="#e8eaf6" font-size="10">wiki update</text>
+
+  <!-- T4S3 coming down toward T4S4 -->
+  <line x1="910" y1="354" x2="910" y2="378" stroke="#9aa0b4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- T4S4 -->
+  <rect x="860" y="378"  width="100" height="36" rx="7" fill="#43a047" filter="url(#shd)"/>
+  <text x="910" y="393" text-anchor="middle" fill="#fff" font-weight="600">T4·S4</text>
+  <text x="910" y="407" text-anchor="middle" fill="#c8e6c9" font-size="10">check-result OK</text>
+
+  <!-- Legend -->
+  <rect x="10" y="310" width="14" height="14" rx="3" fill="#5c6bc0"/>
+  <text x="29" y="321" fill="#9aa0b4" font-size="10">impl step</text>
+  <rect x="10" y="330" width="14" height="14" rx="3" fill="#e53935"/>
+  <text x="29" y="341" fill="#9aa0b4" font-size="10">RED (TDD fail)</text>
+  <rect x="10" y="350" width="14" height="14" rx="3" fill="#43a047"/>
+  <text x="29" y="361" fill="#9aa0b4" font-size="10">GREEN (pass)</text>
+  <rect x="10" y="370" width="14" height="14" rx="3" fill="#3949ab"/>
+  <text x="29" y="381" fill="#9aa0b4" font-size="10">commit step</text>
+  <line x1="10" y1="395" x2="35" y2="395" stroke="#9aa0b4" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="40" y="399" fill="#9aa0b4" font-size="10">cross-task dep</text>
+</svg>
+</div>
+
+<h3>Пересечения по артефактам</h3>
+<table class="rpt-table">
+  <thead>
+    <tr>
+      <th>Артефакт</th>
+      <th>Task 1</th>
+      <th>Task 2</th>
+      <th>Task 3</th>
+      <th>Task 4</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>lib/iwiki/iwiki.sh</code></td>
+      <td class="matrix-cell-yes">читает (S1)</td>
+      <td class="matrix-cell-yes">изменяет (S3,4,7)</td>
+      <td class="matrix-cell-no">—</td>
+      <td class="matrix-cell-yes">проверяет (S1)</td>
+    </tr>
+    <tr>
+      <td><code>tests/test_iwiki_wiring.sh</code></td>
+      <td class="matrix-cell-no">—</td>
+      <td class="matrix-cell-yes">изменяет (S1,2,5,7)</td>
+      <td class="matrix-cell-no">—</td>
+      <td class="matrix-cell-yes">прогоняет (S2)</td>
+    </tr>
+    <tr>
+      <td><code>.codex_config</code></td>
+      <td class="matrix-cell-yes">изменяет (S1)</td>
+      <td class="matrix-cell-yes">использует (env)</td>
+      <td class="matrix-cell-no">—</td>
+      <td class="matrix-cell-no">—</td>
+    </tr>
+    <tr>
+      <td><code>.codex_config.example</code></td>
+      <td class="matrix-cell-no">—</td>
+      <td class="matrix-cell-no">—</td>
+      <td class="matrix-cell-yes">изменяет (S1,2)</td>
+      <td class="matrix-cell-no">—</td>
+    </tr>
+    <tr>
+      <td><code>docs/TODO.md</code></td>
+      <td class="matrix-cell-no">—</td>
+      <td class="matrix-cell-no">—</td>
+      <td class="matrix-cell-no">—</td>
+      <td class="matrix-cell-yes">закрывает (S4)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Требования спеки → шаги плана</h3>
+<table class="rpt-table">
+  <thead>
+    <tr><th>Требование спеки</th><th>Покрывающий шаг</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>command auto-detect + override</td><td>Task 2 Step 4 (<code>cmd=...</code>)</td></tr>
+    <tr><td>Required tier + guard (base/url/key)</td><td>Task 2 Step 4 (guard)</td></tr>
+    <tr><td>Optional passthrough loop (8 vars, emit-if-set)</td><td>Task 2 Step 3 (<code>_IWIKI_OPTIONAL_VARS</code>)</td></tr>
+    <tr><td>Secret never written literally</td><td>Task 2 Steps 3,4 (env_vars path)</td></tr>
+    <tr><td><code>IWIKI_PROJECT_DIR</code> out of scope</td><td>Task 2 (not referenced)</td></tr>
+    <tr><td><code>.codex_config.example</code> documented</td><td>Task 3</td></tr>
+    <tr><td><code>.codex_config</code> local values set</td><td>Task 1</td></tr>
+    <tr><td><code>tests/test_iwiki_wiring.sh</code> rewrite</td><td>Task 2 Step 1</td></tr>
+    <tr><td>No change to env.sh / binding</td><td>— (explicit no-change)</td></tr>
+  </tbody>
+</table>
+
+<h2>Результаты проверки</h2>
+
+<div class="phase-row">
+  <span class="phase-name">Фаза 1: structure</span>
+  <span class="badge badge-ok">passed</span>
+  <span style="color:var(--muted);font-size:.85rem">Плейсхолдеры: нет. Нумерация: без пропусков. Дубликатов заголовков: нет.</span>
+</div>
+<div class="phase-row">
+  <span class="phase-name">Фаза 2: coverage</span>
+  <span class="badge badge-ok">passed</span>
+  <span style="color:var(--muted);font-size:.85rem">Каждое требование спеки покрыто. F-001 из спеки зафиксирован как <code>fixed</code>.</span>
+</div>
+<div class="phase-row">
+  <span class="phase-name">Фаза 3: dependencies</span>
+  <span class="badge badge-ok">passed</span>
+  <span style="color:var(--muted);font-size:.85rem">Task 1 → Task 2 — явно прописано. Task 2 Steps: тест→RED→impl→GREEN→commit. Циклов нет.</span>
+</div>
+<div class="phase-row">
+  <span class="phase-name">Фаза 4: verifiability</span>
+  <span class="badge badge-ok">passed</span>
+  <span style="color:var(--muted);font-size:.85rem">Каждый шаг имеет явный DoD (команда + ожидаемый вывод).</span>
+</div>
+<div class="phase-row">
+  <span class="phase-name">Фаза 5: consistency</span>
+  <span class="badge badge-ok">passed</span>
+  <span style="color:var(--muted);font-size:.85rem">Spec hash не изменился. Plan hash обновлён (план расширен деталями Task 2, согласованными со спекой).</span>
+</div>
+
+<h3>Findings</h3>
+<p class="note">Новых findings нет. Все 5 фаз пройдены без замечаний.</p>
+
+<h3>Сводка</h3>
+<table class="rpt-table" style="max-width:500px">
+  <tbody>
+    <tr><td>CRITICAL open</td><td><strong>0</strong></td></tr>
+    <tr><td>WARNING open</td><td><strong>0</strong></td></tr>
+    <tr><td>Вердикт</td><td><span class="badge badge-ok">OK</span></td></tr>
+    <tr><td>plan_hash (новый)</td><td><code>0c46f2def75b9e52</code></td></tr>
+    <tr><td>spec_hash</td><td><code>c49c1770bb5cff4b</code> (без изменений)</td></tr>
+  </tbody>
+</table>
+
+<p class="chain-meta" style="margin-top:1.5rem">
+  <strong>Цепочка:</strong>
+  <code>(intent: null)</code> →
+  <code>docs/superpowers/specs/2026-07-01-icodex-iwiki-path-config-design.md</code> →
+  <code>docs/superpowers/plans/2026-07-01-icodex-iwiki-path-config.md</code>
+</p>
+
+</section>
+<!-- TAB:plan END -->
+
+<!-- TAB:result START -->
+<section class="tab-pane" id="pane-result">
+  <p class="note">Этап ещё не проверен.</p>
+</section>
+<!-- TAB:result END -->
+
+</body>
+</html>
