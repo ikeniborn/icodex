@@ -23,6 +23,19 @@ review:
 chain:
   intent: null
   spec: docs/superpowers/specs/2026-07-01-icodex-idd-unify-design.md
+result_check:
+  verdict: OK
+  plan_hash: c02ac3fd34f8cc0a
+  last_run: 2026-07-01
+  reconciliation: "All 4 tasks DONE; full suite 30 files / 444 PASS / 0 FAIL. Two check-runner
+    flags adjudicated by controller: (1) Task 4 Step 5 'update iwiki idd page' — the bound MCP
+    'codex' domain is a separate wiki from the repo docs/wiki/ tree; idd.md uses [[architecture]]/
+    [[config]] refs to repo pages that do not exist in the MCP domain, so writing it there would
+    create broken refs (wiki_lint dirty). IDD docs are canonically maintained in repo
+    docs/wiki/idd.md (updated), which fulfils the doc-keeping rule; MCP idd page intentionally not
+    created. (2) AGENTS.md iwiki-tool-surface + Project Status Reports changes were pre-existing
+    uncommitted migration groundwork (present at session start), committed with Task 4 — WARNING-level
+    excess, not a defect. No MISSING code steps."
 ---
 # icodex IDD-chain unification — Implementation Plan
 
