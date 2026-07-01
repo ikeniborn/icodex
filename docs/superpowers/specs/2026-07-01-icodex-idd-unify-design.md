@@ -1,3 +1,20 @@
+---
+review:
+  spec_hash: 4906f6f541e5d53f
+  last_run: 2026-07-01
+  phases:
+    - name: structure
+      status: passed
+    - name: coverage
+      status: passed
+    - name: clarity
+      status: passed
+    - name: consistency
+      status: passed
+  findings: []
+chain:
+  intent: null
+---
 # Design: unify the icodex IDD→SDD chain (port chain-gate.py + check-chain + fix-intent)
 
 **Date:** 2026-07-01
