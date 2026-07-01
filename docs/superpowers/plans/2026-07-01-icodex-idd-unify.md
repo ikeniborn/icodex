@@ -1,3 +1,29 @@
+---
+review:
+  plan_hash: c02ac3fd34f8cc0a
+  last_run: 2026-07-01
+  phases:
+    structure: { status: passed }
+    coverage: { status: passed }
+    dependencies: { status: passed }
+    verifiability: { status: passed }
+    consistency: { status: passed }
+  findings:
+    - id: F-001
+      phase: coverage
+      severity: WARNING
+      section: "Task 3: check-chain + fix-intent skills"
+      section_hash: 24ff0800ca21ca61
+      fragment: "assert_contains \"check-chain covers result stage\" \"$body\" \"result_check\""
+      text: "Spec §Tests (design line 183) requires test_idd_skills.sh to assert the four `tab:` tokens intent/spec/plan/result for check-chain; Task 3 Step 1 asserts `result_check` plus the three hash keys instead and includes no `tab:` check. Coverage of the underlying requirement (skills test validates the unified layout) is preserved, but the specific spec assertion is not implemented. Note: the iclaude source contains only a single templated `tab: <stage>` token, so asserting four literal `tab:` tokens would fail — the plan's substitution is arguably the more correct choice, and the spec text was imprecise."
+      fix: "Either (a) update the plan/spec to agree — keep the `result_check` assertion and drop the spec's four-`tab:`-tokens wording, or (b) if the spec intent must be honored, add an assert that check-chain's body contains the `tab:` token. Recommend (a) since the source has a single templated tab token."
+      verdict: fixed
+      verdict_at: 2026-07-01
+      resolution: "Applied (a): spec §Tests reworded to drop the four-`tab:`-tokens requirement and assert stage coverage via the hash keys + result_check; spec_hash refreshed. Plan and spec now agree."
+chain:
+  intent: null
+  spec: docs/superpowers/specs/2026-07-01-icodex-idd-unify-design.md
+---
 # icodex IDD-chain unification — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

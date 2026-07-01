@@ -1,6 +1,6 @@
 ---
 review:
-  spec_hash: 4906f6f541e5d53f
+  spec_hash: 88e206f29d098b86
   last_run: 2026-07-01
   phases:
     - name: structure
@@ -179,8 +179,10 @@ Replace the two-command merge with a single-file, two-entry merge:
   opt-out restores symlink; base + caveman hooks preserved.
 - `test_idd_skills.sh`: replace the four `check_skill check-*` calls with checks for
   `check-chain` (single SKILL.md containing `name: check-chain`, a description, all of
-  `intent_hash` / `spec_hash` / `plan_hash`, and the four `tab:` tokens intent/spec/plan/
-  result) and `fix-intent` (`name: fix-intent`, a description, frontmatter parses).
+  `intent_hash` / `spec_hash` / `plan_hash`, and the `result_check` stage marker) and
+  `fix-intent` (`name: fix-intent`, a description, frontmatter parses). Do not assert
+  per-stage `tab:` literals — the unified `check-chain` source carries a single templated
+  `tab: <stage>` token, so the stage coverage is asserted via the hash keys + `result_check`.
 
 ### Docs
 
