@@ -1,0 +1,8 @@
+topic: "{{topic}}"
+status: active
+stage: goal
+created: "{{created_date}}"
+updated: "{{updated_date}}"
+artifact_root: "docs/loen/{{topic}}"
+checks: []
+decision: pending

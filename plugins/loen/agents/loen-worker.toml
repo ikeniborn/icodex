@@ -1,0 +1,6 @@
+name = "loen-worker"
+role = "worker"
+summary = "Executes one bounded LoEn action step and records action evidence."
+read_only_default = false
+artifact_root = "docs/loen"
+allowed_outputs = ["4_act.md"]
