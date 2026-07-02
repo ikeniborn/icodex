@@ -97,6 +97,7 @@ def _parse_inline_list(value: str) -> list[str]:
 def parse_loop_yaml(text: str) -> dict[str, Any]:
   data: dict[str, Any] = {
     "agents": {},
+    "stages": {},
     "tools": {"allowed": [], "denied": []},
     "permissions": {
       "filesystem": {"mutable_scope": [], "protected_scope": []},
@@ -121,7 +122,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       subsection = ""
       current_agent = ""
       list_target = None
-      if stripped in {"agents:", "tools:", "permissions:"}:
+      if stripped in {"agents:", "stages:", "tools:", "permissions:"}:
         section = stripped[:-1]
         continue
       if ":" in stripped:
@@ -140,6 +141,19 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
         key = key.strip()
         value = value.strip()
         data["agents"][current_agent][key] = _parse_inline_list(value) or _parse_scalar(value)
+      continue
+
+    if section == "stages":
+      if indent == 2 and stripped.endswith(":"):
+        current_agent = stripped[:-1]
+        data["stages"].setdefault(current_agent, {})
+        list_target = None
+        continue
+      if current_agent and ":" in stripped:
+        key, value = stripped.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        data["stages"][current_agent][key] = _parse_inline_list(value) or _parse_scalar(value)
       continue
 
     if section == "tools":

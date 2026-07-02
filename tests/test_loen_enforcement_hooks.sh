@@ -35,6 +35,21 @@ agents:
     tools: [read, search, shell]
     sandbox: read-only
     must_not_edit: true
+stages:
+  goal:
+    roles: [planner, worker]
+  context:
+    roles: [planner, worker, researcher]
+  plan:
+    roles: [planner]
+  act:
+    roles: [worker]
+  check:
+    roles: [verifier]
+  reflect:
+    roles: [planner, verifier, reviewer]
+  result:
+    roles: [planner, verifier, reviewer]
 tools:
   allowed:
     - read
@@ -100,7 +115,11 @@ protected_patch='{"tool_name":"apply_patch","tool_input":{"patch":"*** Begin Pat
 topic_doc_write='{"tool_name":"Write","tool_input":{"file_path":"docs/loen/demo-topic/5_check.md","content":"ok"}}'
 skipped_reflect_write='{"tool_name":"Write","tool_input":{"file_path":"docs/loen/demo-topic/6_reflect.md","content":"too early"}}'
 test_edit='{"tool_name":"Edit","tool_input":{"file_path":"tests/test_demo.sh","old_string":"old","new_string":"new"}}'
+worker_edit='{"tool_name":"Edit","agent_role":"worker","tool_input":{"file_path":"tests/test_demo.sh","old_string":"old","new_string":"new"}}'
 worker_patch='{"tool_name":"apply_patch","agent_role":"worker","tool_input":{"patch":"*** Begin Patch\n*** Update File: tests/test_demo.sh\n@@\n-old\n+new\n*** End Patch\n"}}'
+worker_shell='{"tool_name":"Bash","agent_role":"worker","tool_input":{"command":"pytest tests/auth"}}'
+verifier_shell='{"tool_name":"Bash","agent_role":"verifier","tool_input":{"command":"pytest tests/auth"}}'
+verifier_read='{"tool_name":"Read","agent_role":"verifier","tool_input":{"file_path":"tests/test_demo.sh"}}'
 shell_allow='{"tool_name":"Bash","tool_input":{"command":"pytest tests/auth"}}'
 shell_deny='{"tool_name":"Bash","tool_input":{"command":"git reset --hard HEAD"}}'
 shell_deny_pattern='{"tool_name":"Bash","tool_input":{"command":"rm -rf build"}}'
@@ -141,8 +160,11 @@ assert_hook_stderr_contains "permission-guard advisory nudges denied shell" 0 "p
 assert_hook_exit "tool-guard blocks verifier edits in strict" 2 "tool-guard.py" "strict" "$topic" "$verifier_edit"
 assert_hook_exit "tool-guard blocks reviewer edits in strict" 2 "tool-guard.py" "strict" "$topic" "$reviewer_edit"
 assert_hook_exit "tool-guard enforce does not block strict-only role policy" 0 "tool-guard.py" "enforce" "$topic" "$verifier_edit"
-assert_hook_exit "tool-guard allows worker edits in strict" 0 "tool-guard.py" "strict" "$topic" "$test_edit"
-assert_hook_exit "tool-guard allows worker apply_patch in strict" 0 "tool-guard.py" "strict" "$topic" "$worker_patch"
+assert_hook_exit "tool-guard blocks worker edit at check stage in strict" 2 "tool-guard.py" "strict" "$topic" "$worker_edit"
+assert_hook_exit "tool-guard blocks worker shell at check stage in strict" 2 "tool-guard.py" "strict" "$topic" "$worker_shell"
+assert_hook_exit "tool-guard allows verifier shell at check stage in strict" 0 "tool-guard.py" "strict" "$topic" "$verifier_shell"
+assert_hook_exit "tool-guard allows verifier read at check stage in strict" 0 "tool-guard.py" "strict" "$topic" "$verifier_read"
+assert_hook_stderr_contains "tool-guard advisory nudges disallowed stage role" 0 "tool-guard.py" "advisory" "$topic" "$worker_shell" "LoEn:"
 assert_hook_stderr_contains "tool-guard advisory nudges verifier edits" 0 "tool-guard.py" "advisory" "$topic" "$verifier_edit" "LoEn:"
 
 assert_hook_exit "evidence-gate blocks done without result evidence" 2 "evidence-gate.py" "enforce" "$topic" "$done_payload"
@@ -172,8 +194,33 @@ assert_eq "LoEn hooks do not depend on chain-gate or IDD frontmatter" "" "$hook_
 
 assert_contains "loop template includes agent policy" "$(cat "$template")" "agents:"
 assert_contains "loop template includes reviewer policy" "$(cat "$template")" "reviewer:"
+assert_contains "loop template includes stage policy" "$(cat "$template")" "stages:"
 assert_contains "loop template includes tool policy" "$(cat "$template")" "tools:"
 assert_contains "loop template includes permission policy" "$(cat "$template")" "permissions:"
+
+act_topic="act-topic"
+act_dir="$artifact_root/$act_topic"
+mkdir -p "$act_dir"
+cat > "$act_dir/loop.yaml" <<'YAML'
+topic: act-topic
+status: active
+stage: act
+agents:
+  worker:
+    tools: [read, search, edit, shell]
+    sandbox: workspace-write
+stages:
+  act:
+    roles: [worker]
+tools:
+  allowed:
+    - read
+    - search
+    - apply_patch
+    - shell
+YAML
+assert_hook_exit "tool-guard allows worker edit at act stage in strict" 0 "tool-guard.py" "strict" "$act_topic" "$worker_edit"
+assert_hook_exit "tool-guard allows worker apply_patch at act stage in strict" 0 "tool-guard.py" "strict" "$act_topic" "$worker_patch"
 
 allow_topic="allow-topic"
 allow_dir="$artifact_root/$allow_topic"

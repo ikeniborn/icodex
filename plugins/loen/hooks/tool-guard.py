@@ -30,6 +30,11 @@ def main() -> int:
     return block_or_nudge(f"LoEn: tool class not allowed by loop policy: {tool}")
 
   agent = policy.get("agents", {}).get(role, {}) if role else {}
+  stage = str(policy.get("current_stage") or policy.get("stage") or "").strip()
+  stage_roles = policy.get("stages", {}).get(stage, {}).get("roles", [])
+  if role and stage_roles and role not in stage_roles:
+    return block_or_nudge(f"LoEn: role {role} is not allowed during stage {stage}")
+
   agent_tools = agent.get("tools", [])
   if agent.get("must_not_edit") is True and policy_tool == "edit":
     return block_or_nudge(f"LoEn: {role} must not edit in strict mode")

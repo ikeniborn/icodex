@@ -21,6 +21,21 @@ agents:
     tools: [read, search, shell]
     sandbox: read-only
     must_not_edit: true
+stages:
+  goal:
+    roles: [planner, worker]
+  context:
+    roles: [planner, worker, researcher]
+  plan:
+    roles: [planner]
+  act:
+    roles: [worker]
+  check:
+    roles: [verifier]
+  reflect:
+    roles: [planner, verifier, reviewer]
+  result:
+    roles: [planner, verifier, reviewer]
 tools:
   allowed:
     - read
