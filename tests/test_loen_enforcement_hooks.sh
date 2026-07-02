@@ -113,11 +113,13 @@ assert_hook_stderr_contains() {
 edit_payload='{"tool_name":"apply_patch","tool_input":{"patch":"*** Begin Patch\n*** Update File: src/app.py\n@@\n-old\n+new\n*** End Patch\n"}}'
 protected_patch='{"tool_name":"apply_patch","tool_input":{"patch":"*** Begin Patch\n*** Update File: migrations/001.sql\n@@\n-old\n+new\n*** End Patch\n"}}'
 raw_protected_patch='{"tool_name":"apply_patch","tool_input":"*** Begin Patch\n*** Update File: migrations/002.sql\n@@\n-old\n+new\n*** End Patch\n"}'
+traversal_protected_patch='{"tool_name":"apply_patch","tool_input":{"patch":"*** Begin Patch\n*** Update File: src/../migrations/001.sql\n@@\n-old\n+new\n*** End Patch\n"}}'
 topic_doc_write='{"tool_name":"Write","tool_input":{"file_path":"docs/loen/demo-topic/5_check.md","content":"ok"}}'
 skipped_reflect_write='{"tool_name":"Write","tool_input":{"file_path":"docs/loen/demo-topic/6_reflect.md","content":"too early"}}'
 read_readme='{"tool_name":"Read","tool_input":{"file_path":"README.md"}}'
 read_result_artifact='{"tool_name":"Read","tool_input":{"file_path":"docs/loen/demo-topic/7_result.md"}}'
 test_edit='{"tool_name":"Edit","tool_input":{"file_path":"tests/test_demo.sh","old_string":"old","new_string":"new"}}'
+traversal_test_edit='{"tool_name":"Edit","tool_input":{"file_path":"tests/../tests/test_demo.sh","old_string":"old","new_string":"new"}}'
 worker_edit='{"tool_name":"Edit","agent_role":"worker","tool_input":{"file_path":"tests/test_demo.sh","old_string":"old","new_string":"new"}}'
 worker_patch='{"tool_name":"apply_patch","agent_role":"worker","tool_input":{"patch":"*** Begin Patch\n*** Update File: tests/test_demo.sh\n@@\n-old\n+new\n*** End Patch\n"}}'
 worker_shell='{"tool_name":"Bash","agent_role":"worker","tool_input":{"command":"pytest tests/auth"}}'
@@ -129,6 +131,8 @@ shell_deny_pattern='{"tool_name":"Bash","tool_input":{"command":"rm -rf build"}}
 raw_shell_deny_pattern='{"tool_name":"Bash","tool_input":"rm -rf build"}'
 network_deny='{"tool_name":"Bash","tool_input":{"command":"curl https://example.com/file"}}'
 network_deny_tab='{"tool_name":"Bash","tool_input":{"command":"curl\thttps://example.com/file"}}'
+network_deny_absolute='{"tool_name":"Bash","tool_input":{"command":"/usr/bin/curl https://example.com/file"}}'
+network_deny_env='{"tool_name":"Bash","tool_input":{"command":"env curl https://example.com/file"}}'
 verifier_edit='{"tool_name":"Edit","agent_role":"verifier","tool_input":{"file_path":"tests/test_demo.sh","old_string":"old","new_string":"new"}}'
 reviewer_edit='{"tool_name":"Edit","agent_role":"reviewer","tool_input":{"file_path":"tests/test_demo.sh","old_string":"old","new_string":"new"}}'
 done_payload='{"verdict":"done","agent_role":"verifier"}'
@@ -197,8 +201,10 @@ assert_hook_exit "scope-guard allows read outside mutable scope in strict" 0 "sc
 assert_hook_exit "scope-guard allows LoEn topic artifact" 0 "scope-guard.py" "enforce" "$topic" "$topic_doc_write"
 assert_hook_exit "scope-guard allows configured mutable scope from Edit" 0 "scope-guard.py" "enforce" "$topic" "$test_edit"
 assert_hook_exit "scope-guard allows absolute mutable path" 0 "scope-guard.py" "enforce" "$topic" "$absolute_test_edit"
+assert_hook_exit "scope-guard allows normalized mutable traversal path" 0 "scope-guard.py" "enforce" "$topic" "$traversal_test_edit"
 assert_hook_exit "scope-guard blocks protected path from patch" 2 "scope-guard.py" "enforce" "$topic" "$protected_patch"
 assert_hook_stderr_contains "scope-guard blocks absolute protected path" 2 "scope-guard.py" "enforce" "$topic" "$absolute_protected_patch" "protected path"
+assert_hook_stderr_contains "scope-guard blocks protected traversal path" 2 "scope-guard.py" "enforce" "$topic" "$traversal_protected_patch" "protected path"
 assert_hook_exit "scope-guard blocks raw string protected patch" 2 "scope-guard.py" "enforce" "$topic" "$raw_protected_patch"
 assert_hook_stderr_contains "scope-guard advisory nudges protected path" 0 "scope-guard.py" "advisory" "$topic" "$protected_patch" "LoEn:"
 
@@ -208,6 +214,8 @@ assert_hook_exit "permission-guard blocks configured deny pattern" 2 "permission
 assert_hook_stderr_contains "permission-guard blocks raw string deny pattern" 2 "permission-guard.py" "strict" "$topic" "$raw_shell_deny_pattern" "denied by policy"
 assert_hook_exit "permission-guard blocks network command" 2 "permission-guard.py" "strict" "$topic" "$network_deny"
 assert_hook_stderr_contains "permission-guard blocks network command with tab" 2 "permission-guard.py" "strict" "$topic" "$network_deny_tab" "network command denied"
+assert_hook_stderr_contains "permission-guard blocks absolute network command" 2 "permission-guard.py" "strict" "$topic" "$network_deny_absolute" "network command denied"
+assert_hook_stderr_contains "permission-guard blocks env wrapped network command" 2 "permission-guard.py" "strict" "$topic" "$network_deny_env" "network command denied"
 assert_hook_exit "permission-guard enforce does not block strict-only shell policy" 0 "permission-guard.py" "enforce" "$topic" "$shell_deny_pattern"
 assert_hook_stderr_contains "permission-guard advisory nudges denied shell" 0 "permission-guard.py" "advisory" "$topic" "$shell_deny_pattern" "LoEn:"
 assert_hook_stderr_contains "permission-guard advisory nudges raw string deny pattern" 0 "permission-guard.py" "advisory" "$topic" "$raw_shell_deny_pattern" "denied by policy"

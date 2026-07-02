@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """LoEn shell and network permission guard; reads LOEN_ARTIFACT_ROOT through loen_common."""
+import shlex
 from urllib.parse import urlparse
 
 from loen_common import block_or_nudge, command_matches, is_advisory, is_off, is_strict, loop_policy, read_event, read_loop_artifact, shell_command, tool_class
@@ -8,9 +9,35 @@ SCRIPT_NAME = "permission-guard"
 NETWORK_TOOLS = {"curl", "wget", "ssh", "scp", "nc"}
 
 
+def _command_parts(command: str) -> list[str]:
+  try:
+    return shlex.split(command)
+  except ValueError:
+    return command.split()
+
+
+def _token_basename(token: str) -> str:
+  return token.rsplit("/", 1)[-1]
+
+
+def _network_command_index(parts: list[str]) -> int | None:
+  if not parts:
+    return None
+  index = 0
+  if _token_basename(parts[index]) == "env":
+    index += 1
+    while index < len(parts) and (parts[index].startswith("-") or ("=" in parts[index] and not parts[index].startswith(("http://", "https://")))):
+      index += 1
+  if index < len(parts) and _token_basename(parts[index]) in NETWORK_TOOLS:
+    return index
+  return None
+
+
 def _network_target(command: str) -> str:
-  parts = command.split()
-  for part in parts[1:]:
+  parts = _command_parts(command)
+  command_index = _network_command_index(parts)
+  start = command_index + 1 if command_index is not None else 1
+  for part in parts[start:]:
     if part.startswith("-"):
       continue
     parsed = urlparse(part)
@@ -40,8 +67,8 @@ def main() -> int:
   if "git reset --hard" in command:
     return block_or_nudge("LoEn: destructive git command denied")
   network_mode = policy.get("network", {}).get("mode", "off")
-  parts = command.split()
-  is_network = bool(parts and parts[0] in NETWORK_TOOLS)
+  parts = _command_parts(command)
+  is_network = _network_command_index(parts) is not None
   if is_network and network_mode == "off":
     return block_or_nudge("LoEn: network command denied by policy")
   allowlist = policy.get("network", {}).get("allowlist", [])

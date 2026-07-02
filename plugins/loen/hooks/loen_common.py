@@ -6,6 +6,7 @@ import fnmatch
 import html
 import json
 import os
+import posixpath
 from pathlib import Path
 import re
 import sys
@@ -266,18 +267,16 @@ def extract_paths(event: dict[str, Any]) -> list[str]:
 
 def normalize_path(path: str) -> str:
   clean = path.replace("\\", "/")
-  try:
-    candidate = Path(path).expanduser()
-    if candidate.is_absolute():
-      absolute = candidate.resolve(strict=False).as_posix()
-      cwd = Path.cwd().resolve().as_posix()
-      if absolute == cwd:
-        return ""
-      if absolute.startswith(f"{cwd}/"):
-        return absolute[len(cwd) + 1:]
-  except (OSError, RuntimeError):
-    pass
-  return clean.lstrip("./")
+  normalized = posixpath.normpath(clean)
+  if normalized == ".":
+    normalized = ""
+  if clean.startswith("/"):
+    cwd = posixpath.normpath(Path.cwd().as_posix())
+    if normalized == cwd:
+      return ""
+    if normalized.startswith(f"{cwd}/"):
+      return normalized[len(cwd) + 1:]
+  return normalized
 
 
 def matches_any(path: str, patterns: list[str]) -> bool:
