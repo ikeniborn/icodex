@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """LoEn loop-state gate; reads LOEN_ARTIFACT_ROOT through loen_common."""
-from loen_common import block_or_nudge, extract_paths, is_edit_event, is_off, read_event, read_loop_artifact, tool_input, topic, topic_dir
+from loen_common import block_or_nudge, extract_paths, is_edit_event, is_off, parse_loop_yaml, read_event, read_loop_artifact, tool_input, topic, topic_dir
 
 SCRIPT_NAME = "loop-gate"
 STAGE_NUMBERS = {
@@ -63,6 +63,10 @@ def main() -> int:
   loop_text = read_loop_artifact()
   if is_edit_event(event) and not loop_text:
     return block_or_nudge("LoEn: code edits require an active loop in enforce/strict mode")
+  if is_edit_event(event) and loop_text:
+    status = str(parse_loop_yaml(loop_text).get("status", "")).strip()
+    if status and status != "active":
+      return block_or_nudge(f"LoEn: code edits require an active loop; current status is {status}")
 
   if topic():
     stage_number = _proposed_stage(event)

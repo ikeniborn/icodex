@@ -133,6 +133,19 @@ success_message_payload='{"message":"final success: implementation complete","ag
 stage_jump_loop_yaml='{"tool_name":"Write","tool_input":{"file_path":"docs/loen/demo-topic/loop.yaml","content":"topic: demo-topic\nstage: reflect\n"}}'
 
 assert_contains "hooks registry still present in enforcement layer" "$(cat "$hooks_json")" "LoEn loop gate"
+pretool_matchers="$(python3 - "$hooks_json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for entry in data.get("hooks", {}).get("PreToolUse", []):
+  print(entry.get("matcher", ""))
+PY
+)"
+assert_contains "hooks registry PreToolUse matches Read" "$pretool_matchers" "Read"
+assert_contains "hooks registry PreToolUse matches Grep" "$pretool_matchers" "Grep"
+assert_contains "hooks registry PreToolUse matches Glob" "$pretool_matchers" "Glob"
 
 assert_hook_exit "loop-gate off allows edit without topic" 0 "loop-gate.py" "off" "" "$edit_payload"
 assert_hook_exit "loop-gate advisory allows edit without topic" 0 "loop-gate.py" "advisory" "" "$edit_payload"
@@ -143,6 +156,18 @@ assert_hook_exit "loop-gate strict blocks edit without topic" 2 "loop-gate.py" "
 assert_hook_exit "loop-gate blocks skipped stage artifact" 2 "loop-gate.py" "enforce" "$topic" "$skipped_reflect_write"
 assert_hook_stderr_contains "loop-gate advisory nudges skipped stage artifact" 0 "loop-gate.py" "advisory" "$topic" "$skipped_reflect_write" "LoEn:"
 assert_hook_exit "loop-gate blocks loop yaml stage jump" 2 "loop-gate.py" "enforce" "$topic" "$stage_jump_loop_yaml"
+
+inactive_topic="inactive-topic"
+inactive_dir="$artifact_root/$inactive_topic"
+mkdir -p "$inactive_dir"
+cat > "$inactive_dir/loop.yaml" <<'YAML'
+topic: inactive-topic
+status: done
+stage: result
+YAML
+assert_hook_stderr_contains "loop-gate advisory nudges inactive loop" 0 "loop-gate.py" "advisory" "$inactive_topic" "$edit_payload" "LoEn:"
+assert_hook_exit "loop-gate enforce blocks inactive loop" 2 "loop-gate.py" "enforce" "$inactive_topic" "$edit_payload"
+assert_hook_exit "loop-gate strict blocks inactive loop" 2 "loop-gate.py" "strict" "$inactive_topic" "$edit_payload"
 
 touch "$topic_dir/5_check.md"
 assert_hook_exit "scope-guard allows LoEn topic artifact" 0 "scope-guard.py" "enforce" "$topic" "$topic_doc_write"
