@@ -1,12 +1,12 @@
 ---
-title: LoEn agent isolation design
+title: 04 LoEn agent isolation design
 date: 2026-07-02
 status: draft
 chain:
   intent: null
 ---
 
-# LoEn agent isolation design
+# 04 LoEn agent isolation design
 
 ## Purpose
 

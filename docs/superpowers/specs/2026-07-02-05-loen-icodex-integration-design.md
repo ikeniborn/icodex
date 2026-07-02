@@ -1,12 +1,12 @@
 ---
-title: LoEn icodex integration design
+title: 05 LoEn icodex integration design
 date: 2026-07-02
 status: draft
 chain:
   intent: null
 ---
 
-# LoEn icodex integration design
+# 05 LoEn icodex integration design
 
 ## Purpose
 

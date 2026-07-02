@@ -1,12 +1,12 @@
 ---
-title: LoEn automation governance design
+title: 06 LoEn automation governance design
 date: 2026-07-02
 status: draft
 chain:
   intent: null
 ---
 
-# LoEn automation governance design
+# 06 LoEn automation governance design
 
 ## Purpose
 

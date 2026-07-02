@@ -1,12 +1,12 @@
 ---
-title: LoEn enforcement hooks design
+title: 03 LoEn enforcement hooks design
 date: 2026-07-02
 status: draft
 chain:
   intent: null
 ---
 
-# LoEn enforcement hooks design
+# 03 LoEn enforcement hooks design
 
 ## Purpose
 

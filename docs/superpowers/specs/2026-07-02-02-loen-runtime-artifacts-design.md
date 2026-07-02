@@ -1,12 +1,12 @@
 ---
-title: LoEn runtime artifacts design
+title: 02 LoEn runtime artifacts design
 date: 2026-07-02
 status: draft
 chain:
   intent: null
 ---
 
-# LoEn runtime artifacts design
+# 02 LoEn runtime artifacts design
 
 ## Purpose
 

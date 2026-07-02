@@ -1,12 +1,12 @@
 ---
-title: LoEn plugin core design
+title: 01 LoEn plugin core design
 date: 2026-07-02
 status: draft
 chain:
   intent: null
 ---
 
-# LoEn plugin core design
+# 01 LoEn plugin core design
 
 ## Purpose
 

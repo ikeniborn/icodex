@@ -1,12 +1,12 @@
 ---
-title: LoEn loop engineering overview
+title: 00 LoEn loop engineering overview
 date: 2026-07-02
 status: draft
 chain:
   intent: null
 ---
 
-# LoEn loop engineering overview
+# 00 LoEn loop engineering overview
 
 ## Purpose
 
@@ -39,12 +39,12 @@ LoEn is split into sequential layer specs:
 
 | Order | Topic | Spec |
 |---|---|---|
-| 1 | `loen-plugin-core` | Plugin source tree, manifest, skills, templates |
-| 2 | `loen-runtime-artifacts` | `docs/loen/<topic>/` artifacts and `audit.html` |
-| 3 | `loen-enforcement-hooks` | Loop gates, scope guard, tool guard, permission guard, evidence gate |
-| 4 | `loen-agent-isolation` | Agent roles, context capsules, Codex profile split, WASM verifier |
-| 5 | `loen-icodex-integration` | Vendoring, launch-time wiring, config/cache integration |
-| 6 | `loen-automation-governance` | Later L3 automations and governance loops |
+| 1 | `01-loen-plugin-core` | Plugin source tree, manifest, skills, templates |
+| 2 | `02-loen-runtime-artifacts` | `docs/loen/<topic>/` artifacts and `audit.html` |
+| 3 | `03-loen-enforcement-hooks` | Loop gates, scope guard, tool guard, permission guard, evidence gate |
+| 4 | `04-loen-agent-isolation` | Agent roles, context capsules, Codex profile split, WASM verifier |
+| 5 | `05-loen-icodex-integration` | Vendoring, launch-time wiring, config/cache integration |
+| 6 | `06-loen-automation-governance` | Later L3 automations and governance loops |
 
 The overview only defines shared boundaries and sequencing. Each layer owns its
 own acceptance criteria and implementation plan.
