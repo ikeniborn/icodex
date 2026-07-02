@@ -1,27 +1,45 @@
 #!/usr/bin/env python3
-"""Inert LoEn tool guard hook asset."""
-from pathlib import Path
-import os
+"""LoEn tool/role guard; reads LOEN_ARTIFACT_ROOT through loen_common."""
+from loen_common import block_or_nudge, is_advisory, is_off, is_strict, loop_policy, read_event, read_loop_artifact, tool_class
 
 SCRIPT_NAME = "tool-guard"
 
 
-def read_loop_artifact() -> str:
-  topic = os.environ.get("LOEN_TOPIC", "").strip()
-  root = Path(os.environ.get("LOEN_ARTIFACT_ROOT", "docs/loen"))
-  if not topic:
-    return ""
-  loop_file = root / topic / "loop.yaml"
-  if not loop_file.is_file():
-    return ""
-  try:
-    return loop_file.read_text(encoding="utf-8")
-  except (OSError, UnicodeDecodeError):
-    return ""
+def _policy_tool(tool: str) -> str:
+  return "edit" if tool in {"edit", "apply_patch"} else tool
 
 
 def main() -> int:
+  if is_off():
+    return 0
+  event = read_event()
   read_loop_artifact()
+  if not (is_advisory() or is_strict()):
+    return 0
+
+  policy = loop_policy()
+  tool = tool_class(event)
+  policy_tool = _policy_tool(tool)
+  role = str(event.get("agent_role") or event.get("role") or "").strip()
+  root_allowed = policy.get("tools", {}).get("allowed", [])
+  if policy_tool == "edit":
+    allowed_by_root = "apply_patch" in root_allowed or "edit" in root_allowed
+  else:
+    allowed_by_root = policy_tool in root_allowed
+  if root_allowed and not allowed_by_root:
+    return block_or_nudge(f"LoEn: tool class not allowed by loop policy: {tool}")
+
+  agent = policy.get("agents", {}).get(role, {}) if role else {}
+  stage = str(policy.get("current_stage") or policy.get("stage") or "").strip()
+  stage_roles = policy.get("stages", {}).get(stage, {}).get("roles", [])
+  if role and stage_roles and role not in stage_roles:
+    return block_or_nudge(f"LoEn: role {role} is not allowed during stage {stage}")
+
+  agent_tools = agent.get("tools", [])
+  if agent.get("must_not_edit") is True and policy_tool == "edit":
+    return block_or_nudge(f"LoEn: {role} must not edit in strict mode")
+  if agent_tools and policy_tool not in agent_tools:
+    return block_or_nudge(f"LoEn: role {role} cannot use tool class {tool}")
   return 0
 
 

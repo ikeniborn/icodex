@@ -1,27 +1,56 @@
 #!/usr/bin/env python3
-"""Inert LoEn audit writer hook asset."""
-from pathlib import Path
+"""LoEn audit artifact writer; reads LOEN_ARTIFACT_ROOT through loen_common."""
 import os
+from pathlib import Path
+
+from loen_common import html_page, is_off, loop_policy, read_loop_artifact, topic, topic_dir
 
 SCRIPT_NAME = "audit-writer"
 
 
-def read_loop_artifact() -> str:
-  topic = os.environ.get("LOEN_TOPIC", "").strip()
-  root = Path(os.environ.get("LOEN_ARTIFACT_ROOT", "docs/loen"))
-  if not topic:
-    return ""
-  loop_file = root / topic / "loop.yaml"
-  if not loop_file.is_file():
-    return ""
+def _ensure_todo_row(topic_name: str) -> None:
+  todo = Path(os.environ.get("LOEN_TODO_PATH", "docs/TODO.md"))
+  header = "| Topic | Status | Intent | Spec | Plan | Result | Opened | Closed | Notes |\n"
+  separator = "|---|---|---|---|---|---|---|---|---|\n"
+  row = f"| {topic_name} | in-progress | n/a | n/a | n/a | - |  |  | LoEn loop |\n"
   try:
-    return loop_file.read_text(encoding="utf-8")
-  except (OSError, UnicodeDecodeError):
-    return ""
+    if todo.is_file():
+      lines = todo.read_text(encoding="utf-8").splitlines(keepends=True)
+    else:
+      todo.parent.mkdir(parents=True, exist_ok=True)
+      lines = [header, separator]
+    needle = f"| {topic_name} |"
+    for index, line in enumerate(lines):
+      if line.startswith(needle):
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) == 9:
+          if cells[1] != "done":
+            cells[1] = "in-progress"
+          lines[index] = "| " + " | ".join(cells) + " |\n"
+        else:
+          lines[index] = row
+        break
+    else:
+      lines.append(row)
+    todo.write_text("".join(lines), encoding="utf-8")
+  except OSError:
+    return
 
 
 def main() -> int:
-  read_loop_artifact()
+  if is_off():
+    return 0
+  loop_text = read_loop_artifact()
+  topic_name = topic()
+  if not topic_name or not loop_text:
+    return 0
+  base = topic_dir(topic_name)
+  try:
+    base.mkdir(parents=True, exist_ok=True)
+    (base / "audit.html").write_text(html_page(topic_name, loop_policy()), encoding="utf-8")
+  except OSError:
+    return 0
+  _ensure_todo_row(topic_name)
   return 0
 
 
