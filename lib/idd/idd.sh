@@ -57,7 +57,7 @@ for cmd in LEGACY:
     strip("PreToolUse", cmd)
     strip("PostToolUse", cmd)
 if enable:
-    add("PreToolUse", "Skill|apply_patch|Write|Edit", GATE, "IDD phase gate")
+    add("PreToolUse", "Skill|Read|Bash|apply_patch|Write|Edit", GATE, "IDD phase gate")
     add("PostToolUse", "apply_patch|Write", NUDGE, "IDD nudge")
 
 json.dump(cfg, sys.stdout, indent=2)

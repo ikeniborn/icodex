@@ -120,6 +120,14 @@ assert_eq "passed spec allows writing-plans" "0" "$(run_gate "$skill")"
 write_spec pending
 assert_eq "pending spec blocks writing-plans" "2" "$(run_gate "$skill")"
 
+# 2a. Codex can load skills through ordinary file reads instead of a Skill tool.
+skill_read='{"session_id":"s1","tool_name":"Read","tool_input":{"file_path":".codex-isolated/plugins/cache/openai-curated/superpowers/3fdeeb49/skills/writing-plans/SKILL.md"}}'
+assert_eq "pending spec blocks writing-plans SKILL.md read" "2" "$(run_gate "$skill_read")"
+
+# 2b. Some Codex surfaces expose skill activation only through shell-visible text.
+skill_bash='{"session_id":"s1","tool_name":"Bash","tool_input":{"cmd":"sed -n '\''1,120p'\'' .codex-isolated/plugins/cache/openai-curated/superpowers/3fdeeb49/skills/writing-plans/SKILL.md"}}'
+assert_eq "pending spec blocks writing-plans bash read" "2" "$(run_gate "$skill_bash")"
+
 # 3. apply_patch creating a plan while spec NOT passed -> block (spec->plan gate).
 patch='{"session_id":"s1","tool_name":"apply_patch","tool_input":{"patch":"*** Begin Patch\n*** Add File: docs/superpowers/plans/2026-06-30-foo.md\n+# Plan\n*** End Patch\n"}}'
 assert_eq "apply_patch plan create blocks on unpassed spec" "2" "$(run_gate "$patch")"

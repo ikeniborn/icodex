@@ -57,6 +57,29 @@ Purpose: a single human-readable index of what is being worked on and what is do
 - **Create on demand.** If `docs/TODO.md` is absent, the first `/check-chain <stage>` run creates it with the header row, then appends.
 - **Manual rows are allowed.** A task may be added by hand before any `/check-chain <stage>` run; the skill then updates the matching `<topic>` row instead of duplicating it.
 
+## Superpowers Chain Order
+
+**For every non-trivial behavior, architecture, CLI/API, or feature change, keep the
+Superpowers workflow gated by `check-chain`:**
+
+1. `fix-intent` creates or updates `docs/superpowers/intents/*-intent.md`.
+2. `/check-chain intent` validates the intent before any brainstorming starts.
+3. `superpowers:brainstorming` creates or updates `docs/superpowers/specs/*-design.md`.
+4. `/check-chain spec` validates the spec before any implementation plan starts.
+5. `superpowers:writing-plans` creates or updates `docs/superpowers/plans/*.md`.
+6. `/check-chain plan` validates the plan before any implementation starts.
+7. `superpowers:subagent-driven-development` is preferred for execution; use
+   `superpowers:executing-plans` only when subagents are unavailable or the task is
+   small enough for inline execution.
+8. `/check-chain result` reconciles the implementation diff against the plan, spec,
+   and intent before finishing the branch.
+
+The Codex hook `.codex-isolated/hooks/chain-gate.py` enforces transitions when it
+can see them. It must gate both explicit `Skill` events and Codex skill-loading
+signals such as reading `skills/<name>/SKILL.md` through `Read` or `Bash`. It is a
+transition gate only: validation state still comes from frontmatter written by the
+`check-chain` skill.
+
 ## Project Status Reports
 
 **When the user asks for project status, progress, or "what's the state of X", build the answer from two sources together — never one alone: `docs/TODO.md` (what is being worked on) and the project's iwiki domain (what is documented as true).**
