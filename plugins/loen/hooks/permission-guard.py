@@ -44,9 +44,9 @@ def main() -> int:
   if is_network and network_mode == "off":
     return block_or_nudge("LoEn: network command denied by policy")
   allowlist = policy.get("network", {}).get("allowlist", [])
-  if is_network and allowlist:
+  if is_network and network_mode == "allowlist":
     target = _network_target(command)
-    if target not in allowlist:
+    if not target or target not in allowlist:
       return block_or_nudge("LoEn: network target denied by allowlist")
   allow = shell_policy.get("allow", [])
   if allow and not any(command_matches(command, pattern) for pattern in allow):

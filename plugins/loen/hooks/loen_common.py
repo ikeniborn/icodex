@@ -219,7 +219,11 @@ def tool_name(event: dict[str, Any]) -> str:
 
 def tool_input(event: dict[str, Any]) -> dict[str, Any]:
   value = event.get("tool_input") or event.get("input") or event.get("parameters") or {}
-  return value if isinstance(value, dict) else {}
+  if isinstance(value, dict):
+    return value
+  if isinstance(value, str):
+    return {"_raw": value}
+  return {}
 
 
 def tool_class(event: dict[str, Any]) -> str:
@@ -248,7 +252,7 @@ def extract_paths(event: dict[str, Any]) -> list[str]:
     value = inp.get(key)
     if isinstance(value, str) and value.strip():
       paths.append(value.strip())
-  patch = inp.get("patch") or event.get("patch") or ""
+  patch = inp.get("patch") or inp.get("_raw") or event.get("patch") or ""
   if isinstance(patch, str):
     for line in patch.splitlines():
       match = re.match(r"\*\*\* (?:Add|Update|Delete) File: (.+)$", line)
@@ -276,7 +280,7 @@ def is_loen_topic_path(path: str, topic_name: str) -> bool:
 
 
 def shell_command(event: dict[str, Any]) -> str:
-  value = tool_input(event).get("command") or event.get("command") or ""
+  value = tool_input(event).get("command") or tool_input(event).get("_raw") or event.get("command") or ""
   return value if isinstance(value, str) else ""
 
 

@@ -22,7 +22,13 @@ def _ensure_todo_row(topic_name: str) -> None:
     needle = f"| {topic_name} |"
     for index, line in enumerate(lines):
       if line.startswith(needle):
-        lines[index] = row
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) == 9:
+          if cells[1] != "done":
+            cells[1] = "in-progress"
+          lines[index] = "| " + " | ".join(cells) + " |\n"
+        else:
+          lines[index] = row
         break
     else:
       lines.append(row)

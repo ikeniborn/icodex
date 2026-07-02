@@ -12,7 +12,7 @@ def main() -> int:
   read_loop_artifact()
   verdict = str(event.get("verdict") or event.get("decision") or "").strip().lower()
   message = str(event.get("message") or "").lower()
-  wants_done = verdict in {"done", "ok", "success", "final"} or any(word in message for word in ("done", "ok", "success", "final"))
+  wants_done = not event or verdict in {"done", "ok", "success", "final"} or any(word in message for word in ("done", "ok", "success", "final"))
   if not wants_done:
     return 0
 

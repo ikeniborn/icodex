@@ -69,7 +69,7 @@ def main() -> int:
       current = status or "missing"
       return block_or_nudge(f"LoEn: code edits require an active loop; current status is {current}")
 
-  if topic():
+  if topic() and is_edit_event(event):
     stage_number = _proposed_stage(event)
     if stage_number is not None:
       missing = _missing_prior_artifact(stage_number)
