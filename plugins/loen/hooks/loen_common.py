@@ -105,11 +105,19 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       "network": {"mode": "off", "allowlist": []},
       "shell": {"allow": [], "deny_patterns": []},
     },
+    "mutable_scope": [],
+    "protected_scope": [],
+    "quality_gates": [],
+    "verifier": {},
+    "budget": {},
+    "stop_conditions": [],
+    "handoff_conditions": [],
   }
   section = ""
   subsection = ""
   current_agent = ""
-  list_target: list[str] | None = None
+  current_list_item: dict[str, Any] | None = None
+  list_target: list[Any] | None = None
 
   for raw_line in text.splitlines():
     line = raw_line.split("#", 1)[0].rstrip()
@@ -122,13 +130,51 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       section = ""
       subsection = ""
       current_agent = ""
+      current_list_item = None
       list_target = None
-      if stripped in {"agents:", "stages:", "tools:", "permissions:"}:
+      if stripped.endswith(":"):
         section = stripped[:-1]
+        if section in {"mutable_scope", "protected_scope", "stop_conditions", "handoff_conditions"}:
+          list_target = data[section]
         continue
       if ":" in stripped:
         key, value = stripped.split(":", 1)
-        data[key.strip()] = _parse_scalar(value)
+        key = key.strip()
+        if key in {"mutable_scope", "protected_scope", "stop_conditions", "handoff_conditions"}:
+          parsed_list = _parse_inline_list(value)
+          if parsed_list or value.strip() == "[]":
+            data[key] = parsed_list
+          elif value.strip():
+            data[key] = [_parse_scalar(value)]
+          continue
+        parsed = _parse_scalar(value)
+        data[key] = parsed
+        if key == "current_stage":
+          data["stage"] = parsed
+      continue
+
+    if section in {"mutable_scope", "protected_scope", "stop_conditions", "handoff_conditions"}:
+      if stripped.startswith("- "):
+        data[section].append(stripped[2:].strip())
+      continue
+
+    if section == "quality_gates":
+      if stripped.startswith("- "):
+        current_list_item = {}
+        data["quality_gates"].append(current_list_item)
+        item = stripped[2:].strip()
+        if ":" in item:
+          key, value = item.split(":", 1)
+          current_list_item[key.strip()] = _parse_scalar(value)
+      elif current_list_item is not None and ":" in stripped:
+        key, value = stripped.split(":", 1)
+        current_list_item[key.strip()] = _parse_scalar(value)
+      continue
+
+    if section in {"verifier", "budget"}:
+      if ":" in stripped:
+        key, value = stripped.split(":", 1)
+        data[section][key.strip()] = _parse_scalar(value)
       continue
 
     if section == "agents":
@@ -194,6 +240,14 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       elif stripped.startswith("- ") and list_target is not None:
         list_target.append(stripped[2:].strip())
 
+  if isinstance(data["mutable_scope"], list) and data["mutable_scope"] and not data["permissions"]["filesystem"]["mutable_scope"]:
+    data["permissions"]["filesystem"]["mutable_scope"] = list(data["mutable_scope"])
+  if isinstance(data["protected_scope"], list) and data["protected_scope"] and not data["permissions"]["filesystem"]["protected_scope"]:
+    data["permissions"]["filesystem"]["protected_scope"] = list(data["protected_scope"])
+  if "current_stage" in data:
+    data["stage"] = data["current_stage"]
+  elif "stage" in data:
+    data["current_stage"] = data["stage"]
   return data
 
 
