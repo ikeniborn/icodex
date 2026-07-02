@@ -21,15 +21,10 @@ def _token_basename(token: str) -> str:
 
 
 def _network_command_index(parts: list[str]) -> int | None:
-  if not parts:
-    return None
-  index = 0
-  if _token_basename(parts[index]) == "env":
-    index += 1
-    while index < len(parts) and (parts[index].startswith("-") or ("=" in parts[index] and not parts[index].startswith(("http://", "https://")))):
-      index += 1
-  if index < len(parts) and _token_basename(parts[index]) in NETWORK_TOOLS:
-    return index
+  for index, part in enumerate(parts):
+    for word in part.split():
+      if _token_basename(word) in NETWORK_TOOLS:
+        return index
   return None
 
 

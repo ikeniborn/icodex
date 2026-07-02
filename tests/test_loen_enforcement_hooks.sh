@@ -133,6 +133,7 @@ network_deny='{"tool_name":"Bash","tool_input":{"command":"curl https://example.
 network_deny_tab='{"tool_name":"Bash","tool_input":{"command":"curl\thttps://example.com/file"}}'
 network_deny_absolute='{"tool_name":"Bash","tool_input":{"command":"/usr/bin/curl https://example.com/file"}}'
 network_deny_env='{"tool_name":"Bash","tool_input":{"command":"env curl https://example.com/file"}}'
+network_deny_bash_c="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"bash -c 'curl https://example.com/file'\"}}"
 verifier_edit='{"tool_name":"Edit","agent_role":"verifier","tool_input":{"file_path":"tests/test_demo.sh","old_string":"old","new_string":"new"}}'
 reviewer_edit='{"tool_name":"Edit","agent_role":"reviewer","tool_input":{"file_path":"tests/test_demo.sh","old_string":"old","new_string":"new"}}'
 done_payload='{"verdict":"done","agent_role":"verifier"}'
@@ -216,8 +217,10 @@ assert_hook_exit "permission-guard blocks network command" 2 "permission-guard.p
 assert_hook_stderr_contains "permission-guard blocks network command with tab" 2 "permission-guard.py" "strict" "$topic" "$network_deny_tab" "network command denied"
 assert_hook_stderr_contains "permission-guard blocks absolute network command" 2 "permission-guard.py" "strict" "$topic" "$network_deny_absolute" "network command denied"
 assert_hook_stderr_contains "permission-guard blocks env wrapped network command" 2 "permission-guard.py" "strict" "$topic" "$network_deny_env" "network command denied"
+assert_hook_stderr_contains "permission-guard blocks bash -c network command" 2 "permission-guard.py" "strict" "$topic" "$network_deny_bash_c" "network command denied"
 assert_hook_exit "permission-guard enforce does not block strict-only shell policy" 0 "permission-guard.py" "enforce" "$topic" "$shell_deny_pattern"
 assert_hook_stderr_contains "permission-guard advisory nudges denied shell" 0 "permission-guard.py" "advisory" "$topic" "$shell_deny_pattern" "LoEn:"
+assert_hook_stderr_contains "permission-guard advisory nudges bash -c network command" 0 "permission-guard.py" "advisory" "$topic" "$network_deny_bash_c" "network command denied"
 assert_hook_stderr_contains "permission-guard advisory nudges raw string deny pattern" 0 "permission-guard.py" "advisory" "$topic" "$raw_shell_deny_pattern" "denied by policy"
 
 assert_hook_exit "tool-guard blocks verifier edits in strict" 2 "tool-guard.py" "strict" "$topic" "$verifier_edit"
