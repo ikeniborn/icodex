@@ -265,7 +265,19 @@ def extract_paths(event: dict[str, Any]) -> list[str]:
 
 
 def normalize_path(path: str) -> str:
-  return path.replace("\\", "/").lstrip("./")
+  clean = path.replace("\\", "/")
+  try:
+    candidate = Path(path).expanduser()
+    if candidate.is_absolute():
+      absolute = candidate.resolve(strict=False).as_posix()
+      cwd = Path.cwd().resolve().as_posix()
+      if absolute == cwd:
+        return ""
+      if absolute.startswith(f"{cwd}/"):
+        return absolute[len(cwd) + 1:]
+  except (OSError, RuntimeError):
+    pass
+  return clean.lstrip("./")
 
 
 def matches_any(path: str, patterns: list[str]) -> bool:

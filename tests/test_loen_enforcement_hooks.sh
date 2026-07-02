@@ -128,13 +128,18 @@ shell_deny='{"tool_name":"Bash","tool_input":{"command":"git reset --hard HEAD"}
 shell_deny_pattern='{"tool_name":"Bash","tool_input":{"command":"rm -rf build"}}'
 raw_shell_deny_pattern='{"tool_name":"Bash","tool_input":"rm -rf build"}'
 network_deny='{"tool_name":"Bash","tool_input":{"command":"curl https://example.com/file"}}'
+network_deny_tab='{"tool_name":"Bash","tool_input":{"command":"curl\thttps://example.com/file"}}'
 verifier_edit='{"tool_name":"Edit","agent_role":"verifier","tool_input":{"file_path":"tests/test_demo.sh","old_string":"old","new_string":"new"}}'
 reviewer_edit='{"tool_name":"Edit","agent_role":"reviewer","tool_input":{"file_path":"tests/test_demo.sh","old_string":"old","new_string":"new"}}'
 done_payload='{"verdict":"done","agent_role":"verifier"}'
+metadata_stop_payload='{"hook_event_name":"Stop","session_id":"s"}'
 self_approval_payload='{"verdict":"done","agent_role":"verifier","worker_role":"same-agent","verifier_role":"same-agent"}'
 separated_done_payload='{"verdict":"done","agent_role":"verifier","worker_role":"worker-agent","verifier_role":"verifier-agent"}'
 success_message_payload='{"message":"final success: implementation complete","agent_role":"verifier"}'
 stage_jump_loop_yaml='{"tool_name":"Write","tool_input":{"file_path":"docs/loen/demo-topic/loop.yaml","content":"topic: demo-topic\nstage: reflect\n"}}'
+raw_stage_jump_loop_yaml='{"tool_name":"apply_patch","tool_input":"*** Begin Patch\n*** Update File: docs/loen/demo-topic/loop.yaml\n@@\n-stage: check\n+stage: reflect\n*** End Patch\n"}'
+absolute_test_edit="$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/tests/test_demo.sh","old_string":"old","new_string":"new"}}' "$ROOT")"
+absolute_protected_patch="$(printf '{"tool_name":"apply_patch","tool_input":{"patch":"*** Begin Patch\\n*** Update File: %s/migrations/001.sql\\n@@\\n-old\\n+new\\n*** End Patch\\n"}}' "$ROOT")"
 
 assert_contains "hooks registry still present in enforcement layer" "$(cat "$hooks_json")" "LoEn loop gate"
 pretool_matchers="$(python3 - "$hooks_json" <<'PY'
@@ -160,6 +165,7 @@ assert_hook_exit "loop-gate strict blocks edit without topic" 2 "loop-gate.py" "
 assert_hook_exit "loop-gate blocks skipped stage artifact" 2 "loop-gate.py" "enforce" "$topic" "$skipped_reflect_write"
 assert_hook_stderr_contains "loop-gate advisory nudges skipped stage artifact" 0 "loop-gate.py" "advisory" "$topic" "$skipped_reflect_write" "LoEn:"
 assert_hook_exit "loop-gate blocks loop yaml stage jump" 2 "loop-gate.py" "enforce" "$topic" "$stage_jump_loop_yaml"
+assert_hook_exit "loop-gate blocks raw patch loop yaml stage jump" 2 "loop-gate.py" "enforce" "$topic" "$raw_stage_jump_loop_yaml"
 assert_hook_exit "loop-gate does not block reading future artifact in enforce" 0 "loop-gate.py" "enforce" "$topic" "$read_result_artifact"
 assert_hook_exit "loop-gate does not block reading future artifact in strict" 0 "loop-gate.py" "strict" "$topic" "$read_result_artifact"
 
@@ -190,7 +196,9 @@ assert_hook_exit "scope-guard allows read outside mutable scope in enforce" 0 "s
 assert_hook_exit "scope-guard allows read outside mutable scope in strict" 0 "scope-guard.py" "strict" "$topic" "$read_readme"
 assert_hook_exit "scope-guard allows LoEn topic artifact" 0 "scope-guard.py" "enforce" "$topic" "$topic_doc_write"
 assert_hook_exit "scope-guard allows configured mutable scope from Edit" 0 "scope-guard.py" "enforce" "$topic" "$test_edit"
+assert_hook_exit "scope-guard allows absolute mutable path" 0 "scope-guard.py" "enforce" "$topic" "$absolute_test_edit"
 assert_hook_exit "scope-guard blocks protected path from patch" 2 "scope-guard.py" "enforce" "$topic" "$protected_patch"
+assert_hook_stderr_contains "scope-guard blocks absolute protected path" 2 "scope-guard.py" "enforce" "$topic" "$absolute_protected_patch" "protected path"
 assert_hook_exit "scope-guard blocks raw string protected patch" 2 "scope-guard.py" "enforce" "$topic" "$raw_protected_patch"
 assert_hook_stderr_contains "scope-guard advisory nudges protected path" 0 "scope-guard.py" "advisory" "$topic" "$protected_patch" "LoEn:"
 
@@ -199,6 +207,7 @@ assert_hook_exit "permission-guard blocks destructive git" 2 "permission-guard.p
 assert_hook_exit "permission-guard blocks configured deny pattern" 2 "permission-guard.py" "strict" "$topic" "$shell_deny_pattern"
 assert_hook_stderr_contains "permission-guard blocks raw string deny pattern" 2 "permission-guard.py" "strict" "$topic" "$raw_shell_deny_pattern" "denied by policy"
 assert_hook_exit "permission-guard blocks network command" 2 "permission-guard.py" "strict" "$topic" "$network_deny"
+assert_hook_stderr_contains "permission-guard blocks network command with tab" 2 "permission-guard.py" "strict" "$topic" "$network_deny_tab" "network command denied"
 assert_hook_exit "permission-guard enforce does not block strict-only shell policy" 0 "permission-guard.py" "enforce" "$topic" "$shell_deny_pattern"
 assert_hook_stderr_contains "permission-guard advisory nudges denied shell" 0 "permission-guard.py" "advisory" "$topic" "$shell_deny_pattern" "LoEn:"
 assert_hook_stderr_contains "permission-guard advisory nudges raw string deny pattern" 0 "permission-guard.py" "advisory" "$topic" "$raw_shell_deny_pattern" "denied by policy"
@@ -215,6 +224,8 @@ assert_hook_stderr_contains "tool-guard advisory nudges verifier edits" 0 "tool-
 
 assert_hook_exit "evidence-gate blocks empty stop without evidence" 2 "evidence-gate.py" "enforce" "$topic" "{}"
 assert_hook_stderr_contains "evidence-gate advisory nudges empty stop without evidence" 0 "evidence-gate.py" "advisory" "$topic" "{}" "LoEn:"
+assert_hook_exit "evidence-gate blocks metadata stop without evidence" 2 "evidence-gate.py" "enforce" "$topic" "$metadata_stop_payload"
+assert_hook_stderr_contains "evidence-gate advisory nudges metadata stop without evidence" 0 "evidence-gate.py" "advisory" "$topic" "$metadata_stop_payload" "LoEn:"
 assert_hook_exit "evidence-gate blocks done without result evidence" 2 "evidence-gate.py" "enforce" "$topic" "$done_payload"
 assert_hook_exit "evidence-gate blocks success message without result evidence" 2 "evidence-gate.py" "enforce" "$topic" "$success_message_payload"
 assert_hook_stderr_contains "evidence-gate advisory nudges missing evidence" 0 "evidence-gate.py" "advisory" "$topic" "$success_message_payload" "LoEn:"

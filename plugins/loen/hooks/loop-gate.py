@@ -44,7 +44,7 @@ def _proposed_stage(event: dict) -> int | None:
     return None
   inp = tool_input(event)
   content = inp.get("content") or inp.get("new_string") or ""
-  patch = inp.get("patch") or event.get("patch") or ""
+  patch = inp.get("patch") or inp.get("_raw") or event.get("patch") or ""
   text = "\n".join(part for part in (content, patch) if isinstance(part, str))
   for raw_line in text.splitlines():
     line = raw_line[1:] if raw_line.startswith("+") else raw_line

@@ -12,7 +12,15 @@ def main() -> int:
   read_loop_artifact()
   verdict = str(event.get("verdict") or event.get("decision") or "").strip().lower()
   message = str(event.get("message") or "").lower()
-  wants_done = not event or verdict in {"done", "ok", "success", "final"} or any(word in message for word in ("done", "ok", "success", "final"))
+  event_name = str(event.get("hook_event_name") or event.get("event") or "").strip().lower()
+  final_marker = str(event.get("final") or event.get("is_final") or "").strip().lower()
+  non_final = verdict in {"continue", "pending", "not_done", "skip"} or final_marker in {"false", "0", "no"}
+  wants_done = (
+    not event
+    or (event_name == "stop" and not non_final)
+    or verdict in {"done", "ok", "success", "final"}
+    or any(word in message for word in ("done", "ok", "success", "final"))
+  )
   if not wants_done:
     return 0
 

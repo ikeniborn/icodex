@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 from loen_common import block_or_nudge, command_matches, is_advisory, is_off, is_strict, loop_policy, read_event, read_loop_artifact, shell_command, tool_class
 
 SCRIPT_NAME = "permission-guard"
-NETWORK_TOOLS = ("curl ", "wget ", "ssh ", "scp ", "nc ")
+NETWORK_TOOLS = {"curl", "wget", "ssh", "scp", "nc"}
 
 
 def _network_target(command: str) -> str:
@@ -40,7 +40,8 @@ def main() -> int:
   if "git reset --hard" in command:
     return block_or_nudge("LoEn: destructive git command denied")
   network_mode = policy.get("network", {}).get("mode", "off")
-  is_network = any(token in command for token in NETWORK_TOOLS)
+  parts = command.split()
+  is_network = bool(parts and parts[0] in NETWORK_TOOLS)
   if is_network and network_mode == "off":
     return block_or_nudge("LoEn: network command denied by policy")
   allowlist = policy.get("network", {}).get("allowlist", [])
