@@ -1,68 +1,25 @@
-topic: "{{topic}}"
+topic: {{topic}}
+mode: delivery
 status: active
+objective: "{{objective}}"
+current_stage: goal
 stage: goal
 created: "{{created_date}}"
 updated: "{{updated_date}}"
-artifact_root: "docs/loen/{{topic}}"
-checks: []
-decision: pending
-agents:
-  planner:
-    tools: [read, search]
-    sandbox: read-only
-  worker:
-    tools: [read, search, edit, shell]
-    sandbox: workspace-write
-  verifier:
-    tools: [read, search, shell]
-    sandbox: read-only
-    must_not_edit: true
-  reviewer:
-    tools: [read, search, shell]
-    sandbox: read-only
-    must_not_edit: true
-stages:
-  goal:
-    roles: [planner, worker]
-  context:
-    roles: [planner, worker, researcher]
-  plan:
-    roles: [planner]
-  act:
-    roles: [worker]
-  check:
-    roles: [verifier]
-  reflect:
-    roles: [planner, verifier, reviewer]
-  result:
-    roles: [planner, verifier, reviewer]
-tools:
-  allowed:
-    - read
-    - search
-    - apply_patch
-    - shell
-  denied:
-    - network
-    - secrets
-    - destructive_git
-    - external_write
-permissions:
-  filesystem:
-    mutable_scope:
-      - src/**
-      - tests/**
-    protected_scope:
-      - migrations/**
-      - secrets/**
-  network:
-    mode: off
-    allowlist: []
-  shell:
-    allow:
-      - pytest tests/auth
-      - ruff check .
-    deny_patterns:
-      - rm -rf
-      - git reset --hard
-      - curl *|sh
+mutable_scope:
+  - {{mutable_scope}}
+protected_scope:
+  - {{protected_scope}}
+quality_gates:
+  - command: {{quality_gate_command}}
+    evidence: evidence/latest-test.json
+verifier:
+  type: test
+  command: {{verifier_command}}
+budget:
+  max_iterations: 3
+stop_conditions:
+  - quality gates pass
+handoff_conditions:
+  - schema change required
+rollback_policy: "Revert unsafe changes"

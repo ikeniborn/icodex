@@ -3,16 +3,49 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LoEn Audit - {{topic}}</title>
+  <title>LoEn Audit: {{topic}}</title>
 </head>
 <body>
   <main>
-    <h1>LoEn Audit</h1>
-    <p><strong>Topic:</strong> {{topic}}</p>
+    <h1>LoEn Audit: {{topic}}</h1>
     <section>
-      <h2>Evidence</h2>
-      <pre>{{evidence}}</pre>
+      <h2>Current Status</h2>
+      <p><strong>Status:</strong> {{status}}</p>
+      <p><strong>Mode:</strong> {{mode}}</p>
+      <p><strong>Stage:</strong> {{current_stage}}</p>
+      <p><strong>Objective:</strong> {{objective}}</p>
+      <p><strong>Final verdict:</strong> {{verdict}}</p>
     </section>
+    <section>
+      <h2>Loop Contract Summary</h2>
+      <p><strong>Mutable scope:</strong> {{mutable_scope}}</p>
+      <p><strong>Protected scope:</strong> {{protected_scope}}</p>
+      <p><strong>Quality gates:</strong> {{quality_gates}}</p>
+      <p><strong>Rollback policy:</strong> {{rollback_policy}}</p>
+    </section>
+    <section>
+      <h2>Verifier Result</h2>
+      <p>{{verifier_result}}</p>
+    </section>
+    <section>
+      <h2>Budget and Stop/Handoff State</h2>
+      <p><strong>Budget:</strong> {{budget}}</p>
+      <p><strong>Stop conditions:</strong> {{stop_conditions}}</p>
+      <p><strong>Handoff conditions:</strong> {{handoff_conditions}}</p>
+    </section>
+    <section>
+      <h2>Protected Scope Findings</h2>
+      <p>{{protected_scope_findings}}</p>
+    </section>
+    <section><h2>Goal</h2>{{goal}}</section>
+    <section><h2>Context</h2>{{context}}</section>
+    <section><h2>Plan</h2>{{plan}}</section>
+    <section><h2>Act</h2>{{act}}</section>
+    <section><h2>Check</h2>{{check}}</section>
+    <section><h2>Reflect</h2>{{reflect}}</section>
+    <section><h2>Result</h2>{{result}}</section>
+    <section><h2>Attempts</h2>{{attempts}}</section>
+    <section><h2>Evidence</h2>{{evidence}}</section>
   </main>
 </body>
 </html>
