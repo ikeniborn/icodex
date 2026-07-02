@@ -6,3 +6,44 @@ updated: "{{updated_date}}"
 artifact_root: "docs/loen/{{topic}}"
 checks: []
 decision: pending
+agents:
+  planner:
+    tools: [read, search]
+    sandbox: read-only
+  worker:
+    tools: [read, search, edit, shell]
+    sandbox: workspace-write
+  verifier:
+    tools: [read, search, shell]
+    sandbox: read-only
+    must_not_edit: true
+tools:
+  allowed:
+    - read
+    - search
+    - apply_patch
+    - shell
+  denied:
+    - network
+    - secrets
+    - destructive_git
+    - external_write
+permissions:
+  filesystem:
+    mutable_scope:
+      - src/**
+      - tests/**
+    protected_scope:
+      - migrations/**
+      - secrets/**
+  network:
+    mode: off
+    allowlist: []
+  shell:
+    allow:
+      - pytest tests/auth
+      - ruff check .
+    deny_patterns:
+      - rm -rf
+      - git reset --hard
+      - curl *|sh
