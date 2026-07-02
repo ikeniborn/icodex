@@ -35,19 +35,34 @@ may coexist with LoEn, but they are not prerequisites for it.
 
 ## Layered Scope
 
-LoEn is split into sequential layer specs:
+LoEn is split into sequential layer specs. Each linked layer owns its own
+acceptance criteria and implementation plan.
 
-| Order | Topic | Spec |
-|---|---|---|
-| 1 | `01-loen-plugin-core` | Plugin source tree, manifest, skills, templates |
-| 2 | `02-loen-runtime-artifacts` | `docs/loen/<topic>/` artifacts and `audit.html` |
-| 3 | `03-loen-enforcement-hooks` | Loop gates, scope guard, tool guard, permission guard, evidence gate |
-| 4 | `04-loen-agent-isolation` | Agent roles, context capsules, Codex profile split, WASM verifier |
-| 5 | `05-loen-icodex-integration` | Vendoring, launch-time wiring, config/cache integration |
-| 6 | `06-loen-automation-governance` | Later L3 automations and governance loops |
+| Order | Topic | Spec | Scope |
+|---|---|---|---|
+| 1 | [`01-loen-plugin-core`](2026-07-02-01-loen-plugin-core-design.md) | Plugin source tree, manifest, skills, templates | Editable source and inert assets |
+| 2 | [`02-loen-runtime-artifacts`](2026-07-02-02-loen-runtime-artifacts-design.md) | `docs/loen/<topic>/` artifacts and `audit.html` | Durable task state |
+| 3 | [`03-loen-enforcement-hooks`](2026-07-02-03-loen-enforcement-hooks-design.md) | Loop gates, scope guard, tool guard, permission guard, evidence gate | Deterministic enforcement |
+| 4 | [`04-loen-agent-isolation`](2026-07-02-04-loen-agent-isolation-design.md) | Agent roles, context capsules, Codex profile split, WASM verifier | Worker/verifier separation |
+| 5 | [`05-loen-icodex-integration`](2026-07-02-05-loen-icodex-integration-design.md) | Vendoring, launch-time wiring, config/cache integration | icodex adapter |
+| 6 | [`06-loen-automation-governance`](2026-07-02-06-loen-automation-governance-design.md) | Later L3 automations and governance loops | Scheduled/background governance |
 
 The overview only defines shared boundaries and sequencing. Each layer owns its
 own acceptance criteria and implementation plan.
+
+## Runtime Behavior Ownership
+
+Each runtime behavior is introduced by one layer. Later layers may consume that
+behavior, but should not redefine its contract.
+
+| Runtime behavior | Owning layer |
+|---|---|
+| Editable plugin source, manifest, skills, templates, inert hook assets, and agent asset names | [`01-loen-plugin-core`](2026-07-02-01-loen-plugin-core-design.md) |
+| Topic artifact contract, `loop.yaml`, per-topic `audit.html`, and TODO row rules | [`02-loen-runtime-artifacts`](2026-07-02-02-loen-runtime-artifacts-design.md) |
+| Blocking/advisory loop gates, scope guard, tool guard, permission guard, evidence gate, and audit writer behavior | [`03-loen-enforcement-hooks`](2026-07-02-03-loen-enforcement-hooks-design.md) |
+| Planner/worker/verifier/reviewer/researcher role separation, context capsules, Codex profile split, and WASM-first verifier model | [`04-loen-agent-isolation`](2026-07-02-04-loen-agent-isolation-design.md) |
+| Vendoring, launch-time marketplace wiring, `ICODEX_LOEN_MODE`, and off/advisory/enforce/strict runtime enablement in icodex | [`05-loen-icodex-integration`](2026-07-02-05-loen-icodex-integration-design.md) |
+| Scheduled/background loop governance, human-review counters, and no-auto-merge policy | [`06-loen-automation-governance`](2026-07-02-06-loen-automation-governance-design.md) |
 
 ## Repository Boundaries
 
