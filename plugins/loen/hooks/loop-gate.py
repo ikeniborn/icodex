@@ -65,8 +65,9 @@ def main() -> int:
     return block_or_nudge("LoEn: code edits require an active loop in enforce/strict mode")
   if is_edit_event(event) and loop_text:
     status = str(parse_loop_yaml(loop_text).get("status", "")).strip()
-    if status and status != "active":
-      return block_or_nudge(f"LoEn: code edits require an active loop; current status is {status}")
+    if status != "active":
+      current = status or "missing"
+      return block_or_nudge(f"LoEn: code edits require an active loop; current status is {current}")
 
   if topic():
     stage_number = _proposed_stage(event)

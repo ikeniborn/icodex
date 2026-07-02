@@ -169,6 +169,16 @@ assert_hook_stderr_contains "loop-gate advisory nudges inactive loop" 0 "loop-ga
 assert_hook_exit "loop-gate enforce blocks inactive loop" 2 "loop-gate.py" "enforce" "$inactive_topic" "$edit_payload"
 assert_hook_exit "loop-gate strict blocks inactive loop" 2 "loop-gate.py" "strict" "$inactive_topic" "$edit_payload"
 
+nostatus_topic="nostatus-topic"
+nostatus_dir="$artifact_root/$nostatus_topic"
+mkdir -p "$nostatus_dir"
+cat > "$nostatus_dir/loop.yaml" <<'YAML'
+topic: nostatus-topic
+stage: act
+YAML
+assert_hook_stderr_contains "loop-gate advisory nudges missing status" 0 "loop-gate.py" "advisory" "$nostatus_topic" "$edit_payload" "LoEn:"
+assert_hook_exit "loop-gate enforce blocks missing status" 2 "loop-gate.py" "enforce" "$nostatus_topic" "$edit_payload"
+
 touch "$topic_dir/5_check.md"
 assert_hook_exit "scope-guard allows LoEn topic artifact" 0 "scope-guard.py" "enforce" "$topic" "$topic_doc_write"
 assert_hook_exit "scope-guard allows configured mutable scope from Edit" 0 "scope-guard.py" "enforce" "$topic" "$test_edit"
