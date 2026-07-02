@@ -18,3 +18,14 @@ definitions, templates, and plugin-local documentation.
 Active task artifacts are written under `docs/loen/<topic>/`. The plugin source
 tree does not write installed cache files and does not depend on icodex runtime
 wiring.
+
+## Runtime Artifacts
+
+Each LoEn topic stores durable runtime state under `docs/loen/<topic>/`.
+The topic directory contains numbered stage files from `1_goal.md` through
+`7_result.md`, a machine-readable `loop.yaml`, append-only `attempts.jsonl`,
+an `evidence/` directory, `handoff.md`, and a regenerated per-topic
+`audit.html`.
+
+`docs/TODO.md` remains the only global task registry. LoEn does not create a
+global audit index.

@@ -1,11 +1,28 @@
-topic: "{{topic}}"
+topic: {{topic}}
+mode: delivery
 status: active
+objective: "{{objective}}"
+current_stage: goal
 stage: goal
 created: "{{created_date}}"
 updated: "{{updated_date}}"
-artifact_root: "docs/loen/{{topic}}"
-checks: []
-decision: pending
+mutable_scope:
+  - {{mutable_scope}}
+protected_scope:
+  - {{protected_scope}}
+quality_gates:
+  - command: {{quality_gate_command}}
+    evidence: evidence/latest-test.json
+verifier:
+  type: test
+  command: {{verifier_command}}
+budget:
+  max_iterations: 3
+stop_conditions:
+  - quality gates pass
+handoff_conditions:
+  - schema change required
+rollback_policy: "Revert unsafe changes"
 agents:
   planner:
     tools: [read, search]

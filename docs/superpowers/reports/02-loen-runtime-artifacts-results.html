@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>02-loen-runtime-artifacts — IDD→SDD Result</title>
+  <style>
+    :root{--bg:#f8fafc;--surface:#ffffff;--text:#172033;--muted:#5f6b7a;--border:#d8dee8;--accent:#2266aa;--ok:#19744a;--warn:#9a6400;--bad:#a33232}
+    body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+    body:has(#theme-toggle:checked){--bg:#111827;--surface:#1f2937;--text:#f3f4f6;--muted:#c3cad5;--border:#374151;--accent:#8ab4f8;--ok:#6ee7a8;--warn:#fbbf24;--bad:#fca5a5}
+    main,header{max-width:1120px;margin:0 auto;padding:24px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px}
+    h1{margin:0;font-size:28px}
+    h2{margin:0 0 12px;font-size:20px}
+    section{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;margin:16px 0}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border:1px solid var(--border);padding:8px;text-align:left;vertical-align:top}
+    th{background:color-mix(in srgb,var(--surface) 80%,var(--accent))}
+    .badge{display:inline-block;border-radius:999px;padding:2px 8px;font-weight:700}
+    .ok{color:var(--ok);border:1px solid var(--ok)}
+    .warn{color:var(--warn);border:1px solid var(--warn)}
+    .note{color:var(--muted)}
+    .theme-btn,.chain-tabs label{cursor:pointer;border:1px solid var(--border);border-radius:8px;padding:6px 10px;background:var(--surface)}
+    .chain-tabs{max-width:1120px;margin:0 auto;padding:0 24px;display:flex;gap:8px}
+    .tab-pane{display:none}
+    body:has(#tab-intent:checked) #pane-intent,body:has(#tab-spec:checked) #pane-spec,body:has(#tab-plan:checked) #pane-plan,body:has(#tab-result:checked) #pane-result{display:block}
+    body:has(#tab-intent:checked) label[for="tab-intent"],body:has(#tab-spec:checked) label[for="tab-spec"],body:has(#tab-plan:checked) label[for="tab-plan"],body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent);border-color:var(--accent);font-weight:700}
+    code{background:color-mix(in srgb,var(--surface) 85%,var(--accent));padding:1px 4px;border-radius:4px}
+  </style>
+</head>
+<body>
+  <input type="checkbox" id="theme-toggle" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
+  <header>
+    <div>
+      <h1>02-loen-runtime-artifacts</h1>
+      <p class="note">Unified IDD→SDD chain report</p>
+    </div>
+    <label for="theme-toggle" class="theme-btn" title="Toggle dark/light">Theme</label>
+  </header>
+  <nav class="chain-tabs">
+    <label for="tab-intent">Intent</label>
+    <label for="tab-spec">Spec</label>
+    <label for="tab-plan">Plan</label>
+    <label for="tab-result">Result</label>
+  </nav>
+  <main>
+    <!-- TAB:intent START -->
+    <section class="tab-pane" id="pane-intent">
+      <p class="note">Этап ещё не проверен.</p>
+    </section>
+    <!-- TAB:intent END -->
+    <!-- TAB:spec START -->
+    <section class="tab-pane" id="pane-spec">
+      <p class="note">Этап ещё не проверен.</p>
+    </section>
+    <!-- TAB:spec END -->
+    <!-- TAB:plan START -->
+    <section class="tab-pane" id="pane-plan">
+      <p class="note">Этап ещё не проверен.</p>
+    </section>
+    <!-- TAB:plan END -->
+    <!-- TAB:result START -->
+    <section class="tab-pane" id="pane-result">
+      <h2>Проверка result — 2026-07-02</h2>
+      <p><span class="badge ok">OK</span> Все задачи плана отражены в diff относительно <code>origin/master</code>.</p>
+      <h2>Reconciliation</h2>
+      <table>
+        <thead><tr><th>Task</th><th>Status</th><th>Matched paths</th></tr></thead>
+        <tbody>
+          <tr><td>Task 1: Add Runtime Artifact Contract Test</td><td><span class="badge ok">DONE</span></td><td><code>tests/test_loen_runtime_artifacts.sh</code></td></tr>
+          <tr><td>Task 2: Add Artifact Helper Module</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/hooks/loen_artifacts.py</code></td></tr>
+          <tr><td>Task 3: Parse Layer-2 Loop Contract</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/hooks/loen_common.py</code></td></tr>
+          <tr><td>Task 4: Delegate Audit Writer to Runtime Artifact Helpers</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/hooks/audit-writer.py</code></td></tr>
+          <tr><td>Task 5: Update Templates and Loop-Start Skill</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/assets/templates/loop.yaml</code>, <code>plugins/loen/assets/templates/audit.html</code>, <code>plugins/loen/skills/loop-start/SKILL.md</code></td></tr>
+          <tr><td>Task 6: Document Runtime Artifact Layer</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/docs/README.md</code>, <code>plugins/loen/docs/architecture.md</code>, iwiki <code>loen-runtime-artifacts</code>, iwiki <code>loen-overview</code></td></tr>
+          <tr><td>Task 7: Verify Full Runtime Artifact Layer</td><td><span class="badge ok">DONE</span></td><td><code>docs/superpowers/plans/2026-07-02-02-loen-runtime-artifacts.md</code>, <code>docs/TODO.md</code>, this report</td></tr>
+        </tbody>
+      </table>
+      <h2>Coverage</h2>
+      <table>
+        <thead><tr><th>Spec / acceptance item</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Runtime state stored under <code>docs/loen/&lt;topic&gt;/</code></td><td><span class="badge ok">reflected</span></td></tr>
+          <tr><td>No <code>.agent-loop/</code> directory required</td><td><span class="badge ok">reflected</span></td></tr>
+          <tr><td>Topic-level <code>audit.html</code>, no global LoEn audit index</td><td><span class="badge ok">reflected</span></td></tr>
+          <tr><td><code>docs/TODO.md</code> remains the only global registry</td><td><span class="badge ok">reflected</span></td></tr>
+          <tr><td>Scaffold, slug validation, loop contract parsing, audit regeneration, duplicate-free TODO row tests</td><td><span class="badge ok">reflected</span></td></tr>
+        </tbody>
+      </table>
+      <h2>Findings</h2>
+      <p>Новых findings нет.</p>
+      <h2>Summary</h2>
+      <p><span class="badge ok">OK</span> Result reconciliation completed. Fresh verification: focused LoEn tests, Python compile, full Bash suite, and iwiki lint.</p>
+    </section>
+    <!-- TAB:result END -->
+  </main>
+</body>
+</html>
