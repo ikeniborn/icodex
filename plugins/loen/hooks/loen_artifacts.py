@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 import html
 import re
 from pathlib import Path
@@ -216,6 +217,16 @@ def _evidence_files(base: Path) -> list[str]:
   return [f"evidence/{path.name}" for path in sorted(evidence_dir.iterdir()) if path.is_file()]
 
 
+def _has_exact_markdown_value(text: str, expected: str) -> bool:
+  for raw_line in text.splitlines():
+    line = raw_line.strip()
+    if not line or line.startswith("#"):
+      continue
+    if line == expected:
+      return True
+  return False
+
+
 def _yaml_section_list(loop_text: str, section: str) -> list[str]:
   values: list[str] = []
   in_section = False
@@ -275,8 +286,8 @@ def render_audit(base: Path, topic: str) -> str:
   loop_text = _read(base / "loop.yaml")
   summary = _summary_from_loop(loop_text, topic)
   evidence_files = _evidence_files(base)
-  has_result = "Done" in _read(base / "7_result.md")
-  has_check = "PASS" in _read(base / "5_check.md")
+  has_result = _has_exact_markdown_value(_read(base / "7_result.md"), "Done")
+  has_check = _has_exact_markdown_value(_read(base / "5_check.md"), "PASS")
   verdict = "Done" if has_result and has_check and evidence_files else "Not done"
   verifier_result = "Verifier result: Done" if verdict == "Done" else "No verifier result recorded."
   stop_conditions = ", ".join(summary.stop_conditions) if summary.stop_conditions else "None recorded."
@@ -350,11 +361,12 @@ def render_audit(base: Path, topic: str) -> str:
   ])
 
 
-def upsert_todo_row(todo_path: Path, topic: str, opened: str = "2026-07-02") -> None:
+def upsert_todo_row(todo_path: Path, topic: str, opened: str | None = None) -> None:
   topic_name = validate_topic_slug(topic)
+  opened_date = opened or date.today().isoformat()
   header = "| Topic | Status | Intent | Spec | Plan | Result | Opened | Closed | Notes |\n"
   separator = "|-------|--------|--------|------|------|--------|--------|--------|-------|\n"
-  row = f"| {topic_name} | in-progress | n/a | n/a | n/a | - | {opened} |  | LoEn loop |\n"
+  row = f"| {topic_name} | in-progress | n/a | n/a | n/a | - | {opened_date} |  | LoEn loop |\n"
   todo_path.parent.mkdir(parents=True, exist_ok=True)
   lines = todo_path.read_text(encoding="utf-8").splitlines(keepends=True) if todo_path.is_file() else [header, separator]
   needle = f"| {topic_name} |"
@@ -365,7 +377,7 @@ def upsert_todo_row(todo_path: Path, topic: str, opened: str = "2026-07-02") -> 
         if cells[1] != "done":
           cells[1] = "in-progress"
         if not cells[6]:
-          cells[6] = opened
+          cells[6] = opened_date
         lines[index] = "| " + " | ".join(cells) + " |\n"
       else:
         lines[index] = row
