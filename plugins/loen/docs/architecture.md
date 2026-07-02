@@ -22,3 +22,14 @@ default.
 
 Installation, launch-time wiring, cache layout, and runtime enablement are owned
 by later integration layers. This source tree is not an installed plugin cache.
+
+## Runtime Artifact Boundary
+
+Runtime topic artifacts are repository-local and live under
+`docs/loen/<topic>/`. Hooks and skills read that directory as durable loop
+state so the loop can continue across context compaction, new threads,
+subagents, reviews, and later automation.
+
+`loop.yaml` is the machine-readable contract for one topic. The audit writer
+regenerates `audit.html` from repository artifacts and updates the matching
+`docs/TODO.md` row without creating duplicate rows.
