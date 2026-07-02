@@ -128,6 +128,15 @@ for hook in "${expected_hooks[@]}"; do
   assert_contains "hook script reads artifact root: $hook" "$(cat "$plugin_root/hooks/$hook" 2>/dev/null)" "LOEN_ARTIFACT_ROOT"
 done
 
+malformed_root="$(mktemp -d)"
+mkdir -p "$malformed_root/bad-topic"
+printf '\377' > "$malformed_root/bad-topic/loop.yaml"
+for hook in "${expected_hooks[@]}"; do
+  assert_exit "hook tolerates malformed artifact: $hook" 0 \
+    env LOEN_TOPIC="bad-topic" LOEN_ARTIFACT_ROOT="$malformed_root" python3 "$plugin_root/hooks/$hook"
+done
+rm -rf "$malformed_root"
+
 if [[ -f "$hooks_json" ]]; then
   unbacked_hook_count="$(python3 - "$hooks_json" "$plugin_root/hooks" <<'PY'
 import json

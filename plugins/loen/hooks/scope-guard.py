@@ -14,7 +14,10 @@ def read_loop_artifact() -> str:
   loop_file = root / topic / "loop.yaml"
   if not loop_file.is_file():
     return ""
-  return loop_file.read_text(encoding="utf-8")
+  try:
+    return loop_file.read_text(encoding="utf-8")
+  except (OSError, UnicodeDecodeError):
+    return ""
 
 
 def main() -> int:
