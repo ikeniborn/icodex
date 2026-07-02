@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>01 LoEn Plugin Core Results</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --text: #18212f;
+      --muted: #5b6472;
+      --line: #d9dee8;
+      --accent: #2f6f5e;
+      --accent-soft: #e1f0eb;
+      --good: #1f7a4d;
+      --warn: #8a5a00;
+      --shadow: 0 8px 24px rgba(20, 29, 43, 0.08);
+    }
+    body:has(#theme-toggle:checked) {
+      --bg: #11161d;
+      --panel: #19212b;
+      --text: #edf2f7;
+      --muted: #a9b3c1;
+      --line: #344153;
+      --accent: #79c7ae;
+      --accent-soft: #20372f;
+      --good: #87d7a8;
+      --warn: #f0c36a;
+      --shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    h1, h2, h3 { margin: 0; line-height: 1.2; }
+    h1 { font-size: 30px; }
+    h2 { font-size: 20px; margin-bottom: 12px; }
+    h3 { font-size: 15px; margin-bottom: 8px; }
+    p { margin: 0 0 10px; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+      background: var(--accent-soft);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .subtitle { color: var(--muted); max-width: 760px; margin-top: 8px; }
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+    .card, section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .card { padding: 16px; }
+    .card strong { display: block; font-size: 24px; color: var(--accent); }
+    .card span { color: var(--muted); }
+    section { padding: 20px; margin-top: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+    }
+    th { color: var(--muted); font-weight: 650; }
+    tr:last-child td { border-bottom: 0; }
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 9px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 650;
+      font-size: 12px;
+    }
+    .ok { color: var(--good); font-weight: 700; }
+    .warn { color: var(--warn); font-weight: 700; }
+    ul { margin: 8px 0 0; padding-left: 20px; }
+    li + li { margin-top: 4px; }
+    @media (max-width: 760px) {
+      header { display: block; }
+      .toggle { margin-top: 14px; }
+      .grid { grid-template-columns: 1fr; }
+      th, td { display: block; width: 100%; }
+      th { border-bottom: 0; padding-bottom: 0; }
+      td { padding-top: 4px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>01 LoEn Plugin Core Results</h1>
+        <p class="subtitle">Result report for the source-only LoEn plugin core layer completed on 2026-07-02.</p>
+      </div>
+      <label class="toggle"><input id="theme-toggle" type="checkbox"> Dark theme</label>
+    </header>
+
+    <div class="grid">
+      <div class="card"><strong>done</strong><span>Task status</span></div>
+      <div class="card"><strong>PASS=99</strong><span>Focused fixture</span></div>
+      <div class="card"><strong>exit 0</strong><span>Full Bash suite</span></div>
+    </div>
+
+    <section>
+      <h2>Outcome</h2>
+      <p><span class="badge">Result OK</span></p>
+      <p>LoEn plugin core now exists as an editable source tree under <code>plugins/loen/</code>. This layer creates assets only and does not wire LoEn into the icodex runtime or installed Codex plugin cache.</p>
+    </section>
+
+    <section>
+      <h2>Implemented Scope</h2>
+      <table>
+        <thead>
+          <tr><th>Area</th><th>Result</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Manifest</td><td><code>.codex-plugin/plugin.json</code> identifies plugin <code>loen</code>, version <code>0.1.0</code>, and source asset paths.</td></tr>
+          <tr><td>Skills</td><td>Ten workflow skills: start, plan, act, check, reflect, status, repair, research, review, governance.</td></tr>
+          <tr><td>Hooks</td><td>Six inert Python hook assets plus <code>hooks.json</code>; commands use <code>${PLUGIN_ROOT}</code> and scripts tolerate malformed artifacts.</td></tr>
+          <tr><td>Agents</td><td>Planner, worker, verifier, reviewer, and researcher TOML role definitions parse successfully.</td></tr>
+          <tr><td>Templates</td><td>Runtime artifact templates cover <code>loop.yaml</code>, numbered stage docs, handoff, and audit HTML.</td></tr>
+          <tr><td>Docs</td><td>Plugin-local README and architecture docs describe source-layer boundaries.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Verification</h2>
+      <table>
+        <thead>
+          <tr><th>Check</th><th>Evidence</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Focused fixture</td><td><code>bash tests/test_loen_plugin_core.sh</code> -> <code>PASS=99 FAIL=0</code></td><td class="ok">PASS</td></tr>
+          <tr><td>Full Bash suite</td><td><code>for t in tests/test_*.sh; do bash "$t" || exit 1; done</code> -> exit <code>0</code></td><td class="ok">PASS</td></tr>
+          <tr><td>Review</td><td>Subagent task reviews and final re-review approved. Low hook robustness finding fixed before PR update.</td><td class="ok">PASS</td></tr>
+          <tr><td>Wiki</td><td><code>loen-plugin-core</code> page written and linked from <code>loen-overview</code>; lint has no broken, orphan, stale, or missing-source pages.</td><td class="ok">PASS</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>PR State</h2>
+      <p>Draft PR #21 was opened from <code>dev-01-loen-plugin-core</code> to <code>master</code>. The final TODO/report update is included as a follow-up branch commit.</p>
+      <p class="warn">Known integration note: manifest fields for hooks, agents, and assets are source-layer pointers. Runtime ingestion compatibility remains owned by the later LoEn icodex integration layer.</p>
+    </section>
+  </main>
+</body>
+</html>
