@@ -42,6 +42,19 @@ ensure_idd_wiring
 hooks="$(cat "$ICODEX_HOME_DIR/hooks.json")"
 assert_contains "default-on adds gate" "$hooks" "chain-gate.py"
 assert_contains "default-on adds nudge (--post)" "$hooks" 'chain-gate.py\" --post'
+gate_matcher="$(python3 - "$ICODEX_HOME_DIR/hooks.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    cfg = json.load(f)
+for entry in cfg["hooks"].get("PreToolUse", []):
+    for hook in entry.get("hooks", []):
+        if hook.get("command") == 'python3 "$CODEX_HOME/hooks/chain-gate.py"':
+            print(entry.get("matcher", ""))
+PY
+)"
+assert_contains "default-on gates Read events" "$gate_matcher" "Read"
+assert_contains "default-on gates Bash events" "$gate_matcher" "Bash"
 assert_exit "result is valid json" 0 python3 -c "import json; json.load(open('$ICODEX_HOME_DIR/hooks.json'))"
 assert_contains "base block-secrets preserved" "$hooks" "block-secrets.py"
 assert_contains "base redact-secrets preserved" "$hooks" "redact-secrets.py"

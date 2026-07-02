@@ -37,6 +37,7 @@ import glob
 import time
 import subprocess
 import fnmatch
+import re
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _codex_paths import extract_paths, patch_text_from_input  # noqa: E402
@@ -84,6 +85,8 @@ NUDGE_RULES = [STAGE_RULES["intent"], STAGE_RULES["spec"], STAGE_RULES["plan"]]
 LEDGER_MAX_AGE_SECONDS = 7 * 24 * 3600
 ARTIFACT_DIRS = ("intents", "specs", "plans")
 CLAIM_SKILLS = {"executing-plans", "subagent-driven-development"}
+SKILL_PATH_RE = re.compile(r"(?:^|/)skills/([^/\s\"']+)/SKILL\.md(?:$|[\s\"'])")
+SKILL_TOKEN_RE = re.compile(r"\bskill\s*[:=]\s*[\"']?(?:[\w-]+:)?([\w-]+)")
 
 
 def ledger_path():
@@ -145,8 +148,8 @@ def record_ownership(data, tool, sid):
         for path in extract_paths(tool, data.get("tool_input") or {}):
             if _is_artifact(path):
                 record_owner(path, sid)
-    elif tool == "Skill":
-        skill = normalize_skill((data.get("tool_input") or {}).get("skill", ""))
+    else:
+        skill = skill_from_event(data, tool)
         if skill in CLAIM_SKILLS:
             plan = newest_plan()
             if plan:
@@ -155,6 +158,37 @@ def record_ownership(data, tool, sid):
 
 def normalize_skill(name):
     return name.rsplit(":", 1)[-1].strip()
+
+
+def skill_from_path(path):
+    match = SKILL_PATH_RE.search(path.replace("\\", "/"))
+    return normalize_skill(match.group(1)) if match else ""
+
+
+def skill_from_text(text):
+    if not isinstance(text, str):
+        return ""
+    path_match = SKILL_PATH_RE.search(text.replace("\\", "/"))
+    if path_match:
+        return normalize_skill(path_match.group(1))
+    token_match = SKILL_TOKEN_RE.search(text)
+    return normalize_skill(token_match.group(1)) if token_match else ""
+
+
+def skill_from_event(data, tool):
+    params = data.get("tool_input") or {}
+    if tool == "Skill" and isinstance(params, dict):
+        return normalize_skill(params.get("skill", ""))
+    if tool == "Read":
+        for path in extract_paths(tool, params):
+            skill = skill_from_path(path)
+            if skill:
+                return skill
+    if tool == "Bash":
+        if isinstance(params, dict):
+            return skill_from_text(params.get("cmd", "") or params.get("command", ""))
+        return skill_from_text(params)
+    return ""
 
 
 def resolve_candidate(rule, sid):
@@ -351,7 +385,7 @@ def handle_write(data, tool, sid):
 
 
 def handle_skill(data, sid):
-    skill = normalize_skill((data.get("tool_input") or {}).get("skill", ""))
+    skill = skill_from_event(data, data.get("tool_name"))
     rule = GATE_MAP.get(skill)
     if rule is None:
         sys.exit(0)
@@ -426,7 +460,7 @@ def main():
             handle_nudge(data)
             sys.exit(0)
         record_ownership(data, tool, sid)
-        if tool == "Skill":
+        if tool in ("Skill", "Read", "Bash"):
             handle_skill(data, sid)
         elif tool in ("apply_patch", "Write", "Edit"):
             handle_write(data, tool, sid)
