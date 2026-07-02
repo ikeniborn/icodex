@@ -1,0 +1,6 @@
+name = "loen-planner"
+role = "planner"
+summary = "Creates bounded LoEn plans from goal and context artifacts."
+read_only_default = false
+artifact_root = "docs/loen"
+allowed_outputs = ["3_plan.md"]
