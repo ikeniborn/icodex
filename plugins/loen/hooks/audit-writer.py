@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-from loen_common import html_page, loop_policy, read_loop_artifact, topic, topic_dir
+from loen_common import html_page, is_off, loop_policy, read_loop_artifact, topic, topic_dir
 
 SCRIPT_NAME = "audit-writer"
 
@@ -32,6 +32,8 @@ def _ensure_todo_row(topic_name: str) -> None:
 
 
 def main() -> int:
+  if is_off():
+    return 0
   loop_text = read_loop_artifact()
   topic_name = topic()
   if not topic_name or not loop_text:

@@ -24,6 +24,14 @@ def is_enforcing() -> bool:
   return mode() in {"enforce", "strict"}
 
 
+def is_advisory() -> bool:
+  return mode() == "advisory"
+
+
+def is_off() -> bool:
+  return mode() == "off"
+
+
 def is_strict() -> bool:
   return mode() == "strict"
 
@@ -140,7 +148,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
         key = key.strip()
         parsed = _parse_inline_list(value)
         data["tools"].setdefault(key, [])
-        if parsed:
+        if parsed or value.strip() == "[]":
           data["tools"][key] = parsed
           list_target = None
         else:
@@ -159,7 +167,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
         key, value = stripped.split(":", 1)
         key = key.strip()
         parsed = _parse_inline_list(value)
-        if parsed:
+        if parsed or value.strip() == "[]":
           target[key] = parsed
           list_target = None
         elif value.strip():
@@ -180,6 +188,15 @@ def loop_policy() -> dict[str, Any]:
 
 def stderr(message: str) -> None:
   print(message, file=sys.stderr)
+
+
+def block_or_nudge(message: str) -> int:
+  if is_enforcing():
+    stderr(message)
+    return BLOCK
+  if is_advisory():
+    stderr(message)
+  return 0
 
 
 def tool_name(event: dict[str, Any]) -> str:

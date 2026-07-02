@@ -17,6 +17,10 @@ agents:
     tools: [read, search, shell]
     sandbox: read-only
     must_not_edit: true
+  reviewer:
+    tools: [read, search, shell]
+    sandbox: read-only
+    must_not_edit: true
 tools:
   allowed:
     - read

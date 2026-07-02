@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """LoEn mutable/protected path scope guard; reads LOEN_ARTIFACT_ROOT through loen_common."""
-from loen_common import BLOCK, extract_paths, is_enforcing, is_loen_topic_path, loop_policy, matches_any, read_event, read_loop_artifact, stderr, topic
+from loen_common import block_or_nudge, extract_paths, is_off, is_loen_topic_path, loop_policy, matches_any, read_event, read_loop_artifact, topic
 
 SCRIPT_NAME = "scope-guard"
 
 
 def main() -> int:
+  if is_off():
+    return 0
   event_paths = extract_paths(read_event())
   read_loop_artifact()
-  if not is_enforcing() or not event_paths:
+  if not event_paths:
     return 0
   policy = loop_policy()
   fs_policy = policy.get("permissions", {}).get("filesystem", {})
@@ -20,11 +22,9 @@ def main() -> int:
     if topic_name and is_loen_topic_path(path, topic_name):
       continue
     if matches_any(path, protected):
-      stderr(f"LoEn: protected path blocked: {path}")
-      return BLOCK
+      return block_or_nudge(f"LoEn: protected path blocked: {path}")
     if mutable and not matches_any(path, mutable):
-      stderr(f"LoEn: path outside mutable scope: {path}")
-      return BLOCK
+      return block_or_nudge(f"LoEn: path outside mutable scope: {path}")
   return 0
 
 
