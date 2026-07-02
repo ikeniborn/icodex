@@ -9,7 +9,7 @@
 | 00-loen-overview | done | n/a | ✓ | ✓ | OK | 2026-07-02 | 2026-07-02 | Overview contract merged in PR #19; focused doc test PASS=41 FAIL=0; full Bash suite and final review READY |
 | 01-loen-plugin-core | done | n/a | ✓ | ✓ | OK | 2026-07-02 | 2026-07-02 | Plugin core source tree complete in PR #21; fixture PASS=99 FAIL=0; full Bash suite exit 0; wiki updated |
 | 02-loen-runtime-artifacts | in-progress | n/a | – | – | – | 2026-07-02 |  | Topic artifacts under docs/loen/<topic>/ with numbered stages and audit.html |
-| 03-loen-enforcement-hooks | in-progress | n/a | – | – | – | 2026-07-02 |  | Independent LoEn loop gates, scope guard, tool guard, permission guard, and evidence gate |
+| 03-loen-enforcement-hooks | in-progress | n/a | – | – | – | 2026-07-02 |  | Enforcement hook implementation complete on dev branch; check-chain result not run |
 | 04-loen-agent-isolation | in-progress | n/a | – | – | – | 2026-07-02 |  | Role-specific agents, context capsules, Codex profile split, and WASM-first verifier isolation |
 | 05-loen-icodex-integration | in-progress | n/a | – | – | – | 2026-07-02 |  | Vendor and launch-time wiring for LoEn as a standalone Codex plugin in icodex |
 | 06-loen-automation-governance | in-progress | n/a | – | – | – | 2026-07-02 |  | Later L3 automation and governance rules after manual loops prove stable |
