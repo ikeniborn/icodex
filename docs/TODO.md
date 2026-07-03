@@ -13,3 +13,4 @@
 | 04-loen-agent-isolation | in-progress | n/a | – | – | – | 2026-07-02 |  | Role-specific agents, context capsules, Codex profile split, and WASM-first verifier isolation |
 | 05-loen-icodex-integration | in-progress | n/a | – | – | – | 2026-07-02 |  | Vendor and launch-time wiring for LoEn as a standalone Codex plugin in icodex |
 | 06-loen-automation-governance | in-progress | n/a | – | – | – | 2026-07-02 |  | Later L3 automation and governance rules after manual loops prove stable |
+| curl-ca-trust-gost-fallback | in-progress | n/a | n/a | n/a | – | 2026-07-03 |  | Auto-detect+fallback for GOST/OpenSSL curl breakage: lib/config ca-trust module + icodex.sh wiring. Idempotent (mtime cache), non-destructive (respects preset CURL_CA_BUNDLE, ICODEX_CA_BUNDLE override, ICODEX_CA_FIX=off). test_ca_trust 14/0, e2e curl→200, full suite green (loen fails pre-existing); README/example/wiki updated. Branch dev-ca-trust-gost-fallback; PR pending user decision |

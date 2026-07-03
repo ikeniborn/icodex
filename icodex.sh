@@ -15,7 +15,7 @@ export ICODEX_ROOT
 
 for m in core/logging core/init core/validation command/args \
          binary/detect binary/lockfile binary/install \
-         config/isolated config/permissions config/sandbox config/env proxy/proxy symlink/symlink \
+         config/isolated config/permissions config/sandbox config/env config/ca_trust proxy/proxy symlink/symlink \
          plugin/superpowers caveman/caveman idd/idd iwiki/iwiki launcher/launch; do
   # shellcheck source=/dev/null
   source "$ICODEX_ROOT/lib/$m.sh"
@@ -40,6 +40,9 @@ main() {
   esac
 
   require_tools || exit 1
+  # Repair curl's TLS trust on hosts whose OpenSSL can't decode GOST CA certs,
+  # so both the installer's downloads and curl subprocesses inside codex work.
+  ensure_ca_trust
   # --proxy overrides the persisted value and is saved for next time.
   if [[ -n "$ICODEX_SET_PROXY" ]]; then
     ICODEX_PROXY="$ICODEX_SET_PROXY"
