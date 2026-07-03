@@ -57,6 +57,20 @@
 # use the --no-proxy flag instead.
 #ICODEX_NO_PROXY=localhost,127.0.0.1,github.com,githubusercontent.com,gitlab.com
 
+# curl TLS-trust workaround. Some hosts (e.g. ALT Linux) ship a system CA bundle
+# with GOST-algorithm roots that curl's OpenSSL build cannot decode, so it aborts
+# every HTTPS handshake ("x509_pubkey_decode: unsupported algorithm"). codex itself
+# is fine (rustls), but curl subprocesses are not. Default `auto` detects this
+# locally (no network) and routes curl/OpenSSL via a filtered, GOST-free copy of
+# the bundle under .codex-isolated/ca-trust/ (idempotent; never edits system trust;
+# a no-op on healthy hosts). Set `off` to disable.
+#ICODEX_CA_FIX=auto
+
+# Explicit CA bundle for curl/OpenSSL — exported as CURL_CA_BUNDLE / SSL_CERT_FILE.
+# Set this to skip detection and point curl at a bundle you trust. A CURL_CA_BUNDLE
+# already in your environment always takes precedence and is left untouched.
+#ICODEX_CA_BUNDLE=/path/to/ca-bundle.crt
+
 # GitHub repo the codex binary is fetched from (default: openai/codex).
 #ICODEX_REPO=openai/codex
 
