@@ -16,7 +16,7 @@ export ICODEX_ROOT
 for m in core/logging core/init core/validation command/args \
          binary/detect binary/lockfile binary/install \
          config/isolated config/permissions config/sandbox config/env config/ca_trust proxy/proxy symlink/symlink \
-         plugin/superpowers caveman/caveman idd/idd iwiki/iwiki launcher/launch; do
+         plugin/superpowers plugin/loen caveman/caveman idd/idd iwiki/iwiki launcher/launch; do
   # shellcheck source=/dev/null
   source "$ICODEX_ROOT/lib/$m.sh"
 done
@@ -60,6 +60,7 @@ main() {
   ensure_project_trust "$ICODEX_HOME_DIR/config.toml" "$ICODEX_PROJECT_ROOT"
   ensure_launcher_binary_permission
   ensure_superpowers_wiring
+  ensure_loen_wiring
   ensure_caveman_wiring
   ensure_idd_wiring
   ensure_iwiki_wiring
