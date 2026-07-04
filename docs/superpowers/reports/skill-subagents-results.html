@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>skill-subagents — IDD/SDD chain report</title>
+  <style>
+    :root{--bg:#111827;--surface:#1f2937;--text:#e5e7eb;--muted:#9ca3af;--border:#374151;--accent:#60a5fa;--ok:#34d399;--warn:#fbbf24}
+    body:has(#theme-toggle:checked){--bg:#f8fafc;--surface:#ffffff;--text:#0f172a;--muted:#475569;--border:#cbd5e1;--accent:#2563eb;--ok:#047857;--warn:#b45309}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+    header,main{max-width:1080px;margin:0 auto;padding:24px} header{display:flex;gap:16px;align-items:center;justify-content:space-between}
+    h1{margin:0;font-size:28px} h2{margin:0 0 16px;font-size:22px} h3{margin:22px 0 10px;font-size:16px}
+    .theme-btn,.chain-tabs label{cursor:pointer;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:8px 12px;color:var(--text)}
+    .chain-tabs{max-width:1080px;margin:0 auto;padding:0 24px;display:flex;gap:8px;flex-wrap:wrap}
+    .tab-pane{display:none;margin-top:18px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px}
+    body:has(#tab-intent:checked) #pane-intent,body:has(#tab-spec:checked) #pane-spec,body:has(#tab-plan:checked) #pane-plan,body:has(#tab-result:checked) #pane-result{display:block}
+    body:has(#tab-intent:checked) label[for="tab-intent"],body:has(#tab-spec:checked) label[for="tab-spec"],body:has(#tab-plan:checked) label[for="tab-plan"],body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent);border-color:var(--accent);font-weight:700}
+    table{width:100%;border-collapse:collapse;margin:12px 0} th,td{border:1px solid var(--border);padding:8px;text-align:left;vertical-align:top} th{background:color-mix(in srgb,var(--surface),var(--accent) 12%)}
+    .badge{display:inline-block;border-radius:999px;padding:2px 8px;font-size:12px;font-weight:700}.ok{background:var(--ok);color:#06281d}.warn{background:var(--warn);color:#2b1700}.note{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <input type="checkbox" id="theme-toggle" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden checked>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+  <header>
+    <h1>skill-subagents — IDD/SDD chain report</h1>
+    <label for="theme-toggle" class="theme-btn" title="Toggle dark/light">Theme</label>
+  </header>
+  <nav class="chain-tabs">
+    <label for="tab-intent">Intent</label>
+    <label for="tab-spec">Spec</label>
+    <label for="tab-plan">Plan</label>
+    <label for="tab-result">Result</label>
+  </nav>
+  <main>
+    <!-- TAB:intent START -->
+    <section class="tab-pane" id="pane-intent">
+      <h2>Проверка intent — 2026-07-04</h2>
+      <h3>Сводка артефакта</h3>
+      <table>
+        <thead><tr><th>Раздел</th><th>Состояние</th></tr></thead>
+        <tbody>
+          <tr><td>Objective</td><td>Описывает оба слоя: tracked custom agents + обновления 5 skills.</td></tr>
+          <tr><td>Desired Outcomes</td><td>4 observable outcome: routing guidance, tracked agents, rationale, smoke checks.</td></tr>
+          <tr><td>Health Metrics</td><td>Accuracy/reliability checks must not degrade.</td></tr>
+          <tr><td>Strategic Context</td><td>Codex agents, isolated icodex runtime, skills, IDD/SDD, TODO, iwiki, git.</td></tr>
+          <tr><td>Constraints</td><td>Steering and hard constraints separated.</td></tr>
+          <tr><td>Autonomy Zones</td><td>All four zones present.</td></tr>
+          <tr><td>Stop Rules</td><td>Halt/escalate/done criteria present.</td></tr>
+        </tbody>
+      </table>
+      <h3>Фазы</h3>
+      <p><span class="badge ok">structure passed</span> <span class="badge ok">completeness passed</span> <span class="badge ok">clarity passed</span> <span class="badge ok">consistency passed</span> <span class="badge ok">alignment passed</span></p>
+      <h3>Findings</h3>
+      <p class="note">Новых findings нет.</p>
+      <h3>Итог</h3>
+      <p><span class="badge ok">OK</span> Intent accepted for brainstorming.</p>
+    </section>
+    <!-- TAB:intent END -->
+    <!-- TAB:spec START -->
+    <section class="tab-pane" id="pane-spec"><p class="note">Этап ещё не проверен.</p></section>
+    <!-- TAB:spec END -->
+    <!-- TAB:plan START -->
+    <section class="tab-pane" id="pane-plan"><p class="note">Этап ещё не проверен.</p></section>
+    <!-- TAB:plan END -->
+    <!-- TAB:result START -->
+    <section class="tab-pane" id="pane-result"><p class="note">Этап ещё не проверен.</p></section>
+    <!-- TAB:result END -->
+  </main>
+</body>
+</html>
