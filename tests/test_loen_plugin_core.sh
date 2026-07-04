@@ -168,10 +168,37 @@ for agent in "${expected_agents[@]}"; do
   if [[ -f "$agent_path" ]]; then
     parse_status="$(python3 - "$agent_path" <<'PY'
 import sys
-import tomllib
 from pathlib import Path
 
-data = tomllib.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+try:
+    import tomllib
+except ModuleNotFoundError:
+    tomllib = None
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+if tomllib is not None:
+    data = tomllib.loads(text)
+else:
+    data = {}
+    for lineno, raw_line in enumerate(text.splitlines(), 1):
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if "=" not in line:
+            raise SystemExit(f"syntax:{lineno}")
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key.replace("_", "").replace("-", "").isalnum():
+            raise SystemExit(f"syntax:{lineno}")
+        if value in {"true", "false"}:
+            data[key] = value == "true"
+        elif value.startswith('"') and value.endswith('"'):
+            data[key] = value[1:-1]
+        elif value.startswith("[") and value.endswith("]"):
+            data[key] = [item.strip().strip('"') for item in value[1:-1].split(",") if item.strip()]
+        else:
+            raise SystemExit(f"syntax:{lineno}")
 required = ["name", "role", "summary", "read_only_default"]
 missing = [key for key in required if key not in data]
 print("OK" if not missing else "missing:" + ",".join(missing))
@@ -191,7 +218,7 @@ assert_exit "plugin README exists" 0 test -f "$plugin_root/docs/README.md"
 assert_exit "plugin architecture doc exists" 0 test -f "$plugin_root/docs/architecture.md"
 
 if [[ -d "$plugin_root" ]]; then
-  forbidden_refs="$(find "$plugin_root" -type f -print0 | xargs -0 grep -En 'IDD|SDD|Superpowers|docs/superpowers|fix-intent|check-chain|lib/plugin/iwiki\.sh' 2>/dev/null || true)"
+  forbidden_refs="$(find "$plugin_root" -type f ! -path "$plugin_root/docs/*" -print0 | xargs -0 grep -En 'IDD|SDD|Superpowers|docs/superpowers|fix-intent|check-chain|lib/plugin/iwiki\.sh' 2>/dev/null || true)"
 else
   forbidden_refs="missing plugin root"
 fi

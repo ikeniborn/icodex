@@ -29,3 +29,15 @@ an `evidence/` directory, `handoff.md`, and a regenerated per-topic
 
 `docs/TODO.md` remains the only global task registry. LoEn does not create a
 global audit index.
+
+## Enforcement Hooks
+
+The enforcement layer turns the hook assets into deterministic local checks.
+`LOEN_MODE=off` no-ops, `advisory` emits nudges without blocking, `enforce`
+blocks missing loop state, stage-order violations, protected path edits, and
+missing evidence, and `strict` adds tool, role, shell, network, and
+worker/verifier separation checks.
+
+Hook scripts read JSON events from stdin and repository-local loop state from
+`LOEN_ARTIFACT_ROOT` plus `LOEN_TOPIC`. They do not call IDD, Superpowers,
+chain-gate, or subjective review tools.
