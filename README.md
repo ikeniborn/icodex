@@ -89,6 +89,8 @@ ordinary environment variable.
 | `ICODEX_PERMISSIONS` | Granular override: managed permission profile only — `dev-safe`, `ssh-on-request`, or `none`; takes precedence over `ICODEX_MODE` for the permissions field | — |
 | `ICODEX_PROXY` | Proxy URL, exported as `HTTPS_PROXY` / `HTTP_PROXY` for codex | — |
 | `ICODEX_NO_PROXY` | Comma-separated host bypass list, exported as `NO_PROXY` (e.g. `localhost,127.0.0.1,github.com`) | — |
+| `ICODEX_CA_FIX` | curl TLS-trust workaround: `auto` detects an OpenSSL bundle it can't decode and routes curl via a filtered copy; `off` disables it | `auto` |
+| `ICODEX_CA_BUNDLE` | Explicit CA bundle for curl/OpenSSL — exported as `CURL_CA_BUNDLE` / `SSL_CERT_FILE`; skips detection | — |
 | `ICODEX_REPO` | GitHub repo the codex binary is fetched from | `openai/codex` |
 | `ICODEX_LINK_DIR` | Directory for the `icodex` symlink (leading `~/` is expanded) | `~/.local/bin` |
 | `ICODEX_UNAME_S` / `ICODEX_UNAME_M` | Force the release-asset platform instead of auto-detecting via `uname` | auto |
@@ -105,6 +107,16 @@ the probe) entirely.
 
 > `ICODEX_*` keys reserved for the iwiki plugin (e.g. `ICODEX_IWIKI_*`) are intentionally
 > ignored by the wrapper config.
+
+On hosts whose curl is linked against an OpenSSL build that cannot decode every CA in the
+system trust bundle (e.g. ALT Linux, whose bundle ships GOST-algorithm roots that OpenSSL
+1.1.1 rejects), curl aborts the whole handshake with `x509_pubkey_decode: unsupported
+algorithm` and every HTTPS call fails. codex itself is unaffected (it uses rustls with
+bundled roots), but curl subprocesses are. On each run icodex detects this locally (no
+network), writes a filtered, GOST-free copy of the bundle under `.codex-isolated/ca-trust/`,
+and exports `CURL_CA_BUNDLE` / `SSL_CERT_FILE` so curl works again. It is idempotent (cached
+by the source bundle's mtime), never edits the system trust, and is a no-op on healthy
+hosts. Set `ICODEX_CA_BUNDLE` to force a specific bundle, or `ICODEX_CA_FIX=off` to disable.
 
 ### Run mode (`ICODEX_MODE`)
 

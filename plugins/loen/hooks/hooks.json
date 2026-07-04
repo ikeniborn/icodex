@@ -1,0 +1,60 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read|Grep|Glob|apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/loop-gate.py\"",
+            "timeout": 30,
+            "statusMessage": "LoEn loop gate"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/scope-guard.py\"",
+            "timeout": 30,
+            "statusMessage": "LoEn scope guard"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/tool-guard.py\"",
+            "timeout": 30,
+            "statusMessage": "LoEn tool guard"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/permission-guard.py\"",
+            "timeout": 30,
+            "statusMessage": "LoEn permission guard"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/audit-writer.py\"",
+            "timeout": 30,
+            "statusMessage": "LoEn audit writer"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/evidence-gate.py\"",
+            "timeout": 30,
+            "statusMessage": "LoEn evidence gate"
+          }
+        ]
+      }
+    ]
+  }
+}

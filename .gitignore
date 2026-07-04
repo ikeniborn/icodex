@@ -37,3 +37,7 @@
 # OS / editor noise
 .DS_Store
 *.swp
+
+# Python verification artifacts
+__pycache__/
+*.pyc

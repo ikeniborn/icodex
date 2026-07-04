@@ -130,9 +130,30 @@ After the verdict (including the cached quick-exit), invoke the `html-report` sk
 (`skill: "html-report"`) with `mode: chain`, `tab: <stage>`, output
 `docs/superpowers/reports/<topic>-results.html` (one file, four tabs Intent/Spec/Plan/Result;
 update only this stage's tab, preserve the others; create all four if absent with the
-placeholder «Этап ещё не проверен»; data passed inline; all report text in Russian).
+placeholder «Этап ещё не проверен»; all report text in Russian).
 Determine `<topic>`: basename minus `.md`, strip the `^YYYY-MM-DD-` date prefix, strip a
 trailing `-intent`/`-design`/`-plan` suffix if present; fallback to the bare basename.
+
+**Owned-tab payload (MANDATORY — pass ALL blocks inline on EVERY run, cached exit
+included).** The owning tab is replaced whole on each merge (`html-report`'s
+`references/chain-report.md` swaps only the bytes between this tab's markers), so a run
+that omits a block silently drops it from the report. Always reconstruct the full block
+set from the current frontmatter — never a subset:
+
+1. `<h2>` heading — «Проверка <stage> — <last_run>».
+2. Summary table of the artifact (stage-specific): `plan` → steps + DoD; `spec` →
+   requirements; `intent` → template sections; `result` → the reconciliation table
+   (see result Step 6).
+3. Diagram block where the stage has one (`plan`: step-dependency graph, artifact
+   overlaps, spec-requirement→step mapping) — omit only when the stage genuinely has none.
+4. Phase results — one badge per phase (`passed` / `in_progress`); `result` shows the
+   `verdict` badge instead (non-phased).
+5. `Findings` — a table of every finding (`id`, `severity`, `section`, `fragment`,
+   `text`, `fix`, `verdict`), or the note «Новых findings нет» when empty.
+6. Summary — the final verdict (`OK` / `needs_work` with the open-count).
+
+On a cached quick-exit, re-emit these same six blocks from the stored frontmatter so the
+merged tab is never thinner than the previous run.
 
 ### Step 6 — TODO.md upsert
 
@@ -320,6 +341,20 @@ Additionally — find `EXCESS`: files changed in the diff with no corresponding 
 - Uncovered → a finding referencing the specific outcome/requirement
 
 #### Step 6. Build the report
+
+Emit the Result tab through the shared **Step 5 — HTML report** flow (`html-report`,
+`mode: chain`, `tab: result`) with the full owned-tab payload. For the result tab the
+summary block (shared Step 5, item 2) is the reconciliation content — emit every block so
+a re-merge never drops one:
+
+- Reconciliation table — one row per plan step → badge `DONE` / `PARTIAL` / `MISSING` /
+  `EXCESS` (from reconciliation Step 4), with the matched diff paths.
+- Coverage — each Desired Outcome and each requirement / Success Criterion (from
+  reconciliation Step 5) → reflected in the diff, or a finding.
+- Findings — every `[CRITICAL]` / `[WARNING]` / `[INFO]` from the severity table.
+- Summary — the `verdict` badge (`OK` / `needs_work`).
+
+Preserve the intent / spec / plan tabs verbatim — never regenerate them here.
 
 #### Step 7. Write the state into the plan frontmatter
 
