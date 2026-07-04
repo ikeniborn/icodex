@@ -1,6 +1,6 @@
 ---
 review:
-  intent_hash: 2e674130990c6c60
+  intent_hash: ee4a297dd53b37ce
   last_run: 2026-07-04
   phases:
     structure: { status: passed }
@@ -51,14 +51,15 @@ The target skills are:
 ### Hard (architectural enforcement)
 - Add agents and skill changes to the isolated icodex environment, not only to a personal `~/.codex` location.
 - Track all new agent configs and skill edits in git.
-- Do not change runtime Bash code under `icodex.sh`, `lib/`, or `tests/` in the first implementation stage unless the approved plan later identifies an unavoidable wiring gap.
+- Runtime Bash changes are allowed only for the narrow isolated-agent wiring gap: track `.codex-isolated/agents`, symlink it into per-project `CODEX_HOME`, and verify that behavior with focused tests.
+- Any other runtime Bash change under `icodex.sh`, `lib/`, or `tests/` remains proposal-first.
 - Do not lower accuracy or reliability of `check-chain`, `html-report`, `mermaid-obsidian`, `git-workflow`, or `context-awareness`.
 - Do not rely on undocumented `SKILL.md` frontmatter to auto-spawn subagents.
 
 ## Autonomy Zones
 - Full autonomy (reversible, low risk): choose custom agent names, model choices, reasoning effort, and summary schemas when each choice is documented with rationale and checked by verification.
 - Guarded (log + confidence threshold): choose lightweight model use for read-heavy or template-like work; proceed only with explicit rationale that explains why trust is not reduced.
-- Proposal-first (needs approval): add new runtime wiring, change shell modules/tests, or move agent files outside the isolated icodex environment.
+- Proposal-first (needs approval): add runtime wiring beyond the approved `.codex-isolated/agents` symlink/whitelist/test scope, change unrelated shell modules/tests, or move agent files outside the isolated icodex environment.
 - No autonomy (human only): accept reduced validation accuracy, weaken git safety rules, skip required chain gates, or store agents only in an untracked personal Codex home.
 
 > These zones OVERRIDE subagent-driven-development's "continuous execution,
@@ -66,8 +67,8 @@ The target skills are:
 > is marked HUMAN CHECKPOINT in the plan.
 
 ## Stop Rules
-- Halt if: implementing the design requires runtime Bash changes before the skill/agent-only layer is proven insufficient.
+- Halt if: implementing the design requires runtime Bash changes outside the approved `.codex-isolated/agents` symlink/whitelist/test scope.
 - Halt if: a proposed simple model cannot be justified without reducing trust.
 - Escalate if: documented Codex custom agent behavior conflicts with observed behavior in this environment.
 - Escalate if: baseline tests fail in the new worktree before implementation changes.
-- Done when: the branch contains tracked isolated icodex agent configs, updated target skills, rationale for each agent's name/model/reasoning effort, and verification output showing the full Bash suite plus focused smoke checks pass.
+- Done when: the branch contains tracked isolated icodex agent configs, isolated `CODEX_HOME` wiring for those agents, updated target skills, rationale for each agent's name/model/reasoning effort, and verification output showing the full Bash suite plus focused smoke checks pass.
