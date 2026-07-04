@@ -2,6 +2,15 @@
 title: 04 LoEn agent isolation design
 date: 2026-07-02
 status: draft
+review:
+  spec_hash: e3703a359aac2b1c
+  last_run: 2026-07-04
+  phases:
+    structure: { status: passed }
+    coverage: { status: passed }
+    clarity: { status: passed }
+    consistency: { status: passed }
+  findings: []
 chain:
   intent: null
 ---
