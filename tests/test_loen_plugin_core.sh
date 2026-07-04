@@ -6,6 +6,8 @@ source "$ROOT/tests/helpers.sh"
 plugin_root="$ROOT/plugins/loen"
 manifest="$plugin_root/.codex-plugin/plugin.json"
 hooks_json="$plugin_root/hooks/hooks.json"
+vendored_cache="$ROOT/.codex-isolated/plugins/cache/iclaude/loen/0.5.1"
+vendored_codex_manifest="$vendored_cache/.codex-plugin/plugin.json"
 
 expected_skills=(
   loop-start
@@ -81,6 +83,32 @@ assert_eq "manifest hooks path" "./hooks/hooks.json" "$(sed -n '4p' <<<"$manifes
 assert_eq "manifest agents path" "./agents/" "$(sed -n '5p' <<<"$manifest_summary")"
 assert_eq "manifest assets path" "./assets/" "$(sed -n '6p' <<<"$manifest_summary")"
 assert_eq "manifest display name" "LoEn" "$(sed -n '7p' <<<"$manifest_summary")"
+
+assert_exit "vendored LoEn cache exists" 0 test -d "$vendored_cache"
+assert_exit "vendored LoEn cache has Codex manifest" 0 test -f "$vendored_codex_manifest"
+
+if [[ -f "$vendored_codex_manifest" ]]; then
+  vendored_manifest_summary="$(python3 - "$vendored_codex_manifest" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+print(data.get("name", ""))
+print(data.get("version", ""))
+print(data.get("skills", ""))
+print(data.get("interface", {}).get("displayName", ""))
+PY
+)"
+else
+  vendored_manifest_summary=$'\n\n\n'
+fi
+
+assert_eq "vendored manifest name" "loen" "$(sed -n '1p' <<<"$vendored_manifest_summary")"
+assert_eq "vendored manifest version" "0.5.1" "$(sed -n '2p' <<<"$vendored_manifest_summary")"
+assert_eq "vendored manifest skills path" "./skills/" "$(sed -n '3p' <<<"$vendored_manifest_summary")"
+assert_eq "vendored manifest display name" "LoEn" "$(sed -n '4p' <<<"$vendored_manifest_summary")"
 
 skill_names=()
 for skill in "${expected_skills[@]}"; do
