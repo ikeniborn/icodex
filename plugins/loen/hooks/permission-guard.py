@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """LoEn shell and network permission guard; reads LOEN_ARTIFACT_ROOT through loen_common."""
+from __future__ import annotations
+
 import shlex
 from urllib.parse import urlparse
 

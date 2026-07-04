@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """LoEn loop-state gate; reads LOEN_ARTIFACT_ROOT through loen_common."""
+from __future__ import annotations
+
 from loen_common import block_or_nudge, extract_paths, is_edit_event, is_off, parse_loop_yaml, read_event, read_loop_artifact, tool_input, topic, topic_dir
 
 SCRIPT_NAME = "loop-gate"

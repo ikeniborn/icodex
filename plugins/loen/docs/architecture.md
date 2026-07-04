@@ -8,9 +8,15 @@ JSON, Markdown, Python, TOML, YAML, and HTML files.
 
 ## Hook Assets
 
-Hook scripts are deterministic and read only LoEn artifact paths such as
-`docs/loen/<topic>/loop.yaml`. In this layer they exit successfully and do not
-block actions. Later layers define enforcement semantics.
+Hook scripts are deterministic and read only JSON tool events plus LoEn topic
+artifacts such as `docs/loen/<topic>/loop.yaml`. They are source-layer plugin
+assets until a later icodex integration layer installs and enables the plugin,
+but their behavior is implemented and fixture-tested in this repository.
+
+The enforcement layer owns loop-state gating, mutable/protected path checks,
+tool and role policy, shell and network policy, final evidence checks, and
+audit regeneration. The hooks do not depend on IDD->SDD, Superpowers, or
+frontmatter review state.
 
 ## Agent Assets
 
