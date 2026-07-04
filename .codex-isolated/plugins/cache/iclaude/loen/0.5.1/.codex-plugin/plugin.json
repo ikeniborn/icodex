@@ -1,0 +1,37 @@
+{
+  "name": "loen",
+  "version": "0.5.1",
+  "description": "Loop Engineering harness: run a controlled Plan-Act-Check-Report agent loop with an independent verifier, a machine-readable loop.yaml contract, and hard artifact-layout guardrails.",
+  "author": {
+    "name": "ikeniborn"
+  },
+  "license": "MIT",
+  "keywords": [
+    "loop-engineering",
+    "agent-loop",
+    "verifier",
+    "workflow",
+    "guardrails",
+    "tdd"
+  ],
+  "homepage": "https://github.com/ikeniborn/iclaude",
+  "repository": "https://github.com/ikeniborn/iclaude",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "LoEn",
+    "shortDescription": "Loop Engineering workflow assets for Codex",
+    "longDescription": "LoEn provides a controlled loop workflow with planning, action, checking, reporting, independent verification, and deterministic artifact guardrails.",
+    "developerName": "ikeniborn",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Start a LoEn loop for this task.",
+      "Check the active LoEn loop status."
+    ],
+    "brandColor": "#2F6F5E"
+  }
+}
