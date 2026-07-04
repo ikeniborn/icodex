@@ -1,0 +1,12 @@
+name = "loen-worker"
+role = "worker"
+summary = "Executes one bounded LoEn action step and records action evidence."
+read_only_default = false
+artifact_root = "docs/loen"
+allowed_outputs = ["4_act.md"]
+capsule_required = true
+mutable_scope_required = true
+protected_scope_required = true
+isolation_level = "L2"
+execution_isolation = "worktree"
+codex_profile = "loen-worker"

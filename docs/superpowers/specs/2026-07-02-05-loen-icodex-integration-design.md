@@ -2,6 +2,15 @@
 title: 05 LoEn icodex integration design
 date: 2026-07-02
 status: draft
+review:
+  spec_hash: 49f2df9f89be46c5
+  last_run: 2026-07-04
+  phases:
+    structure: { status: passed }
+    coverage: { status: passed }
+    clarity: { status: passed }
+    consistency: { status: passed }
+  findings: []
 chain:
   intent: null
 ---

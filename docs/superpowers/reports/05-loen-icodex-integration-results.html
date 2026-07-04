@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>05-loen-icodex-integration IDD-SDD Report</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --surface:#ffffff; --fg:#2b2b3a; --muted:#6b6b80;
+      --accent:#5c6bc0; --accent-2:#3949ab; --border:#d6d8e6; --line:#9aa0b4; --zebra:#eef0f8;
+      --ok:#43a047; --ok-2:#2e7d32; --warn:#fb8c00; --warn-2:#ef6c00; --danger:#e53935; --danger-2:#c62828;
+      --shadow:rgba(40,40,80,.18);
+    }
+    body:has(#theme-toggle:checked){
+      --bg:#181825; --surface:#262637; --fg:#cdd6f4; --muted:#a6adc8;
+      --accent:#89b4fa; --accent-2:#5e95f0; --border:#3a3b52; --line:#6c7086; --zebra:#21222f;
+      --ok:#a6e3a1; --ok-2:#74c46e; --warn:#f9e2af; --warn-2:#f5c95b; --danger:#f38ba8; --danger-2:#e8638a;
+      --shadow:rgba(0,0,0,.45);
+    }
+    body{
+      margin:0 auto; padding:1.5rem 2rem 4rem; max-width:1080px;
+      font:16px/1.55 system-ui, sans-serif;
+      background:radial-gradient(1200px 500px at 100% -10%, color-mix(in srgb,var(--accent) 10%, transparent), transparent), var(--bg);
+      color:var(--fg); transition:background .3s, color .3s;
+    }
+    .theme-btn{position:sticky; top:.5rem; float:right; cursor:pointer; user-select:none; padding:.25rem .6rem; border:1px solid var(--border); border-radius:6px; background:var(--surface);}
+    header{margin:0 0 1.25rem;}
+    h1{font-size:1.7rem; margin:.2rem 0; color:var(--accent);}
+    h2{font-size:1.35rem; margin:1.2rem 0 .7rem;}
+    h3{font-size:1.05rem; margin:1rem 0 .5rem;}
+    .muted{color:var(--muted);}
+    .chain-tabs{display:flex; flex-wrap:wrap; gap:.25rem; margin:1rem 0 0; border-bottom:1px solid var(--border);}
+    .chain-tabs label{cursor:pointer; padding:.4rem .9rem; border:1px solid var(--border); border-bottom:none; border-radius:8px 8px 0 0; background:var(--surface); color:var(--muted);}
+    .tab-pane{display:none; background:var(--surface); border:1px solid var(--border); border-top:none; padding:1rem; box-shadow:0 8px 24px var(--shadow);}
+    body:has(#tab-intent:checked) #pane-intent,
+    body:has(#tab-spec:checked) #pane-spec,
+    body:has(#tab-plan:checked) #pane-plan,
+    body:has(#tab-result:checked) #pane-result{display:block;}
+    body:has(#tab-intent:checked) label[for="tab-intent"],
+    body:has(#tab-spec:checked) label[for="tab-spec"],
+    body:has(#tab-plan:checked) label[for="tab-plan"],
+    body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent); border-color:var(--accent); font-weight:600;}
+    table{width:100%; border-collapse:collapse; margin:.6rem 0 1rem;}
+    th,td{border:1px solid var(--border); padding:.45rem .55rem; vertical-align:top;}
+    th{background:color-mix(in srgb,var(--accent) 10%, var(--surface)); text-align:left;}
+    tr:nth-child(even) td{background:var(--zebra);}
+    code{background:color-mix(in srgb,var(--accent) 10%, var(--surface)); padding:.1rem .25rem; border-radius:4px;}
+    .badge{display:inline-block; border-radius:999px; padding:.1rem .55rem; font-weight:700; font-size:.85rem;}
+    .passed,.ok{color:var(--ok-2); background:color-mix(in srgb,var(--ok) 18%, var(--surface));}
+    .warn{color:var(--warn-2); background:color-mix(in srgb,var(--warn) 18%, var(--surface));}
+    .note{border-left:4px solid var(--accent); padding:.7rem .9rem; background:color-mix(in srgb,var(--accent) 10%, var(--surface));}
+  </style>
+</head>
+<body>
+  <input type="checkbox" id="theme-toggle" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
+  <label for="theme-toggle" class="theme-btn" title="Toggle dark/light">dark / light</label>
+  <header>
+    <h1>05-loen-icodex-integration</h1>
+    <p class="muted">Единый отчет IDD-SDD chain.</p>
+  </header>
+  <nav class="chain-tabs">
+    <label for="tab-intent">Intent</label>
+    <label for="tab-spec">Spec</label>
+    <label for="tab-plan">Plan</label>
+    <label for="tab-result">Result</label>
+  </nav>
+  <!-- TAB:intent START -->
+  <section class="tab-pane" id="pane-intent">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:intent END -->
+  <!-- TAB:spec START -->
+  <section class="tab-pane" id="pane-spec">
+    <h2>Проверка spec - 2026-07-04</h2>
+    <h3>Артефакт</h3>
+    <table>
+      <tr><th>Поле</th><th>Значение</th></tr>
+      <tr><td>Файл</td><td><code>docs/superpowers/specs/2026-07-02-05-loen-icodex-integration-design.md</code></td></tr>
+      <tr><td>Hash</td><td><code>49f2df9f89be46c5</code></td></tr>
+      <tr><td>Topic</td><td><code>05-loen-icodex-integration</code></td></tr>
+    </table>
+    <h3>Требования</h3>
+    <table>
+      <tr><th>Раздел</th><th>Содержание</th><th>Критерий приемки</th></tr>
+      <tr><td>Purpose</td><td>Подключить standalone LoEn source к isolated Codex runtime в icodex как adapter layer.</td><td>icodex запускается с LoEn из vendored cache.</td></tr>
+      <tr><td>Files</td><td>Добавить <code>scripts/vendor-loen.sh</code>, <code>lib/plugin/loen.sh</code>, <code>tests/test_loen_plugin.sh</code>; подключить <code>plugin/loen</code> в <code>icodex.sh</code>.</td><td>Launch path вызывает <code>ensure_loen_wiring</code>.</td></tr>
+      <tr><td>Vendoring Flow</td><td>Копировать <code>plugins/loen/</code> в <code>.codex-isolated/plugins/cache/icodex-local/loen/&lt;version&gt;/</code>, очищая generated artifacts и проверяя manifest.</td><td>Cache содержит plugin.json, skills, hooks, agents, docs, assets.</td></tr>
+      <tr><td>Launch-time Wiring</td><td>Найти cache, создать runtime marketplace root, symlink plugin, записать manifests, переписать marketplace source, включить <code>loen@&lt;name&gt;</code>.</td><td>Marketplace source указывает на current host path; enablement idempotent.</td></tr>
+      <tr><td>Runtime Configuration</td><td><code>ICODEX_LOEN_MODE</code>: <code>off</code>, <code>advisory</code>, <code>enforce</code>, <code>strict</code>; unset = <code>advisory</code>.</td><td><code>off</code> отключает wiring без удаления source tree.</td></tr>
+      <tr><td>Legacy Exclusions</td><td>Не использовать и не воссоздавать <code>lib/plugin/iwiki.sh</code>.</td><td>Runtime LoEn integration script не ссылается на legacy path.</td></tr>
+      <tr><td>Install/Update Scope</td><td><code>--install</code> и <code>--update</code> остаются binary-only.</td><td>Эти команды не vendor-ят LoEn и не вызывают LoEn wiring.</td></tr>
+    </table>
+    <h3>Фазы</h3>
+    <table>
+      <tr><th>Фаза</th><th>Статус</th></tr>
+      <tr><td>structure</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>coverage</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>clarity</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>consistency</td><td><span class="badge passed">passed</span></td></tr>
+    </table>
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+    <h3>Итог</h3>
+    <p><span class="badge ok">OK</span> Spec gate passed: 0 critical open, 0 warning open.</p>
+  </section>
+  <!-- TAB:spec END -->
+  <!-- TAB:plan START -->
+  <section class="tab-pane" id="pane-plan">
+    <h2>Проверка plan - 2026-07-04</h2>
+    <h3>Артефакт</h3>
+    <table>
+      <tr><th>Поле</th><th>Значение</th></tr>
+      <tr><td>Файл</td><td><code>docs/superpowers/plans/2026-07-02-05-loen-icodex-integration.md</code></td></tr>
+      <tr><td>Hash</td><td><code>ee852834e4b2eccf</code></td></tr>
+      <tr><td>Spec</td><td><code>docs/superpowers/specs/2026-07-02-05-loen-icodex-integration-design.md</code></td></tr>
+    </table>
+    <h3>Шаги и DoD</h3>
+    <table>
+      <tr><th>Task</th><th>Output</th><th>Definition of done</th></tr>
+      <tr><td>1</td><td>LoEn integration tests and install/update guard coverage.</td><td>Focused tests fail for missing implementation, syntax checks pass, test commit created.</td></tr>
+      <tr><td>2</td><td><code>scripts/vendor-loen.sh</code> and generated <code>icodex-local/loen/0.1.0</code> cache.</td><td>Vendor command creates validated cache and strips generated artifacts.</td></tr>
+      <tr><td>3</td><td><code>lib/plugin/loen.sh</code> runtime adapter.</td><td>Focused integration suite passes with config upserts, mode export, idempotency, and off mode.</td></tr>
+      <tr><td>4</td><td><code>icodex.sh</code> launch wiring.</td><td>LoEn wiring runs on default launch only; install/update remain binary-only.</td></tr>
+      <tr><td>5</td><td>Full verification, iwiki docs, and result reconciliation.</td><td>Focused and full suites pass, wiki lint has no new broken refs, result gate returns OK.</td></tr>
+    </table>
+    <h3>Диаграммы</h3>
+    <table>
+      <tr><th>Dependency graph</th><th>Flow</th></tr>
+      <tr><td>Implementation order</td><td>Tests -> Vendoring -> Adapter -> Launch wiring -> Docs/result gate</td></tr>
+      <tr><td>Artifact availability</td><td>Generated cache exists before adapter launch tests; adapter exists before entrypoint source list changes are verified.</td></tr>
+    </table>
+    <table>
+      <tr><th>Spec requirement</th><th>Plan coverage</th></tr>
+      <tr><td>Vendoring flow</td><td>Tasks 1-2</td></tr>
+      <tr><td>Launch-time wiring</td><td>Tasks 1, 3, 4</td></tr>
+      <tr><td>Runtime modes</td><td>Tasks 1, 3</td></tr>
+      <tr><td>Legacy iwiki exclusion</td><td>Task 1</td></tr>
+      <tr><td>Install/update binary-only scope</td><td>Tasks 1, 4</td></tr>
+      <tr><td>Acceptance criteria</td><td>Task 5</td></tr>
+    </table>
+    <h3>Фазы</h3>
+    <table>
+      <tr><th>Фаза</th><th>Статус</th></tr>
+      <tr><td>structure</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>coverage</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>dependencies</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>verifiability</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>consistency</td><td><span class="badge passed">passed</span></td></tr>
+    </table>
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+    <h3>Итог</h3>
+    <p><span class="badge ok">OK</span> Plan gate passed: 0 critical open, 0 warning open.</p>
+  </section>
+  <!-- TAB:plan END -->
+  <!-- TAB:result START -->
+  <section class="tab-pane" id="pane-result">
+    <h2>Проверка result - 2026-07-04</h2>
+    <h3>Reconciliation</h3>
+    <table>
+      <tr><th>Plan step</th><th>Status</th><th>Matched diff paths / evidence</th></tr>
+      <tr><td>Task 1: Add LoEn Integration Fixture Coverage</td><td><span class="badge ok">DONE</span></td><td><code>tests/test_loen_plugin.sh</code>, <code>tests/test_update_scope.sh</code>; RED observed before implementation, then focused suite passed.</td></tr>
+      <tr><td>Task 2: Implement LoEn Vendoring</td><td><span class="badge ok">DONE</span></td><td><code>scripts/vendor-loen.sh</code>, <code>.codex-isolated/plugins/cache/icodex-local/loen/0.1.0/</code>; generated cache validates and strips generated artifacts.</td></tr>
+      <tr><td>Task 3: Implement Runtime LoEn Adapter</td><td><span class="badge ok">DONE</span></td><td><code>lib/plugin/loen.sh</code>; focused test covers marketplace creation, config upserts, modes, idempotency, and missing-cache tolerance.</td></tr>
+      <tr><td>Task 4: Wire LoEn Into the Launch Path</td><td><span class="badge ok">DONE</span></td><td><code>icodex.sh</code>; copied launch fixture exported <code>LOEN_MODE=strict</code>; install/update guard stayed green.</td></tr>
+      <tr><td>Task 5: Verify, Document, and Close the Chain</td><td><span class="badge ok">DONE</span></td><td>Focused tests passed, full Bash suite exited 0, iwiki <code>loen-overview</code> updated, <code>loen-icodex-integration</code> page written, lint has no broken refs or orphans.</td></tr>
+    </table>
+    <h3>Coverage</h3>
+    <table>
+      <tr><th>Requirement / acceptance</th><th>Status</th></tr>
+      <tr><td>icodex can launch with LoEn enabled from the vendored cache.</td><td><span class="badge ok">reflected</span></td></tr>
+      <tr><td>LoEn can be disabled without removing its source tree.</td><td><span class="badge ok">reflected</span></td></tr>
+      <tr><td>The adapter is testable without network access.</td><td><span class="badge ok">reflected</span></td></tr>
+      <tr><td><code>--install</code> and <code>--update</code> remain binary-only.</td><td><span class="badge ok">reflected</span></td></tr>
+      <tr><td>Runtime adapter does not reference legacy <code>lib/plugin/iwiki.sh</code>.</td><td><span class="badge ok">reflected</span></td></tr>
+    </table>
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+    <h3>Итог</h3>
+    <p><span class="badge ok">OK</span> Result reconciliation passed: 5/5 tasks DONE, 0 critical findings, 0 missing plan steps.</p>
+  </section>
+  <!-- TAB:result END -->
+</body>
+</html>

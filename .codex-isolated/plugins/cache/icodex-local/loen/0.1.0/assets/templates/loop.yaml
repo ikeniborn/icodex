@@ -1,0 +1,116 @@
+topic: {{topic}}
+mode: delivery
+status: active
+objective: "{{objective}}"
+current_stage: goal
+stage: goal
+created: "{{created_date}}"
+updated: "{{updated_date}}"
+mutable_scope:
+  - {{mutable_scope}}
+protected_scope:
+  - {{protected_scope}}
+quality_gates:
+  - command: {{quality_gate_command}}
+    evidence: evidence/latest-test.json
+verifier:
+  type: test
+  command: {{verifier_command}}
+budget:
+  max_iterations: 3
+stop_conditions:
+  - quality gates pass
+handoff_conditions:
+  - schema change required
+rollback_policy: "Revert unsafe changes"
+context_capsule:
+  required_fields:
+    - Topic
+    - Objective
+    - Loop mode
+    - Current stage
+    - Mutable scope
+    - Protected scope
+    - Quality gates
+    - Relevant files
+    - Last evidence summary
+    - Specific question or task for the agent
+profiles:
+  planner: loen-planner
+  worker: loen-worker
+  verifier: loen-verifier
+  reviewer: loen-reviewer
+  researcher: loen-researcher
+execution:
+  isolation: wasm
+  executor: wasmtime
+  network: off
+  mounts:
+    - path: .
+      mode: read-only
+    - path: /tmp/loen
+      mode: write
+agents:
+  planner:
+    tools: [read, search]
+    sandbox: read-only
+  worker:
+    tools: [read, search, edit, shell]
+    sandbox: workspace-write
+  verifier:
+    tools: [read, search, shell]
+    sandbox: read-only
+    must_not_edit: true
+  reviewer:
+    tools: [read, search, shell]
+    sandbox: read-only
+    must_not_edit: true
+  researcher:
+    tools: [read, search, shell]
+    sandbox: read-only
+    experiment_scope_required: true
+stages:
+  goal:
+    roles: [planner, worker]
+  context:
+    roles: [planner, worker, researcher]
+  plan:
+    roles: [planner]
+  act:
+    roles: [worker]
+  check:
+    roles: [verifier]
+  reflect:
+    roles: [planner, verifier, reviewer]
+  result:
+    roles: [planner, verifier, reviewer]
+tools:
+  allowed:
+    - read
+    - search
+    - apply_patch
+    - shell
+  denied:
+    - network
+    - secrets
+    - destructive_git
+    - external_write
+permissions:
+  filesystem:
+    mutable_scope:
+      - src/**
+      - tests/**
+    protected_scope:
+      - migrations/**
+      - secrets/**
+  network:
+    mode: off
+    allowlist: []
+  shell:
+    allow:
+      - pytest tests/auth
+      - ruff check .
+    deny_patterns:
+      - rm -rf
+      - git reset --hard
+      - curl *|sh
