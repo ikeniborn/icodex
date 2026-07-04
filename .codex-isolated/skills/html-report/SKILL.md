@@ -11,6 +11,22 @@ the requested data as styled tables and CSS diagrams with simple dynamics and a
 dark/light theme toggle. Complements `mermaid-obsidian` (machine/context format) by
 producing the human-readable artifact.
 
+## Subagent Routing
+
+Agent: `artifact-renderer`
+
+Use a subagent when recipe selection, data-source coverage, chain-tab marker checks, or self-validation would add noisy intermediate HTML analysis to the main context.
+
+Stay in the main context for ambiguous source selection, final file writes, and user-facing output reporting.
+
+Return summary:
+- decision: `OK`, `needs_work`, or `uncertain`
+- evidence: selected recipe, source paths, requested data coverage, marker checks, and validation checks
+- risks: missing data, external resource needs, non-self-contained output, chain-tab corruption, or size warnings
+- next_action: the smallest main-context action required
+
+Stop rule: missing source data, an external resource requirement, non-self-contained output, or tab corruption uncertainty stops the write. Main context keeps ambiguous source selection, final file writes, and user-facing output reporting.
+
 ## Hard Constraints (NEVER violate)
 
 1. **Zero-dependency.** No `<script src>`, no `<link rel=stylesheet href>`, no `src=`

@@ -8,6 +8,22 @@ user-invocable: false
 
 # Git Workflow v2.2
 
+## Subagent Routing
+
+Agent: `repo-safety-reviewer`
+
+Use a subagent when branch status, dirty-file scope, diff review, staged-file planning, commit-message drafting, or PR readiness needs isolated read-only analysis.
+
+Stay in the main context for all mutating git commands: checkout, branch creation, add, commit, push, and PR creation.
+
+Return summary:
+- decision: `OK`, `needs_work`, or `uncertain`
+- evidence: current branch, relevant changed files, staged files, validation commands, and commit-message rationale
+- risks: wrong branch, protected branch, unrelated dirty files, untracked secrets, missing validation, or unclear base branch
+- next_action: the smallest main-context action required
+
+Stop rule: unrelated dirty files, wrong branch, untracked secrets, missing validation, or unclear base branch blocks mutation until resolved. Main context keeps all mutating git commands: checkout, branch creation, add, commit, push, and PR creation.
+
 Стандартизированный git workflow с Conventional Commits.
 
 ## Когда использовать

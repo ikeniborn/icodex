@@ -11,6 +11,22 @@ agent: Explore
 
 # Context Awareness
 
+## Subagent Routing
+
+Agent: `project-explorer`
+
+Use a subagent when file layout, docs skeleton, iwiki status, language/framework hints, or candidate syntax/test command discovery can be scanned read-only and summarized.
+
+Stay in the main context for final project_context synthesis, task-specific documentation interpretation, and deep semantic wiki searches.
+
+Return summary:
+- decision: `OK`, `needs_work`, or `uncertain`
+- evidence: file paths, detected signals, docs paths, iwiki signals, and command hints
+- risks: contradictory project signals, missing docs, unavailable iwiki data, or uncertain test command choice
+- next_action: the smallest main-context action required
+
+Stop rule: contradictory project signals are reported as ambiguity; the main context decides or asks. Main context keeps final project_context synthesis, task-specific documentation interpretation, and deep semantic wiki searches.
+
 Автоматическое определение языка, framework, наличия PRD и домена документации iwiki (MCP) для проекта.
 
 ## Когда использовать
