@@ -22,8 +22,8 @@
 <body>
   <input type="checkbox" id="theme-toggle" hidden>
   <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
-  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden checked>
-  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden checked>
   <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
   <header>
     <h1>skill-subagents — IDD/SDD chain report</h1>
@@ -84,7 +84,38 @@
     </section>
     <!-- TAB:spec END -->
     <!-- TAB:plan START -->
-    <section class="tab-pane" id="pane-plan"><p class="note">Этап ещё не проверен.</p></section>
+    <section class="tab-pane" id="pane-plan">
+      <h2>Проверка plan — 2026-07-04</h2>
+      <h3>Сводка шагов и DoD</h3>
+      <table>
+        <thead><tr><th>Task</th><th>Scope</th><th>DoD</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Runtime agent wiring</td><td>`test_isolated.sh` and `test_gitignore.sh` prove shared `agents` symlink and tracking whitelist.</td></tr>
+          <tr><td>2</td><td>Custom agent configs</td><td>`tests/test_agent_configs.sh` parses five TOML agents and verifies model/reasoning/sandbox/summary contract.</td></tr>
+          <tr><td>3</td><td>Skill routing sections</td><td>`tests/test_skill_routing.sh` verifies each target skill names its agent and main-context ownership rule.</td></tr>
+          <tr><td>4</td><td>Final verification and wiki</td><td>Focused tests, full suite, iwiki update, wiki lint, and result reconciliation complete.</td></tr>
+        </tbody>
+      </table>
+      <h3>Dependency graph</h3>
+      <pre class="note">Task 1 -> Task 2 -> Task 3 -> Task 4</pre>
+      <h3>Spec mapping</h3>
+      <table>
+        <thead><tr><th>Spec requirement</th><th>Plan coverage</th></tr></thead>
+        <tbody>
+          <tr><td>Runtime `.codex-isolated/agents` wiring</td><td>Task 1</td></tr>
+          <tr><td>Five custom agents with rationale</td><td>Task 2</td></tr>
+          <tr><td>Five skill routing sections</td><td>Task 3</td></tr>
+          <tr><td>Focused smoke checks and full suite</td><td>Tasks 1-4</td></tr>
+          <tr><td>iwiki documentation update</td><td>Task 4</td></tr>
+        </tbody>
+      </table>
+      <h3>Фазы</h3>
+      <p><span class="badge ok">structure passed</span> <span class="badge ok">coverage passed</span> <span class="badge ok">dependencies passed</span> <span class="badge ok">verifiability passed</span> <span class="badge ok">consistency passed</span></p>
+      <h3>Findings</h3>
+      <p class="note">Новых findings нет.</p>
+      <h3>Итог</h3>
+      <p><span class="badge ok">OK</span> Plan is ready for implementation.</p>
+    </section>
     <!-- TAB:plan END -->
     <!-- TAB:result START -->
     <section class="tab-pane" id="pane-result"><p class="note">Этап ещё не проверен.</p></section>
