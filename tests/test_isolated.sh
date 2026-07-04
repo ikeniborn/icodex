@@ -18,6 +18,9 @@ printf '#!/usr/bin/env python3\n' > "$ICODEX_SHARED_DIR/hooks/example.py"
 # skills fixture: a user skill plus a codex-managed .system dir
 mkdir -p "$ICODEX_SHARED_DIR/skills/sample-skill" "$ICODEX_SHARED_DIR/skills/.system"
 printf 'name: sample\n' > "$ICODEX_SHARED_DIR/skills/sample-skill/SKILL.md"
+# agents fixture: project-scoped custom agents shared into each CODEX_HOME
+mkdir -p "$ICODEX_SHARED_DIR/agents"
+printf 'name = "sample-agent"\n' > "$ICODEX_SHARED_DIR/agents/sample-agent.toml"
 # rules fixture: the execution-policy file
 mkdir -p "$ICODEX_SHARED_DIR/rules"
 printf 'prefix_rule(pattern=["git"], decision="allow")\n' > "$ICODEX_SHARED_DIR/rules/default.rules"
@@ -54,6 +57,8 @@ assert_exit "skills symlink"     0 test -L "$ICODEX_HOME_DIR/skills"
 assert_eq  "skills -> shared"    "$ICODEX_SHARED_DIR/skills" "$(readlink "$ICODEX_HOME_DIR/skills")"
 assert_exit "rules symlink"      0 test -L "$ICODEX_HOME_DIR/rules"
 assert_eq  "rules -> shared"     "$ICODEX_SHARED_DIR/rules" "$(readlink "$ICODEX_HOME_DIR/rules")"
+assert_exit "agents symlink"     0 test -L "$ICODEX_HOME_DIR/agents"
+assert_eq  "agents -> shared"    "$ICODEX_SHARED_DIR/agents" "$(readlink "$ICODEX_HOME_DIR/agents")"
 assert_exit "AGENTS.md created"  0 test -f "$ICODEX_HOME_DIR/AGENTS.md"
 agents="$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
 assert_contains "AGENTS base marker start" "$agents" "<!-- icodex:base:start -->"
