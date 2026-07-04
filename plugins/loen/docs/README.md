@@ -41,3 +41,17 @@ worker/verifier separation checks.
 Hook scripts read JSON events from stdin and repository-local loop state from
 `LOEN_ARTIFACT_ROOT` plus `LOEN_TOPIC`. They do not call IDD, Superpowers,
 chain-gate, or subjective review tools.
+
+## Agent Isolation
+
+LoEn role agents receive context capsules instead of the full main-thread
+transcript. A capsule is generated from `docs/loen/<topic>/` artifacts and
+contains only the topic, objective, loop mode, current stage, mutable scope,
+protected scope, quality gates, relevant files, last evidence summary, and the
+specific question or task for that agent.
+
+Planner, verifier, reviewer, and researcher roles are read-only by default.
+The worker role is the only default mutating role and must be bound to the
+configured mutable scope. The verifier uses a WASM-first execution contract with
+network off by default; external container and microVM adapters are outside this
+source-layer plugin boundary.

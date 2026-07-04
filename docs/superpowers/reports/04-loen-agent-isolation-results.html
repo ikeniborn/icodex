@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>04-loen-agent-isolation chain report</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --text: #1f2937;
+      --muted: #64748b;
+      --border: #cbd5e1;
+      --accent: #2f6f5e;
+      --ok: #137a4b;
+      --warn: #9a5b00;
+      --note: #eef6f3;
+    }
+    body:has(#theme-toggle:checked) {
+      --bg: #111827;
+      --surface: #1f2937;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #374151;
+      --accent: #7dd3b0;
+      --ok: #86efac;
+      --warn: #fbbf24;
+      --note: #17352f;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; }
+    header { max-width: 1100px; margin: 0 auto; padding: 28px 20px 12px; display: flex; align-items: center; gap: 16px; }
+    h1 { font-size: 26px; margin: 0; }
+    h2 { font-size: 22px; margin: 0 0 16px; }
+    h3 { font-size: 17px; margin: 22px 0 10px; }
+    .theme-btn { margin-left: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; cursor: pointer; background: var(--surface); color: var(--text); }
+    .chain-tabs { max-width: 1100px; margin: 0 auto; padding: 0 20px; display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+    .chain-tabs label { cursor: pointer; padding: 8px 14px; border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0; background: var(--surface); color: var(--muted); }
+    body:has(#tab-intent:checked) label[for="tab-intent"],
+    body:has(#tab-spec:checked) label[for="tab-spec"],
+    body:has(#tab-plan:checked) label[for="tab-plan"],
+    body:has(#tab-result:checked) label[for="tab-result"] { color: var(--accent); border-color: var(--accent); font-weight: 700; }
+    .tab-pane { display: none; max-width: 1100px; margin: 0 auto; padding: 24px 20px 48px; }
+    body:has(#tab-intent:checked) #pane-intent,
+    body:has(#tab-spec:checked) #pane-spec,
+    body:has(#tab-plan:checked) #pane-plan,
+    body:has(#tab-result:checked) #pane-result { display: block; }
+    table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    th, td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); padding: 10px 12px; }
+    th { color: var(--muted); font-weight: 700; }
+    tr:last-child td { border-bottom: 0; }
+    .badge { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 700; border: 1px solid var(--border); }
+    .passed, .ok { color: var(--ok); }
+    .note { background: var(--note); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <input type="checkbox" id="theme-toggle" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
+  <header>
+    <h1>04-loen-agent-isolation</h1>
+    <label for="theme-toggle" class="theme-btn" title="Toggle dark/light">Theme</label>
+  </header>
+  <nav class="chain-tabs">
+    <label for="tab-intent">Intent</label>
+    <label for="tab-spec">Spec</label>
+    <label for="tab-plan">Plan</label>
+    <label for="tab-result">Result</label>
+  </nav>
+  <!-- TAB:intent START -->
+  <section class="tab-pane" id="pane-intent">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:intent END -->
+  <!-- TAB:spec START -->
+  <section class="tab-pane" id="pane-spec">
+    <h2>Проверка spec — 2026-07-04</h2>
+    <h3>Artifact</h3>
+    <table>
+      <tr><th>Путь</th><td><code>docs/superpowers/specs/2026-07-02-04-loen-agent-isolation-design.md</code></td></tr>
+      <tr><th>Hash</th><td><code>e3703a359aac2b1c</code></td></tr>
+      <tr><th>Intent</th><td><code>null</code></td></tr>
+    </table>
+    <h3>Requirements</h3>
+    <table>
+      <thead><tr><th>Раздел</th><th>Требование</th><th>Acceptance</th></tr></thead>
+      <tbody>
+        <tr><td>Agent Roles</td><td>Planner, worker, verifier, reviewer, and researcher roles are explicit under <code>plugins/loen/agents/</code>.</td><td>Roles are named and responsibilities/default access are documented.</td></tr>
+        <tr><td>Context Capsules</td><td>Subagents receive bounded capsules instead of full transcript context.</td><td>Capsules include required fields and exclude unrelated transcript text.</td></tr>
+        <tr><td>Isolation Levels</td><td>LoEn documents L0-L4 isolation and keeps microVM/container work outside core.</td><td>L4 is documented as external future adapter, not core code.</td></tr>
+        <tr><td>WASM-first Verifier</td><td>Strong verifier execution starts with WASM config, not microVM/container core.</td><td>Verifier config rejects network-enabled verifier defaults.</td></tr>
+      </tbody>
+    </table>
+    <h3>Phase Results</h3>
+    <p>
+      <span class="badge passed">structure passed</span>
+      <span class="badge passed">coverage passed</span>
+      <span class="badge passed">clarity passed</span>
+      <span class="badge passed">consistency passed</span>
+    </p>
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+    <h3>Summary</h3>
+    <p><span class="badge ok">OK</span> Spec gate passed; implementation plan may be written.</p>
+  </section>
+  <!-- TAB:spec END -->
+  <!-- TAB:plan START -->
+  <section class="tab-pane" id="pane-plan">
+    <h2>Проверка plan — 2026-07-04</h2>
+    <h3>Artifact</h3>
+    <table>
+      <tr><th>Путь</th><td><code>docs/superpowers/plans/2026-07-02-04-loen-agent-isolation.md</code></td></tr>
+      <tr><th>Hash</th><td><code>286612209abf9eba</code></td></tr>
+      <tr><th>Spec</th><td><code>docs/superpowers/specs/2026-07-02-04-loen-agent-isolation-design.md</code></td></tr>
+    </table>
+    <h3>Steps and DoD</h3>
+    <table>
+      <thead><tr><th>Task</th><th>Output</th><th>Verification</th></tr></thead>
+      <tbody>
+        <tr><td>1. Fixture coverage</td><td><code>tests/test_loen_agent_isolation.sh</code></td><td>New test fails before implementation with capsule, metadata, and template failures.</td></tr>
+        <tr><td>2. Capsule renderer</td><td><code>plugins/loen/hooks/loen_capsules.py</code></td><td>Capsule assertions pass and <code>py_compile</code> exits 0.</td></tr>
+        <tr><td>3. Role/template defaults</td><td>Five agent TOMLs plus <code>loop.yaml</code></td><td>Agent isolation and plugin core tests exit 0.</td></tr>
+        <tr><td>4. Documentation</td><td>Plugin README and architecture docs</td><td>Focused doc assertions exit 0.</td></tr>
+        <tr><td>5. Wiki and full validation</td><td>iwiki page/update plus validation commands</td><td>iwiki lint, focused LoEn tests, <code>py_compile</code>, full Bash suite, and result gate pass.</td></tr>
+      </tbody>
+    </table>
+    <h3>Dependency Graph</h3>
+    <table>
+      <thead><tr><th>Before</th><th>After</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td>Task 1</td><td>Task 2</td><td>Renderer is driven by failing capsule tests.</td></tr>
+        <tr><td>Task 2</td><td>Task 3</td><td>Template and role metadata are verified through the same fixture.</td></tr>
+        <tr><td>Task 3</td><td>Task 4</td><td>Docs describe the behavior and fields that now exist.</td></tr>
+        <tr><td>Task 4</td><td>Task 5</td><td>Wiki and full validation reflect implemented behavior and docs.</td></tr>
+      </tbody>
+    </table>
+    <h3>Spec Mapping</h3>
+    <table>
+      <thead><tr><th>Spec requirement</th><th>Plan coverage</th></tr></thead>
+      <tbody>
+        <tr><td>Explicit planner, worker, verifier, reviewer, researcher roles</td><td>Task 1 validates metadata; Task 3 updates all five TOML files.</td></tr>
+        <tr><td>Context capsules with required fields and transcript exclusion</td><td>Task 1 tests content/exclusion; Task 2 creates renderer.</td></tr>
+        <tr><td>L0-L4 isolation levels and external L4 boundary</td><td>Task 4 documents levels; Task 1 validates doc coverage.</td></tr>
+        <tr><td>WASM-first verifier with network disabled</td><td>Task 1 tests rejection; Task 2 implements rejection; Task 3 sets defaults.</td></tr>
+      </tbody>
+    </table>
+    <h3>Phase Results</h3>
+    <p>
+      <span class="badge passed">structure passed</span>
+      <span class="badge passed">coverage passed</span>
+      <span class="badge passed">dependencies passed</span>
+      <span class="badge passed">verifiability passed</span>
+      <span class="badge passed">consistency passed</span>
+    </p>
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+    <h3>Summary</h3>
+    <p><span class="badge ok">OK</span> Plan gate passed; implementation may start.</p>
+  </section>
+  <!-- TAB:plan END -->
+  <!-- TAB:result START -->
+  <section class="tab-pane" id="pane-result">
+    <h2>Проверка result — 2026-07-04</h2>
+    <h3>Reconciliation</h3>
+    <table>
+      <thead><tr><th>Plan step</th><th>Status</th><th>Matched evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Task 1: Add agent isolation fixture coverage</td><td><span class="badge ok">DONE</span></td><td><code>tests/test_loen_agent_isolation.sh</code> added; red run produced expected fixture failures.</td></tr>
+        <tr><td>Task 2: Add context capsule renderer</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/hooks/loen_capsules.py</code> added; capsule assertions pass and <code>py_compile</code> exits 0.</td></tr>
+        <tr><td>Task 3: Add role isolation metadata and loop defaults</td><td><span class="badge ok">DONE</span></td><td>Five <code>plugins/loen/agents/*.toml</code> files and <code>plugins/loen/assets/templates/loop.yaml</code> updated; focused tests green.</td></tr>
+        <tr><td>Task 4: Document agent isolation boundary</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/docs/README.md</code> and <code>plugins/loen/docs/architecture.md</code> updated; doc assertions green.</td></tr>
+        <tr><td>Task 5: Update wiki and validate full layer</td><td><span class="badge ok">DONE</span></td><td>iwiki page <code>loen-agent-isolation</code> created, <code>loen-overview</code> updated, lint has no broken/orphan/stale pages, focused LoEn tests and full Bash suite exit 0.</td></tr>
+      </tbody>
+    </table>
+    <h3>Coverage</h3>
+    <table>
+      <thead><tr><th>Spec requirement</th><th>Reflected</th></tr></thead>
+      <tbody>
+        <tr><td>Planner, worker, verifier, reviewer, and researcher roles are explicit.</td><td><span class="badge ok">yes</span> Role TOMLs declare role, posture, output, capsule, isolation, and profile metadata.</td></tr>
+        <tr><td>Context capsules include required fields and exclude unrelated transcript text.</td><td><span class="badge ok">yes</span> Renderer and fixture validate required fields, evidence summary, role question, and transcript exclusion.</td></tr>
+        <tr><td>Verifier/reviewer are read-only by default and worker is bound to mutable scope.</td><td><span class="badge ok">yes</span> Agent metadata and loop template defaults encode role posture and scope requirements.</td></tr>
+        <tr><td>WASM verifier rejects network-enabled defaults.</td><td><span class="badge ok">yes</span> <code>validate_verifier_execution()</code> rejects <code>network: on</code>; test covers the error.</td></tr>
+        <tr><td>L4 external isolation is documented but not required by core tests.</td><td><span class="badge ok">yes</span> Architecture docs define L0-L4 and keep containers/microVMs outside core defaults.</td></tr>
+      </tbody>
+    </table>
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+    <h3>Summary</h3>
+    <p><span class="badge ok">OK</span> Result reconciliation passed; no missing plan steps or uncovered spec requirements.</p>
+  </section>
+  <!-- TAB:result END -->
+</body>
+</html>

@@ -23,6 +23,33 @@ stop_conditions:
 handoff_conditions:
   - schema change required
 rollback_policy: "Revert unsafe changes"
+context_capsule:
+  required_fields:
+    - Topic
+    - Objective
+    - Loop mode
+    - Current stage
+    - Mutable scope
+    - Protected scope
+    - Quality gates
+    - Relevant files
+    - Last evidence summary
+    - Specific question or task for the agent
+profiles:
+  planner: loen-planner
+  worker: loen-worker
+  verifier: loen-verifier
+  reviewer: loen-reviewer
+  researcher: loen-researcher
+execution:
+  isolation: wasm
+  executor: wasmtime
+  network: off
+  mounts:
+    - path: .
+      mode: read-only
+    - path: /tmp/loen
+      mode: write
 agents:
   planner:
     tools: [read, search]
@@ -38,6 +65,10 @@ agents:
     tools: [read, search, shell]
     sandbox: read-only
     must_not_edit: true
+  researcher:
+    tools: [read, search, shell]
+    sandbox: read-only
+    experiment_scope_required: true
 stages:
   goal:
     roles: [planner, worker]
