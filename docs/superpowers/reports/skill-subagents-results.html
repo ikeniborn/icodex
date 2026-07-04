@@ -21,8 +21,8 @@
 </head>
 <body>
   <input type="checkbox" id="theme-toggle" hidden>
-  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden checked>
-  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden checked>
   <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
   <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
   <header>
@@ -61,7 +61,27 @@
     </section>
     <!-- TAB:intent END -->
     <!-- TAB:spec START -->
-    <section class="tab-pane" id="pane-spec"><p class="note">Этап ещё не проверен.</p></section>
+    <section class="tab-pane" id="pane-spec">
+      <h2>Проверка spec — 2026-07-04</h2>
+      <h3>Сводка требований</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Требование</th><th>DoD</th></tr></thead>
+        <tbody>
+          <tr><td>R1</td><td>`check-chain` routes analysis to `chain-auditor` and keeps gate writes in main context.</td><td>Skill names `chain-auditor`, documents stop rules, and preserves main ownership of frontmatter/report/TODO updates.</td></tr>
+          <tr><td>R2</td><td>`html-report` routes artifact review to `artifact-renderer`.</td><td>Skill names `artifact-renderer`, documents source/file-write ownership, and preserves zero-dependency checks.</td></tr>
+          <tr><td>R3</td><td>`mermaid-obsidian` routes syntax review to `diagram-checker`.</td><td>Skill names `diagram-checker`, documents Obsidian constraint scan, and stops on semantic ambiguity.</td></tr>
+          <tr><td>R4</td><td>`git-workflow` routes risk review to `repo-safety-reviewer`.</td><td>Skill names `repo-safety-reviewer`, documents that all mutating git commands stay in main context.</td></tr>
+          <tr><td>R5</td><td>`context-awareness` routes read-only scanning to `project-explorer`.</td><td>Skill names `project-explorer`, documents final synthesis stays in main context.</td></tr>
+          <tr><td>Runtime</td><td>`.codex-isolated/agents` is tracked and symlinked into per-project `CODEX_HOME`.</td><td>`test_isolated.sh`, `test_gitignore.sh`, and focused smoke checks pass.</td></tr>
+        </tbody>
+      </table>
+      <h3>Фазы</h3>
+      <p><span class="badge ok">structure passed</span> <span class="badge ok">coverage passed</span> <span class="badge ok">clarity passed</span> <span class="badge ok">consistency passed</span></p>
+      <h3>Findings</h3>
+      <p class="note">Новых findings нет.</p>
+      <h3>Итог</h3>
+      <p><span class="badge ok">OK</span> Spec covers the approved intent and is ready for user review before planning.</p>
+    </section>
     <!-- TAB:spec END -->
     <!-- TAB:plan START -->
     <section class="tab-pane" id="pane-plan"><p class="note">Этап ещё не проверен.</p></section>

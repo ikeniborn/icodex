@@ -1,3 +1,16 @@
+---
+review:
+  spec_hash: 301de4b059f3ff27
+  last_run: 2026-07-04
+  phases:
+    structure: { status: passed }
+    coverage: { status: passed }
+    clarity: { status: passed }
+    consistency: { status: passed }
+  findings: []
+chain:
+  intent: docs/superpowers/intents/2026-07-04-skill-subagents-intent.md
+---
 # Design: trust-first subagents for isolated icodex skills
 
 **Date:** 2026-07-04
