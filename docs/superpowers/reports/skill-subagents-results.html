@@ -23,8 +23,8 @@
   <input type="checkbox" id="theme-toggle" hidden>
   <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
   <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
-  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden checked>
-  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
   <header>
     <h1>skill-subagents — IDD/SDD chain report</h1>
     <label for="theme-toggle" class="theme-btn" title="Toggle dark/light">Theme</label>
@@ -118,7 +118,34 @@
     </section>
     <!-- TAB:plan END -->
     <!-- TAB:result START -->
-    <section class="tab-pane" id="pane-result"><p class="note">Этап ещё не проверен.</p></section>
+    <section class="tab-pane" id="pane-result">
+      <h2>Проверка result — 2026-07-04</h2>
+      <h3>Reconciliation table</h3>
+      <table>
+        <thead><tr><th>Plan step</th><th>Status</th><th>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td>Task 1: Runtime Agent Wiring</td><td><span class="badge ok">DONE</span></td><td>`.gitignore`, `lib/config/isolated.sh`, `tests/test_isolated.sh`, `tests/test_gitignore.sh`; focused tests PASS.</td></tr>
+          <tr><td>Task 2: Custom Agent Configs</td><td><span class="badge ok">DONE</span></td><td>Five `.codex-isolated/agents/*.toml` files plus `tests/test_agent_configs.sh`; smoke test PASS.</td></tr>
+          <tr><td>Task 3: Skill Routing Sections</td><td><span class="badge ok">DONE</span></td><td>Five target `SKILL.md` files plus `tests/test_skill_routing.sh`; routing smoke PASS.</td></tr>
+          <tr><td>Task 4: Final Verification, Wiki, And Chain Result</td><td><span class="badge ok">DONE</span></td><td>Focused tests PASS, full Bash suite PASS, iwiki page `skill-subagents` written and linked from `overview`, `wiki_lint` has no broken/orphan/stale/missing_source findings.</td></tr>
+        </tbody>
+      </table>
+      <h3>Coverage</h3>
+      <table>
+        <thead><tr><th>Outcome / requirement</th><th>Reflected</th></tr></thead>
+        <tbody>
+          <tr><td>Each target skill has subagent guidance and summary contract.</td><td><span class="badge ok">YES</span> `tests/test_skill_routing.sh` checks all five skills.</td></tr>
+          <tr><td>Tracked custom agent configuration exists in isolated icodex.</td><td><span class="badge ok">YES</span> `.codex-isolated/agents/*.toml` tracked and gitignore test covers eligibility.</td></tr>
+          <tr><td>Each custom agent has name, model, reasoning effort, and rationale.</td><td><span class="badge ok">YES</span> TOML configs include model/reasoning; smoke test enforces contract text.</td></tr>
+          <tr><td>Smoke checks demonstrate routing or main-context ownership.</td><td><span class="badge ok">YES</span> Agent config and routing tests pass.</td></tr>
+          <tr><td>Accuracy and reliability do not degrade.</td><td><span class="badge ok">YES</span> Focused tests and full Bash suite pass.</td></tr>
+        </tbody>
+      </table>
+      <h3>Findings</h3>
+      <p class="note">Новых findings нет.</p>
+      <h3>Итог</h3>
+      <p><span class="badge ok">OK</span> Implementation matches intent, spec, and plan. Result checked against diff `1eea56b..HEAD`.</p>
+    </section>
     <!-- TAB:result END -->
   </main>
 </body>
