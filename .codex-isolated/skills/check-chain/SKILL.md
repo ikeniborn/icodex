@@ -8,6 +8,22 @@ description: Use to validate the IDD→SDD chain (intent → spec → plan → r
 One skill, two run modes, four stage profiles over one shared core. Replaces the
 former `check-intent`, `check-spec`, `check-plan`, `check-result` commands.
 
+## Subagent Routing
+
+Agent: `chain-auditor`
+
+Use a subagent when phase scans, section-hash evidence, result diff reconciliation, or report/task-log update checks would pollute the main context with large intermediate output.
+
+Stay in the main context for user confirmations, final verdict handling, frontmatter writes, HTML report merges, task-log row updates, and downstream chain stop/go decisions.
+
+Return summary:
+- decision: `OK`, `needs_work`, or `uncertain`
+- evidence: artifact paths, hashes, phases, findings, and matched diff paths
+- risks: CRITICAL findings, stale hashes, missing artifacts, unresolved verdicts, or uncertainty
+- next_action: the smallest main-context action required
+
+Stop rule: any CRITICAL finding, hash mismatch uncertainty, missing artifact, or result reconciliation uncertainty halts downstream stages until the main context resolves it. Main context keeps confirmations, final verdicts, frontmatter writes, report merges, task-log row updates, and downstream stop/go decisions.
+
 ## Invocation & argument parsing
 
 ```

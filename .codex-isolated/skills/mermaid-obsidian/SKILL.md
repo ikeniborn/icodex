@@ -8,6 +8,22 @@ version: 1.0.0
 
 Produce correct, styled Mermaid diagrams that render reliably in Obsidian.
 
+## Subagent Routing
+
+Agent: `diagram-checker`
+
+Use a subagent when a diagram needs syntax linting, Obsidian constraint review, corrected Mermaid drafting, or render-risk notes that would crowd the main context.
+
+Stay in the main context for semantic questions, final diagram text, and file edits.
+
+Return summary:
+- decision: `OK`, `needs_work`, or `uncertain`
+- evidence: Mermaid lines reviewed, Obsidian constraints checked, and rule violations fixed
+- risks: semantic ambiguity, invalid node IDs, unsupported labels, reserved words, contrast issues, or render quirks
+- next_action: the smallest main-context action required
+
+Stop rule: if graph semantics are ambiguous, ask the user instead of inventing structure. Main context keeps semantic questions, final diagram text, and file edits.
+
 ## Obsidian Constraints (Mermaid 11.4.1)
 
 Obsidian bundles Mermaid 11.4.1. Know these quirks before writing any diagram:

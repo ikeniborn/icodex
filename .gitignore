@@ -13,6 +13,8 @@
 !.codex-isolated/caveman/**
 !.codex-isolated/rules/
 !.codex-isolated/rules/**
+!.codex-isolated/agents/
+!.codex-isolated/agents/**
 
 # user skills travel in git; codex-managed system skills do not
 !.codex-isolated/skills/

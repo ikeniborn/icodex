@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>skill-subagents — IDD/SDD chain report</title>
+  <style>
+    :root{--bg:#111827;--surface:#1f2937;--text:#e5e7eb;--muted:#9ca3af;--border:#374151;--accent:#60a5fa;--ok:#34d399;--warn:#fbbf24}
+    body:has(#theme-toggle:checked){--bg:#f8fafc;--surface:#ffffff;--text:#0f172a;--muted:#475569;--border:#cbd5e1;--accent:#2563eb;--ok:#047857;--warn:#b45309}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+    header,main{max-width:1080px;margin:0 auto;padding:24px} header{display:flex;gap:16px;align-items:center;justify-content:space-between}
+    h1{margin:0;font-size:28px} h2{margin:0 0 16px;font-size:22px} h3{margin:22px 0 10px;font-size:16px}
+    .theme-btn,.chain-tabs label{cursor:pointer;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:8px 12px;color:var(--text)}
+    .chain-tabs{max-width:1080px;margin:0 auto;padding:0 24px;display:flex;gap:8px;flex-wrap:wrap}
+    .tab-pane{display:none;margin-top:18px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px}
+    body:has(#tab-intent:checked) #pane-intent,body:has(#tab-spec:checked) #pane-spec,body:has(#tab-plan:checked) #pane-plan,body:has(#tab-result:checked) #pane-result{display:block}
+    body:has(#tab-intent:checked) label[for="tab-intent"],body:has(#tab-spec:checked) label[for="tab-spec"],body:has(#tab-plan:checked) label[for="tab-plan"],body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent);border-color:var(--accent);font-weight:700}
+    table{width:100%;border-collapse:collapse;margin:12px 0} th,td{border:1px solid var(--border);padding:8px;text-align:left;vertical-align:top} th{background:color-mix(in srgb,var(--surface),var(--accent) 12%)}
+    .badge{display:inline-block;border-radius:999px;padding:2px 8px;font-size:12px;font-weight:700}.ok{background:var(--ok);color:#06281d}.warn{background:var(--warn);color:#2b1700}.note{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <input type="checkbox" id="theme-toggle" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
+  <header>
+    <h1>skill-subagents — IDD/SDD chain report</h1>
+    <label for="theme-toggle" class="theme-btn" title="Toggle dark/light">Theme</label>
+  </header>
+  <nav class="chain-tabs">
+    <label for="tab-intent">Intent</label>
+    <label for="tab-spec">Spec</label>
+    <label for="tab-plan">Plan</label>
+    <label for="tab-result">Result</label>
+  </nav>
+  <main>
+    <!-- TAB:intent START -->
+    <section class="tab-pane" id="pane-intent">
+      <h2>Проверка intent — 2026-07-04</h2>
+      <h3>Сводка артефакта</h3>
+      <table>
+        <thead><tr><th>Раздел</th><th>Состояние</th></tr></thead>
+        <tbody>
+          <tr><td>Objective</td><td>Описывает оба слоя: tracked custom agents + обновления 5 skills.</td></tr>
+          <tr><td>Desired Outcomes</td><td>4 observable outcome: routing guidance, tracked agents, rationale, smoke checks.</td></tr>
+          <tr><td>Health Metrics</td><td>Accuracy/reliability checks must not degrade.</td></tr>
+          <tr><td>Strategic Context</td><td>Codex agents, isolated icodex runtime, skills, IDD/SDD, TODO, iwiki, git.</td></tr>
+          <tr><td>Constraints</td><td>Steering and hard constraints separated; narrow runtime wiring allowed only for tracked isolated agents.</td></tr>
+          <tr><td>Autonomy Zones</td><td>All four zones present.</td></tr>
+          <tr><td>Stop Rules</td><td>Halt/escalate/done criteria present.</td></tr>
+        </tbody>
+      </table>
+      <h3>Фазы</h3>
+      <p><span class="badge ok">structure passed</span> <span class="badge ok">completeness passed</span> <span class="badge ok">clarity passed</span> <span class="badge ok">consistency passed</span> <span class="badge ok">alignment passed</span></p>
+      <h3>Findings</h3>
+      <p class="note">Новых findings нет.</p>
+      <h3>Итог</h3>
+      <p><span class="badge ok">OK</span> Intent accepted for brainstorming. Scope includes `.codex-isolated/agents` tracking and per-project `CODEX_HOME` wiring.</p>
+    </section>
+    <!-- TAB:intent END -->
+    <!-- TAB:spec START -->
+    <section class="tab-pane" id="pane-spec">
+      <h2>Проверка spec — 2026-07-04</h2>
+      <h3>Сводка требований</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Требование</th><th>DoD</th></tr></thead>
+        <tbody>
+          <tr><td>R1</td><td>`check-chain` routes analysis to `chain-auditor` and keeps gate writes in main context.</td><td>Skill names `chain-auditor`, documents stop rules, and preserves main ownership of frontmatter/report/TODO updates.</td></tr>
+          <tr><td>R2</td><td>`html-report` routes artifact review to `artifact-renderer`.</td><td>Skill names `artifact-renderer`, documents source/file-write ownership, and preserves zero-dependency checks.</td></tr>
+          <tr><td>R3</td><td>`mermaid-obsidian` routes syntax review to `diagram-checker`.</td><td>Skill names `diagram-checker`, documents Obsidian constraint scan, and stops on semantic ambiguity.</td></tr>
+          <tr><td>R4</td><td>`git-workflow` routes risk review to `repo-safety-reviewer`.</td><td>Skill names `repo-safety-reviewer`, documents that all mutating git commands stay in main context.</td></tr>
+          <tr><td>R5</td><td>`context-awareness` routes read-only scanning to `project-explorer`.</td><td>Skill names `project-explorer`, documents final synthesis stays in main context.</td></tr>
+          <tr><td>Runtime</td><td>`.codex-isolated/agents` is tracked and symlinked into per-project `CODEX_HOME`.</td><td>`test_isolated.sh`, `test_gitignore.sh`, and focused smoke checks pass.</td></tr>
+        </tbody>
+      </table>
+      <h3>Фазы</h3>
+      <p><span class="badge ok">structure passed</span> <span class="badge ok">coverage passed</span> <span class="badge ok">clarity passed</span> <span class="badge ok">consistency passed</span></p>
+      <h3>Findings</h3>
+      <p class="note">Новых findings нет.</p>
+      <h3>Итог</h3>
+      <p><span class="badge ok">OK</span> Spec covers the approved intent and is ready for user review before planning.</p>
+    </section>
+    <!-- TAB:spec END -->
+    <!-- TAB:plan START -->
+    <section class="tab-pane" id="pane-plan">
+      <h2>Проверка plan — 2026-07-04</h2>
+      <h3>Сводка шагов и DoD</h3>
+      <table>
+        <thead><tr><th>Task</th><th>Scope</th><th>DoD</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Runtime agent wiring</td><td>`test_isolated.sh` and `test_gitignore.sh` prove shared `agents` symlink and tracking whitelist.</td></tr>
+          <tr><td>2</td><td>Custom agent configs</td><td>`tests/test_agent_configs.sh` parses five TOML agents and verifies model/reasoning/sandbox/summary contract.</td></tr>
+          <tr><td>3</td><td>Skill routing sections</td><td>`tests/test_skill_routing.sh` verifies each target skill names its agent and main-context ownership rule.</td></tr>
+          <tr><td>4</td><td>Final verification and wiki</td><td>Focused tests, full suite, iwiki update, wiki lint, and result reconciliation complete.</td></tr>
+        </tbody>
+      </table>
+      <h3>Dependency graph</h3>
+      <pre class="note">Task 1 -> Task 2 -> Task 3 -> Task 4</pre>
+      <h3>Spec mapping</h3>
+      <table>
+        <thead><tr><th>Spec requirement</th><th>Plan coverage</th></tr></thead>
+        <tbody>
+          <tr><td>Runtime `.codex-isolated/agents` wiring</td><td>Task 1</td></tr>
+          <tr><td>Five custom agents with rationale</td><td>Task 2</td></tr>
+          <tr><td>Five skill routing sections</td><td>Task 3</td></tr>
+          <tr><td>Focused smoke checks and full suite</td><td>Tasks 1-4</td></tr>
+          <tr><td>iwiki documentation update</td><td>Task 4</td></tr>
+        </tbody>
+      </table>
+      <h3>Фазы</h3>
+      <p><span class="badge ok">structure passed</span> <span class="badge ok">coverage passed</span> <span class="badge ok">dependencies passed</span> <span class="badge ok">verifiability passed</span> <span class="badge ok">consistency passed</span></p>
+      <h3>Findings</h3>
+      <p class="note">Новых findings нет.</p>
+      <h3>Итог</h3>
+      <p><span class="badge ok">OK</span> Plan is ready for implementation.</p>
+    </section>
+    <!-- TAB:plan END -->
+    <!-- TAB:result START -->
+    <section class="tab-pane" id="pane-result">
+      <h2>Проверка result — 2026-07-04</h2>
+      <h3>Reconciliation table</h3>
+      <table>
+        <thead><tr><th>Plan step</th><th>Status</th><th>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td>Task 1: Runtime Agent Wiring</td><td><span class="badge ok">DONE</span></td><td>`.gitignore`, `lib/config/isolated.sh`, `tests/test_isolated.sh`, `tests/test_gitignore.sh`; focused tests PASS.</td></tr>
+          <tr><td>Task 2: Custom Agent Configs</td><td><span class="badge ok">DONE</span></td><td>Five `.codex-isolated/agents/*.toml` files plus `tests/test_agent_configs.sh`; smoke test PASS.</td></tr>
+          <tr><td>Task 3: Skill Routing Sections</td><td><span class="badge ok">DONE</span></td><td>Five target `SKILL.md` files plus `tests/test_skill_routing.sh`; routing smoke PASS.</td></tr>
+          <tr><td>Task 4: Final Verification, Wiki, And Chain Result</td><td><span class="badge ok">DONE</span></td><td>Focused tests PASS, full Bash suite PASS, iwiki page `skill-subagents` written and linked from `overview`, `wiki_lint` has no broken/orphan/stale/missing_source findings.</td></tr>
+        </tbody>
+      </table>
+      <h3>Coverage</h3>
+      <table>
+        <thead><tr><th>Outcome / requirement</th><th>Reflected</th></tr></thead>
+        <tbody>
+          <tr><td>Each target skill has subagent guidance and summary contract.</td><td><span class="badge ok">YES</span> `tests/test_skill_routing.sh` checks all five skills.</td></tr>
+          <tr><td>Tracked custom agent configuration exists in isolated icodex.</td><td><span class="badge ok">YES</span> `.codex-isolated/agents/*.toml` tracked and gitignore test covers eligibility.</td></tr>
+          <tr><td>Each custom agent has name, model, reasoning effort, and rationale.</td><td><span class="badge ok">YES</span> TOML configs include model/reasoning; smoke test enforces contract text.</td></tr>
+          <tr><td>Smoke checks demonstrate routing or main-context ownership.</td><td><span class="badge ok">YES</span> Agent config and routing tests pass.</td></tr>
+          <tr><td>Accuracy and reliability do not degrade.</td><td><span class="badge ok">YES</span> Focused tests and full Bash suite pass.</td></tr>
+        </tbody>
+      </table>
+      <h3>Findings</h3>
+      <p class="note">Новых findings нет.</p>
+      <h3>Итог</h3>
+      <p><span class="badge ok">OK</span> Implementation matches intent, spec, and plan. Result checked against diff `1eea56b..HEAD`.</p>
+    </section>
+    <!-- TAB:result END -->
+  </main>
+</body>
+</html>
