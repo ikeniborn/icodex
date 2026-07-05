@@ -10,7 +10,7 @@ common_module="$hook_root/loen_common.py"
 audit_writer="$hook_root/audit-writer.py"
 loop_template="$plugin_root/assets/templates/loop.yaml"
 governance_skill="$plugin_root/skills/loop-governance/SKILL.md"
-readme="$plugin_root/docs/README.md"
+readme="$plugin_root/README.md"
 architecture="$plugin_root/docs/architecture.md"
 
 tmp="$(mktemp -d)"

@@ -23,6 +23,20 @@ stop_conditions:
 handoff_conditions:
   - schema change required
 rollback_policy: "Revert unsafe changes"
+governance:
+  automation_type: manual
+  schedule: ""
+  owner: ""
+  first_runs_require_human_review: 3
+  reviewed_runs: 0
+  auto_fix: false
+  auto_merge: false
+  report_only_on_no_findings: true
+  alert_on:
+    - protected_scope_attempt
+    - verifier_failure
+    - budget_exhausted
+    - metric_regression
 context_capsule:
   required_fields:
     - Topic
