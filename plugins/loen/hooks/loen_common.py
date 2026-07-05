@@ -83,9 +83,14 @@ def _parse_scalar(value: str) -> Any:
     return True
   if lowered == "false":
     return False
-  if re.fullmatch(r"-?[0-9]+", value):
-    return int(value)
   return value
+
+
+def _parse_governance_scalar(key: str, value: str) -> Any:
+  parsed = _parse_scalar(value)
+  if key in {"first_runs_require_human_review", "reviewed_runs"} and isinstance(parsed, str) and re.fullmatch(r"-?[0-9]+", parsed):
+    return int(parsed)
+  return parsed
 
 
 def _parse_inline_list(value: str) -> list[str]:
@@ -242,7 +247,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
           target[key] = parsed
           list_target = None
         elif value.strip():
-          target[key] = _parse_scalar(value)
+          target[key] = _parse_governance_scalar(key, value)
           list_target = None
         else:
           target.setdefault(key, [])

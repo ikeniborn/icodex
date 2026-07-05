@@ -55,3 +55,16 @@ The worker role is the only default mutating role and must be bound to the
 configured mutable scope. The verifier uses a WASM-first execution contract with
 network off by default; external container and microVM adapters are outside this
 source-layer plugin boundary.
+
+## Automation Governance
+
+LoEn supports optional governance metadata for later scheduled or background
+runs. The source layer records the policy in `docs/loen/<topic>/loop.yaml`,
+appends automated run records to `attempts.jsonl`, and renders governance state
+in the per-topic `audit.html`.
+
+Governance defaults are conservative: `auto_fix: false`, `auto_merge: false`,
+`report_only_on_no_findings: true`, and first scheduled runs require human
+review when `first_runs_require_human_review` is greater than zero. Automation
+does not bypass `LOEN_MODE`, protected-scope checks, evidence gates, or
+worker/verifier separation.
