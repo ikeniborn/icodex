@@ -8,6 +8,7 @@ manifest="$plugin_root/.codex-plugin/plugin.json"
 hooks_json="$plugin_root/hooks/hooks.json"
 vendored_cache="$ROOT/.codex-isolated/plugins/cache/iclaude/loen/0.5.1"
 vendored_codex_manifest="$vendored_cache/.codex-plugin/plugin.json"
+runtime_cache="$ROOT/.codex-isolated/plugins/cache/icodex-local/loen/0.1.0"
 
 expected_skills=(
   loop-start
@@ -54,6 +55,21 @@ expected_templates=(
 
 assert_exit "plugin root exists" 0 test -d "$plugin_root"
 assert_exit "plugin manifest exists" 0 test -f "$manifest"
+assert_exit "root README exists" 0 test -f "$plugin_root/README.md"
+assert_exit "root Russian README exists" 0 test -f "$plugin_root/README.ru.md"
+assert_exit "runtime cache README exists" 0 test -f "$runtime_cache/README.md"
+assert_exit "runtime cache Russian README exists" 0 test -f "$runtime_cache/README.ru.md"
+
+root_readme="$(cat "$plugin_root/README.md" 2>/dev/null || true)"
+root_readme_ru="$(cat "$plugin_root/README.ru.md" 2>/dev/null || true)"
+assert_contains "root README explains icodex enablement" "$root_readme" "ICODEX_LOEN_MODE"
+assert_contains "root README explains vendoring" "$root_readme" "scripts/vendor-loen.sh"
+assert_contains "root README explains loop artifacts" "$root_readme" "docs/loen/<topic>/"
+assert_contains "root Russian README explains icodex enablement" "$root_readme_ru" "ICODEX_LOEN_MODE"
+assert_contains "root Russian README explains vendoring" "$root_readme_ru" "scripts/vendor-loen.sh"
+assert_contains "root Russian README explains loop artifacts" "$root_readme_ru" "docs/loen/<topic>/"
+assert_contains "runtime cache includes governance template" "$(cat "$runtime_cache/assets/templates/loop.yaml" 2>/dev/null || true)" "governance:"
+assert_contains "runtime cache includes automation helper" "$(cat "$runtime_cache/hooks/loen_artifacts.py" 2>/dev/null || true)" "append_automation_attempt"
 
 if [[ -f "$manifest" ]]; then
   manifest_summary="$(python3 - "$manifest" <<'PY'
