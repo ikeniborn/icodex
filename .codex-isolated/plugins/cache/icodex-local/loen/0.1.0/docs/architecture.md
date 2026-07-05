@@ -26,8 +26,8 @@ flowchart LR
 
     subgraph runtime["Repository runtime state"]
         Topic["docs/loen/<topic>/"]
+        TopicAudit["docs/loen/<topic>/audit.html"]
         Todo["docs/TODO.md"]
-        Audit["audit.html"]
     end
 
     Manifest --> Vendor
@@ -39,8 +39,8 @@ flowchart LR
     Vendor --> CacheSkills
     Vendor --> CacheDocs
     CacheSkills --> Topic
+    Topic --> TopicAudit
     CacheSkills --> Todo
-    CacheSkills --> Audit
 
     classDef source fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec,stroke-width:2px
     classDef process fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
@@ -49,7 +49,7 @@ flowchart LR
     class Manifest,Skills,Hooks,Templates,Docs source
     class Vendor process
     class CacheManifest,CacheSkills,CacheDocs cache
-    class Topic,Todo,Audit runtime
+    class Topic,TopicAudit,Todo runtime
 ```
 
 ## Source Layer
@@ -82,7 +82,7 @@ flowchart TD
     ToolCheck -- "No" --> DenyTool["Deny with policy reason"]
     ToolCheck -- "Yes" --> EvidenceCheck{"Required evidence present?"}
     EvidenceCheck -- "No" --> DenyEvidence["Deny until evidence exists"]
-    EvidenceCheck -- "Yes" --> AuditUpdate["Append evidence and refresh audit.html"]
+    EvidenceCheck -- "Yes" --> AuditUpdate["Append evidence and refresh docs/loen/<topic>/audit.html"]
     AuditUpdate --> PassWithRecord["Allow with recorded audit trail"]
 
     classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
@@ -114,31 +114,47 @@ state so the loop can continue across context compaction, new threads,
 subagents, reviews, and later automation.
 
 `loop.yaml` is the machine-readable contract for one topic. The audit writer
-regenerates `audit.html` from repository artifacts and updates the matching
-`docs/TODO.md` row without creating duplicate rows.
+regenerates `docs/loen/<topic>/audit.html` from repository artifacts and updates
+the matching `docs/TODO.md` row without creating duplicate rows.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 flowchart TD
-    Goal["1_goal.md"] --> Context["2_context.md"]
-    Context --> Plan["3_plan.md"]
-    Plan --> Act["4_act.md"]
-    Act --> Check["5_check.md"]
-    Check --> Reflect["6_reflect.md"]
-    Reflect --> Result["7_result.md"]
-    LoopYaml["loop.yaml"] --> Goal
+    subgraph topic_dir["docs/loen/<topic>/"]
+        Goal["1_goal.md"]
+        Context["2_context.md"]
+        Plan["3_plan.md"]
+        Act["4_act.md"]
+        Check["5_check.md"]
+        Reflect["6_reflect.md"]
+        Result["7_result.md"]
+        LoopYaml["loop.yaml"]
+        Attempts["attempts.jsonl"]
+        Evidence["evidence/*"]
+        GovernanceEvidence["evidence/* verifier output"]
+        AuditHtml["docs/loen/<topic>/audit.html"]
+        HumanReview["human review requirement"]
+    end
+
+    Goal --> Context
+    Context --> Plan
+    Plan --> Act
+    Act --> Check
+    Check --> Reflect
+    Reflect --> Result
+    LoopYaml --> Goal
     LoopYaml --> Plan
     LoopYaml --> Result
     LoopYaml --> GovernanceRun["loen:loop-governance"]
-    GovernanceRun --> GovernancePolicy
-    GovernancePolicy["governance policy"] --> LoopYaml
-    GovernancePolicy --> Attempts["attempts.jsonl"]
-    Attempts["attempts.jsonl"] --> AuditHtml["audit.html"]
-    GovernanceRun --> GovernanceEvidence["evidence/* verifier output"]
+    GovernanceRun --> GovernancePolicy["governance policy"]
+    GovernancePolicy --> LoopYaml
+    GovernancePolicy --> Attempts
+    Attempts --> AuditHtml
+    GovernanceRun --> GovernanceEvidence
     GovernanceEvidence --> AuditHtml
-    GovernancePolicy --> HumanReview["human review requirement"]
+    GovernancePolicy --> HumanReview
     HumanReview --> AuditHtml
-    Evidence["evidence/*"] --> AuditHtml
+    Evidence --> AuditHtml
     Result --> TodoRow["docs/TODO.md row"]
     AuditHtml --> TodoRow
 
@@ -183,6 +199,6 @@ repository only stores deterministic policy and evidence.
 
 Scheduled runs reuse `docs/loen/<topic>/`, append JSON records to
 `attempts.jsonl`, preserve verifier evidence under `evidence/`, and regenerate
-`audit.html`. Existing hooks still enforce active-loop state, protected scope,
-shell/network policy, evidence requirements, and `LOEN_MODE`; automation
-payloads are treated as ordinary tool events with extra metadata.
+`docs/loen/<topic>/audit.html`. Existing hooks still enforce active-loop state,
+protected scope, shell/network policy, evidence requirements, and `LOEN_MODE`;
+automation payloads are treated as ordinary tool events with extra metadata.

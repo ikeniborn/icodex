@@ -105,6 +105,9 @@ assert_contains "architecture doc has hook policy diagram" "$architecture_text" 
 assert_contains "architecture doc has artifact diagram" "$architecture_text" "attempts.jsonl"
 assert_contains "architecture doc has governance branch" "$architecture_text" "loen:loop-governance"
 assert_contains "architecture doc has governance review artifact" "$architecture_text" "human review requirement"
+assert_contains "architecture doc keeps audit under topic" "$architecture_text" "docs/loen/<topic>/audit.html"
+assert_contains "architecture diagram labels topic audit node" "$architecture_text" 'AuditHtml["docs/loen/<topic>/audit.html"]'
+assert_contains "architecture doc groups topic artifacts" "$architecture_text" "subgraph topic_dir"
 assert_contains "runtime cache includes governance template" "$(cat "$runtime_cache/assets/templates/loop.yaml" 2>/dev/null || true)" "governance:"
 assert_contains "runtime cache includes automation helper" "$(cat "$runtime_cache/hooks/loen_artifacts.py" 2>/dev/null || true)" "append_automation_attempt"
 
