@@ -78,10 +78,13 @@ def read_loop_artifact(topic_value: str | None = None) -> str:
 
 def _parse_scalar(value: str) -> Any:
   value = value.strip().strip('"').strip("'")
-  if value.lower() == "true":
+  lowered = value.lower()
+  if lowered == "true":
     return True
-  if value.lower() == "false":
+  if lowered == "false":
     return False
+  if re.fullmatch(r"-?[0-9]+", value):
+    return int(value)
   return value
 
 
@@ -112,6 +115,17 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
     "budget": {},
     "stop_conditions": [],
     "handoff_conditions": [],
+    "governance": {
+      "automation_type": "",
+      "schedule": "",
+      "owner": "",
+      "first_runs_require_human_review": 0,
+      "reviewed_runs": 0,
+      "auto_fix": False,
+      "auto_merge": False,
+      "report_only_on_no_findings": True,
+      "alert_on": [],
+    },
   }
   section = ""
   subsection = ""
@@ -214,6 +228,25 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
           list_target = None
         else:
           list_target = data["tools"][key]
+      elif stripped.startswith("- ") and list_target is not None:
+        list_target.append(stripped[2:].strip())
+      continue
+
+    if section == "governance":
+      target = data["governance"]
+      if ":" in stripped:
+        key, value = stripped.split(":", 1)
+        key = key.strip()
+        parsed = _parse_inline_list(value)
+        if parsed or value.strip() == "[]":
+          target[key] = parsed
+          list_target = None
+        elif value.strip():
+          target[key] = _parse_scalar(value)
+          list_target = None
+        else:
+          target.setdefault(key, [])
+          list_target = target[key]
       elif stripped.startswith("- ") and list_target is not None:
         list_target.append(stripped[2:].strip())
       continue
