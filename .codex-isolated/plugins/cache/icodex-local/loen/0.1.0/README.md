@@ -20,7 +20,7 @@ state in repository files instead of chat history.
 
 | Skill | Use it when | Responsibility |
 |---|---|---|
-| `loen:loop-start` | Starting a new loop or selecting a durable topic. | Creates or reuses `docs/loen/<topic>/`, initializes `loop.yaml`, stage files, `attempts.jsonl`, `handoff.md`, `audit.html`, and `evidence/`. |
+| `loen:loop-start` | Starting a new loop or selecting a durable topic. | Creates or reuses `docs/loen/<topic>/`, initializes `loop.yaml`, stage files, `attempts.jsonl`, `handoff.md`, topic-scoped `audit.html`, and `evidence/`. |
 | `loen:loop-plan` | A goal exists and the loop needs one bounded pass. | Converts `1_goal.md`, `2_context.md`, and `loop.yaml` into `3_plan.md` with exact verification commands. |
 | `loen:loop-act` | The active plan has one next action. | Executes one bounded action, then records changed files, commands, and observations in `4_act.md`. |
 | `loen:loop-check` | Code, docs, or configuration changed. | Runs planned checks and records exit codes, output summaries, and evidence references in `5_check.md`. |
@@ -87,6 +87,34 @@ sequenceDiagram
     Status-->>User: stage, evidence, next action
 ```
 
+## How a Loop Reaches a Solution
+
+The normal delivery loop is driven by `loop-plan`, `loop-act`, `loop-check`, and
+`loop-reflect`. Governance is not the step runner for ordinary work.
+
+Each pass answers one question: did the last bounded action move the topic closer
+to the objective with enough evidence to keep it?
+
+1. `loop-plan` narrows the goal to one verifiable action and writes checks into
+   `3_plan.md`.
+2. `loop-act` performs only that action and records what changed in `4_act.md`.
+3. `loop-check` runs or inspects the planned checks and stores evidence in
+   `5_check.md` plus `docs/loen/<topic>/evidence/`.
+4. `loop-reflect` reads action and check evidence, then chooses one outcome:
+   `keep`, `fix`, `revert`, or `handoff`.
+5. If the outcome is `fix`, the next pass starts with a narrower plan based on
+   the failed evidence.
+6. If the outcome is `revert`, the next action restores the scoped change before
+   another check.
+7. If the outcome is `handoff`, the loop records why it cannot safely continue in
+   `handoff.md`.
+8. If the outcome is `keep` and the objective is satisfied, `loop-reflect` writes
+   `7_result.md`; `audit.html` is regenerated for the topic.
+
+The loop is complete only when the topic has a result and enough check evidence
+to justify it. `loop-status` is read-only; it summarizes the current stage and
+next action but does not advance the loop.
+
 The topic directory stores:
 
 | Artifact | Purpose |
@@ -102,7 +130,7 @@ The topic directory stores:
 | `attempts.jsonl` | Append-only run log for manual or automated attempts. |
 | `evidence/` | Raw check output such as logs, JSON summaries, or verifier files. |
 | `handoff.md` | Human handoff state when the loop cannot continue safely. |
-| `audit.html` | Regenerated human-readable audit view for the topic. |
+| `audit.html` | Regenerated human-readable audit view for this topic at `docs/loen/<topic>/audit.html`. |
 
 Use `loen:loop-status` to inspect current state. Continue with
 `loen:loop-plan`, `loen:loop-act`, `loen:loop-check`, and
@@ -132,10 +160,14 @@ final answer without check evidence can be blocked by hooks.
 ## Automation Governance
 
 Use `loen:loop-governance` for recurring or scheduled topics such as CI triage,
-dependency audits, eval drift checks, and cost or latency comparisons. Governance
-topics still write ordinary LoEn artifacts under `docs/loen/<topic>/`, append
-automation attempts to `attempts.jsonl`, store verifier output under
-`evidence/`, and regenerate `audit.html`.
+dependency audits, eval drift checks, and cost or latency comparisons. It adds
+policy around a loop; it does not replace the normal plan, act, check, and
+reflect pass.
+
+Governance topics still write ordinary LoEn artifacts under
+`docs/loen/<topic>/`, append automation attempts to `attempts.jsonl`, store
+verifier output under `evidence/`, and regenerate
+`docs/loen/<topic>/audit.html`.
 
 Automation is advisory in this plugin source. It must not auto-merge, perform
 destructive operations, edit protected scope, or complete first runs without the
