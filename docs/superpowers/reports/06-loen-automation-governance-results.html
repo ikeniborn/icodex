@@ -39,8 +39,8 @@
   <input type="checkbox" id="theme-toggle" hidden>
   <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
   <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
-  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden checked>
-  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
   <label for="theme-toggle" class="theme-btn" title="Toggle dark/light">dark / light</label>
   <header>
     <h1>06-loen-automation-governance</h1>
@@ -143,7 +143,29 @@
   <!-- TAB:plan END -->
   <!-- TAB:result START -->
   <section class="tab-pane" id="pane-result">
-    <p class="note">Этап ещё не проверен.</p>
+    <h2>Проверка result - 2026-07-05</h2>
+    <h3>Reconciliation</h3>
+    <table>
+      <tr><th>Plan step</th><th>Status</th><th>Matched diff paths / evidence</th></tr>
+      <tr><td>Task 1: Add Automation Governance Fixture Coverage</td><td><span class="badge ok">DONE</span></td><td><code>tests/test_loen_automation_governance.sh</code>; RED observed with 19 failures, then PASS=30 FAIL=0.</td></tr>
+      <tr><td>Task 2: Parse Governance Fields and Template Defaults</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/hooks/loen_common.py</code>, <code>plugins/loen/assets/templates/loop.yaml</code>; governance fields parse as typed values while existing budget parsing remains compatible.</td></tr>
+      <tr><td>Task 3: Add Governance Artifact Helpers and Audit Rendering</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/hooks/loen_artifacts.py</code>; safe defaults, <code>append_automation_attempt()</code>, review-required state, and audit governance sections implemented.</td></tr>
+      <tr><td>Task 4: Document Governance Skill and Plugin Boundaries</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/skills/loop-governance/SKILL.md</code>, <code>plugins/loen/docs/README.md</code>, <code>plugins/loen/docs/architecture.md</code>.</td></tr>
+      <tr><td>Task 5: Verify, Update Wiki, and Close Chain</td><td><span class="badge ok">DONE</span></td><td>Focused LoEn suites, <code>python3 -m py_compile plugins/loen/hooks/*.py</code>, full Bash suite, iwiki update, and lint completed.</td></tr>
+    </table>
+    <h3>Coverage</h3>
+    <table>
+      <tr><th>Requirement / acceptance</th><th>Status</th></tr>
+      <tr><td>Automation is a later controlled layer, not default behavior.</td><td><span class="badge ok">reflected</span></td></tr>
+      <tr><td>Scheduled/background loops reuse artifacts and hooks.</td><td><span class="badge ok">reflected</span></td></tr>
+      <tr><td>Governance rules prevent unattended risky changes.</td><td><span class="badge ok">reflected</span></td></tr>
+      <tr><td>Automation defaults to no auto-merge and review-gated first runs.</td><td><span class="badge ok">reflected</span></td></tr>
+      <tr><td>No scheduled mode bypasses <code>LOEN_MODE</code>, evidence gates, or protected scope.</td><td><span class="badge ok">reflected</span></td></tr>
+    </table>
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+    <h3>Итог</h3>
+    <p><span class="badge ok">OK</span> Result reconciliation passed: 5/5 tasks DONE, 0 critical findings, 0 missing plan steps.</p>
   </section>
   <!-- TAB:result END -->
 </body>
