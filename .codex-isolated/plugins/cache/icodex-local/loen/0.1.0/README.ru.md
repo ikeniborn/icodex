@@ -96,6 +96,59 @@ sequenceDiagram
 Каждый проход отвечает на один вопрос: приблизило ли последнее bounded action
 topic к objective, и достаточно ли evidence, чтобы оставить результат?
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
+flowchart TD
+    StartTopic["loen:loop-start создаёт docs/loen/<topic>/"] --> Branch{"Ветка выполнения?"}
+
+    subgraph delivery["Delivery pass"]
+        PlanStep["loen:loop-plan пишет 3_plan.md"]
+        ActStep["loen:loop-act пишет 4_act.md"]
+        CheckStep["loen:loop-check пишет 5_check.md и evidence/*"]
+        ReflectStep{"loen:loop-reflect outcome"}
+        ResultStep["7_result.md плюс topic audit.html"]
+        FixStep["Fix требует ещё один bounded pass"]
+        HandoffStep["handoff.md фиксирует human handoff"]
+    end
+
+    subgraph governance["Governance pass"]
+        GovStep["loen:loop-governance"]
+        GovPolicy["Обязательно: loop.yaml governance owner, schedule, review rules"]
+        GovAttempt["Обязательно: attempts.jsonl automation record"]
+        GovEvidence["Обязательно: evidence/* verifier output"]
+        GovAudit["Обязательно: docs/loen/<topic>/audit.html"]
+        GovReview{"Нужен human review?"}
+        GovWait["Ожидание owner review"]
+    end
+
+    Branch -- "обычная задача" --> PlanStep
+    PlanStep --> ActStep
+    ActStep --> CheckStep
+    CheckStep --> ReflectStep
+    ReflectStep -- "keep и objective достигнут" --> ResultStep
+    ReflectStep -- "fix" --> FixStep
+    FixStep --> PlanStep
+    ReflectStep -- "handoff" --> HandoffStep
+
+    Branch -- "recurring или scheduled topic" --> GovStep
+    GovStep --> GovPolicy
+    GovPolicy --> GovAttempt
+    GovAttempt --> GovEvidence
+    GovEvidence --> GovAudit
+    GovAudit --> GovReview
+    GovReview -- "yes" --> GovWait
+    GovReview -- "no" --> ReflectStep
+
+    classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
+    classDef deliveryClass fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec
+    classDef governanceClass fill:#94e2d5,color:#1e1e2e,stroke:#179299
+    classDef artifactClass fill:#a6e3a1,color:#1e1e2e,stroke:#40a02b
+    class Branch,ReflectStep,GovReview decision
+    class PlanStep,ActStep,CheckStep,FixStep,HandoffStep deliveryClass
+    class GovStep,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
+    class ResultStep artifactClass
+```
+
 1. `loop-plan` сужает goal до одного verifiable action и пишет checks в
    `3_plan.md`.
 2. `loop-act` выполняет только это action и записывает изменения в `4_act.md`.
@@ -167,6 +220,16 @@ policy вокруг loop, но не заменяет обычный pass: plan, 
 Governance topics пишут обычные LoEn artifacts в `docs/loen/<topic>/`,
 добавляют automation attempts в `attempts.jsonl`, сохраняют verifier output в
 `evidence/` и перегенерируют `docs/loen/<topic>/audit.html`.
+
+Governance branch требует эти artifacts, прежде чем run можно считать
+записанным:
+
+| Обязательный artifact | Назначение |
+|---|---|
+| `loop.yaml` `governance:` | Owner, schedule, review rules, alert conditions и safe automation defaults. |
+| `attempts.jsonl` | Append-only automation run record со status, summary, evidence path и review flags. |
+| `evidence/` | Verifier output для scheduled или recurring run. |
+| `audit.html` | Topic-scoped audit по пути `docs/loen/<topic>/audit.html`. |
 
 Automation в этом plugin source advisory. Она не должна auto-merge, выполнять
 destructive operations, менять protected scope или завершать first runs без

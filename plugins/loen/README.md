@@ -95,6 +95,59 @@ The normal delivery loop is driven by `loop-plan`, `loop-act`, `loop-check`, and
 Each pass answers one question: did the last bounded action move the topic closer
 to the objective with enough evidence to keep it?
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
+flowchart TD
+    StartTopic["loen:loop-start creates docs/loen/<topic>/"] --> Branch{"Execution branch?"}
+
+    subgraph delivery["Delivery pass"]
+        PlanStep["loen:loop-plan writes 3_plan.md"]
+        ActStep["loen:loop-act writes 4_act.md"]
+        CheckStep["loen:loop-check writes 5_check.md and evidence/*"]
+        ReflectStep{"loen:loop-reflect outcome"}
+        ResultStep["7_result.md plus topic audit.html"]
+        FixStep["Fix needs another bounded pass"]
+        HandoffStep["handoff.md records human handoff"]
+    end
+
+    subgraph governance["Governance pass"]
+        GovStep["loen:loop-governance"]
+        GovPolicy["Required: loop.yaml governance owner, schedule, review rules"]
+        GovAttempt["Required: attempts.jsonl automation record"]
+        GovEvidence["Required: evidence/* verifier output"]
+        GovAudit["Required: docs/loen/<topic>/audit.html"]
+        GovReview{"Human review required?"}
+        GovWait["Wait for owner review"]
+    end
+
+    Branch -- "ordinary task" --> PlanStep
+    PlanStep --> ActStep
+    ActStep --> CheckStep
+    CheckStep --> ReflectStep
+    ReflectStep -- "keep and objective met" --> ResultStep
+    ReflectStep -- "fix" --> FixStep
+    FixStep --> PlanStep
+    ReflectStep -- "handoff" --> HandoffStep
+
+    Branch -- "recurring or scheduled topic" --> GovStep
+    GovStep --> GovPolicy
+    GovPolicy --> GovAttempt
+    GovAttempt --> GovEvidence
+    GovEvidence --> GovAudit
+    GovAudit --> GovReview
+    GovReview -- "yes" --> GovWait
+    GovReview -- "no" --> ReflectStep
+
+    classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
+    classDef deliveryClass fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec
+    classDef governanceClass fill:#94e2d5,color:#1e1e2e,stroke:#179299
+    classDef artifactClass fill:#a6e3a1,color:#1e1e2e,stroke:#40a02b
+    class Branch,ReflectStep,GovReview decision
+    class PlanStep,ActStep,CheckStep,FixStep,HandoffStep deliveryClass
+    class GovStep,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
+    class ResultStep artifactClass
+```
+
 1. `loop-plan` narrows the goal to one verifiable action and writes checks into
    `3_plan.md`.
 2. `loop-act` performs only that action and records what changed in `4_act.md`.
@@ -168,6 +221,16 @@ Governance topics still write ordinary LoEn artifacts under
 `docs/loen/<topic>/`, append automation attempts to `attempts.jsonl`, store
 verifier output under `evidence/`, and regenerate
 `docs/loen/<topic>/audit.html`.
+
+The governance branch requires these artifacts before it can be treated as a
+recorded run:
+
+| Required artifact | Purpose |
+|---|---|
+| `loop.yaml` `governance:` | Owner, schedule, review rules, alert conditions, and safe automation defaults. |
+| `attempts.jsonl` | Append-only automation run record with status, summary, evidence path, and review flags. |
+| `evidence/` | Verifier output for the scheduled or recurring run. |
+| `audit.html` | Topic-scoped audit regenerated at `docs/loen/<topic>/audit.html`. |
 
 Automation is advisory in this plugin source. It must not auto-merge, perform
 destructive operations, edit protected scope, or complete first runs without the

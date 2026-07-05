@@ -126,10 +126,18 @@ flowchart TD
     Act --> Check["5_check.md"]
     Check --> Reflect["6_reflect.md"]
     Reflect --> Result["7_result.md"]
+    Reflect --> GovernanceRun["loen:loop-governance"]
     LoopYaml["loop.yaml"] --> Goal
     LoopYaml --> Plan
     LoopYaml --> Result
+    LoopYaml --> GovernancePolicy["governance policy"]
+    GovernanceRun --> GovernancePolicy
+    GovernancePolicy --> Attempts["attempts.jsonl"]
     Attempts["attempts.jsonl"] --> AuditHtml["audit.html"]
+    GovernanceRun --> GovernanceEvidence["evidence/* verifier output"]
+    GovernanceEvidence --> AuditHtml
+    GovernancePolicy --> HumanReview["human review requirement"]
+    HumanReview --> AuditHtml
     Evidence["evidence/*"] --> AuditHtml
     Result --> TodoRow["docs/TODO.md row"]
     AuditHtml --> TodoRow
@@ -137,8 +145,10 @@ flowchart TD
     classDef artifact fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec
     classDef contract fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
     classDef report fill:#a6e3a1,color:#1e1e2e,stroke:#40a02b
-    class Goal,Context,Plan,Act,Check,Reflect,Result,Attempts,Evidence artifact
-    class LoopYaml contract
+    classDef governance fill:#94e2d5,color:#1e1e2e,stroke:#179299
+    class Goal,Context,Plan,Act,Check,Reflect,Result,Attempts,Evidence,GovernanceEvidence artifact
+    class LoopYaml,GovernancePolicy,HumanReview contract
+    class GovernanceRun governance
     class AuditHtml,TodoRow report
 ```
 
