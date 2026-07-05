@@ -66,6 +66,27 @@ assert_eq "stale: one start marker" "1" "$(grep -c '# icodex:iwiki:start' "$ICOD
 assert_contains "stale: new command" "$cfg" "command = \"$tmp/bin/iwiki-mcp\""
 assert_eq "stale: old command gone" "0" "$(grep -c '/old/path/iwiki-mcp' "$ICODEX_HOME_DIR/config.toml")"
 
+# --- stale unmarked iwiki tables are removed before adding the managed region ---
+cat > "$ICODEX_HOME_DIR/config.toml" <<'EOF'
+model = "gpt-5.5"
+[mcp_servers.iwiki]
+command = "/old/unmarked/iwiki-mcp"
+env_vars = ["IWIKI_LLM_KEY"]
+[mcp_servers.iwiki.env]
+IWIKI_BASE_DIR = "/old/wiki"
+IWIKI_LLM_BASE_URL = "https://old.example/v1"
+
+[mcp_servers.other]
+command = "/bin/true"
+EOF
+ensure_iwiki_wiring
+cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "unmarked stale: exactly one iwiki table" "1" "$(grep -cF '[mcp_servers.iwiki]' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "unmarked stale: exactly one iwiki env table" "1" "$(grep -cF '[mcp_servers.iwiki.env]' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "unmarked stale: old command gone" "0" "$(grep -c '/old/unmarked/iwiki-mcp' "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "unmarked stale: other mcp kept" "$cfg" "[mcp_servers.other]"
+assert_contains "unmarked stale: managed marker present" "$cfg" "# icodex:iwiki:start"
+
 # --- command auto-detected from PATH when ICODEX_IWIKI_COMMAND is unset ---
 mkdir -p "$tmp/fakebin"
 printf '#!/usr/bin/env bash\n' > "$tmp/fakebin/iwiki-mcp"

@@ -39,6 +39,18 @@ _iwiki_region_body() { # <command> <base_dir> <llm_base_url>
   done
 }
 
+_iwiki_strip_existing_wiring() { # <config>
+  local file="$1"
+  awk -v s="$_IWIKI_REGION_START" -v e="$_IWIKI_REGION_END" '
+    $0 == s { in_region=1; next }
+    $0 == e { in_region=0; next }
+    in_region { next }
+    /^\[mcp_servers\.iwiki(\]|\.)/ { in_stale=1; next }
+    /^\[/ { in_stale=0 }
+    !in_stale { print }
+  ' "$file"
+}
+
 # Strip any existing iwiki region from the home config.toml, then append a fresh
 # one at the end of the file. Idempotent: rewrites only when the content differs.
 # No-op when ICODEX_HOME_DIR is unset or the config file does not exist.
@@ -56,11 +68,7 @@ ensure_iwiki_wiring() {
   fi
   body="$(_iwiki_region_body "$cmd" "$base" "$url")"
   tmp="$(mktemp)"
-  awk -v s="$_IWIKI_REGION_START" -v e="$_IWIKI_REGION_END" '
-    $0 == s { skip=1; next }
-    $0 == e { skip=0; next }
-    !skip { print }
-  ' "$file" > "$tmp"
+  _iwiki_strip_existing_wiring "$file" > "$tmp"
   printf '%s\n%s\n%s\n' "$_IWIKI_REGION_START" "$body" "$_IWIKI_REGION_END" >> "$tmp"
   if ! cmp -s "$tmp" "$file"; then
     cat "$tmp" > "$file"

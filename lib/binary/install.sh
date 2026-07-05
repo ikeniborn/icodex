@@ -82,6 +82,41 @@ _export_uv_bin() { # <uv_bin>
   export UV_BIN="$1"
 }
 
+_export_shared_bin_path() {
+  local bin_dir="$ICODEX_SHARED_DIR/bin"
+  case ":${PATH:-}:" in
+    *":$bin_dir:"*) ;;
+    *) export PATH="$bin_dir${PATH:+:$PATH}" ;;
+  esac
+}
+
+_ensure_managed_tool() { # <name>
+  local name="$1" source="$ICODEX_ROOT/lib/binary/shims/$1" target="$ICODEX_SHARED_DIR/bin/$1" tmp module_dir
+  if [[ ! -f "$source" ]]; then
+    module_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source="$module_dir/shims/$name"
+  fi
+  [[ -f "$source" ]] || { log_error "helper tool shim missing: $source"; return 1; }
+  mkdir -p "$(dirname "$target")"
+  if [[ -e "$target" ]] && ! grep -qF "managed by icodex helper-tools" "$target" 2>/dev/null; then
+    return 0
+  fi
+  tmp="$(mktemp)"
+  cp "$source" "$tmp" || { rm -f "$tmp"; return 1; }
+  chmod +x "$tmp"
+  if [[ -f "$target" ]] && cmp -s "$tmp" "$target"; then
+    rm -f "$tmp"
+  else
+    mv -f "$tmp" "$target"
+  fi
+}
+
+ensure_cli_tools() {
+  _ensure_managed_tool tree || return 1
+  _ensure_managed_tool rg || return 1
+  _export_shared_bin_path
+}
+
 ensure_uv_dependency() {
   local target="$ICODEX_SHARED_DIR/bin/uv" source
   if [[ -x "$target" ]]; then
