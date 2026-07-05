@@ -61,3 +61,16 @@ Verifier capsules reject WASM execution configs that enable network access.
 The default execution contract uses `isolation: wasm`, `executor: wasmtime`,
 `network: off`, a read-only project mount, and a writable `/tmp/loen` mount for
 ephemeral verifier output.
+
+## Automation Governance
+
+The automation-governance layer is a contract, not a scheduler. Future CI
+triage, PR babysitting, dependency audit, eval governance, and cost/latency
+governance integrations can call the same topic artifact APIs, but this
+repository only stores deterministic policy and evidence.
+
+Scheduled runs reuse `docs/loen/<topic>/`, append JSON records to
+`attempts.jsonl`, preserve verifier evidence under `evidence/`, and regenerate
+`audit.html`. Existing hooks still enforce active-loop state, protected scope,
+shell/network policy, evidence requirements, and `LOEN_MODE`; automation
+payloads are treated as ordinary tool events with extra metadata.
