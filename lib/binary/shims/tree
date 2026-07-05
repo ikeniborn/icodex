@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# managed by icodex helper-tools
+set -uo pipefail
+
+_exec_real_tool() {
+  local name="$1" self_dir self_path dir cand cand_dir cand_path
+  shift
+  self_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  self_path="$self_dir/$name"
+  IFS=':' read -r -a _path_dirs <<< "${PATH:-}"
+  for dir in "${_path_dirs[@]}"; do
+    [[ -n "$dir" ]] || dir="."
+    cand="$dir/$name"
+    [[ -x "$cand" ]] || continue
+    grep -qF "managed by icodex helper-tools" "$cand" 2>/dev/null && continue
+    cand_dir="$(cd -P "$(dirname "$cand")" 2>/dev/null && pwd)" || continue
+    cand_path="$cand_dir/$(basename "$cand")"
+    [[ "$cand_path" == "$self_path" ]] && continue
+    exec "$cand" "$@"
+  done
+}
+
+_exec_real_tool tree "$@"
+
+max_depth=""
+paths=()
+while (($#)); do
+  case "$1" in
+    -L)
+      [[ $# -ge 2 ]] || { echo "tree: option -L requires an argument" >&2; exit 2; }
+      max_depth="$2"
+      shift 2
+      ;;
+    --help|-h)
+      echo "usage: tree [-L depth] [path ...]"
+      exit 0
+      ;;
+    --version)
+      echo "tree 0.0.0-icodex-shim"
+      exit 0
+      ;;
+    -*)
+      shift
+      ;;
+    *)
+      paths+=("$1")
+      shift
+      ;;
+  esac
+done
+[[ ${#paths[@]} -gt 0 ]] || paths=(".")
+
+status=0
+for root in "${paths[@]}"; do
+  if [[ ! -e "$root" ]]; then
+    echo "$root [error opening dir]" >&2
+    status=1
+    continue
+  fi
+  echo "$root"
+  find_args=("$root")
+  [[ -n "$max_depth" ]] && find_args+=(-maxdepth "$max_depth")
+  while IFS= read -r -d '' path; do
+    [[ "$path" == "$root" ]] && continue
+    rel="${path#"$root"/}"
+    slashes="${rel//[^\/]/}"
+    depth="${#slashes}"
+    printf '%*s%s\n' "$((depth * 2))" "" "$(basename "$path")"
+  done < <(find "${find_args[@]}" -print0 2>/dev/null)
+done
+exit "$status"

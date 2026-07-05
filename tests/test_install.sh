@@ -57,6 +57,28 @@ assert_eq "UV_BIN exported to isolated path" "$ICODEX_HOME_DIR/bin/uv" "${UV_BIN
 assert_eq "uv path not persisted to config" "0" "$(grep -c '^CODEX_UV_BIN=' "$ICODEX_CONFIG" 2>/dev/null || echo 0)"
 rm -rf "$tmp"
 
+# --- helper tools: tree and rg shims are installed into the shared bin dir ---
+setup_case
+mkdir -p "$tmp/project/src" "$tmp/project/node_modules/pkg"
+printf 'alpha\n' > "$tmp/project/src/a.txt"
+printf 'beta\n' > "$tmp/project/node_modules/pkg/b.txt"
+old_path="$PATH"
+PATH="/usr/bin:/bin"
+assert_exit "helper tools installed" 0 ensure_cli_tools
+assert_exit "tree installed in isolated bin" 0 test -x "$ICODEX_HOME_DIR/bin/tree"
+assert_exit "rg installed in isolated bin" 0 test -x "$ICODEX_HOME_DIR/bin/rg"
+assert_eq "helper bin prepended to PATH" "$ICODEX_HOME_DIR/bin" "${PATH%%:*}"
+assert_eq "rg resolves from helper bin" "$ICODEX_HOME_DIR/bin/rg" "$(command -v rg)"
+assert_contains "rg version supported" "$(rg --version)" "ripgrep 0.0.0-icodex-shim"
+tree_out="$(tree -L 1 "$tmp/project")"
+assert_contains "tree fallback lists src" "$tree_out" "src"
+files_out="$(cd "$tmp/project" && rg --files -g '!*node_modules*' | sort)"
+assert_eq "rg --files honors exclude glob" "src/a.txt" "$files_out"
+search_out="$(cd "$tmp/project" && rg alpha src)"
+assert_contains "rg fallback searches file contents" "$search_out" "src/a.txt:1:alpha"
+PATH="$old_path"
+rm -rf "$tmp"
+
 # --- Case A: clean install with matching pinned sha succeeds ---
 setup_case
 _download() { DL_CALLS=$((DL_CALLS+1)); cp "$FIXTURE_TAR" "$2"; }   # offline seam

@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# managed by icodex helper-tools
+set -uo pipefail
+
+_exec_real_tool() {
+  local name="$1" self_dir self_path dir cand cand_dir cand_path
+  shift
+  self_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  self_path="$self_dir/$name"
+  IFS=':' read -r -a _path_dirs <<< "${PATH:-}"
+  for dir in "${_path_dirs[@]}"; do
+    [[ -n "$dir" ]] || dir="."
+    cand="$dir/$name"
+    [[ -x "$cand" ]] || continue
+    grep -qF "managed by icodex helper-tools" "$cand" 2>/dev/null && continue
+    cand_dir="$(cd -P "$(dirname "$cand")" 2>/dev/null && pwd)" || continue
+    cand_path="$cand_dir/$(basename "$cand")"
+    [[ "$cand_path" == "$self_path" ]] && continue
+    exec "$cand" "$@"
+  done
+}
+
+_exec_real_tool rg "$@"
+
+files_mode=0
+ignore_case=0
+fixed_strings=0
+pattern=""
+globs=()
+paths=()
+
+while (($#)); do
+  case "$1" in
+    --files)
+      files_mode=1
+      shift
+      ;;
+    -g|--glob)
+      [[ $# -ge 2 ]] || { echo "rg: option $1 requires an argument" >&2; exit 2; }
+      globs+=("$2")
+      shift 2
+      ;;
+    -g*)
+      globs+=("${1#-g}")
+      shift
+      ;;
+    -i|--ignore-case)
+      ignore_case=1
+      shift
+      ;;
+    -F|--fixed-strings)
+      fixed_strings=1
+      shift
+      ;;
+    -n|--line-number|-S|--smart-case|--hidden|--no-ignore|--no-heading)
+      shift
+      ;;
+    --help|-h)
+      echo "usage: rg [--files] [-g glob] [-i] [-F] [pattern] [path ...]"
+      exit 0
+      ;;
+    --version)
+      echo "ripgrep 0.0.0-icodex-shim"
+      exit 0
+      ;;
+    --)
+      shift
+      while (($#)); do
+        if (( files_mode )); then
+          paths+=("$1")
+        elif [[ -z "$pattern" ]]; then
+          pattern="$1"
+        else
+          paths+=("$1")
+        fi
+        shift
+      done
+      ;;
+    -*)
+      shift
+      ;;
+    *)
+      if (( files_mode )); then
+        paths+=("$1")
+      elif [[ -z "$pattern" ]]; then
+        pattern="$1"
+      else
+        paths+=("$1")
+      fi
+      shift
+      ;;
+  esac
+done
+
+[[ ${#paths[@]} -gt 0 ]] || paths=(".")
+
+_display_path() {
+  local path="$1"
+  path="${path#./}"
+  printf '%s\n' "$path"
+}
+
+_matches_globs() {
+  local file="$1" glob pat include_seen=0 include_match=0
+  for glob in "${globs[@]}"; do
+    if [[ "$glob" == !* ]]; then
+      pat="${glob:1}"
+      [[ "$file" == $pat ]] && return 1
+    else
+      include_seen=1
+      [[ "$file" == $glob ]] && include_match=1
+    fi
+  done
+  [[ "$include_seen" -eq 0 || "$include_match" -eq 1 ]]
+}
+
+_emit_files() {
+  local root file display
+  for root in "${paths[@]}"; do
+    if [[ -f "$root" ]]; then
+      display="$(_display_path "$root")"
+      _matches_globs "$display" && printf '%s\0' "$root"
+    elif [[ -d "$root" ]]; then
+      while IFS= read -r -d '' file; do
+        display="$(_display_path "$file")"
+        _matches_globs "$display" && printf '%s\0' "$file"
+      done < <(find "$root" \( -path '*/.git' -o -path '*/.git/*' \) -prune -o -type f -print0 2>/dev/null)
+    fi
+  done
+}
+
+if (( files_mode )); then
+  while IFS= read -r -d '' file; do
+    _display_path "$file"
+  done < <(_emit_files)
+  exit 0
+fi
+
+if [[ -z "$pattern" ]]; then
+  echo "rg: a search pattern is required" >&2
+  exit 2
+fi
+
+grep_args=(-nH -I)
+(( ignore_case )) && grep_args+=(-i)
+(( fixed_strings )) && grep_args+=(-F)
+matched=1
+while IFS= read -r -d '' file; do
+  display="$(_display_path "$file")"
+  while IFS= read -r line; do
+    rest="${line#"$file:"}"
+    printf '%s:%s\n' "$display" "$rest"
+    matched=0
+  done < <(grep "${grep_args[@]}" -- "$pattern" "$file" 2>/dev/null || true)
+done < <(_emit_files)
+exit "$matched"
