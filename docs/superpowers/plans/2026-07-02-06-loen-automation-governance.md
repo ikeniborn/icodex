@@ -12,6 +12,10 @@ review:
 chain:
   intent: null
   spec: docs/superpowers/specs/2026-07-02-06-loen-automation-governance-design.md
+result_check:
+  verdict: OK
+  plan_hash: 97025827d6f37f89
+  last_run: 2026-07-05
 ---
 
 # 06 LoEn Automation Governance Implementation Plan
