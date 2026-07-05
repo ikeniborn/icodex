@@ -98,7 +98,8 @@ to the objective with enough evidence to keep it?
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 flowchart TD
-    StartTopic["loen:loop-start creates docs/loen/<topic>/"] --> Branch{"Execution branch?"}
+    StartTopic["loen:loop-start creates docs/loen/<topic>/"] --> SharedArtifacts["Shared setup: loop.yaml, stage files, attempts.jsonl, evidence/, audit.html"]
+    SharedArtifacts --> Branch{"Execution branch?"}
 
     subgraph delivery["Delivery pass"]
         PlanStep["loen:loop-plan writes 3_plan.md"]
@@ -112,10 +113,10 @@ flowchart TD
 
     subgraph governance["Governance pass"]
         GovStep["loen:loop-governance"]
-        GovPolicy["Required: loop.yaml governance owner, schedule, review rules"]
-        GovAttempt["Required: attempts.jsonl automation record"]
-        GovEvidence["Required: evidence/* verifier output"]
-        GovAudit["Required: docs/loen/<topic>/audit.html"]
+        GovPolicy["Adds or updates loop.yaml governance owner, schedule, review rules"]
+        GovAttempt["Required for run: attempts.jsonl automation record"]
+        GovEvidence["Required for run: evidence/* verifier output"]
+        GovAudit["Required for run: docs/loen/<topic>/audit.html"]
         GovReview{"Human review required?"}
         GovWait["Wait for owner review"]
     end
@@ -145,7 +146,7 @@ flowchart TD
     class Branch,ReflectStep,GovReview decision
     class PlanStep,ActStep,CheckStep,FixStep,HandoffStep deliveryClass
     class GovStep,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
-    class ResultStep artifactClass
+    class SharedArtifacts,ResultStep artifactClass
 ```
 
 1. `loop-plan` narrows the goal to one verifiable action and writes checks into
@@ -222,12 +223,15 @@ Governance topics still write ordinary LoEn artifacts under
 verifier output under `evidence/`, and regenerate
 `docs/loen/<topic>/audit.html`.
 
-The governance branch requires these artifacts before it can be treated as a
-recorded run:
+`loop-governance` can run immediately after `loop-start`; it does not require a
+completed delivery pass. `loop-start` creates the shared topic artifacts, and
+`loop-governance` adds or updates the `governance:` section inside `loop.yaml`.
+After that, each governance run requires these artifacts before it can be treated
+as recorded:
 
 | Required artifact | Purpose |
 |---|---|
-| `loop.yaml` `governance:` | Owner, schedule, review rules, alert conditions, and safe automation defaults. |
+| `loop.yaml` `governance:` | Governance policy added to the shared topic contract: owner, schedule, review rules, alert conditions, and safe automation defaults. |
 | `attempts.jsonl` | Append-only automation run record with status, summary, evidence path, and review flags. |
 | `evidence/` | Verifier output for the scheduled or recurring run. |
 | `audit.html` | Topic-scoped audit regenerated at `docs/loen/<topic>/audit.html`. |

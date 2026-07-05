@@ -126,12 +126,12 @@ flowchart TD
     Act --> Check["5_check.md"]
     Check --> Reflect["6_reflect.md"]
     Reflect --> Result["7_result.md"]
-    Reflect --> GovernanceRun["loen:loop-governance"]
     LoopYaml["loop.yaml"] --> Goal
     LoopYaml --> Plan
     LoopYaml --> Result
-    LoopYaml --> GovernancePolicy["governance policy"]
+    LoopYaml --> GovernanceRun["loen:loop-governance"]
     GovernanceRun --> GovernancePolicy
+    GovernancePolicy["governance policy"] --> LoopYaml
     GovernancePolicy --> Attempts["attempts.jsonl"]
     Attempts["attempts.jsonl"] --> AuditHtml["audit.html"]
     GovernanceRun --> GovernanceEvidence["evidence/* verifier output"]
