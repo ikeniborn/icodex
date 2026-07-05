@@ -2,6 +2,15 @@
 title: 06 LoEn automation governance design
 date: 2026-07-02
 status: draft
+review:
+  spec_hash: b57a4a435ec38bb5
+  last_run: 2026-07-05
+  phases:
+    structure: { status: passed }
+    coverage: { status: passed }
+    clarity: { status: passed }
+    consistency: { status: passed }
+  findings: []
 chain:
   intent: null
 ---
