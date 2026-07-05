@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>06-loen-automation-governance IDD-SDD Report</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --surface:#ffffff; --fg:#2b2b3a; --muted:#6b6b80;
+      --accent:#5c6bc0; --accent-2:#3949ab; --border:#d6d8e6; --zebra:#eef0f8;
+      --ok:#43a047; --ok-2:#2e7d32; --warn:#fb8c00; --warn-2:#ef6c00; --shadow:rgba(40,40,80,.18);
+    }
+    body:has(#theme-toggle:checked){
+      --bg:#181825; --surface:#262637; --fg:#cdd6f4; --muted:#a6adc8;
+      --accent:#89b4fa; --accent-2:#5e95f0; --border:#3a3b52; --zebra:#21222f;
+      --ok:#a6e3a1; --ok-2:#74c46e; --warn:#f9e2af; --warn-2:#f5c95b; --shadow:rgba(0,0,0,.45);
+    }
+    body{margin:0 auto; padding:1.5rem 2rem 4rem; max-width:1080px; font:16px/1.55 system-ui,sans-serif; background:var(--bg); color:var(--fg);}
+    .theme-btn{position:sticky; top:.5rem; float:right; cursor:pointer; user-select:none; padding:.25rem .6rem; border:1px solid var(--border); border-radius:6px; background:var(--surface);}
+    header{margin:0 0 1.25rem;} h1{font-size:1.7rem; margin:.2rem 0; color:var(--accent);} h2{font-size:1.35rem; margin:1.2rem 0 .7rem;} h3{font-size:1.05rem; margin:1rem 0 .5rem;}
+    .muted{color:var(--muted);} .chain-tabs{display:flex; flex-wrap:wrap; gap:.25rem; margin:1rem 0 0; border-bottom:1px solid var(--border);}
+    .chain-tabs label{cursor:pointer; padding:.4rem .9rem; border:1px solid var(--border); border-bottom:none; border-radius:8px 8px 0 0; background:var(--surface); color:var(--muted);}
+    .tab-pane{display:none; background:var(--surface); border:1px solid var(--border); border-top:none; padding:1rem; box-shadow:0 8px 24px var(--shadow);}
+    body:has(#tab-intent:checked) #pane-intent,
+    body:has(#tab-spec:checked) #pane-spec,
+    body:has(#tab-plan:checked) #pane-plan,
+    body:has(#tab-result:checked) #pane-result{display:block;}
+    body:has(#tab-intent:checked) label[for="tab-intent"],
+    body:has(#tab-spec:checked) label[for="tab-spec"],
+    body:has(#tab-plan:checked) label[for="tab-plan"],
+    body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent); border-color:var(--accent); font-weight:600;}
+    table{width:100%; border-collapse:collapse; margin:.6rem 0 1rem;} th,td{border:1px solid var(--border); padding:.45rem .55rem; vertical-align:top;} th{background:color-mix(in srgb,var(--accent) 10%,var(--surface)); text-align:left;} tr:nth-child(even) td{background:var(--zebra);}
+    code{background:color-mix(in srgb,var(--accent) 10%,var(--surface)); padding:.1rem .25rem; border-radius:4px;}
+    .badge{display:inline-block; border-radius:999px; padding:.1rem .55rem; font-weight:700; font-size:.85rem;} .passed,.ok{color:var(--ok-2); background:color-mix(in srgb,var(--ok) 18%,var(--surface));}
+    .note{border-left:4px solid var(--accent); padding:.7rem .9rem; background:color-mix(in srgb,var(--accent) 10%,var(--surface));}
+  </style>
+</head>
+<body>
+  <input type="checkbox" id="theme-toggle" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden checked>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+  <label for="theme-toggle" class="theme-btn" title="Toggle dark/light">dark / light</label>
+  <header>
+    <h1>06-loen-automation-governance</h1>
+    <p class="muted">Единый отчет IDD-SDD chain.</p>
+  </header>
+  <nav class="chain-tabs">
+    <label for="tab-intent">Intent</label>
+    <label for="tab-spec">Spec</label>
+    <label for="tab-plan">Plan</label>
+    <label for="tab-result">Result</label>
+  </nav>
+  <!-- TAB:intent START -->
+  <section class="tab-pane" id="pane-intent">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:intent END -->
+  <!-- TAB:spec START -->
+  <section class="tab-pane" id="pane-spec">
+    <h2>Проверка spec - 2026-07-05</h2>
+    <h3>Артефакт</h3>
+    <table>
+      <tr><th>Поле</th><th>Значение</th></tr>
+      <tr><td>Файл</td><td><code>docs/superpowers/specs/2026-07-02-06-loen-automation-governance-design.md</code></td></tr>
+      <tr><td>Hash</td><td><code>b57a4a435ec38bb5</code></td></tr>
+      <tr><td>Topic</td><td><code>06-loen-automation-governance</code></td></tr>
+    </table>
+    <h3>Требования</h3>
+    <table>
+      <tr><th>Раздел</th><th>Содержание</th><th>Критерий приемки</th></tr>
+      <tr><td>Purpose</td><td>Define later LoEn automation and governance layer after manual loops are stable.</td><td>Layer remains controlled and non-default.</td></tr>
+      <tr><td>Automation Types</td><td>CI triage, PR babysitting, dependency audit, eval governance, cost or latency governance.</td><td>Automation metadata can identify these classes without adding a scheduler.</td></tr>
+      <tr><td>Preconditions</td><td>Manual trial runs, explicit loop scope, deterministic evidence, reviewed first outputs, rollback and handoff docs.</td><td>First automated runs require human review and evidence.</td></tr>
+      <tr><td>Runtime Model</td><td>Scheduled/background runs reuse <code>docs/loen/&lt;topic&gt;/</code>, append attempts, store evidence, update stages, regenerate audit.</td><td>Automated attempts are durable and visible in audit output.</td></tr>
+      <tr><td>Governance Fields</td><td>Optional <code>governance:</code> config for schedule, human review count, auto-fix/merge flags, report behavior, alerts.</td><td>Defaults prevent auto-merge and risky unattended changes.</td></tr>
+      <tr><td>Tests</td><td>Validate defaults, review counters, audit updates, protected/evidence gates, and <code>LOEN_MODE</code>.</td><td>Focused Bash suite covers all listed checks.</td></tr>
+      <tr><td>Acceptance</td><td>Controlled later layer; same artifacts and hooks; governance prevents unattended risky changes.</td><td>Full verification and result gate pass.</td></tr>
+    </table>
+    <h3>Фазы</h3>
+    <table>
+      <tr><th>Фаза</th><th>Статус</th></tr>
+      <tr><td>structure</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>coverage</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>clarity</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>consistency</td><td><span class="badge passed">passed</span></td></tr>
+    </table>
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+    <h3>Итог</h3>
+    <p><span class="badge ok">OK</span> Spec gate passed: 0 critical open, 0 warning open.</p>
+  </section>
+  <!-- TAB:spec END -->
+  <!-- TAB:plan START -->
+  <section class="tab-pane" id="pane-plan">
+    <h2>Проверка plan - 2026-07-05</h2>
+    <h3>Артефакт</h3>
+    <table>
+      <tr><th>Поле</th><th>Значение</th></tr>
+      <tr><td>Файл</td><td><code>docs/superpowers/plans/2026-07-02-06-loen-automation-governance.md</code></td></tr>
+      <tr><td>Hash</td><td><code>97025827d6f37f89</code></td></tr>
+      <tr><td>Spec</td><td><code>docs/superpowers/specs/2026-07-02-06-loen-automation-governance-design.md</code></td></tr>
+    </table>
+    <h3>Шаги и DoD</h3>
+    <table>
+      <tr><th>Task</th><th>Output</th><th>Definition of done</th></tr>
+      <tr><td>1</td><td><code>tests/test_loen_automation_governance.sh</code></td><td>Focused test fails first, then syntax-checks cleanly.</td></tr>
+      <tr><td>2</td><td>Governance parsing in <code>loen_common.py</code> and defaults in <code>loop.yaml</code>.</td><td>Typed governance assertions pass and Python compiles.</td></tr>
+      <tr><td>3</td><td>Governance helpers, automated attempt records, audit rendering.</td><td>Audit shows governance, review state, no auto-merge, and attempts.</td></tr>
+      <tr><td>4</td><td>Skill and plugin docs for automation governance.</td><td>Focused docs assertions pass.</td></tr>
+      <tr><td>5</td><td>Focused/full verification, iwiki update, result reconciliation.</td><td>LoEn suites, hook compile, full Bash suite, wiki lint, and result gate pass.</td></tr>
+    </table>
+    <h3>Диаграммы</h3>
+    <table>
+      <tr><th>Dependency graph</th><th>Flow</th></tr>
+      <tr><td>Implementation order</td><td>Test -> parser/template -> artifact/audit helpers -> docs -> verification/wiki/result gate.</td></tr>
+      <tr><td>Artifact availability</td><td>Parser and template exist before helper assertions; helpers exist before audit output and docs checks.</td></tr>
+    </table>
+    <table>
+      <tr><th>Spec requirement</th><th>Plan coverage</th></tr>
+      <tr><td>Automation is a later controlled layer</td><td>Scope Check, Tasks 1 and 4</td></tr>
+      <tr><td>Scheduled/background loops reuse artifacts and hooks</td><td>Tasks 1, 3, and 5</td></tr>
+      <tr><td>Governance fields</td><td>Tasks 1 and 2</td></tr>
+      <tr><td>Review counters and no auto-merge defaults</td><td>Tasks 1 and 3</td></tr>
+      <tr><td>Protected/evidence gates and <code>LOEN_MODE</code></td><td>Task 1 hook assertions and Task 5 focused verification</td></tr>
+      <tr><td>Docs and wiki truth</td><td>Tasks 4 and 5</td></tr>
+    </table>
+    <h3>Фазы</h3>
+    <table>
+      <tr><th>Фаза</th><th>Статус</th></tr>
+      <tr><td>structure</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>coverage</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>dependencies</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>verifiability</td><td><span class="badge passed">passed</span></td></tr>
+      <tr><td>consistency</td><td><span class="badge passed">passed</span></td></tr>
+    </table>
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+    <h3>Итог</h3>
+    <p><span class="badge ok">OK</span> Plan gate passed: 0 critical open, 0 warning open.</p>
+  </section>
+  <!-- TAB:plan END -->
+  <!-- TAB:result START -->
+  <section class="tab-pane" id="pane-result">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:result END -->
+</body>
+</html>
