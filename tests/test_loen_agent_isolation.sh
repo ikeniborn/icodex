@@ -7,7 +7,7 @@ plugin_root="$ROOT/plugins/loen"
 agent_dir="$plugin_root/agents"
 template="$plugin_root/assets/templates/loop.yaml"
 capsule_script="$plugin_root/hooks/loen_capsules.py"
-readme="$plugin_root/docs/README.md"
+readme="$plugin_root/README.md"
 architecture="$plugin_root/docs/architecture.md"
 
 assert_exit "capsule generator exists" 0 test -f "$capsule_script"

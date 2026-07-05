@@ -12,9 +12,24 @@ state in repository files instead of chat history.
   `loen:loop-governance`.
 - Hook scripts that can enforce active loop state, mutable/protected scope,
   role/tool policy, shell/network policy, and final evidence requirements.
-- Role agent definitions for planner, worker, verifier, reviewer, and
-  researcher flows.
+- Role agent definitions and context capsules for planner, worker, verifier,
+  reviewer, and researcher flows.
 - Templates for durable loop artifacts under `docs/loen/<topic>/`.
+
+## Skill Responsibilities
+
+| Skill | Use it when | Responsibility |
+|---|---|---|
+| `loen:loop-start` | Starting a new loop or selecting a durable topic. | Creates or reuses `docs/loen/<topic>/`, initializes `loop.yaml`, stage files, `attempts.jsonl`, `handoff.md`, `audit.html`, and `evidence/`. |
+| `loen:loop-plan` | A goal exists and the loop needs one bounded pass. | Converts `1_goal.md`, `2_context.md`, and `loop.yaml` into `3_plan.md` with exact verification commands. |
+| `loen:loop-act` | The active plan has one next action. | Executes one bounded action, then records changed files, commands, and observations in `4_act.md`. |
+| `loen:loop-check` | Code, docs, or configuration changed. | Runs planned checks and records exit codes, output summaries, and evidence references in `5_check.md`. |
+| `loen:loop-reflect` | Check evidence exists and the loop needs a decision. | Decides keep, fix, revert, or handoff; writes `6_reflect.md` and, when complete, `7_result.md`. |
+| `loen:loop-status` | You need the current state of one or more topics. | Reads artifacts, reports current stage, latest evidence, open decisions, and next action. |
+| `loen:loop-repair` | Evidence shows a failing test, CI failure, regression, or broken behavior. | Captures failure context, narrows the repair surface, and routes back to planning or action. |
+| `loen:loop-research` | The task is an experiment with a measurable question. | Records metrics, baseline, experiment step, check commands, observed results, and decision threshold. |
+| `loen:loop-review` | Reviewing a diff, branch, or pull request. | Records review scope, findings, evidence, and final review disposition inside the topic artifacts. |
+| `loen:loop-governance` | A topic represents a recurring check, audit, CI triage, eval drift check, or cost/latency comparison. | Records recurrence policy, automation attempts, human-review requirements, verifier evidence, and audit updates. |
 
 ## Runtime Enablement in icodex
 
@@ -44,18 +59,87 @@ Start with `loen:loop-start` to create a topic directory:
 docs/loen/<topic>/
 ```
 
+Typical sequence:
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
+sequenceDiagram
+    participant User as User
+    participant Start as loen:loop-start
+    participant Plan as loen:loop-plan
+    participant Act as loen:loop-act
+    participant Check as loen:loop-check
+    participant Reflect as loen:loop-reflect
+    participant Status as loen:loop-status
+    participant Files as docs/loen/topic
+
+    User->>Start: create durable topic
+    Start->>Files: write loop.yaml and stage files
+    User->>Plan: request bounded plan
+    Plan->>Files: update 3_plan.md
+    User->>Act: execute one action
+    Act->>Files: update 4_act.md
+    User->>Check: run verifier commands
+    Check->>Files: write 5_check.md and evidence
+    User->>Reflect: decide keep, fix, revert, or handoff
+    Reflect->>Files: update 6_reflect.md or 7_result.md
+    User->>Status: inspect current state
+    Status-->>User: stage, evidence, next action
+```
+
 The topic directory stores:
 
-- numbered stage files from `1_goal.md` through `7_result.md`;
-- `loop.yaml` with scope, mode, verifier, budget, stop rules, and governance;
-- `attempts.jsonl` for run records;
-- `evidence/` for check and verifier output;
-- `handoff.md`;
-- regenerated `audit.html`.
+| Artifact | Purpose |
+|---|---|
+| `1_goal.md` | User request, objective, and success criterion for the loop. |
+| `2_context.md` | Facts, relevant files, constraints, and evidence summaries. |
+| `3_plan.md` | Bounded plan and verification commands for one loop pass. |
+| `4_act.md` | Action evidence: changed files, commands, and observations. |
+| `5_check.md` | Check results, exit codes, and verifier evidence references. |
+| `6_reflect.md` | Decision to keep, fix, revert, or hand off. |
+| `7_result.md` | Final outcome when the loop is complete. |
+| `loop.yaml` | Machine-readable contract: topic, mode, scope, verifier, budget, stop rules, and governance. |
+| `attempts.jsonl` | Append-only run log for manual or automated attempts. |
+| `evidence/` | Raw check output such as logs, JSON summaries, or verifier files. |
+| `handoff.md` | Human handoff state when the loop cannot continue safely. |
+| `audit.html` | Regenerated human-readable audit view for the topic. |
 
 Use `loen:loop-status` to inspect current state. Continue with
 `loen:loop-plan`, `loen:loop-act`, `loen:loop-check`, and
 `loen:loop-reflect` for one bounded pass through the loop.
+
+## Minimal Example
+
+Request:
+
+```text
+Use LoEn to fix the failing proxy test.
+```
+
+Expected first pass:
+
+```text
+loen:loop-start creates docs/loen/fix-proxy-test/
+loen:loop-plan writes a one-pass plan in 3_plan.md
+loen:loop-act changes only the scoped files
+loen:loop-check runs the configured test and stores evidence/latest-test.log
+loen:loop-reflect records keep/fix/revert/handoff
+```
+
+If `ICODEX_LOEN_MODE=enforce`, edits outside the configured mutable scope or a
+final answer without check evidence can be blocked by hooks.
+
+## Automation Governance
+
+Use `loen:loop-governance` for recurring or scheduled topics such as CI triage,
+dependency audits, eval drift checks, and cost or latency comparisons. Governance
+topics still write ordinary LoEn artifacts under `docs/loen/<topic>/`, append
+automation attempts to `attempts.jsonl`, store verifier output under
+`evidence/`, and regenerate `audit.html`.
+
+Automation is advisory in this plugin source. It must not auto-merge, perform
+destructive operations, edit protected scope, or complete first runs without the
+human-review requirements recorded in `loop.yaml`.
 
 ## Vendoring for Codex
 
@@ -82,5 +166,4 @@ loop state only under `docs/loen/<topic>/` and updates `docs/TODO.md` as the
 global task index. It does not auto-merge, rewrite protected files, or bypass
 `LOEN_MODE`.
 
-Plugin internals are documented in `docs/README.md` and
-`docs/architecture.md`.
+Plugin internals are documented in `plugins/loen/docs/architecture.md`.
