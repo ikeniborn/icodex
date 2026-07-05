@@ -99,7 +99,7 @@ topic к objective, и достаточно ли evidence, чтобы остав
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 flowchart TD
-    StartTopic["loen:loop-start создаёт docs/loen/<topic>/"] --> SharedArtifacts["Общий setup: loop.yaml, stage files, attempts.jsonl, evidence/, audit.html"]
+    StartTopic["loen:loop-start создаёт docs/loen/&lt;topic&gt;/"] --> SharedArtifacts["Общий setup: loop.yaml, stage files, attempts.jsonl, evidence/, audit.html"]
     SharedArtifacts --> Branch{"Ветка выполнения?"}
 
     subgraph delivery["Delivery pass"]
@@ -117,7 +117,7 @@ flowchart TD
         GovPolicy["Добавляет или обновляет loop.yaml governance owner, schedule, review rules"]
         GovAttempt["Обязательно для run: attempts.jsonl automation record"]
         GovEvidence["Обязательно для run: evidence/* verifier output"]
-        GovAudit["Обязательно для run: docs/loen/<topic>/audit.html"]
+        GovAudit["Обязательно для run: docs/loen/&lt;topic&gt;/audit.html"]
         GovReview{"Нужен human review?"}
         GovWait["Ожидание owner review"]
     end

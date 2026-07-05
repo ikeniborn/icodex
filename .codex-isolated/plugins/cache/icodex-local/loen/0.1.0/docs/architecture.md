@@ -25,8 +25,8 @@ flowchart LR
     end
 
     subgraph runtime["Repository runtime state"]
-        Topic["docs/loen/<topic>/"]
-        TopicAudit["docs/loen/<topic>/audit.html"]
+        Topic["docs/loen/&lt;topic&gt;/"]
+        TopicAudit["docs/loen/&lt;topic&gt;/audit.html"]
         Todo["docs/TODO.md"]
     end
 
@@ -75,14 +75,14 @@ frontmatter review state.
 flowchart TD
     Event["Codex tool event"] --> ModeCheck{"LOEN_MODE active?"}
     ModeCheck -- "No" --> PassThrough["Allow event"]
-    ModeCheck -- "Yes" --> TopicLoad["Load docs/loen/<topic>/loop.yaml"]
+    ModeCheck -- "Yes" --> TopicLoad["Load docs/loen/&lt;topic&gt;/loop.yaml"]
     TopicLoad --> ScopeCheck{"Path inside allowed scope?"}
     ScopeCheck -- "No" --> DenyScope["Deny with policy reason"]
     ScopeCheck -- "Yes" --> ToolCheck{"Tool and role allowed?"}
     ToolCheck -- "No" --> DenyTool["Deny with policy reason"]
     ToolCheck -- "Yes" --> EvidenceCheck{"Required evidence present?"}
     EvidenceCheck -- "No" --> DenyEvidence["Deny until evidence exists"]
-    EvidenceCheck -- "Yes" --> AuditUpdate["Append evidence and refresh docs/loen/<topic>/audit.html"]
+    EvidenceCheck -- "Yes" --> AuditUpdate["Append evidence and refresh docs/loen/&lt;topic&gt;/audit.html"]
     AuditUpdate --> PassWithRecord["Allow with recorded audit trail"]
 
     classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
@@ -120,7 +120,7 @@ the matching `docs/TODO.md` row without creating duplicate rows.
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 flowchart TD
-    subgraph topic_dir["docs/loen/<topic>/"]
+    subgraph topic_dir["docs/loen/&lt;topic&gt;/"]
         Goal["1_goal.md"]
         Context["2_context.md"]
         Plan["3_plan.md"]
@@ -132,7 +132,7 @@ flowchart TD
         Attempts["attempts.jsonl"]
         Evidence["evidence/*"]
         GovernanceEvidence["evidence/* verifier output"]
-        AuditHtml["docs/loen/<topic>/audit.html"]
+        AuditHtml["docs/loen/&lt;topic&gt;/audit.html"]
         HumanReview["human review requirement"]
     end
 

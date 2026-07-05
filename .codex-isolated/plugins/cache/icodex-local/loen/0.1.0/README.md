@@ -98,7 +98,7 @@ to the objective with enough evidence to keep it?
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 flowchart TD
-    StartTopic["loen:loop-start creates docs/loen/<topic>/"] --> SharedArtifacts["Shared setup: loop.yaml, stage files, attempts.jsonl, evidence/, audit.html"]
+    StartTopic["loen:loop-start creates docs/loen/&lt;topic&gt;/"] --> SharedArtifacts["Shared setup: loop.yaml, stage files, attempts.jsonl, evidence/, audit.html"]
     SharedArtifacts --> Branch{"Execution branch?"}
 
     subgraph delivery["Delivery pass"]
@@ -116,7 +116,7 @@ flowchart TD
         GovPolicy["Adds or updates loop.yaml governance owner, schedule, review rules"]
         GovAttempt["Required for run: attempts.jsonl automation record"]
         GovEvidence["Required for run: evidence/* verifier output"]
-        GovAudit["Required for run: docs/loen/<topic>/audit.html"]
+        GovAudit["Required for run: docs/loen/&lt;topic&gt;/audit.html"]
         GovReview{"Human review required?"}
         GovWait["Wait for owner review"]
     end

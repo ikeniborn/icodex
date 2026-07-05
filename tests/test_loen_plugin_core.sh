@@ -67,6 +67,36 @@ assert_exit "runtime cache docs README absent" 1 test -f "$runtime_cache/docs/RE
 root_readme="$(cat "$plugin_root/README.md" 2>/dev/null || true)"
 root_readme_ru="$(cat "$plugin_root/README.ru.md" 2>/dev/null || true)"
 architecture_text="$(cat "$architecture_doc" 2>/dev/null || true)"
+root_readme_mermaid="$(
+  python3 - "$plugin_root/README.md" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+print("\n".join(re.findall(r"```mermaid\n(.*?)\n```", text, re.S)))
+PY
+)"
+root_readme_ru_mermaid="$(
+  python3 - "$plugin_root/README.ru.md" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+print("\n".join(re.findall(r"```mermaid\n(.*?)\n```", text, re.S)))
+PY
+)"
+architecture_mermaid="$(
+  python3 - "$architecture_doc" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+print("\n".join(re.findall(r"```mermaid\n(.*?)\n```", text, re.S)))
+PY
+)"
 assert_contains "root README explains icodex enablement" "$root_readme" "ICODEX_LOEN_MODE"
 assert_contains "root README explains vendoring" "$root_readme" "scripts/vendor-loen.sh"
 assert_contains "root README explains loop artifacts" "$root_readme" "docs/loen/<topic>/"
@@ -79,6 +109,8 @@ assert_contains "root README says governance does not replace loop pass" "$root_
 assert_contains "root README diagrams governance branch" "$root_readme" "Governance pass"
 assert_contains "root README diagrams shared setup" "$root_readme" "Shared setup: loop.yaml"
 assert_contains "root README diagrams governance artifacts" "$root_readme" "Required for run: attempts.jsonl automation record"
+assert_contains "root README Mermaid escapes topic placeholder" "$root_readme_mermaid" "docs/loen/&lt;topic&gt;/"
+assert_exit "root README Mermaid has no raw topic placeholder" 1 grep -qF "docs/loen/<topic>" <<<"$root_readme_mermaid"
 assert_contains "root README says governance can run after start" "$root_readme" "can run immediately after"
 assert_contains "root README documents topic audit path" "$root_readme" "docs/loen/<topic>/audit.html"
 assert_contains "root README uses real internal docs path" "$root_readme" "plugins/loen/docs/architecture.md"
@@ -95,6 +127,8 @@ assert_contains "root Russian README says governance does not replace loop pass"
 assert_contains "root Russian README diagrams governance branch" "$root_readme_ru" "Governance pass"
 assert_contains "root Russian README diagrams shared setup" "$root_readme_ru" "Общий setup: loop.yaml"
 assert_contains "root Russian README diagrams governance artifacts" "$root_readme_ru" "Обязательно для run: attempts.jsonl automation record"
+assert_contains "root Russian README Mermaid escapes topic placeholder" "$root_readme_ru_mermaid" "docs/loen/&lt;topic&gt;/"
+assert_exit "root Russian README Mermaid has no raw topic placeholder" 1 grep -qF "docs/loen/<topic>" <<<"$root_readme_ru_mermaid"
 assert_contains "root Russian README says governance can run after start" "$root_readme_ru" "можно запускать сразу после"
 assert_contains "root Russian README documents topic audit path" "$root_readme_ru" "docs/loen/<topic>/audit.html"
 assert_contains "root Russian README uses real internal docs path" "$root_readme_ru" "plugins/loen/docs/architecture.md"
@@ -106,8 +140,10 @@ assert_contains "architecture doc has artifact diagram" "$architecture_text" "at
 assert_contains "architecture doc has governance branch" "$architecture_text" "loen:loop-governance"
 assert_contains "architecture doc has governance review artifact" "$architecture_text" "human review requirement"
 assert_contains "architecture doc keeps audit under topic" "$architecture_text" "docs/loen/<topic>/audit.html"
-assert_contains "architecture diagram labels topic audit node" "$architecture_text" 'AuditHtml["docs/loen/<topic>/audit.html"]'
+assert_contains "architecture Mermaid escapes topic placeholder" "$architecture_mermaid" "docs/loen/&lt;topic&gt;/"
+assert_contains "architecture diagram labels topic audit node" "$architecture_mermaid" 'AuditHtml["docs/loen/&lt;topic&gt;/audit.html"]'
 assert_contains "architecture doc groups topic artifacts" "$architecture_text" "subgraph topic_dir"
+assert_exit "architecture Mermaid has no raw topic placeholder" 1 grep -qF "docs/loen/<topic>" <<<"$architecture_mermaid"
 assert_contains "runtime cache includes governance template" "$(cat "$runtime_cache/assets/templates/loop.yaml" 2>/dev/null || true)" "governance:"
 assert_contains "runtime cache includes automation helper" "$(cat "$runtime_cache/hooks/loen_artifacts.py" 2>/dev/null || true)" "append_automation_attempt"
 
