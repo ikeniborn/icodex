@@ -152,6 +152,74 @@ set from the current frontmatter — never a subset:
    `text`, `fix`, `verdict`), or the note «Новых findings нет» when empty.
 6. Summary — the final verdict (`OK` / `needs_work` with the open-count).
 
+## Enriched chain report payload
+
+The existing six owned-tab blocks remain mandatory, but they are the minimum shape, not
+the desired depth. Reconstruct a full enriched owned-tab payload on every run, including
+cached quick-exit runs.
+
+All HTML report user-facing text is Russian. This includes headings, diagram labels,
+notes, table headers, filters, fallback messages, findings labels, and summaries.
+All markdown artifacts remain English: intent, spec, plan, implementation docs, wiki
+pages, and test comments.
+
+The user approves the generated HTML report. Markdown artifacts are the editable source
+of truth, but they are not the user approval surface when a chain report exists. If the
+user gives feedback, feedback is fixed in markdown source artifacts first, then the
+relevant `check-chain <stage>` run regenerates the HTML report for the next review.
+
+Do not invent requirements, dependencies, decisions, risks, or diagrams. Every narrative
+sentence and every diagram edge must be anchored in the current artifact body, linked
+chain artifacts, frontmatter, result diff evidence, or the conversation context available
+to the stage. If the source lacks enough structure for a diagram, emit a compact matrix
+plus a Russian note: `В источнике недостаточно структуры для полноценной схемы; показана
+компактная матрица.`
+
+Every checked stage tab must include these common semantic blocks:
+
+1. Executive overview — one to three Russian paragraphs explaining what the stage proves
+   and why it matters.
+2. Source anchors — section labels or paths for the source material behind the narrative
+   and diagrams.
+3. Approval lens — what is safe, what is risky, what is blocked, and what needs human
+   approval.
+4. Mandatory semantic visualization — the stage-specific diagrams below, or a fallback
+   matrix with the explicit source-lacks-structure note.
+5. Expandable evidence — raw section details, long mappings, source fragments, and
+   findings under `<details>`.
+6. Phase/findings/verdict evidence — current validation state from frontmatter.
+
+Mandatory rich visualizations by stage:
+
+- `intent`:
+  - `Outcome Chain`: problem/objective → desired outcomes → done-when criteria.
+  - `Constraint Matrix`: steering constraints vs hard constraints, including language,
+    offline, and security constraints.
+  - `Autonomy Map`: full, guarded, proposal-first, and no-go decision zones.
+  - `Context Map`: systems, modules, people, docs, and skills that interact with the
+    change.
+- `spec`:
+  - `Requirement Coverage Map`: intent outcome → spec requirement → acceptance criterion.
+  - `Component Graph`: modules, files, skills, docs, and boundaries affected by the
+    design.
+  - `Data Flow`: source artifacts → `check-chain` extraction → enriched payload →
+    `html-report` rendering → user approval.
+  - `Risk/Mitigation Map`: constraint or risk → mitigation or design response.
+- `plan`:
+  - `Step DAG`: dependency order between implementation steps.
+  - `Artifact Impact Map`: plan step → files, skills, docs, report sections, or tests
+    touched.
+  - `Verification Map`: plan step → command/check → expected evidence.
+  - `Human Checkpoint Flow`: proposal-first or no-go decisions derived from autonomy
+    zones.
+- `result`:
+  - `Diff Reconciliation Graph`: plan steps → changed paths → DONE/PARTIAL/MISSING/EXCESS.
+  - `Outcome Evidence Map`: intent outcomes and spec requirements → diff or test evidence.
+  - `Excess/Gap Map`: unplanned changes and missing work, grouped by severity.
+
+Cached quick-exit runs must regenerate the same full enriched owned-tab payload from the
+current source artifacts and stored frontmatter, not a thinner status-only tab.
+
 On a cached quick-exit, re-emit these same six blocks from the stored frontmatter so the
 merged tab is never thinner than the previous run.
 
