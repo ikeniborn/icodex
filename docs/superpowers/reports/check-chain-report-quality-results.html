@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>check-chain-report-quality — IDD/SDD chain</title>
+  <style>
+    :root{--bg:#f8fafc;--surface:#ffffff;--text:#0f172a;--muted:#475569;--border:#cbd5e1;--accent:#2563eb;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--code:#f1f5f9;--line:#94a3b8;--shadow:rgba(15,23,42,.12)}
+    body:has(#theme-toggle:checked){--bg:#0f172a;--surface:#111827;--text:#e5e7eb;--muted:#9ca3af;--border:#374151;--accent:#60a5fa;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--code:#1f2937;--line:#64748b;--shadow:rgba(0,0,0,.4)}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between;padding:24px 32px;border-bottom:1px solid var(--border);background:var(--surface)}
+    h1{margin:0;font-size:22px}
+    h2{margin:0 0 12px;font-size:20px}
+    h3{margin:20px 0 10px;font-size:16px}
+    main{padding:24px 32px}
+    .theme-btn,.chain-tabs label{cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;padding:8px 12px}
+    .chain-tabs{display:flex;gap:4px;padding:16px 32px 0;background:var(--bg)}
+    .chain-tabs label{border-bottom-left-radius:0;border-bottom-right-radius:0;color:var(--muted)}
+    body:has(#tab-intent:checked) label[for="tab-intent"],
+    body:has(#tab-spec:checked) label[for="tab-spec"],
+    body:has(#tab-plan:checked) label[for="tab-plan"],
+    body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent);border-color:var(--accent);font-weight:700}
+    .tab-pane{display:none;background:var(--surface);border:1px solid var(--border);border-radius:0 8px 8px 8px;padding:24px}
+    body:has(#tab-intent:checked) #pane-intent,
+    body:has(#tab-spec:checked) #pane-spec,
+    body:has(#tab-plan:checked) #pane-plan,
+    body:has(#tab-result:checked) #pane-result{display:block}
+    table{width:100%;border-collapse:collapse;margin:12px 0 18px}
+    th,td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+    th{background:var(--code)}
+    code{background:var(--code);padding:2px 5px;border-radius:5px}
+    .lead{font-size:16px;margin:0 0 16px;color:var(--text)}
+    .note{border-left:4px solid var(--accent);padding:12px 14px;background:var(--code);color:var(--text);border-radius:0 8px 8px 0}
+    .badge{display:inline-block;border-radius:999px;padding:2px 8px;font-weight:700;border:1px solid currentColor}
+    .passed{background:rgba(21,128,61,.12);color:var(--ok)}
+    .pending{background:rgba(180,83,9,.12);color:var(--warn)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:14px 0 20px}
+    .card{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface);box-shadow:0 2px 10px var(--shadow)}
+    .card b{color:var(--accent)}
+    details{border:1px solid var(--border);border-radius:8px;margin:10px 0;background:var(--surface)}
+    summary{cursor:pointer;padding:10px 12px;font-weight:700;color:var(--accent)}
+    details .body{padding:0 12px 12px;color:var(--text)}
+    figure.diagram{margin:18px 0}
+    figure.diagram svg{width:100%;height:auto;display:block;overflow:visible}
+    .node rect{fill:var(--surface);stroke:var(--border);stroke-width:1.5;filter:drop-shadow(0 2px 4px var(--shadow))}
+    .node text{fill:var(--text);font:600 13px system-ui,sans-serif}
+    .node .sub{fill:var(--muted);font:11px system-ui,sans-serif}
+    .bar{fill:var(--accent)}
+    .bar-ok{fill:var(--ok)}
+    .conn{fill:none;stroke:var(--line);stroke-width:2;marker-end:url(#arr)}
+    .conn-accent{fill:none;stroke:var(--accent);stroke-width:2.4;stroke-dasharray:7 6;marker-end:url(#arrA)}
+    .lbl-bg{fill:var(--bg)}
+    .lbl{fill:var(--text);font:11px system-ui,sans-serif}
+  </style>
+</head>
+<body>
+  <input type="checkbox" id="theme-toggle" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden checked>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <marker id="arr" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="9" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="var(--line)"/></marker>
+    <marker id="arrA" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="9" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="var(--accent)"/></marker>
+  </defs></svg>
+  <header>
+    <h1>check-chain-report-quality — IDD/SDD chain</h1>
+    <label for="theme-toggle" class="theme-btn" title="Переключить тему">Тема</label>
+  </header>
+  <nav class="chain-tabs">
+    <label for="tab-intent">Intent</label>
+    <label for="tab-spec">Spec</label>
+    <label for="tab-plan">Plan</label>
+    <label for="tab-result">Result</label>
+  </nav>
+  <main>
+  <!-- TAB:intent START -->
+  <section class="tab-pane" id="pane-intent">
+    <h2>Проверка intent — 2026-07-06</h2>
+    <p class="lead">Цель цепочки — сделать HTML-отчёт главным пользовательским объяснением проверки IDD/SDD: отчёт должен показывать не только статус, но и смысл изменений, зависимости, ограничения, риски и основания для approval.</p>
+
+    <table>
+      <tr><th>Артефакт</th><td><code>docs/superpowers/intents/2026-07-06-check-chain-report-quality-intent.md</code></td></tr>
+      <tr><th>Topic</th><td><code>check-chain-report-quality</code></td></tr>
+      <tr><th>Hash</th><td><code>d2eb391d9d69b9e7</code></td></tr>
+      <tr><th>Status</th><td><span class="badge passed">approved</span></td></tr>
+    </table>
+
+    <h3>Ключевой контур изменения</h3>
+    <figure class="diagram">
+      <svg viewBox="0 0 920 210" role="img" aria-label="Контур формирования отчёта check-chain">
+        <g class="node"><rect x="40" y="50" width="160" height="70" rx="10"/><rect class="bar" x="50" y="64" width="5" height="42" rx="2"/><text x="120" y="80" text-anchor="middle">Source docs</text><text class="sub" x="120" y="101" text-anchor="middle">intent / spec / plan</text></g>
+        <g class="node"><rect x="280" y="50" width="170" height="70" rx="10"/><rect class="bar" x="290" y="64" width="5" height="42" rx="2"/><text x="365" y="80" text-anchor="middle">check-chain</text><text class="sub" x="365" y="101" text-anchor="middle">извлекает смысл</text></g>
+        <g class="node"><rect x="530" y="50" width="170" height="70" rx="10"/><rect class="bar-ok" x="540" y="64" width="5" height="42" rx="2"/><text x="615" y="80" text-anchor="middle">html-report</text><text class="sub" x="615" y="101" text-anchor="middle">рендерит вкладку</text></g>
+        <g class="node"><rect x="770" y="50" width="120" height="70" rx="10"/><rect class="bar-ok" x="780" y="64" width="5" height="42" rx="2"/><text x="830" y="80" text-anchor="middle">User</text><text class="sub" x="830" y="101" text-anchor="middle">approval</text></g>
+        <path class="conn-accent" d="M200,85 H273"/>
+        <path class="conn-accent" d="M450,85 H523"/>
+        <path class="conn-accent" d="M700,85 H763"/>
+        <rect class="lbl-bg" x="238" y="130" width="440" height="20"/>
+        <text class="lbl" x="458" y="145" text-anchor="middle">обогащённый payload: narrative, схемы, зависимости, findings</text>
+      </svg>
+    </figure>
+
+    <h3>Секции intent</h3>
+    <div class="grid">
+      <div class="card"><b>Objective</b><br>Отчёт должен объяснять, что будет построено и почему это можно одобрить без чтения всех markdown-артефактов.</div>
+      <div class="card"><b>Desired Outcomes</b><br>Вкладки intent/spec/plan дают narrative, схемы, coverage/dependency maps и не деградируют при cached quick-exit.</div>
+      <div class="card"><b>Health Metrics</b><br>Детерминированность проверок, offline HTML, tab-merge contract, совместимость с <code>chain-gate.py</code> и читаемость сохраняются.</div>
+      <div class="card"><b>Constraints</b><br>HTML-текст только на русском; markdown-артефакты только на английском; внешние ресурсы и CDN запрещены.</div>
+    </div>
+
+    <details open>
+      <summary>Approval-relevant details</summary>
+      <div class="body">
+        <ul>
+          <li><b>Trust boundary:</b> <code>check-chain</code> остаётся владельцем смыслового payload, потому что он читает source artifacts и frontmatter.</li>
+          <li><b>Renderer boundary:</b> <code>html-report</code> остаётся offline renderer/merge layer и не читает chain sources напрямую.</li>
+          <li><b>JavaScript:</b> малый inline JS допустим; крупная vendored-библиотека требует отдельного обоснования; CDN запрещён.</li>
+          <li><b>Language:</b> пользовательский HTML генерируется по-русски, markdown-документы остаются на английском.</li>
+        </ul>
+      </div>
+    </details>
+
+    <h3>Phase results</h3>
+    <p>
+      <span class="badge passed">structure passed</span>
+      <span class="badge passed">completeness passed</span>
+      <span class="badge passed">clarity passed</span>
+      <span class="badge passed">consistency passed</span>
+      <span class="badge passed">alignment passed</span>
+    </p>
+
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+
+    <h3>Summary</h3>
+    <p><span class="badge passed">OK</span> Intent проходит gate; можно переходить к brainstorming/spec.</p>
+  </section>
+  <!-- TAB:intent END -->
+  <!-- TAB:spec START -->
+  <section class="tab-pane" id="pane-spec">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:spec END -->
+  <!-- TAB:plan START -->
+  <section class="tab-pane" id="pane-plan">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:plan END -->
+  <!-- TAB:result START -->
+  <section class="tab-pane" id="pane-result">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:result END -->
+  </main>
+</body>
+</html>

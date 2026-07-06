@@ -1,3 +1,15 @@
+---
+review:
+  intent_hash: d2eb391d9d69b9e7
+  last_run: 2026-07-06
+  phases:
+    structure: { status: passed }
+    completeness: { status: passed }
+    clarity: { status: passed }
+    consistency: { status: passed }
+    alignment: { status: passed }
+  findings: []
+---
 # Intent: check-chain report quality
 
 **Date:** 2026-07-06
