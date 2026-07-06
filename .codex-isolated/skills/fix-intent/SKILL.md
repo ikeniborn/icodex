@@ -113,18 +113,24 @@ Fix any failures inline, then present.
 
 **File path:** `docs/superpowers/intents/YYYY-MM-DD-<topic>-intent.md`
 
-**User review gate:**
+**Validation-first user review gate:**
 
 1. Show a summary of the written document.
-2. Ask: "Review the intent doc. Approve it or request changes."
-3. On changes requested: edit → re-show → repeat.
-4. On approval: set `Status: approved`, then commit once:
+2. Run `/check-chain intent <path>` while the intent is still `Status: draft`.
+   The check must update frontmatter, generate the HTML report, and return `OK`
+   before any approval request. If it returns `needs_work`, fix the markdown source
+   first, rerun `/check-chain intent <path>`, and do not ask for approval yet.
+3. Present the generated HTML report, not the markdown file, as the approval surface.
+   Ask: "Review the intent HTML report. Approve it or request changes."
+4. On changes requested: edit the markdown source → rerun `/check-chain intent <path>`
+   → present the regenerated HTML report → repeat.
+5. On approval: set `Status: approved`, then commit once:
 
 ```bash
 git add docs/superpowers/intents/ && git commit -m "docs(idd): add intent doc for <topic>"
 ```
 
-5. Only after approval, hand off to brainstorm with this message:
+6. Only after approval, hand off to brainstorm with this message:
 
 ```text
 Intent doc approved at <path> (Status: approved).

@@ -1,7 +1,7 @@
 # Chain Report (multi-tab IDD→SDD merge)
 
 `mode: chain` produces ONE unified report for a whole IDD→SDD chain with four
-switchable tabs — **Intent / Spec / Plan / Result** — that the four `check-*`
+switchable tabs — **Интент / Спека / План / Результат** — that the four `check-*`
 commands fill incrementally. Each command owns ONE tab and updates only that tab;
 the other three are preserved verbatim across runs. Default `standalone` mode (no
 `mode` passed) is unchanged — this file applies only when the caller passes
@@ -37,8 +37,11 @@ contain:
 - expandable evidence using `<details>`;
 - phase, findings, and final verdict evidence.
 
-All visible report text is Russian. Source anchors may include English markdown section
-names, paths, code identifiers, and short source fragments.
+All visible report text is Russian. English is allowed only for technical terms,
+source anchors, English markdown section names, paths, code identifiers, stage keys,
+hash keys, and short source fragments.
+Canonical diagram names in this reference are internal identifiers; visible diagram
+titles in generated HTML must be Russian unless the title is itself a technical term.
 
 ## Mandatory rich visualizations
 
@@ -48,7 +51,8 @@ Result tabs include the same treatment when diff evidence exists.
 - Intent: `Outcome Chain`, `Constraint Matrix`, `Autonomy Map`, `Context Map`.
 - Spec: `Requirement Coverage Map`, `Component Graph`, `Data Flow`, `Risk/Mitigation Map`.
 - Plan: `Step DAG`, `Artifact Impact Map`, `Verification Map`, `Human Checkpoint Flow`.
-- Result: `Diff Reconciliation Graph`, `Outcome Evidence Map`, `Excess/Gap Map`.
+- Result: `Diff Reconciliation Graph`, `Outcome Evidence Map`, `Excess/Gap Map`,
+  `Code Review Findings Map`, `Documentation Evidence Map`, `Decision Propagation Map`.
 
 If the source lacks enough structure for a full diagram, render a compact matrix plus
 the explicit Russian fallback note: `В источнике недостаточно структуры для полноценной
@@ -60,6 +64,9 @@ The generated report is the user approval surface. Markdown chain artifacts rema
 editable source of truth. When the user requests changes, update the relevant markdown
 source first, rerun the owning `check-chain <stage>`, and present the regenerated HTML
 report for the next approval.
+
+Ask for human approval only after `check-chain <stage>` returns `OK` and this report has
+been regenerated. If validation returns `needs_work`, do not request approval yet.
 
 Small inline JavaScript may support filtering, highlighting, expand/collapse controls,
 or tab-local search, but the report must remain readable without JavaScript. Never add
@@ -79,14 +86,14 @@ leave the rest untouched:
   <input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
   <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
   <header>
-    <label for="theme-toggle" class="theme-btn" title="Toggle dark/light">🌙 / ☀️</label>
+    <label for="theme-toggle" class="theme-btn" title="Переключить тёмную/светлую тему">🌙 / ☀️</label>
     <h1>…chain topic…</h1>
   </header>
   <nav class="chain-tabs">
-    <label for="tab-intent">Intent</label>
-    <label for="tab-spec">Spec</label>
-    <label for="tab-plan">Plan</label>
-    <label for="tab-result">Result</label>
+    <label for="tab-intent">Интент</label>
+    <label for="tab-spec">Спека</label>
+    <label for="tab-plan">План</label>
+    <label for="tab-result">Результат</label>
   </nav>
   <!-- TAB:intent START -->
   <section class="tab-pane" id="pane-intent"> …intent content OR placeholder… </section>

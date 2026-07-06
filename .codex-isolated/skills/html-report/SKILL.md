@@ -82,8 +82,7 @@ small inline JavaScript. Preserve the non-owned tabs byte-for-byte except for th
 active `checked` radio state.
 Always preserve the non-owned tabs.
 
-All chain report user-facing text must remain Russian. Markdown source artifacts and
-implementation docs remain English outside the generated HTML report.
+All chain report user-facing text must remain Russian. English visible UI copy is not allowed. English is allowed only for technical terms, code identifiers, file paths, stage keys (`intent`, `spec`, `plan`, `result`), hash keys, source section names, and short source fragments that would lose meaning if translated. Markdown source artifacts and implementation docs remain English outside the generated HTML report.
 
 Small inline JavaScript is allowed only as progressive enhancement for filtering,
 linked-entity highlighting, expand/collapse controls, or tab-local search. The report
@@ -126,6 +125,9 @@ Reject and fix the assembled HTML if any fails:
 - [ ] Output path is under `docs/reports/` OR equals the explicit caller-supplied path — never an unrequested location.
 - [ ] In `mode: chain`, no direct reads of intent/spec/plan/result markdown sources are required by this skill.
 - [ ] In `mode: chain`, enriched owned-tab content is accepted from the caller and non-owned tabs are preserved.
+- [ ] In `mode: chain`, all visible UI text is Russian; English appears only as a
+      technical term, code identifier, file path, stage key, hash key, source section
+      name, or short untranslated source fragment.
 - [ ] Any inline JavaScript is small, bounded, and progressive; core report content remains visible without it.
 
 **`mode: chain` only** (see `references/chain-report.md`):

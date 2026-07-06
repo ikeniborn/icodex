@@ -68,7 +68,7 @@ Locate the stage artifact by: explicit path arg → by `<topic>` in the stage di
 most-recently-modified file in the stage dir. If not found, report
 «Не найден <stage>. Укажи путь: `/check-chain <stage> path/to/file.md`» and stop.
 
-### Step 2 — confirm & init state
+### Step 2 — target confirmation & init state
 
 Report «Буду проверять: `<путь>`. Верно?» and, after confirmation: read the frontmatter;
 if there is no `review:` block, scaffold one for the stage's phase set; compute section
@@ -76,6 +76,10 @@ hashes; reset any finding whose `section_hash` changed to `verdict: open`; updat
 stage hash + `last_run`; maintain the `chain:` block for downstream stages
 (`spec` → `chain.intent`; `plan` → `chain.intent` + `chain.spec`; `intent` writes none).
 Never edit the artifact body — only its frontmatter.
+
+This is only target confirmation, not artifact approval. Do not ask the user to approve
+an intent, spec, or plan before the stage has been checked and its HTML report has been
+generated.
 
 ### Frontmatter contract (MANDATORY shape)
 
@@ -124,11 +128,28 @@ Write the updated frontmatter; report the phase; request verdicts (CRITICAL mand
 
 Apply the Step 0 exit criterion: `OK` or «требует доработки: <N> critical open, <M> warning open».
 
+Human approval is requested only after this stage returns OK and Step 5 has generated
+or refreshed the HTML report. If the verdict is not OK, fix the markdown source first,
+rerun this same stage, and keep the artifact unapproved.
+
+### Step 4A — docs and wiki consistency
+
+Every stage must check whether its verdict changes documented behavior, architecture,
+workflow, command semantics, approval rules, or user-facing report output. If yes,
+update the repository docs that describe the change before final approval. When the
+iwiki MCP server has a bound domain for this project, update the relevant wiki page
+through `wiki_write_page`, `wiki_update_page`, or `wiki_delete_page`, then run
+`wiki_lint`. Broken refs, stale pages for changed sources, or wiki text that contradicts
+the checked artifact keep the stage at `needs_work`.
+
+The HTML report for the stage must include documentation evidence: changed docs/wiki
+pages, unchanged-with-rationale docs, and the `wiki_lint` result when iwiki is bound.
+
 ### Step 5 — HTML report
 
 After the verdict (including the cached quick-exit), invoke the `html-report` skill
 (`skill: "html-report"`) with `mode: chain`, `tab: <stage>`, output
-`docs/superpowers/reports/<topic>-results.html` (one file, four tabs Intent/Spec/Plan/Result;
+`docs/superpowers/reports/<topic>-results.html` (one file, four tabs Интент/Спека/План/Результат;
 update only this stage's tab, preserve the others; create all four if absent with the
 placeholder «Этап ещё не проверен»; all report text in Russian).
 Determine `<topic>`: basename minus `.md`, strip the `^YYYY-MM-DD-` date prefix, strip a
@@ -142,8 +163,8 @@ set from the current frontmatter — never a subset:
 
 1. `<h2>` heading — «Проверка <stage> — <last_run>».
 2. Summary table of the artifact (stage-specific): `plan` → steps + DoD; `spec` →
-   requirements; `intent` → template sections; `result` → the reconciliation table
-   (see result Step 6).
+   requirements; `intent` → template sections; `result` → the reconciliation and
+   review tables (see result Step 8).
 3. Diagram block where the stage has one (`plan`: step-dependency graph, artifact
    overlaps, spec-requirement→step mapping) — omit only when the stage genuinely has none.
 4. Phase results — one badge per phase (`passed` / `in_progress`); `result` shows the
@@ -159,7 +180,10 @@ the desired depth. Reconstruct a full enriched owned-tab payload on every run, i
 cached quick-exit runs.
 
 All HTML report user-facing text is Russian. This includes headings, diagram labels,
-notes, table headers, filters, fallback messages, findings labels, and summaries.
+notes, table headers, filters, fallback messages, findings labels, summaries, navigation
+labels, button labels, tooltips, titles, and placeholders. English is allowed only for technical terms, code identifiers, file paths, stage keys (`intent`, `spec`, `plan`, `result`), hash keys, source section names, and short source fragments that would lose meaning if translated.
+Canonical diagram names below are internal identifiers; visible diagram titles in HTML
+must be Russian unless the title is itself a technical term.
 All markdown artifacts remain English: intent, spec, plan, implementation docs, wiki
 pages, and test comments.
 
@@ -167,6 +191,8 @@ The user approves the generated HTML report. Markdown artifacts are the editable
 of truth, but they are not the user approval surface when a chain report exists. If the
 user gives feedback, feedback is fixed in markdown source artifacts first, then the
 relevant `check-chain <stage>` run regenerates the HTML report for the next review.
+Human approval is requested only after this stage returns OK; the approval decision is
+made from the regenerated HTML report, not from unchecked markdown.
 
 Do not invent requirements, dependencies, decisions, risks, or diagrams. Every narrative
 sentence and every diagram edge must be anchored in the current artifact body, linked
@@ -216,6 +242,9 @@ Mandatory rich visualizations by stage:
   - `Diff Reconciliation Graph`: plan steps → changed paths → DONE/PARTIAL/MISSING/EXCESS.
   - `Outcome Evidence Map`: intent outcomes and spec requirements → diff or test evidence.
   - `Excess/Gap Map`: unplanned changes and missing work, grouped by severity.
+  - `Code Review Findings Map`: changed code paths → reviewed risk → bug finding → fix evidence.
+  - `Documentation Evidence Map`: behavior/architecture/user-facing change → doc or wiki update evidence.
+  - `Decision Propagation Map`: implementation decision drift → intent/spec/plan/doc/wiki updates.
 
 Cached quick-exit runs must regenerate the same full enriched owned-tab payload from the
 current source artifacts and stored frontmatter, not a thinner status-only tab.
@@ -238,7 +267,8 @@ missing upstream stage is `n/a`; `result` on `OK` closes the row (`Result: OK`,
 - Inventing requirements absent from the source (and the conversation, for `intent`).
 - Editing the artifact body (frontmatter is the only exception).
 - Writing «вероятно подразумевается» without a textual anchor.
-- (`result`) Running a code review — that is `/review`, not this check.
+- (`result`) Closing with `OK` while confirmed bugs, missing plan work, failed checks,
+  or required documentation updates remain unresolved.
 
 ## Stage profiles
 
@@ -359,7 +389,11 @@ Closed checklist:
 - Use the diff of changed plan/spec sections already computed in Step 2 (init-state) — do NOT recompute hashes
 - Summary of changed sections
 
-### result reconciliation
+### result reconciliation and review
+
+Result includes a focused code review in addition to diff reconciliation. It verifies
+that the plan was executed, the implementation is not obviously buggy, required checks
+were run, confirmed bugs were fixed, and documentation stayed current.
 
 #### Step 1. Load the plan
 
@@ -408,7 +442,57 @@ Additionally — find `EXCESS`: files changed in the diff with no corresponding 
 - For each requirement / Success Criterion from the spec: is it reflected in the diff?
 - Uncovered → a finding referencing the specific outcome/requirement
 
-#### Step 6. Build the report
+#### Step 6. Focused code review
+
+Review every changed implementation, test, script, config, and documentation path in
+the diff. This is not a broad repository review; limit findings to regressions and
+risks introduced by the current result diff.
+
+Closed checklist (do NOT extend):
+
+- Correctness: logic errors, missing branches, wrong defaults, stale state, broken
+  path handling, malformed data handling, or command injection risks introduced by
+  the diff.
+- Integration: changed APIs, hooks, skills, CLI flags, config keys, or file contracts
+  still match their callers and documented contracts.
+- Tests: new or changed behavior has focused tests, and verification commands recorded
+  by the plan were run or have a documented blocker.
+- Error handling: realistic failure modes introduced by the diff are handled or
+  intentionally surfaced.
+- Docs: behavior, architecture, user-facing workflow, or chain-contract changes are
+  reflected in project docs and iwiki when the project has a bound iwiki domain.
+
+Findings use the same severity table below. Each bug finding must name the changed path,
+the concrete failure mode, the fix required, and the evidence needed to prove the fix.
+
+#### Step 7. Fix bugs, verify, and update docs
+
+Fix every confirmed bug before writing `result_check.verdict: OK`. Apply the smallest
+source change that resolves the finding, rerun the relevant test or command, and record
+the evidence in the Result tab. If a finding cannot be fixed in this pass, keep it open
+and set `result_check.verdict: needs_work`.
+
+Documentation evidence is required for behavior, architecture, or user-facing changes.
+When iwiki is bound for the project, update the relevant wiki page through iwiki MCP
+tools and rerun `wiki_lint`; otherwise update the repository docs that describe the
+changed behavior. Missing required documentation is at least `WARNING`; stale or
+contradictory documentation for the changed behavior is `CRITICAL`.
+
+If implementation changed an approved decision, contract, scope boundary, command
+semantics, report language rule, or verification strategy, propagate that decision
+through the chain before result can pass:
+
+1. Update the earliest affected markdown artifact (`intent`, `spec`, or `plan`) so it
+   describes the implementation that actually shipped, including the reason for the
+   decision change.
+2. Rerun the affected upstream `check-chain <stage>` validations so their frontmatter
+   hashes, findings, HTML tabs, and TODO cells match the revised source.
+3. Update repository docs and iwiki pages that present the old decision.
+4. Rerun `check-chain result <plan>` after those updates, using the new diff evidence.
+
+Do not write `result_check.verdict: OK` while intent, spec, plan, repository docs, or iwiki describe stale decisions. A stale cross-chain artifact is `CRITICAL`; an intentionally unchanged artifact requires a recorded rationale in the Result tab.
+
+#### Step 8. Build the report
 
 Emit the Result tab through the shared **Step 5 — HTML report** flow (`html-report`,
 `mode: chain`, `tab: result`) with the full owned-tab payload. For the result tab the
@@ -419,25 +503,34 @@ a re-merge never drops one:
   `EXCESS` (from reconciliation Step 4), with the matched diff paths.
 - Coverage — each Desired Outcome and each requirement / Success Criterion (from
   reconciliation Step 5) → reflected in the diff, or a finding.
+- Code review findings — every changed path reviewed in Step 6, with bug/risk status,
+  severity, fix evidence, and verification evidence.
+- Documentation evidence — repository docs and iwiki pages updated or intentionally
+  unchanged, with `wiki_lint` result when iwiki is bound.
+- Decision propagation — every implementation-time decision change mapped to the
+  updated intent/spec/plan/docs/wiki artifact or an explicit unchanged rationale.
 - Findings — every `[CRITICAL]` / `[WARNING]` / `[INFO]` from the severity table.
 - Summary — the `verdict` badge (`OK` / `needs_work`).
 
 Preserve the intent / spec / plan tabs verbatim — never regenerate them here.
 
-#### Step 7. Write the state into the plan frontmatter
+#### Step 9. Write the state into the plan frontmatter
 
 After the report, write a machine-readable block into the **plan frontmatter** (do NOT
 touch the plan body — it is the merge-gate pass signal for idd-gate).
 
 1. Compute the plan body hash via the canonical algorithm (see above).
-2. Determine the verdict: `OK` if there are no CRITICAL findings (no MISSING steps);
-   otherwise `needs_work`.
+2. Determine the verdict: `OK` if there are no open CRITICAL findings, no MISSING plan
+   steps, no confirmed unfixed bugs, no failed required verification command, and no
+   stale required documentation; otherwise `needs_work`.
 3. Create the `result_check:` block (or update the existing one) in the plan frontmatter:
    ```yaml
    result_check:
      verdict: OK | needs_work
      plan_hash: <plan body hash>
      last_run: <today>
+     reviewed: true
+     docs_checked: true
    ```
    If the plan has no frontmatter — add it at the start of the file
    (`---` … `---`) without changing the body.
@@ -446,9 +539,9 @@ touch the plan body — it is the merge-gate pass signal for idd-gate).
 
 | Severity | Condition |
 |----------|-----------|
-| `[CRITICAL]` | A plan step is entirely absent from the diff |
-| `[WARNING]` | A step is partially done; or excess changes with no link to the plan |
-| `[INFO]` | A semantic discrepancy; an intent outcome is partially reflected |
+| `[CRITICAL]` | A plan step is entirely absent from the diff; a confirmed bug remains unfixed; a required verification command fails; docs contradict changed behavior; intent/spec/plan/wiki still describe a stale decision |
+| `[WARNING]` | A step is partially done; excess changes have no link to the plan; required documentation evidence is missing; verification evidence is incomplete |
+| `[INFO]` | A semantic discrepancy; an intent outcome is partially reflected; documentation is intentionally unchanged with rationale |
 
 ## Run modes
 
