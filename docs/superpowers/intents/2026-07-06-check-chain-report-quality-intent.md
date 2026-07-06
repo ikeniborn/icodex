@@ -1,6 +1,6 @@
 ---
 review:
-  intent_hash: d2eb391d9d69b9e7
+  intent_hash: e24ebe3e10f72270
   last_run: 2026-07-06
   phases:
     structure: { status: passed }
@@ -28,6 +28,7 @@ The current report is too compressed. Intent, spec, and plan tabs summarize impo
 - The report includes visual maps for flows, dependencies, coverage, and stage relationships where those maps make the change easier to understand.
 - The report uses expandable or interactive sections to preserve depth without turning the first view into noise.
 - Cached quick-exit runs keep the same full report shape and do not replace a rich tab with a thinner status-only tab.
+- User acceptance happens from the generated HTML report. Markdown artifacts remain the editable source of truth, but they are not the review surface the user is expected to approve.
 
 ## Health Metrics
 
@@ -63,6 +64,7 @@ The current report is too compressed. Intent, spec, and plan tabs summarize impo
 - Do not let `html-report` read chain source documents directly in chain mode without a separate proposal-first decision.
 - Do not generate new requirements, dependencies, or decisions without textual anchors in the source artifacts or conversation context.
 - Do not let cached quick-exit produce a smaller or less informative tab than a full validation run.
+- Do not ask the user to approve intent/spec/plan markdown artifacts directly when a chain HTML report exists for the topic; update markdown sources to address feedback, then regenerate the report for review.
 
 ## Autonomy Zones
 
@@ -82,6 +84,7 @@ The current report is too compressed. Intent, spec, and plan tabs summarize impo
 - Halt if: enriched summaries cannot be traced back to intent/spec/plan/result content or the conversation.
 - Escalate if: a vendored JavaScript library appears necessary, the generated report approaches the `html-report` size warning threshold, or the renderer cannot preserve non-owned tabs byte-for-byte.
 - Done when: generated intent/spec/plan report tabs include narrative overview, implementation explanation, dependency/coverage maps, risks/constraints, expandable detail, and full phase/finding/verdict evidence.
+- Done when: the review loop is explicit: user reviews the HTML report, requested changes are made in markdown source artifacts, and `check-chain` regenerates the report before the next approval.
 - Done when: cached quick-exit regenerates the same full owned-tab block set.
 - Done when: the existing chain-gate/frontmatter/TODO contracts remain compatible.
 - Done when: focused checks and the relevant Bash test suite pass, and a self-contained offline HTML report can be opened without external resources.

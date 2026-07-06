@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>check-chain-report-quality — IDD/SDD chain</title>
+  <title>check-chain-report-quality — цепочка IDD/SDD</title>
   <style>
     :root{--bg:#f8fafc;--surface:#ffffff;--text:#0f172a;--muted:#475569;--border:#cbd5e1;--accent:#2563eb;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--code:#f1f5f9;--line:#94a3b8;--shadow:rgba(15,23,42,.12)}
     body:has(#theme-toggle:checked){--bg:#0f172a;--surface:#111827;--text:#e5e7eb;--muted:#9ca3af;--border:#374151;--accent:#60a5fa;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--code:#1f2937;--line:#64748b;--shadow:rgba(0,0,0,.4)}
@@ -56,8 +56,8 @@
 </head>
 <body>
   <input type="checkbox" id="theme-toggle" hidden>
-  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden checked>
-  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden checked>
   <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
   <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -65,14 +65,14 @@
     <marker id="arrA" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="9" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="var(--accent)"/></marker>
   </defs></svg>
   <header>
-    <h1>check-chain-report-quality — IDD/SDD chain</h1>
+    <h1>check-chain-report-quality — цепочка IDD/SDD</h1>
     <label for="theme-toggle" class="theme-btn" title="Переключить тему">Тема</label>
   </header>
   <nav class="chain-tabs">
-    <label for="tab-intent">Intent</label>
-    <label for="tab-spec">Spec</label>
-    <label for="tab-plan">Plan</label>
-    <label for="tab-result">Result</label>
+    <label for="tab-intent">Интент</label>
+    <label for="tab-spec">Спека</label>
+    <label for="tab-plan">План</label>
+    <label for="tab-result">Результат</label>
   </nav>
   <main>
   <!-- TAB:intent START -->
@@ -82,65 +82,134 @@
 
     <table>
       <tr><th>Артефакт</th><td><code>docs/superpowers/intents/2026-07-06-check-chain-report-quality-intent.md</code></td></tr>
-      <tr><th>Topic</th><td><code>check-chain-report-quality</code></td></tr>
-      <tr><th>Hash</th><td><code>d2eb391d9d69b9e7</code></td></tr>
-      <tr><th>Status</th><td><span class="badge passed">approved</span></td></tr>
+      <tr><th>Тема</th><td><code>check-chain-report-quality</code></td></tr>
+      <tr><th>Хеш</th><td><code>e24ebe3e10f72270</code></td></tr>
+      <tr><th>Статус</th><td><span class="badge passed">approved</span></td></tr>
     </table>
 
     <h3>Ключевой контур изменения</h3>
     <figure class="diagram">
       <svg viewBox="0 0 920 210" role="img" aria-label="Контур формирования отчёта check-chain">
-        <g class="node"><rect x="40" y="50" width="160" height="70" rx="10"/><rect class="bar" x="50" y="64" width="5" height="42" rx="2"/><text x="120" y="80" text-anchor="middle">Source docs</text><text class="sub" x="120" y="101" text-anchor="middle">intent / spec / plan</text></g>
+        <g class="node"><rect x="40" y="50" width="160" height="70" rx="10"/><rect class="bar" x="50" y="64" width="5" height="42" rx="2"/><text x="120" y="80" text-anchor="middle">Исходники</text><text class="sub" x="120" y="101" text-anchor="middle">интент / спека / план</text></g>
         <g class="node"><rect x="280" y="50" width="170" height="70" rx="10"/><rect class="bar" x="290" y="64" width="5" height="42" rx="2"/><text x="365" y="80" text-anchor="middle">check-chain</text><text class="sub" x="365" y="101" text-anchor="middle">извлекает смысл</text></g>
         <g class="node"><rect x="530" y="50" width="170" height="70" rx="10"/><rect class="bar-ok" x="540" y="64" width="5" height="42" rx="2"/><text x="615" y="80" text-anchor="middle">html-report</text><text class="sub" x="615" y="101" text-anchor="middle">рендерит вкладку</text></g>
-        <g class="node"><rect x="770" y="50" width="120" height="70" rx="10"/><rect class="bar-ok" x="780" y="64" width="5" height="42" rx="2"/><text x="830" y="80" text-anchor="middle">User</text><text class="sub" x="830" y="101" text-anchor="middle">approval</text></g>
+        <g class="node"><rect x="770" y="50" width="120" height="70" rx="10"/><rect class="bar-ok" x="780" y="64" width="5" height="42" rx="2"/><text x="830" y="80" text-anchor="middle">Пользователь</text><text class="sub" x="830" y="101" text-anchor="middle">принимает отчёт</text></g>
         <path class="conn-accent" d="M200,85 H273"/>
         <path class="conn-accent" d="M450,85 H523"/>
         <path class="conn-accent" d="M700,85 H763"/>
         <rect class="lbl-bg" x="238" y="130" width="440" height="20"/>
-        <text class="lbl" x="458" y="145" text-anchor="middle">обогащённый payload: narrative, схемы, зависимости, findings</text>
+        <text class="lbl" x="458" y="145" text-anchor="middle">обогащённый payload: описание, схемы, зависимости, замечания</text>
       </svg>
     </figure>
 
     <h3>Секции intent</h3>
     <div class="grid">
-      <div class="card"><b>Objective</b><br>Отчёт должен объяснять, что будет построено и почему это можно одобрить без чтения всех markdown-артефактов.</div>
-      <div class="card"><b>Desired Outcomes</b><br>Вкладки intent/spec/plan дают narrative, схемы, coverage/dependency maps и не деградируют при cached quick-exit.</div>
-      <div class="card"><b>Health Metrics</b><br>Детерминированность проверок, offline HTML, tab-merge contract, совместимость с <code>chain-gate.py</code> и читаемость сохраняются.</div>
-      <div class="card"><b>Constraints</b><br>HTML-текст только на русском; markdown-артефакты только на английском; внешние ресурсы и CDN запрещены.</div>
+      <div class="card"><b>Цель</b><br>Отчёт должен объяснять, что будет построено и почему это можно одобрить без чтения всех markdown-артефактов.</div>
+      <div class="card"><b>Желаемые результаты</b><br>Вкладки интента, спеки и плана дают описание, схемы, карты покрытия и зависимостей; пользователь принимает именно HTML-отчёт.</div>
+      <div class="card"><b>Метрики здоровья</b><br>Детерминированность проверок, offline HTML, tab-merge contract, совместимость с <code>chain-gate.py</code> и читаемость сохраняются.</div>
+      <div class="card"><b>Ограничения</b><br>HTML-текст только на русском; markdown-артефакты только на английском; внешние ресурсы и CDN запрещены.</div>
     </div>
 
     <details open>
-      <summary>Approval-relevant details</summary>
+      <summary>Детали для принятия</summary>
       <div class="body">
         <ul>
-          <li><b>Trust boundary:</b> <code>check-chain</code> остаётся владельцем смыслового payload, потому что он читает source artifacts и frontmatter.</li>
-          <li><b>Renderer boundary:</b> <code>html-report</code> остаётся offline renderer/merge layer и не читает chain sources напрямую.</li>
+          <li><b>Граница доверия:</b> <code>check-chain</code> остаётся владельцем смыслового payload, потому что он читает исходные артефакты и frontmatter.</li>
+          <li><b>Граница рендера:</b> <code>html-report</code> остаётся offline renderer/merge layer и не читает chain sources напрямую.</li>
           <li><b>JavaScript:</b> малый inline JS допустим; крупная vendored-библиотека требует отдельного обоснования; CDN запрещён.</li>
-          <li><b>Language:</b> пользовательский HTML генерируется по-русски, markdown-документы остаются на английском.</li>
+          <li><b>Язык:</b> пользовательский HTML генерируется по-русски, markdown-документы остаются на английском.</li>
+          <li><b>Review loop:</b> пользователь смотрит HTML-отчёт; замечания исправляются в markdown-источниках; затем отчёт регенерируется.</li>
         </ul>
       </div>
     </details>
 
-    <h3>Phase results</h3>
+    <h3>Результаты фаз</h3>
     <p>
-      <span class="badge passed">structure passed</span>
-      <span class="badge passed">completeness passed</span>
-      <span class="badge passed">clarity passed</span>
-      <span class="badge passed">consistency passed</span>
-      <span class="badge passed">alignment passed</span>
+      <span class="badge passed">структура прошла</span>
+      <span class="badge passed">полнота прошла</span>
+      <span class="badge passed">ясность прошла</span>
+      <span class="badge passed">согласованность прошла</span>
+      <span class="badge passed">alignment прошёл</span>
     </p>
 
-    <h3>Findings</h3>
+    <h3>Замечания</h3>
     <p class="note">Новых findings нет.</p>
 
-    <h3>Summary</h3>
+    <h3>Итог</h3>
     <p><span class="badge passed">OK</span> Intent проходит gate; можно переходить к brainstorming/spec.</p>
   </section>
   <!-- TAB:intent END -->
   <!-- TAB:spec START -->
   <section class="tab-pane" id="pane-spec">
-    <p class="note">Этап ещё не проверен.</p>
+    <h2>Проверка спеки — 2026-07-06</h2>
+    <p class="lead">Спека фиксирует архитектуру enriched report: <code>check-chain</code> извлекает смысл и строит полный payload, <code>html-report</code> остаётся offline-рендерером и tab-merge слоем. Пользователь принимает артефакты по HTML-отчёту; замечания исправляются в markdown-источниках, после чего отчёт регенерируется.</p>
+
+    <table>
+      <tr><th>Артефакт</th><td><code>docs/superpowers/specs/2026-07-06-check-chain-report-quality-design.md</code></td></tr>
+      <tr><th>Тема</th><td><code>check-chain-report-quality</code></td></tr>
+      <tr><th>Хеш</th><td><code>db4760d8b624fcfa</code></td></tr>
+      <tr><th>Интент</th><td><code>docs/superpowers/intents/2026-07-06-check-chain-report-quality-intent.md</code></td></tr>
+    </table>
+
+    <h3>Обязательная схема: поток принятия</h3>
+    <figure class="diagram">
+      <svg viewBox="0 0 940 260" role="img" aria-label="Поток проверки и принятия HTML-отчёта">
+        <g class="node"><rect x="30" y="62" width="145" height="70" rx="10"/><rect class="bar" x="40" y="76" width="5" height="42" rx="2"/><text x="103" y="92" text-anchor="middle">Markdown</text><text class="sub" x="103" y="113" text-anchor="middle">source of truth</text></g>
+        <g class="node"><rect x="235" y="62" width="160" height="70" rx="10"/><rect class="bar" x="245" y="76" width="5" height="42" rx="2"/><text x="315" y="92" text-anchor="middle">check-chain</text><text class="sub" x="315" y="113" text-anchor="middle">смысл + проверка</text></g>
+        <g class="node"><rect x="455" y="62" width="160" height="70" rx="10"/><rect class="bar-ok" x="465" y="76" width="5" height="42" rx="2"/><text x="535" y="92" text-anchor="middle">HTML-отчёт</text><text class="sub" x="535" y="113" text-anchor="middle">review surface</text></g>
+        <g class="node"><rect x="675" y="62" width="145" height="70" rx="10"/><rect class="bar-ok" x="685" y="76" width="5" height="42" rx="2"/><text x="748" y="92" text-anchor="middle">Пользователь</text><text class="sub" x="748" y="113" text-anchor="middle">принимает / замечает</text></g>
+        <path class="conn-accent" d="M175,97 H228"/>
+        <path class="conn-accent" d="M395,97 H448"/>
+        <path class="conn-accent" d="M615,97 H668"/>
+        <path class="conn" d="M748,132 V200 Q748,214 734,214 L103,214 Q89,214 89,200 V136"/>
+        <rect class="lbl-bg" x="306" y="204" width="245" height="20"/>
+        <text class="lbl" x="428" y="219" text-anchor="middle">замечания → правка markdown → новый отчёт</text>
+      </svg>
+    </figure>
+
+    <h3>Обязательные semantic views</h3>
+    <div class="grid">
+      <div class="card"><b>Карта покрытия требований</b><br>Outcome интента связывается с требованием спеки и acceptance-критерием. Это показывает, что в спеках нет лишнего и нет пропущенного.</div>
+      <div class="card"><b>Граф компонентов</b><br><code>check-chain/SKILL.md</code> владеет смысловым payload; <code>html-report</code> и <code>chain-report.md</code> владеют рендерингом и merge contract.</div>
+      <div class="card"><b>Поток данных</b><br>Markdown artifact → validation/frontmatter → enriched tab payload → offline HTML report → пользовательское принятие.</div>
+      <div class="card"><b>Карта рисков</b><br>Не ломать <code>chain-gate.py</code>, frontmatter, TODO schema, offline-контракт, tab markers и языковое правило.</div>
+    </div>
+
+    <h3>Карта требований</h3>
+    <table>
+      <tr><th>Цель интента</th><th>Требование спеки</th><th>Критерий принятия</th></tr>
+      <tr><td>Отчёт объясняет изменения без чтения markdown</td><td>Executive overview, approval lens, source anchors, expandable evidence</td><td>Пользователь может принять stage по HTML-отчёту.</td></tr>
+      <tr><td>Максимально использовать схемы</td><td>Mandatory rich diagrams для интента, спеки, плана и результата</td><td>Каждая проверенная вкладка имеет обязательную схему или fallback matrix.</td></tr>
+      <tr><td>HTML по-русски, markdown по-английски</td><td>Language boundary в architecture и validation checks</td><td>Все видимые подписи отчёта русские; markdown source остаётся English.</td></tr>
+      <tr><td>Безопасный review loop</td><td>HTML-first review workflow</td><td>Замечания исправляются в markdown, затем <code>check-chain</code> обновляет отчёт.</td></tr>
+      <tr><td>Сохранить gate contracts</td><td>Contract compatibility и non-goals</td><td><code>chain-gate.py</code>, frontmatter, TODO schema и verdict semantics не меняются.</td></tr>
+    </table>
+
+    <details open>
+      <summary>Границы и риски</summary>
+      <div class="body">
+        <ul>
+          <li><b>Не переносим смысл в renderer:</b> <code>html-report</code> не читает markdown-источники в chain-mode.</li>
+          <li><b>Не меняем gate truth:</b> HTML остаётся пользовательским артефактом, но machine gate читает только frontmatter.</li>
+          <li><b>Не добавляем тяжёлую библиотеку:</b> первый scope — CSS, inline SVG, <code>&lt;details&gt;</code>, малый inline JS как enhancement.</li>
+          <li><b>Fallback:</b> если данных для полноценной схемы мало, вкладка показывает компактную матрицу и явную заметку.</li>
+        </ul>
+      </div>
+    </details>
+
+    <h3>Результаты фаз</h3>
+    <p>
+      <span class="badge passed">структура прошла</span>
+      <span class="badge passed">покрытие прошло</span>
+      <span class="badge passed">ясность прошла</span>
+      <span class="badge passed">согласованность прошла</span>
+    </p>
+
+    <h3>Замечания</h3>
+    <p class="note">Новых findings нет.</p>
+
+    <h3>Итог</h3>
+    <p><span class="badge passed">OK</span> Спека проходит gate; можно переходить к implementation plan после review отчёта.</p>
   </section>
   <!-- TAB:spec END -->
   <!-- TAB:plan START -->

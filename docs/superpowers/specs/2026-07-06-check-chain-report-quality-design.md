@@ -1,3 +1,16 @@
+---
+review:
+  spec_hash: db4760d8b624fcfa
+  last_run: 2026-07-06
+  phases:
+    structure: { status: passed }
+    coverage: { status: passed }
+    clarity: { status: passed }
+    consistency: { status: passed }
+  findings: []
+chain:
+  intent: docs/superpowers/intents/2026-07-06-check-chain-report-quality-intent.md
+---
 # Design: enriched check-chain HTML reports
 
 **Date:** 2026-07-06
@@ -21,6 +34,7 @@ This design keeps `check-chain` as the semantic extractor and keeps `html-report
 - The report includes visual maps for flows, dependencies, coverage, and stage relationships where those maps make the change easier to understand.
 - The report uses expandable or interactive sections to preserve depth without turning the first view into noise.
 - Cached quick-exit runs keep the same full report shape and do not replace a rich tab with a thinner status-only tab.
+- User acceptance happens from the generated HTML report. Markdown artifacts remain the editable source of truth, but they are not the review surface the user is expected to approve.
 
 ### Health Metrics
 
@@ -34,6 +48,7 @@ This design keeps `check-chain` as the semantic extractor and keeps `html-report
 ### Done When
 
 - Generated intent/spec/plan report tabs include narrative overview, implementation explanation, dependency/coverage maps, risks/constraints, expandable detail, and full phase/finding/verdict evidence.
+- The review loop is explicit: the user reviews the HTML report, requested changes are made in markdown source artifacts, and `check-chain` regenerates the report before the next approval.
 - Cached quick-exit regenerates the same full owned-tab block set.
 - The existing chain-gate/frontmatter/TODO contracts remain compatible.
 - Focused checks and the relevant Bash test suite pass, and a self-contained offline HTML report can be opened without external resources.
@@ -76,6 +91,20 @@ The enriched report is a user-facing artifact. It must not become a hidden sourc
 All generated report text visible to the user must be Russian. This includes headings, diagram labels, notes, findings table labels, filters, fallback messages, and summaries.
 
 All markdown artifacts stay English. This includes intent, spec, plan, implementation notes, wiki pages, and test comments. Source text can be quoted in its original language only when used as a short anchor or code/path reference.
+
+### 4. HTML-First Review Workflow
+
+The generated HTML report is the approval surface for users. Intent, spec, plan, and result markdown files stay as editable source artifacts, but the user should not be expected to review or approve those markdown files directly when a chain report exists.
+
+The review loop is:
+
+1. `check-chain <stage>` validates the markdown source and regenerates the owned HTML report tab.
+2. The user reviews the HTML report.
+3. If the user has comments, the agent updates the relevant markdown source artifact.
+4. The agent reruns `check-chain <stage>` so the HTML report reflects the updated source.
+5. The user approves the regenerated HTML report.
+
+This makes the HTML report the single user-facing artifact while preserving markdown as the auditable source of truth.
 
 ## Enriched Payload Contract
 
@@ -240,7 +269,9 @@ The marker contract remains unchanged.
 4. `check-chain` builds a full Russian owned-tab payload containing narrative, diagrams, matrices, details, findings, and summary.
 5. `html-report` merges the owned tab into `docs/superpowers/reports/<topic>-results.html`.
 6. `docs/TODO.md` is updated as it is today.
-7. On cached quick-exit, `check-chain` repeats steps 3-5 from current source/frontmatter so the tab stays rich.
+7. The user reviews and approves the HTML report, not the markdown source directly.
+8. If the user requests changes, markdown sources are edited and the relevant `check-chain` stage is rerun to regenerate the report.
+9. On cached quick-exit, `check-chain` repeats steps 3-5 from current source/frontmatter so the tab stays rich.
 
 ## Error Handling
 
@@ -256,6 +287,7 @@ Focused validation should include:
 
 - a text check that `check-chain/SKILL.md` documents all mandatory diagrams for intent, spec, plan, and result;
 - a text check that HTML report user-facing text is specified as Russian-only and markdown artifacts as English-only;
+- a text check that user approval is specified as HTML-report-first, with markdown edits followed by report regeneration;
 - a text check that `html-report` chain mode still does not read chain markdown sources directly;
 - a text check that no CDN, external resource, or `script src` allowance is introduced;
 - a marker-contract check for the chain report reference;
