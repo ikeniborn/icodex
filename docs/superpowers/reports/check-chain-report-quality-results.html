@@ -58,8 +58,8 @@
   <input type="checkbox" id="theme-toggle" hidden>
   <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
   <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
-  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden checked>
-  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
     <marker id="arr" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="9" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="var(--line)"/></marker>
     <marker id="arrA" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="9" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="var(--accent)"/></marker>
@@ -295,7 +295,61 @@
   <!-- TAB:plan END -->
   <!-- TAB:result START -->
   <section class="tab-pane" id="pane-result">
-    <p class="note">Этап ещё не проверен.</p>
+    <h2>Проверка результата — 2026-07-06</h2>
+    <p class="lead">Реализация совпадает с планом: добавлен failing contract test, расширены инструкции <code>check-chain</code>, <code>html-report</code> и <code>chain-report.md</code>, пройдены focused/full проверки, обновлён iwiki. Итоговый verdict — <span class="badge passed">OK</span>.</p>
+
+    <table>
+      <tr><th>План</th><td><code>docs/superpowers/plans/2026-07-06-check-chain-report-quality.md</code></td></tr>
+      <tr><th>Plan hash</th><td><code>035b24e3424a165b</code></td></tr>
+      <tr><th>Diff base</th><td><code>origin/master...HEAD</code></td></tr>
+      <tr><th>Verdict</th><td><span class="badge passed">OK</span></td></tr>
+    </table>
+
+    <h3>Diff Reconciliation Graph</h3>
+    <table>
+      <tr><th>Plan task</th><th>Status</th><th>Evidence paths</th></tr>
+      <tr><td>Task 1: failing contract test</td><td><span class="badge passed">DONE</span></td><td><code>tests/test_chain_report_quality.sh</code></td></tr>
+      <tr><td>Task 2: check-chain enriched payload</td><td><span class="badge passed">DONE</span></td><td><code>.codex-isolated/skills/check-chain/SKILL.md</code></td></tr>
+      <tr><td>Task 3: html-report renderer boundary</td><td><span class="badge passed">DONE</span></td><td><code>.codex-isolated/skills/html-report/SKILL.md</code></td></tr>
+      <tr><td>Task 4: chain-report semantic reference</td><td><span class="badge passed">DONE</span></td><td><code>.codex-isolated/skills/html-report/references/chain-report.md</code></td></tr>
+      <tr><td>Task 5: focused and full validation</td><td><span class="badge passed">DONE</span></td><td><code>bash tests/test_chain_report_quality.sh</code>; <code>for t in tests/test_*.sh; do bash "$t" || exit 1; done</code></td></tr>
+      <tr><td>Task 6: chain artifacts</td><td><span class="badge passed">DONE</span></td><td><code>docs/superpowers/plans/2026-07-06-check-chain-report-quality.md</code>, <code>docs/superpowers/reports/check-chain-report-quality-results.html</code>, <code>docs/TODO.md</code></td></tr>
+      <tr><td>Task 7: iwiki update</td><td><span class="badge passed">DONE</span></td><td><code>icodex/testing-and-project-state.md</code> → <code>Superpowers Artifacts</code>; lint: no broken refs, no stale pages</td></tr>
+    </table>
+
+    <h3>Outcome Evidence Map</h3>
+    <table>
+      <tr><th>Outcome / requirement</th><th>Evidence</th></tr>
+      <tr><td>Mandatory rich diagrams documented for all stages</td><td><code>check-chain/SKILL.md</code> includes Outcome Chain, Constraint Matrix, Autonomy Map, Context Map, Requirement Coverage Map, Component Graph, Data Flow, Risk/Mitigation Map, Step DAG, Artifact Impact Map, Verification Map, Human Checkpoint Flow, Diff Reconciliation Graph, Outcome Evidence Map, Excess/Gap Map.</td></tr>
+      <tr><td>Russian HTML / English markdown rule documented</td><td><code>check-chain/SKILL.md</code> and <code>html-report/SKILL.md</code> contain language boundary; focused test asserts both strings.</td></tr>
+      <tr><td>HTML-first approval workflow documented</td><td><code>check-chain/SKILL.md</code>, <code>chain-report.md</code>, iwiki page, and focused test cover generated HTML as approval surface and markdown as editable source.</td></tr>
+      <tr><td>Renderer boundary preserved</td><td><code>html-report/SKILL.md</code> states chain mode does not read intent/spec/plan/result markdown sources and preserves non-owned tabs.</td></tr>
+      <tr><td>Offline/self-contained contract preserved</td><td>Focused test asserts no CDN wording; report self-contained check passed.</td></tr>
+    </table>
+
+    <h3>Excess/Gap Map</h3>
+    <table>
+      <tr><th>Type</th><th>Status</th><th>Notes</th></tr>
+      <tr><td>Missing planned work</td><td><span class="badge passed">none</span></td><td>All seven plan tasks have evidence.</td></tr>
+      <tr><td>Unplanned code changes</td><td><span class="badge passed">none</span></td><td>Diff touches only planned skill docs, test, chain docs, report, TODO.</td></tr>
+      <tr><td>Warnings</td><td><span class="badge pending">advisory</span></td><td>iwiki lint still reports unrelated missing_source/advisory items for existing pages; no broken refs and no stale pages.</td></tr>
+    </table>
+
+    <h3>Проверки</h3>
+    <table>
+      <tr><th>Команда</th><th>Результат</th></tr>
+      <tr><td><code>bash tests/test_chain_report_quality.sh</code></td><td><span class="badge passed">PASS=34 FAIL=0</span></td></tr>
+      <tr><td><code>bash tests/test_idd_skills.sh</code></td><td><span class="badge passed">PASS=12 FAIL=0</span></td></tr>
+      <tr><td><code>bash tests/test_skill_routing.sh</code></td><td><span class="badge passed">PASS=35 FAIL=0</span></td></tr>
+      <tr><td><code>bash tests/test_smoke.sh</code></td><td><span class="badge passed">PASS=21 FAIL=0</span></td></tr>
+      <tr><td><code>for t in tests/test_*.sh; do bash "$t" || exit 1; done</code></td><td><span class="badge passed">exit 0</span></td></tr>
+    </table>
+
+    <h3>Замечания</h3>
+    <p class="note">Новых critical findings нет. Result verdict: OK.</p>
+
+    <h3>Итог</h3>
+    <p><span class="badge passed">OK</span> Цепочка закрыта: intent/spec/plan/result согласованы с реализацией.</p>
   </section>
   <!-- TAB:result END -->
   </main>
