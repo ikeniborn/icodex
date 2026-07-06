@@ -67,6 +67,29 @@ inline-fetch and do not silently drop the element.
    two-axis tables, badges, and `.note` callouts, study the in-skill `references/`
    files (`svg-diagrams.md`, `svg-fallback.md`, `css-diagrams.md`) before assembling a
    non-trivial architecture report.
+
+### Chain-mode enriched payload boundary
+
+In `mode: chain`, `html-report` is a renderer and merge layer. It does not read intent,
+spec, plan, or result markdown sources in chain mode. It reads only the existing
+caller-supplied target report as a merge source, then replaces the owned tab content
+passed by the caller.
+It does not read intent, spec, plan, or result markdown sources in chain mode.
+
+`html-report` chain mode accepts a fully enriched owned-tab payload from the caller. That
+payload may include narrative blocks, tables, `<details>`, inline SVG, CSS diagrams, and
+small inline JavaScript. Preserve the non-owned tabs byte-for-byte except for the single
+active `checked` radio state.
+Always preserve the non-owned tabs.
+
+All chain report user-facing text must remain Russian. Markdown source artifacts and
+implementation docs remain English outside the generated HTML report.
+
+Small inline JavaScript is allowed only as progressive enhancement for filtering,
+linked-entity highlighting, expand/collapse controls, or tab-local search. The report
+must remain readable when JavaScript is disabled. no CDN, no `<script src>`, no fetch, no
+external images, and no sibling assets.
+
 4. Assemble ONE HTML document:
    - `<head>`: a single inline `<style>` (theme custom-props + recipe CSS + dynamics).
    - `<body>`: semantic HTML5 (`<table>` / `<figure>` / `<details>`), the theme-toggle
@@ -101,6 +124,9 @@ Reject and fix the assembled HTML if any fails:
 - [ ] Shared `<defs>` (dropshadow + arrow markers) present if any SVG diagram is used.
 - [ ] File size ≤ 5 MB — if larger, **warn** the user (soft limit).
 - [ ] Output path is under `docs/reports/` OR equals the explicit caller-supplied path — never an unrequested location.
+- [ ] In `mode: chain`, no direct reads of intent/spec/plan/result markdown sources are required by this skill.
+- [ ] In `mode: chain`, enriched owned-tab content is accepted from the caller and non-owned tabs are preserved.
+- [ ] Any inline JavaScript is small, bounded, and progressive; core report content remains visible without it.
 
 **`mode: chain` only** (see `references/chain-report.md`):
 
