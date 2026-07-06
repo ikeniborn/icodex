@@ -24,6 +24,47 @@ The skill never reads chain sources itself; all tab content arrives inline. The
 ONLY file the skill reads in this mode is the existing `target` (its own prior
 output), as a merge source.
 
+## Semantic owned-tab blocks
+
+The caller owns the stage semantics and passes complete owned-tab HTML. The tab should
+contain:
+
+- executive overview;
+- artifact summary;
+- source anchors;
+- approval lens;
+- mandatory semantic visualization;
+- expandable evidence using `<details>`;
+- phase, findings, and final verdict evidence.
+
+All visible report text is Russian. Source anchors may include English markdown section
+names, paths, code identifiers, and short source fragments.
+
+## Mandatory rich visualizations
+
+Every checked intent/spec/plan tab must include semantic diagrams or compact matrices.
+Result tabs include the same treatment when diff evidence exists.
+
+- Intent: `Outcome Chain`, `Constraint Matrix`, `Autonomy Map`, `Context Map`.
+- Spec: `Requirement Coverage Map`, `Component Graph`, `Data Flow`, `Risk/Mitigation Map`.
+- Plan: `Step DAG`, `Artifact Impact Map`, `Verification Map`, `Human Checkpoint Flow`.
+- Result: `Diff Reconciliation Graph`, `Outcome Evidence Map`, `Excess/Gap Map`.
+
+If the source lacks enough structure for a full diagram, render a compact matrix plus
+the explicit Russian fallback note: `В источнике недостаточно структуры для полноценной
+схемы; показана компактная матрица.`
+
+## HTML-first review flow
+
+The generated report is the user approval surface. Markdown chain artifacts remain the
+editable source of truth. When the user requests changes, update the relevant markdown
+source first, rerun the owning `check-chain <stage>`, and present the regenerated HTML
+report for the next approval.
+
+Small inline JavaScript may support filtering, highlighting, expand/collapse controls,
+or tab-local search, but the report must remain readable without JavaScript. Never add
+CDN or external runtime dependencies.
+
 ## Document skeleton + boundary markers
 
 The unified file is one self-contained zero-JS HTML. Tab regions are delimited by
