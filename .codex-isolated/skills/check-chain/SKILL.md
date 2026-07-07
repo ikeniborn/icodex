@@ -187,6 +187,27 @@ must be Russian unless the title is itself a technical term.
 All markdown artifacts remain English: intent, spec, plan, implementation docs, wiki
 pages, and test comments.
 
+Visible Russian title map for canonical diagram identifiers:
+
+- Outcome Chain -> Цепочка результатов
+- Constraint Matrix -> Матрица ограничений
+- Autonomy Map -> Карта автономии
+- Context Map -> Карта контекста
+- Requirement Coverage Map -> Карта покрытия требований
+- Component Graph -> Граф компонентов
+- Data Flow -> Поток данных
+- Risk/Mitigation Map -> Карта рисков и мер
+- Step DAG -> Граф шагов
+- Artifact Impact Map -> Карта влияния на артефакты
+- Verification Map -> Карта проверок
+- Human Checkpoint Flow -> Поток человеческих контрольных точек
+- Diff Reconciliation Graph -> Граф сверки diff
+- Outcome Evidence Map -> Карта свидетельств результатов
+- Excess/Gap Map -> Карта лишнего и пропусков
+- Code Review Findings Map -> Карта замечаний code review
+- Documentation Evidence Map -> Карта документационных свидетельств
+- Decision Propagation Map -> Карта распространения решений
+
 The user approves the generated HTML report. Markdown artifacts are the editable source
 of truth, but they are not the user approval surface when a chain report exists. If the
 user gives feedback, feedback is fixed in markdown source artifacts first, then the

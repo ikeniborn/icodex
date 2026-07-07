@@ -63,9 +63,11 @@ icodex keeps Codex state in two layers:
 
 Anything after the first non-flag argument (or after `--`) is passed straight to `codex`.
 On `--install`/`--update` the `icodex` symlink is created in `ICODEX_LINK_DIR`. `--install`
-and `--update` fetch only the Codex binary; `--update` prints each network/install stage
-with curl's download progress bar. The Superpowers plugin and skills ship through git and
-are updated only by maintainer scripts.
+and `--update` fetch only the Codex binary. `--update` resolves the latest release first;
+if that version already matches the installed stamp and lockfile pin, it skips the archive
+download, extraction, and lockfile rewrite. When a newer release exists, `--update` prints
+each network/install stage with curl's download progress bar. The Superpowers plugin and
+skills ship through git and are updated only by maintainer scripts.
 
 ## Configuration variables
 
