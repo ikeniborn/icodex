@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Проверка chain: loen-loop-run</title>
+  <style>
+    :root{color-scheme:dark;--bg:#15171a;--surface:#20242a;--panel:#262b33;--text:#eceff4;--muted:#aeb7c2;--border:#3b4350;--accent:#7cc4ff;--ok:#7ddc9a;--warn:#ffd166;--bad:#ff7a90}
+    body:has(#theme-toggle:checked){color-scheme:light;--bg:#f8fafc;--surface:#ffffff;--panel:#eef2f7;--text:#17202a;--muted:#5d6b7a;--border:#cbd5e1;--accent:#0369a1;--ok:#047857;--warn:#a16207;--bad:#be123c}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    header{padding:28px clamp(16px,4vw,48px) 16px;border-bottom:1px solid var(--border);background:var(--surface)}
+    main{padding:0 clamp(16px,4vw,48px) 48px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.theme-btn{border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);background:var(--panel);cursor:pointer}
+    h1{margin:0 0 8px;font-size:clamp(26px,4vw,42px);letter-spacing:0} h2{margin:28px 0 10px;font-size:24px} h3{margin:22px 0 8px;font-size:18px}.muted{color:var(--muted)}code{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+    .chain-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:18px clamp(16px,4vw,48px) 0}.chain-tabs label{cursor:pointer;padding:8px 13px;border:1px solid var(--border);border-radius:6px 6px 0 0;background:var(--surface);color:var(--muted)}
+    .tab-pane{display:none;border-top:1px solid var(--border);padding-top:22px}body:has(#tab-intent:checked) #pane-intent,body:has(#tab-spec:checked) #pane-spec,body:has(#tab-plan:checked) #pane-plan,body:has(#tab-result:checked) #pane-result{display:block}
+    body:has(#tab-intent:checked) label[for=tab-intent],body:has(#tab-spec:checked) label[for=tab-spec],body:has(#tab-plan:checked) label[for=tab-plan],body:has(#tab-result:checked) label[for=tab-result]{color:var(--accent);border-color:var(--accent);font-weight:700}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}.note{background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:6px;padding:12px}.badge{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:2px 9px;background:var(--panel);font-size:13px}.ok{color:var(--ok);border-color:var(--ok)}.warn{color:var(--warn);border-color:var(--warn)}
+    table{width:100%;border-collapse:collapse;margin:12px 0;background:var(--surface);border:1px solid var(--border)}th,td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top;text-align:left}th{color:var(--muted);font-weight:700}
+    .flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:12px 0}.step{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px}.step strong{display:block;color:var(--accent)}details{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;margin:12px 0}summary{cursor:pointer;font-weight:700}
+  </style>
+</head>
+<body>
+  <input type="checkbox" id="theme-toggle" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden checked>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+  <header>
+    <div class="top">
+      <div>
+        <h1>Проверка chain: loen-loop-run</h1>
+        <p class="muted">Единый отчёт IDD → SDD. Активная вкладка: intent.</p>
+      </div>
+      <label for="theme-toggle" class="theme-btn" title="Переключить тему">Тема</label>
+    </div>
+  </header>
+  <nav class="chain-tabs">
+    <label for="tab-intent">Интент</label>
+    <label for="tab-spec">Спека</label>
+    <label for="tab-plan">План</label>
+    <label for="tab-result">Результат</label>
+  </nav>
+  <main>
+  <!-- TAB:intent START -->
+  <section class="tab-pane" id="pane-intent">
+    <h2>Проверка intent — 2026-07-08</h2>
+    <p>Интент фиксирует переход LoEn от ручной цепочки после `loop-start` к guided workflow: старт собирает требования, выбирает режим, утверждает plan, затем передаёт execution в отдельный `loen:loop-run &lt;topic&gt;`.</p>
+    <p>Главный риск — не превратить automation в обход safety gates. Документ сохраняет `docs/loen/&lt;topic&gt;/` как источник истины, оставляет manual skills совместимыми и требует policy/evidence для delivery, governance auto-fix и governance merge/release.</p>
+
+    <h3>Сводка артефакта</h3>
+    <table>
+      <tr><th>Поле</th><th>Значение</th></tr>
+      <tr><td>Источник</td><td><code>docs/superpowers/intents/2026-07-08-loen-loop-run-intent.md</code></td></tr>
+      <tr><td>Hash</td><td><code>a288eb7962e37707</code></td></tr>
+      <tr><td>Статус проверки</td><td><span class="badge ok">OK</span></td></tr>
+      <tr><td>Статус intent</td><td><span class="badge ok">approved</span></td></tr>
+      <tr><td>Findings</td><td>Новых findings нет</td></tr>
+    </table>
+
+    <h3>Цепочка результатов</h3>
+    <div class="flow" aria-label="Цепочка результатов">
+      <div class="step"><strong>Проблема</strong>После `loop-start` пользователь вручную вызывает каждый следующий LoEn skill.</div>
+      <div class="step"><strong>Start</strong>Сбор intent, success criteria, режим, параметры, approved plan.</div>
+      <div class="step"><strong>Run</strong><code>loen:loop-run &lt;topic&gt;</code> ведёт выбранный режим.</div>
+      <div class="step"><strong>Финиш</strong><code>7_result.md</code> или <code>handoff.md</code>, evidence и audit.</div>
+    </div>
+
+    <h3>Матрица ограничений</h3>
+    <table>
+      <tr><th>Тип</th><th>Ограничение</th><th>Зачем</th></tr>
+      <tr><td>Steering</td><td>`loop-start` отвечает за intake, mode selection, parameters, plan approval.</td><td>Пользователь не теряет planning step.</td></tr>
+      <tr><td>Steering</td><td>Governance default report-only; auto-fix и merge/release только explicit.</td><td>Trust-first automation.</td></tr>
+      <tr><td>Hard</td><td>`loop-start` не делает code changes, merge, release, destructive operations.</td><td>Start остаётся approval gate.</td></tr>
+      <tr><td>Hard</td><td>`loop-run` не обходит `LOEN_MODE`, protected scope, evidence gates, verifier.</td><td>Safety hooks сохраняют силу.</td></tr>
+      <tr><td>Hard</td><td>Approval на `loop-start` достаточен для merge/release automation, если policy/evidence проходят.</td><td>Поведение соответствует обсуждённой autonomy.</td></tr>
+    </table>
+
+    <h3>Карта автономии</h3>
+    <div class="grid">
+      <div class="card"><strong>Full</strong><br>Scaffold/update topic artifacts; delivery run в approved mutable scope; governance report-only.</div>
+      <div class="card"><strong>Guarded</strong><br>Governance auto-fix и merge/release automation при explicit policy, scope, verifier, budget, recovery rules.</div>
+      <div class="card"><strong>Proposal-first</strong><br>Изменения hook enforcement, `LOEN_MODE`, gates, `docs/TODO.md` format.</div>
+      <div class="card"><strong>No autonomy</strong><br>Silent auto-fix, merge, release, destructive or secret-affecting actions без recorded approval.</div>
+    </div>
+
+    <h3>Карта контекста</h3>
+    <table>
+      <tr><th>Область</th><th>Связанные элементы</th></tr>
+      <tr><td>Skills</td><td><code>loop-start</code>, новый <code>loop-run</code>, <code>loop-plan</code>, <code>loop-act</code>, <code>loop-check</code>, <code>loop-reflect</code>, <code>loop-governance</code>, <code>loop-status</code></td></tr>
+      <tr><td>Artifacts</td><td><code>docs/loen/&lt;topic&gt;/</code>, <code>loop.yaml</code>, <code>attempts.jsonl</code>, <code>audit.html</code>, <code>docs/TODO.md</code></td></tr>
+      <tr><td>Safety</td><td><code>LOEN_MODE</code>, protected scope, evidence gates, verifier commands, role/tool policy, worker/verifier separation</td></tr>
+      <tr><td>Docs</td><td><code>plugins/loen/README.md</code>, <code>plugins/loen/docs/architecture.md</code>, iwiki domain <code>icodex</code></td></tr>
+    </table>
+
+    <h3>Approval lens</h3>
+    <p class="note">Безопасно продолжать к design: intent охватывает requested workflow, сохраняет manual path, вводит runner как отдельный skill и явно включает governance merge/release automation в текущий scope. Риск остаётся в policy деталях merge/release; design должен описать stop conditions и verification contract.</p>
+
+    <details>
+      <summary>Evidence: phase results</summary>
+      <table>
+        <tr><th>Phase</th><th>Status</th></tr>
+        <tr><td>structure</td><td><span class="badge ok">passed</span></td></tr>
+        <tr><td>completeness</td><td><span class="badge ok">passed</span></td></tr>
+        <tr><td>clarity</td><td><span class="badge ok">passed</span></td></tr>
+        <tr><td>consistency</td><td><span class="badge ok">passed</span></td></tr>
+        <tr><td>alignment</td><td><span class="badge ok">passed</span></td></tr>
+      </table>
+    </details>
+  </section>
+  <!-- TAB:intent END -->
+  <!-- TAB:spec START -->
+  <section class="tab-pane" id="pane-spec">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:spec END -->
+  <!-- TAB:plan START -->
+  <section class="tab-pane" id="pane-plan">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:plan END -->
+  <!-- TAB:result START -->
+  <section class="tab-pane" id="pane-result">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:result END -->
+  </main>
+</body>
+</html>
