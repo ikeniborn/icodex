@@ -1,0 +1,13 @@
+PASS [update exits zero]
+PASS [install update called]
+PASS [uv dependency ensured on update]
+PASS [symlink refreshed on update]
+PASS [superpowers not called on update]
+PASS [loen not called on update]
+PASS [install exits zero]
+PASS [install ensure called]
+PASS [superpowers not called on install]
+PASS [loen not called on install]
+PASS [install/update did not vendor LoEn]
+---
+PASS=11 FAIL=0

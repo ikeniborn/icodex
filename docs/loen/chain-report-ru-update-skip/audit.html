@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LoEn аудит: chain-report-ru-update-skip</title>
+</head>
+<body>
+  <main>
+    <h1>LoEn аудит: chain-report-ru-update-skip</h1>
+    <section>
+      <h2>Текущее состояние</h2>
+      <p><strong>Статус:</strong> complete</p>
+      <p><strong>Режим:</strong> delivery</p>
+      <p><strong>Этап:</strong> result</p>
+      <p><strong>Цель:</strong> исправить качество русского HTML-отчёта check-chain и пропуск скачивания при неизменной версии update.</p>
+      <p><strong>Итог:</strong> реализовано и проверено.</p>
+    </section>
+    <section>
+      <h2>Краткий контракт цикла</h2>
+      <p><strong>Изменяемая область:</strong> навыки check-chain/html-report, один chain report, install/update код, focused tests, LoEn-артефакты.</p>
+      <p><strong>Защищённая область:</strong> локальные конфиги, auth/state, секреты.</p>
+      <p><strong>Проверки:</strong> focused report quality, install/update tests, full Bash suite.</p>
+      <p><strong>Rollback:</strong> откатывать только изменения этой темы.</p>
+    </section>
+    <section>
+      <h2>Проверки</h2>
+      <ul>
+        <li><code>bash tests/test_chain_report_quality.sh</code>: PASS=82 FAIL=0</li>
+        <li><code>bash tests/test_install.sh</code>: PASS=53 FAIL=0</li>
+        <li><code>bash tests/test_update_scope.sh</code>: PASS=11 FAIL=0</li>
+        <li><code>for t in tests/test_*.sh; do bash "$t" || exit 1; done</code>: exit 0</li>
+        <li><code>wiki_lint(domain="icodex")</code>: stale pages 0, broken refs 0</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

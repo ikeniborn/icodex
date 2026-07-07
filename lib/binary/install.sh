@@ -192,6 +192,13 @@ install_ensure() {
   fi
   [[ -n "$tag" ]] || { log_error "no codex version pinned and latest unresolved"; return 1; }
 
+  if (( update )) && [[ -x "$ICODEX_BIN" && -f "$ICODEX_STAMP" && -n "$want_version" ]]; then
+    if [[ "$tag" == "$want_version" && "$(cat "$ICODEX_STAMP")" == "$tag" ]]; then
+      log_info "codex already at latest $tag; skipping download"
+      return 0
+    fi
+  fi
+
   local url tarball sha
   url="$(_release_url "$tag" "$asset")"
   tarball="$(mktemp)"

@@ -1,0 +1,163 @@
+topic: chain-report-ru-update-skip
+mode: delivery
+status: complete
+objective: "Fix check-chain chain HTML report Russian-only quality and make icodex --update skip downloads when the latest version is unchanged."
+current_stage: result
+stage: result
+created: "2026-07-07"
+updated: "2026-07-07"
+mutable_scope:
+  - .codex-isolated/skills/check-chain/**
+  - .codex-isolated/skills/html-report/**
+  - docs/superpowers/reports/check-chain-report-quality-results.html
+  - lib/binary/install.sh
+  - tests/test_chain_report_quality.sh
+  - tests/test_install.sh
+  - tests/test_update_scope.sh
+  - docs/loen/chain-report-ru-update-skip/**
+  - docs/TODO.md
+protected_scope:
+  - .codex_config
+  - .codex-homes/**
+  - .codex-isolated/auth.json
+  - .codex-isolated/config.toml
+  - secrets/**
+quality_gates:
+  - command: bash tests/test_chain_report_quality.sh
+    evidence: docs/loen/chain-report-ru-update-skip/evidence/chain-report-quality.log
+  - command: bash tests/test_install.sh
+    evidence: docs/loen/chain-report-ru-update-skip/evidence/test-install.log
+  - command: bash tests/test_update_scope.sh
+    evidence: docs/loen/chain-report-ru-update-skip/evidence/test-update-scope.log
+  - command: for t in tests/test_*.sh; do bash "$t" || exit 1; done
+    evidence: docs/loen/chain-report-ru-update-skip/evidence/full-suite.log
+verifier:
+  type: test
+  command: bash tests/test_chain_report_quality.sh && bash tests/test_install.sh && bash tests/test_update_scope.sh
+budget:
+  max_iterations: 3
+stop_conditions:
+  - quality gates pass
+  - report language audit has no banned visible English labels
+  - update skip path has focused test evidence
+handoff_conditions:
+  - check-chain execution requires human approval of regenerated HTML report
+  - update behavior needs a new CLI flag or network contract beyond skip-when-same-version
+rollback_policy: "Revert only changes made for this topic; do not touch unrelated user changes."
+governance:
+  automation_type: manual
+  schedule: ""
+  owner: ""
+  first_runs_require_human_review: 3
+  reviewed_runs: 0
+  auto_fix: false
+  auto_merge: false
+  report_only_on_no_findings: true
+  alert_on:
+    - protected_scope_attempt
+    - verifier_failure
+    - budget_exhausted
+    - metric_regression
+context_capsule:
+  required_fields:
+    - Topic
+    - Objective
+    - Loop mode
+    - Current stage
+    - Mutable scope
+    - Protected scope
+    - Quality gates
+    - Relevant files
+    - Last evidence summary
+    - Specific question or task for the agent
+profiles:
+  planner: loen-planner
+  worker: loen-worker
+  verifier: loen-verifier
+  reviewer: loen-reviewer
+  researcher: loen-researcher
+execution:
+  isolation: wasm
+  executor: wasmtime
+  network: off
+  mounts:
+    - path: .
+      mode: read-only
+    - path: /tmp/loen
+      mode: write
+agents:
+  planner:
+    tools: [read, search]
+    sandbox: read-only
+  worker:
+    tools: [read, search, edit, shell]
+    sandbox: workspace-write
+  verifier:
+    tools: [read, search, shell]
+    sandbox: read-only
+    must_not_edit: true
+  reviewer:
+    tools: [read, search, shell]
+    sandbox: read-only
+    must_not_edit: true
+  researcher:
+    tools: [read, search, shell]
+    sandbox: read-only
+    experiment_scope_required: true
+stages:
+  goal:
+    roles: [planner, worker]
+  context:
+    roles: [planner, worker, researcher]
+  plan:
+    roles: [planner]
+  act:
+    roles: [worker]
+  check:
+    roles: [verifier]
+  reflect:
+    roles: [planner, verifier, reviewer]
+  result:
+    roles: [planner, verifier, reviewer]
+tools:
+  allowed:
+    - read
+    - search
+    - apply_patch
+    - shell
+  denied:
+    - network
+    - secrets
+    - destructive_git
+    - external_write
+permissions:
+  filesystem:
+    mutable_scope:
+      - .codex-isolated/skills/check-chain/**
+      - .codex-isolated/skills/html-report/**
+      - docs/superpowers/reports/check-chain-report-quality-results.html
+      - lib/binary/install.sh
+      - tests/test_chain_report_quality.sh
+      - tests/test_install.sh
+      - tests/test_update_scope.sh
+      - docs/loen/chain-report-ru-update-skip/**
+      - docs/TODO.md
+    protected_scope:
+      - .codex_config
+      - .codex-homes/**
+      - .codex-isolated/auth.json
+      - .codex-isolated/config.toml
+      - secrets/**
+  network:
+    mode: off
+    allowlist: []
+  shell:
+    allow:
+      - bash tests/test_chain_report_quality.sh
+      - bash tests/test_install.sh
+      - bash tests/test_update_scope.sh
+      - for t in tests/test_*.sh; do bash "$t" || exit 1; done
+    deny_patterns:
+      - rm -rf
+      - git reset --hard
+      - curl *|sh

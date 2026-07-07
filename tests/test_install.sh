@@ -139,6 +139,26 @@ assert_contains "update logs extract" "$out" "extracting codex binary"
 assert_contains "update logs lockfile" "$out" "writing lockfile"
 rm -rf "$tmp"
 
+# --- Case D3b: --update skips download when latest is already installed ---
+setup_case
+printf '0\n' > "$tmp/resolve-count"
+printf '0\n' > "$tmp/download-count"
+_bump_count() { local path="$1" n; n="$(cat "$path")"; printf '%s\n' "$((n+1))" > "$path"; }
+_download() { _bump_count "$tmp/download-count"; cp "$FIXTURE_TAR" "$2"; }
+_resolve_latest() { _bump_count "$tmp/resolve-count"; echo "rust-v1.2.3"; }
+printf '#!/bin/sh\necho codex-fixture 0.0.0\n' > "$ICODEX_BIN"; chmod +x "$ICODEX_BIN"
+printf '%s\n' "rust-v1.2.3" > "$ICODEX_STAMP"
+lockfile_write "$ICODEX_LOCKFILE" "rust-v1.2.3" "codex-x86_64-unknown-linux-musl.tar.gz" "old_sha"
+out="$(install_ensure --update 2>&1)"
+update_rc=$?
+assert_eq "unchanged update exits zero" "0" "$update_rc"
+assert_eq "unchanged update resolves latest once" "1" "$(cat "$tmp/resolve-count")"
+assert_eq "unchanged update skips download" "0" "$(cat "$tmp/download-count")"
+assert_eq "unchanged update keeps old sha" "old_sha" "$(lockfile_get "$ICODEX_LOCKFILE" sha256)"
+assert_contains "unchanged update logs skip" "$out" "codex already at latest rust-v1.2.3"
+unset -f _bump_count
+rm -rf "$tmp"
+
 # --- Case D4: failed binary replacement stops update before stamp/lockfile rewrite ---
 setup_case
 _download() { DL_CALLS=$((DL_CALLS+1)); command cp "$FIXTURE_TAR" "$2"; }
