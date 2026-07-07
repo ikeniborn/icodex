@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>icodex-pii-proxy — chain report</title>
+<style>
+:root{color-scheme:dark;--bg:#101114;--surface:#181b20;--panel:#20242b;--text:#eef2f7;--muted:#a9b2c0;--border:#3a4150;--accent:#79c0ff;--ok:#7ee787;--warn:#f2cc60}
+body:has(#theme-toggle:checked){color-scheme:light;--bg:#f7f8fb;--surface:#ffffff;--panel:#eef2f7;--text:#18202b;--muted:#5d6979;--border:#c9d2df;--accent:#0969da;--ok:#1f883d;--warn:#9a6700}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+header{padding:24px clamp(16px,4vw,48px);background:var(--surface);border-bottom:1px solid var(--border)}
+h1{margin:0 0 6px;font-size:28px}h2{font-size:22px;margin:28px 0 12px}h3{font-size:17px;margin:20px 0 10px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 clamp(16px,4vw,48px) 40px}
+.theme-btn{float:right;border:1px solid var(--border);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--accent)}
+.chain-tabs{display:flex;gap:4px;max-width:1180px;margin:18px auto 0;padding:0 clamp(16px,4vw,48px);border-bottom:1px solid var(--border)}
+.chain-tabs label{cursor:pointer;padding:8px 14px;border:1px solid var(--border);border-bottom:0;border-radius:6px 6px 0 0;background:var(--surface);color:var(--muted)}
+.tab-pane{display:none}.tab-radio{position:absolute;opacity:0}
+body:has(#tab-intent:checked) #pane-intent,body:has(#tab-spec:checked) #pane-spec,body:has(#tab-plan:checked) #pane-plan,body:has(#tab-result:checked) #pane-result{display:block}
+body:has(#tab-intent:checked) label[for="tab-intent"],body:has(#tab-spec:checked) label[for="tab-spec"],body:has(#tab-plan:checked) label[for="tab-plan"],body:has(#tab-result:checked) label[for="tab-result"]{color:var(--accent);border-color:var(--accent);font-weight:700}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin:14px 0}.note{background:var(--panel);border-left:4px solid var(--accent);padding:12px 14px;border-radius:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.badge{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:13px}.ok{color:var(--ok);border-color:var(--ok)}.warn{color:var(--warn);border-color:var(--warn)}
+table{width:100%;border-collapse:collapse;margin:12px 0;background:var(--surface)}th,td{border:1px solid var(--border);padding:9px 10px;text-align:left;vertical-align:top}th{background:var(--panel)}
+details{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:12px 0;background:var(--surface)}summary{cursor:pointer;color:var(--accent);font-weight:700}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:stretch}.node{border:1px solid var(--border);border-radius:8px;background:var(--panel);padding:12px}.arrow{color:var(--muted);text-align:center;align-self:center}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)}
+</style>
+</head>
+<body>
+<input type="checkbox" id="theme-toggle" hidden>
+<input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden checked>
+<input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<header>
+<label for="theme-toggle" class="theme-btn" title="Переключить тёмную/светлую тему">Тема</label>
+<h1>icodex-pii-proxy</h1>
+<p>Единый отчёт цепочки IDD-SDD. Активная вкладка: Интент.</p>
+</header>
+<nav class="chain-tabs">
+<label for="tab-intent">Интент</label>
+<label for="tab-spec">Спека</label>
+<label for="tab-plan">План</label>
+<label for="tab-result">Результат</label>
+</nav>
+<main class="wrap">
+<!-- TAB:intent START -->
+<section class="tab-pane" id="pane-intent">
+<h2>Проверка intent — 2026-07-08</h2>
+<div class="card">
+<h3>Обзор</h3>
+<p>Интент фиксирует доверенную цель: добавить opt-in PII proxy для Codex OpenAI API traffic, чтобы критичная персональная информация и секреты не уходили в OpenAI cloud без masking.</p>
+<p>Langfuse capture выделен как отдельный доверенный режим анализа промптов на пользовательском сервере. OpenAI-compatible provider routing явно не входит в scope.</p>
+</div>
+<div class="card">
+<h3>Сводка артефакта</h3>
+<table>
+<tr><th>Поле</th><th>Значение</th></tr>
+<tr><td>Источник</td><td><code>docs/superpowers/intents/2026-07-08-icodex-pii-proxy-intent.md</code></td></tr>
+<tr><td>Статус markdown</td><td><span class="badge ok">approved</span></td></tr>
+<tr><td>Hash</td><td><code>c98989f5cc258367</code></td></tr>
+<tr><td>Вердикт проверки</td><td><span class="badge ok">OK</span></td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Цепочка результатов</h3>
+<div class="flow">
+<div class="node"><strong>Проблема</strong><br>Критичные данные могут уходить в OpenAI cloud.</div>
+<div class="node"><strong>Цель</strong><br>Masking до выхода из локальной среды.</div>
+<div class="node"><strong>Результаты</strong><br>Masked upstream request, fail-secure, install/status path.</div>
+<div class="node"><strong>Done when</strong><br>Локальный upstream видит masked spans; non-PII tests pass.</div>
+</div>
+</div>
+<div class="card">
+<h3>Матрица ограничений</h3>
+<table>
+<tr><th>Тип</th><th>Ограничение</th><th>Риск, который закрывает</th></tr>
+<tr><td>Steering</td><td>Precision-first masking; не искажать контекст задачи.</td><td>Плохие ответы из-за лишнего masking.</td></tr>
+<tr><td>Steering</td><td>Default: secrets и надёжные pattern-based PII.</td><td>False positives от broad NER.</td></tr>
+<tr><td>Hard</td><td>Без opt-in обычный launch path не меняется.</td><td>Регрессия текущего функционала.</td></tr>
+<tr><td>Hard</td><td>Requested PII protection fails secure.</td><td>Тихий запуск без защиты.</td></tr>
+<tr><td>Hard</td><td>Не писать raw PII/secrets в normal logs.</td><td>Локальная утечка через logs.</td></tr>
+<tr><td>Hard</td><td>Не маскировать system/developer instructions и structural tool fields.</td><td>Поломка инструкций и tool execution.</td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Карта автономии</h3>
+<table>
+<tr><th>Зона</th><th>Решения</th></tr>
+<tr><td>Full</td><td>Адаптация структуры iclaude, имена тестов, docs draft, исключение Langfuse из first protection implementation.</td></tr>
+<tr><td>Guarded</td><td>Имена env/CLI/status и installation layout по convention icodex.</td></tr>
+<tr><td>Proposal-first</td><td>Default masking classes, Langfuse capture, изменение normal non-PII launch path.</td></tr>
+<tr><td>No autonomy</td><td>Default unmasked capture, weakening fail-secure, отправка sensitive logs на non-user-controlled service.</td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Карта контекста</h3>
+<table>
+<tr><th>Область</th><th>Связь</th><th>Статус</th></tr>
+<tr><td>Codex CLI OpenAI API traffic</td><td>Основной поток защиты.</td><td>В scope</td></tr>
+<tr><td><code>ICODEX_PROXY</code>, <code>ICODEX_NO_PROXY</code>, CA trust repair</td><td>Транспортный слой должен продолжать работать.</td><td>Health metric</td></tr>
+<tr><td>Langfuse</td><td>Trusted capture без masking для prompt analysis.</td><td>Separate mode</td></tr>
+<tr><td>iwiki/statusline/router</td><td>Не цель first scope, кроме install/status visibility.</td><td>Out of initial scope</td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Фазы проверки</h3>
+<p><span class="badge ok">structure passed</span> <span class="badge ok">completeness passed</span> <span class="badge ok">clarity passed</span> <span class="badge ok">consistency passed</span> <span class="badge ok">alignment passed</span></p>
+<p class="note">Findings не обнаружены. TODO row открыт: <code>icodex-pii-proxy</code>, intent = checked.</p>
+</div>
+<details>
+<summary>Свидетельства</summary>
+<ul>
+<li>Все 7 секций intent template присутствуют.</li>
+<li>Constraints разделены на Steering и Hard.</li>
+<li>Autonomy Zones покрывают Full, Guarded, Proposal-first, No autonomy.</li>
+<li>Stop Rules содержат наблюдаемый <code>Done when</code>.</li>
+<li>Conversation alignment: задача пользователя про защиту критичных данных в OpenAI cloud и отдельный trusted Langfuse режим отражена в Objective и Desired Outcomes.</li>
+</ul>
+</details>
+</section>
+<!-- TAB:intent END -->
+<!-- TAB:spec START -->
+<section class="tab-pane" id="pane-spec"><p class="note">Этап ещё не проверен.</p></section>
+<!-- TAB:spec END -->
+<!-- TAB:plan START -->
+<section class="tab-pane" id="pane-plan"><p class="note">Этап ещё не проверен.</p></section>
+<!-- TAB:plan END -->
+<!-- TAB:result START -->
+<section class="tab-pane" id="pane-result"><p class="note">Этап ещё не проверен.</p></section>
+<!-- TAB:result END -->
+</main>
+</body>
+</html>
