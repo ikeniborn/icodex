@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>icodex-telemetry — chain report</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --surface:#ffffff; --fg:#2b2b3a; --muted:#6b6b80;
+      --accent:#5c6bc0; --accent-2:#3949ab; --border:#d6d8e6; --line:#9aa0b4; --zebra:#eef0f8;
+      --ok:#43a047; --ok-2:#2e7d32; --warn:#fb8c00; --warn-2:#ef6c00; --danger:#e53935; --danger-2:#c62828;
+      --shadow:rgba(40,40,80,.18);
+    }
+    body:has(#theme-toggle:checked){
+      --bg:#181825; --surface:#262637; --fg:#cdd6f4; --muted:#a6adc8;
+      --accent:#89b4fa; --accent-2:#5e95f0; --border:#3a3b52; --line:#6c7086; --zebra:#21222f;
+      --ok:#a6e3a1; --ok-2:#74c46e; --warn:#f9e2af; --warn-2:#f5c95b; --danger:#f38ba8; --danger-2:#e8638a;
+      --shadow:rgba(0,0,0,.45);
+    }
+    body{
+      margin:0 auto; padding:1.5rem 2rem 4rem; max-width:1120px;
+      font:16px/1.55 system-ui, sans-serif;
+      background:radial-gradient(1200px 500px at 100% -10%, color-mix(in srgb,var(--accent) 10%, transparent), transparent), var(--bg);
+      color:var(--fg); transition:background .3s, color .3s;
+    }
+    code{ background:color-mix(in srgb, var(--accent) 9%, var(--surface)); padding:.08rem .28rem; border-radius:4px; }
+    h1,h2,h3{ color:var(--accent); line-height:1.2; }
+    .theme-btn{ position:sticky; top:.5rem; float:right; cursor:pointer; user-select:none; padding:.25rem .6rem; border:1px solid var(--border); border-radius:6px; background:var(--surface); }
+    .sub{ color:var(--muted); font-size:.95rem; }
+    .lead{ font-size:1.08rem; }
+    .note{ border-left:4px solid var(--accent); padding:.55rem 1rem; margin:1rem 0; background:color-mix(in srgb, var(--accent) 8%, var(--surface)); border-radius:0 8px 8px 0; box-shadow:0 1px 8px var(--shadow); }
+    .badge{ display:inline-block; font-size:.74rem; padding:.08rem .5rem; border-radius:999px; border:1px solid var(--border); }
+    .ok{ color:var(--ok-2); border-color:var(--ok); }
+    .warn{ color:var(--warn-2); border-color:var(--warn); }
+    .danger{ color:var(--danger-2); border-color:var(--danger); }
+    .tab-pane{ display:none; }
+    body:has(#tab-intent:checked) #pane-intent,
+    body:has(#tab-spec:checked) #pane-spec,
+    body:has(#tab-plan:checked) #pane-plan,
+    body:has(#tab-result:checked) #pane-result{ display:block; }
+    .chain-tabs{ display:flex; gap:.25rem; margin:1.5rem 0 0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+    .chain-tabs label{ cursor:pointer; padding:.45rem .9rem; border:1px solid var(--border); border-bottom:none; border-radius:8px 8px 0 0; background:var(--surface); color:var(--muted); }
+    body:has(#tab-intent:checked) label[for="tab-intent"],
+    body:has(#tab-spec:checked) label[for="tab-spec"],
+    body:has(#tab-plan:checked) label[for="tab-plan"],
+    body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); border-color:var(--accent); font-weight:700; }
+    .tab-pane{ background:var(--surface); border:1px solid var(--border); border-top:none; padding:1.2rem; border-radius:0 0 10px 10px; box-shadow:0 2px 12px var(--shadow); }
+    .rpt-table{ border-collapse:separate; border-spacing:0; width:100%; background:var(--surface); margin:1rem 0; font-size:.92rem; border:1px solid var(--border); border-radius:10px; overflow:hidden; box-shadow:0 2px 12px var(--shadow); }
+    .rpt-table th,.rpt-table td{ border-bottom:1px solid var(--border); padding:.5rem .75rem; text-align:left; vertical-align:top; }
+    .rpt-table tbody tr:last-child td{ border-bottom:none; }
+    .rpt-table thead th{ background:var(--accent); color:var(--bg); }
+    .rpt-table tbody tr:nth-child(even){ background:var(--zebra); }
+    .rpt-flow{ display:flex; align-items:center; gap:0; margin:1rem 0; flex-wrap:wrap; }
+    .rpt-flow .node{ background:var(--surface); color:var(--fg); border:1px solid var(--border); border-radius:8px; padding:.6rem 1rem; max-width:15rem; }
+    .rpt-flow .arrow{ flex:0 0 2.5rem; height:2px; background:var(--line); position:relative; }
+    .rpt-flow .arrow::after{ content:""; position:absolute; right:0; top:-4px; border:5px solid transparent; border-left-color:var(--line); }
+    .grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:.75rem; margin:1rem 0; }
+    .card{ border:1px solid var(--border); border-left:4px solid var(--accent); border-radius:8px; padding:.75rem; background:var(--surface); box-shadow:0 1px 8px var(--shadow); }
+    details{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:.7rem 1rem; margin:.7rem 0; box-shadow:0 1px 8px var(--shadow); }
+    details summary{ cursor:pointer; font-weight:700; color:var(--accent); }
+    ul.tight li{ margin:.28rem 0; }
+  </style>
+</head>
+<body>
+  <input type="checkbox" id="theme-toggle" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden checked>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+  <label for="theme-toggle" class="theme-btn" title="Переключить тёмную/светлую тему">тема</label>
+  <header>
+    <h1>icodex-telemetry</h1>
+    <p class="sub">Единый отчёт chain · intent/spec/plan/result · обновлено 2026-07-08</p>
+  </header>
+  <nav class="chain-tabs">
+    <label for="tab-intent">Интент</label>
+    <label for="tab-spec">Спека</label>
+    <label for="tab-plan">План</label>
+    <label for="tab-result">Результат</label>
+  </nav>
+  <!-- TAB:intent START -->
+  <section class="tab-pane" id="pane-intent">
+    <h2>Проверка intent — 2026-07-08</h2>
+    <p class="lead">Интент фиксирует цель: добавить opt-in телеметрию для двух поверхностей наблюдаемости. Grafana отвечает за ops-метрики сессий, Langfuse отвечает за LLM traces с привязкой к проекту и сессии.</p>
+    <p>Проверка подтверждает, что документ содержит все обязательные разделы IDD, outcomes наблюдаемы, hard constraints отделены от steering constraints, autonomy zones покрывают четыре зоны, а stop rules имеют измеримый done-when.</p>
+
+    <h3>Сводка артефакта</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Поле</th><th>Значение</th></tr></thead>
+      <tbody>
+        <tr><td>Источник</td><td><code>docs/superpowers/intents/2026-07-07-icodex-telemetry-intent.md</code></td></tr>
+        <tr><td>Статус</td><td><code>approved</code>; проверка intent: <span class="badge ok">OK</span></td></tr>
+        <tr><td>Hash</td><td><code>intent_hash=df3ee3f37250cee6</code></td></tr>
+        <tr><td>Документация</td><td>Поведение ещё не реализовано; repository docs/wiki не менялись. `wiki_lint` выполнен, старые advisory/missing_source не относятся к теме.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Источник и якоря</h3>
+    <ul class="tight">
+      <li><code>Objective</code>: оба канала наблюдаемости для icodex.</li>
+      <li><code>Desired Outcomes</code>: Grafana dashboard, Langfuse traces, opt-in через <code>.codex_config</code>.</li>
+      <li><code>Constraints</code>: no default telemetry, no prompt/body metrics, no secrets in tracked artifacts, no network in tests, preserve exit code.</li>
+      <li><code>Autonomy Zones</code>: proposal-first для proxy/capture layer, Docker Compose, новых deps и dashboard assets.</li>
+    </ul>
+
+    <h3>Линза approval</h3>
+    <div class="grid">
+      <div class="card"><b>Безопасно</b><br>Проектировать opt-in Bash-first wiring, env mapping, tests, docs.</div>
+      <div class="card"><b>Риск</b><br>Langfuse может потребовать capture layer; это proposal-first.</div>
+      <div class="card"><b>Заблокировано</b><br>Включать telemetry by default или отправлять prompts/secrets наружу.</div>
+      <div class="card"><b>Нужен человек</b><br>Выбор proxy/capture layer, Docker Compose stack, новые Python/Node dependencies.</div>
+    </div>
+
+    <h3>Цепочка результатов</h3>
+    <figure class="rpt-flow" aria-label="Цепочка результатов">
+      <div class="node">Проблема: у icodex нет наблюдаемости, в отличие от iclaude</div>
+      <div class="arrow"></div>
+      <div class="node">Grafana показывает session ops metrics</div>
+      <div class="arrow"></div>
+      <div class="node">Langfuse получает LLM traces с tags</div>
+      <div class="arrow"></div>
+      <div class="node">Opt-in design готов к implementation plan</div>
+    </figure>
+
+    <h3>Матрица ограничений</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Тип</th><th>Ограничение</th><th>Эффект на дизайн</th></tr></thead>
+      <tbody>
+        <tr><td>Steering</td><td>Reuse iclaude ideas where they fit Codex</td><td>Сначала сравнить `iclaude`, затем адаптировать под Codex contracts.</td></tr>
+        <tr><td>Steering</td><td>Prefer standard OpenTelemetry, Prometheus, and Langfuse contracts</td><td>Избегать custom metrics protocol без причины.</td></tr>
+        <tr><td>Hard</td><td>No telemetry unless explicitly enabled</td><td>Default launch path остаётся без сервисов и network telemetry.</td></tr>
+        <tr><td>Hard</td><td>No prompts, request bodies, response bodies in Grafana metrics</td><td>Ops metrics должны быть metadata-only.</td></tr>
+        <tr><td>Hard</td><td>Preserve Codex exit code</td><td>Wrapper должен proxy/observe без потери return code.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Карта автономии</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Зона</th><th>Решения</th></tr></thead>
+      <tbody>
+        <tr><td>Full</td><td>Read iclaude refs, inspect icodex source/docs, design Bash modules/tests/docs.</td></tr>
+        <tr><td>Guarded</td><td>Choose minimal opt-in telemetry architecture that does not start services by default.</td></tr>
+        <tr><td>Proposal-first</td><td>Add proxy/capture layer, Docker Compose stack, new Python/Node deps, dashboard assets.</td></tr>
+        <tr><td>No autonomy</td><td>Send real prompts/secrets externally, change auth flow, enable telemetry by default.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Карта контекста</h3>
+    <div class="grid">
+      <div class="card"><b>Launch</b><br><code>icodex.sh</code>, <code>lib/launcher/launch.sh</code></div>
+      <div class="card"><b>Config</b><br><code>.codex_config</code>, <code>lib/config/env.sh</code></div>
+      <div class="card"><b>Network</b><br>proxy, <code>NO_PROXY</code>, telemetry endpoints</div>
+      <div class="card"><b>Stores</b><br>per-project <code>CODEX_HOME</code>, project attribution</div>
+      <div class="card"><b>Observability</b><br>Grafana, Prometheus, OpenTelemetry collector, Langfuse</div>
+      <div class="card"><b>Governance</b><br>tests, repository docs, iwiki domain <code>icodex</code></div>
+    </div>
+
+    <details>
+      <summary>Детали фаз проверки</summary>
+      <table class="rpt-table">
+        <thead><tr><th>Фаза</th><th>Статус</th><th>Свидетельство</th></tr></thead>
+        <tbody>
+          <tr><td>structure</td><td><span class="badge ok">passed</span></td><td>Все 7 IDD sections присутствуют, placeholders не найдены.</td></tr>
+          <tr><td>completeness</td><td><span class="badge ok">passed</span></td><td>Hard/steering разделены, four autonomy zones покрыты, done-when есть.</td></tr>
+          <tr><td>clarity</td><td><span class="badge ok">passed</span></td><td>Outcomes user-facing и observable.</td></tr>
+          <tr><td>consistency</td><td><span class="badge ok">passed</span></td><td>Противоречий между constraints, objective и health metrics нет.</td></tr>
+          <tr><td>alignment</td><td><span class="badge ok">passed</span></td><td>Conversation и iwiki context согласованы; старые `wiki_lint` advisory вне темы.</td></tr>
+        </tbody>
+      </table>
+    </details>
+
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+
+    <h3>Итог</h3>
+    <p><span class="badge ok">OK</span> intent approved. Можно начинать `superpowers:brainstorming` для design spec.</p>
+  </section>
+  <!-- TAB:intent END -->
+  <!-- TAB:spec START -->
+  <section class="tab-pane" id="pane-spec">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:spec END -->
+  <!-- TAB:plan START -->
+  <section class="tab-pane" id="pane-plan">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:plan END -->
+  <!-- TAB:result START -->
+  <section class="tab-pane" id="pane-result">
+    <p class="note">Этап ещё не проверен.</p>
+  </section>
+  <!-- TAB:result END -->
+</body>
+</html>
