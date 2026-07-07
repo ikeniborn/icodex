@@ -90,7 +90,7 @@
       <tbody>
         <tr><td>Источник</td><td><code>docs/superpowers/intents/2026-07-07-icodex-telemetry-intent.md</code></td></tr>
         <tr><td>Статус</td><td><code>approved</code>; проверка intent: <span class="badge ok">OK</span></td></tr>
-        <tr><td>Hash</td><td><code>intent_hash=df3ee3f37250cee6</code></td></tr>
+        <tr><td>Hash</td><td><code>intent_hash=be601daccfd4f18c</code></td></tr>
         <tr><td>Документация</td><td>Поведение ещё не реализовано; repository docs/wiki не менялись. `wiki_lint` выполнен, старые advisory/missing_source не относятся к теме.</td></tr>
       </tbody>
     </table>
@@ -98,16 +98,16 @@
     <h3>Источник и якоря</h3>
     <ul class="tight">
       <li><code>Objective</code>: оба канала наблюдаемости для icodex.</li>
-      <li><code>Desired Outcomes</code>: Grafana dashboard, Langfuse traces, opt-in через <code>.codex_config</code>.</li>
-      <li><code>Constraints</code>: no default telemetry, no prompt/body metrics, no secrets in tracked artifacts, no network in tests, preserve exit code.</li>
+      <li><code>Desired Outcomes</code>: Grafana dashboard, full-fidelity local trusted Langfuse traces, opt-in через <code>.codex_config</code>.</li>
+      <li><code>Constraints</code>: no default telemetry, no prompt/body metrics in Grafana, prompt/response capture only to local trusted Langfuse, no secrets in tracked artifacts, no network in tests, preserve exit code.</li>
       <li><code>Autonomy Zones</code>: proposal-first для proxy/capture layer, Docker Compose, новых deps и dashboard assets.</li>
     </ul>
 
     <h3>Линза approval</h3>
     <div class="grid">
       <div class="card"><b>Безопасно</b><br>Проектировать opt-in Bash-first wiring, env mapping, tests, docs.</div>
-      <div class="card"><b>Риск</b><br>Langfuse может потребовать capture layer; это proposal-first.</div>
-      <div class="card"><b>Заблокировано</b><br>Включать telemetry by default или отправлять prompts/secrets наружу.</div>
+      <div class="card"><b>Риск</b><br>Full-fidelity Langfuse требует prompt/response capture и может потребовать capture layer; это proposal-first.</div>
+      <div class="card"><b>Заблокировано</b><br>Включать telemetry by default или отправлять prompts/responses/secrets в non-local endpoint.</div>
       <div class="card"><b>Нужен человек</b><br>Выбор proxy/capture layer, Docker Compose stack, новые Python/Node dependencies.</div>
     </div>
 
@@ -115,9 +115,9 @@
     <figure class="rpt-flow" aria-label="Цепочка результатов">
       <div class="node">Проблема: у icodex нет наблюдаемости, в отличие от iclaude</div>
       <div class="arrow"></div>
-      <div class="node">Grafana показывает session ops metrics</div>
+      <div class="node">Grafana показывает metadata-only session ops metrics</div>
       <div class="arrow"></div>
-      <div class="node">Langfuse получает LLM traces с tags</div>
+      <div class="node">Local trusted Langfuse получает full-fidelity LLM traces</div>
       <div class="arrow"></div>
       <div class="node">Opt-in design готов к implementation plan</div>
     </figure>
@@ -130,6 +130,7 @@
         <tr><td>Steering</td><td>Prefer standard OpenTelemetry, Prometheus, and Langfuse contracts</td><td>Избегать custom metrics protocol без причины.</td></tr>
         <tr><td>Hard</td><td>No telemetry unless explicitly enabled</td><td>Default launch path остаётся без сервисов и network telemetry.</td></tr>
         <tr><td>Hard</td><td>No prompts, request bodies, response bodies in Grafana metrics</td><td>Ops metrics должны быть metadata-only.</td></tr>
+        <tr><td>Hard</td><td>Full prompt and response capture only to local trusted Langfuse</td><td>Design должен валидировать endpoint и не смешивать full capture с external telemetry.</td></tr>
         <tr><td>Hard</td><td>Preserve Codex exit code</td><td>Wrapper должен proxy/observe без потери return code.</td></tr>
       </tbody>
     </table>
@@ -140,8 +141,8 @@
       <tbody>
         <tr><td>Full</td><td>Read iclaude refs, inspect icodex source/docs, design Bash modules/tests/docs.</td></tr>
         <tr><td>Guarded</td><td>Choose minimal opt-in telemetry architecture that does not start services by default.</td></tr>
-        <tr><td>Proposal-first</td><td>Add proxy/capture layer, Docker Compose stack, new Python/Node deps, dashboard assets.</td></tr>
-        <tr><td>No autonomy</td><td>Send real prompts/secrets externally, change auth flow, enable telemetry by default.</td></tr>
+        <tr><td>Proposal-first</td><td>Add proxy/capture layer, Docker Compose stack, new Python/Node deps, dashboard assets, full-fidelity capture mechanism.</td></tr>
+        <tr><td>No autonomy</td><td>Send real prompts/responses/secrets externally, change auth flow, enable telemetry by default.</td></tr>
       </tbody>
     </table>
 
