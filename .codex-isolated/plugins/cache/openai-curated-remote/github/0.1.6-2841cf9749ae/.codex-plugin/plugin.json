@@ -1,6 +1,6 @@
 {
   "name": "github",
-  "version": "0.1.5",
+  "version": "0.1.6-2841cf9749ae",
   "description": "Inspect repositories, triage pull requests and issues, debug CI, and publish changes through a hybrid GitHub connector and CLI workflow.",
   "author": {
     "name": "OpenAI",
@@ -12,6 +12,13 @@
   "license": "MIT",
   "keywords": [
     "github",
+    "microsoft",
+    "git",
+    "repositories",
+    "source control",
+    "pull requests",
+    "github actions",
+    "ci/cd",
     "pull-request",
     "code-review",
     "issues",
@@ -37,7 +44,7 @@
       "Inspect PRs, triage issues, debug failing checks, and prepare code changes for review"
     ],
     "composerIcon": "./assets/github-small.svg",
-    "logo": "./assets/logo.png",
+    "logo": "./assets/github.png",
     "screenshots": [],
     "brandColor": "#24292F"
   }
