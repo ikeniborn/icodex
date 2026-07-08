@@ -1,12 +1,29 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
+import http.server
+import json
+import logging
+from logging.handlers import RotatingFileHandler
 import os
+from pathlib import Path
+import random
 import re
 from typing import Any
 
+try:
+    import requests
+except ImportError:
+    requests = None
+
 DEFAULT_MASK_TOKEN = os.environ.get("PII_PROXY_MASK_TOKEN", "REDACTED")
 MASKING_LEVEL = os.environ.get("PII_PROXY_MASKING_LEVEL", "standard").strip().lower()
+UPSTREAM_URL = os.environ.get("PII_PROXY_UPSTREAM_URL", "https://api.openai.com/v1").rstrip("/")
+CONNECT_TIMEOUT = float(os.environ.get("PII_PROXY_CONNECT_TIMEOUT", "10"))
+READ_TIMEOUT = float(os.environ.get("PII_PROXY_READ_TIMEOUT", "300"))
+LOG_DIR = Path(os.environ.get("PII_PROXY_LOG_DIR", "/tmp/icodex-pii-proxy-logs"))
+log = logging.getLogger("icodex-pii-proxy")
 
 STRUCTURAL_KEYS = frozenset({
     "file_path", "path", "notebook_path", "command", "pattern", "glob",
@@ -92,3 +109,144 @@ def mask_openai_body(body: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     masked, found = _mask_value(body)
     assert isinstance(masked, dict)
     return masked, found
+
+
+def setup_logging(log_dir: Path) -> None:
+    log_dir.mkdir(parents=True, exist_ok=True)
+    handler = RotatingFileHandler(log_dir / "server.log", maxBytes=5 * 1024 * 1024, backupCount=3)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    if not log.handlers:
+        log.addHandler(handler)
+    log.setLevel(logging.INFO)
+
+
+class PIIProxyHandler(http.server.BaseHTTPRequestHandler):
+    _MAX_BODY_BYTES = 100_000_000
+
+    def log_message(self, fmt, *args):
+        return
+
+    def do_GET(self):
+        if self.path == "/api/health":
+            self._health()
+        else:
+            self._proxy_passthrough()
+
+    def do_POST(self):
+        if self.path.startswith("/v1/"):
+            self._proxy_messages()
+        else:
+            self._proxy_passthrough()
+
+    def _health(self):
+        body = json.dumps({"status": "ready", "masking_level": MASKING_LEVEL}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_body(self):
+        raw = self.headers.get("Content-Length", "0")
+        try:
+            length = int(raw)
+        except ValueError:
+            self._error(400, "Invalid Content-Length header")
+            return None
+        if length < 0 or length > self._MAX_BODY_BYTES:
+            self._error(400, "Content-Length out of allowed range")
+            return None
+        return self.rfile.read(length) if length else b""
+
+    def _error(self, code: int, message: str):
+        body = json.dumps({"type": "error", "error": {"message": message}}).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _proxy_messages(self):
+        raw_body = self._read_body()
+        if raw_body is None:
+            return
+        if MASKING_LEVEL == "off":
+            self._forward(raw_body)
+            return
+        try:
+            body = json.loads(raw_body)
+        except json.JSONDecodeError:
+            self._error(400, "PII proxy cannot safely mask malformed JSON")
+            return
+        masked, found = mask_openai_body(body)
+        if found:
+            log.info("Masked request: %d sensitive item(s)", len(found))
+        self._forward(json.dumps(masked).encode())
+
+    def _proxy_passthrough(self):
+        body = self._read_body()
+        if body is None:
+            return
+        self._forward(body)
+
+    def _forward(self, body: bytes):
+        target = UPSTREAM_URL + self.path
+        headers = {
+            k: v for k, v in self.headers.items()
+            if k.lower() not in ("host", "content-length", "transfer-encoding")
+        }
+        if requests is None:
+            self._error(500, "PII proxy runtime dependency missing: requests")
+            return
+        try:
+            with requests.request(
+                self.command,
+                target,
+                headers=headers,
+                data=body,
+                stream=True,
+                timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
+            ) as resp:
+                skip = {"transfer-encoding", "connection", "content-encoding", "content-length"}
+                self.send_response(resp.status_code)
+                for key, val in resp.headers.items():
+                    if key.lower() not in skip:
+                        self.send_header(key, val)
+                self.end_headers()
+                for chunk in resp.iter_content(chunk_size=4096):
+                    if chunk:
+                        self.wfile.write(chunk)
+                        self.wfile.flush()
+        except requests.RequestException as exc:
+            log.error("upstream error: %s", exc)
+            self._error(502, "PII proxy upstream unavailable")
+
+
+def build_server(port: int):
+    if port:
+        return http.server.ThreadingHTTPServer(("127.0.0.1", port), PIIProxyHandler)
+    lo = int(os.environ.get("PII_PROXY_PORT_MIN", "20000"))
+    hi = int(os.environ.get("PII_PROXY_PORT_MAX", "40000"))
+    for p in random.sample(range(lo, hi + 1), min(30, hi - lo + 1)):
+        try:
+            return http.server.ThreadingHTTPServer(("127.0.0.1", p), PIIProxyHandler)
+        except OSError:
+            continue
+    return http.server.ThreadingHTTPServer(("127.0.0.1", 0), PIIProxyHandler)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PII_PROXY_PORT", "0")))
+    parser.add_argument("--log-dir", default=str(LOG_DIR))
+    args = parser.parse_args()
+    setup_logging(Path(args.log_dir))
+    server = build_server(args.port)
+    port = server.server_address[1]
+    Path(args.log_dir).mkdir(parents=True, exist_ok=True)
+    (Path(args.log_dir) / "server.port").write_text(str(port))
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()
