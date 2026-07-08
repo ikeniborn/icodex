@@ -14,7 +14,7 @@ cfg="$tmp/config.toml"
 telemetry_langfuse_write_provider_config "$cfg" "http://127.0.0.1:18766/v1"
 out="$(cat "$cfg")"
 assert_contains "provider model selected" "$out" 'model_provider = "icodex_capture"'
-assert_contains "provider table written" "$out" "[model_providers.icodex_capture]"
+assert_contains "provider inline config written" "$out" "model_providers.icodex_capture = {"
 assert_contains "provider name written" "$out" 'name = "icodex Langfuse Capture"'
 assert_contains "provider base url written" "$out" 'base_url = "http://127.0.0.1:18766/v1"'
 assert_contains "provider wire api responses" "$out" 'wire_api = "responses"'

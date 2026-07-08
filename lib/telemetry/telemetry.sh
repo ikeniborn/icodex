@@ -105,22 +105,30 @@ telemetry_cleanup() {
 }
 
 telemetry_setup() { # <config.toml>
-  local config_file="${1:-${ICODEX_HOME_DIR:-}/config.toml}"
+  local config_file="${1:-${ICODEX_HOME_DIR:-}/config.toml}" provider_url
   telemetry_setup_context || return 1
 
   case "$ICODEX_TELEMETRY" in
     off)
+      telemetry_otel_remove "$config_file" || return 1
+      telemetry_langfuse_strip_provider_region "$config_file" || return 1
       return 0
       ;;
     otel)
+      telemetry_langfuse_strip_provider_region "$config_file" || return 1
       telemetry_otel_configure "$config_file" || return 1
       ;;
     langfuse)
+      telemetry_otel_remove "$config_file" || return 1
       telemetry_langfuse_start_capture || return 1
+      provider_url="$(telemetry_langfuse_capture_provider_url)" || { telemetry_langfuse_cleanup; return 1; }
+      telemetry_langfuse_configure_provider "$config_file" "$provider_url" || { telemetry_langfuse_cleanup; return 1; }
       ;;
     both)
       telemetry_otel_configure "$config_file" || return 1
       telemetry_langfuse_start_capture || return 1
+      provider_url="$(telemetry_langfuse_capture_provider_url)" || { telemetry_langfuse_cleanup; return 1; }
+      telemetry_langfuse_configure_provider "$config_file" "$provider_url" || { telemetry_langfuse_cleanup; return 1; }
       ;;
   esac
 }

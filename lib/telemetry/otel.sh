@@ -133,3 +133,18 @@ telemetry_otel_configure() { # <config.toml>
   rm -f "$tmp"
   telemetry_no_proxy_add_host "$endpoint"
 }
+
+telemetry_otel_remove() { # <config.toml>
+  local file="$1" tmp
+  [[ -f "$file" ]] || return 0
+  tmp="$(mktemp)"
+  awk -v s="$_TELEMETRY_OTEL_START" -v e="$_TELEMETRY_OTEL_END" '
+    $0 == s { skip=1; next }
+    $0 == e { skip=0; next }
+    !skip { print }
+  ' "$file" > "$tmp"
+  if ! cmp -s "$tmp" "$file"; then
+    cat "$tmp" > "$file"
+  fi
+  rm -f "$tmp"
+}

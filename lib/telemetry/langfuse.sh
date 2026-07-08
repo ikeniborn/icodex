@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Local trusted Langfuse full-capture validation and lifecycle helpers.
 
+_TELEMETRY_LANGFUSE_PROVIDER_START="# icodex:telemetry-langfuse-provider:start"
+_TELEMETRY_LANGFUSE_PROVIDER_END="# icodex:telemetry-langfuse-provider:end"
+
 _telemetry_langfuse_log_error() { # <message>
   if command -v log_error >/dev/null 2>&1; then
     log_error "$1"
@@ -46,6 +49,10 @@ telemetry_langfuse_capture_state_file() {
   printf '%s\n' "${_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE:-${ICODEX_HOME_DIR:-$PWD}/langfuse-capture.state}"
 }
 
+telemetry_langfuse_capture_provider_url_file() {
+  printf '%s\n' "${_TELEMETRY_LANGFUSE_CAPTURE_PROVIDER_URL_FILE:-${ICODEX_HOME_DIR:-$PWD}/langfuse-capture-provider.url}"
+}
+
 telemetry_langfuse_capture_tags() {
   printf 'icodex.project=%s,icodex.session_id=%s\n' \
     "${ICODEX_TELEMETRY_PROJECT:-unknown}" \
@@ -70,19 +77,83 @@ telemetry_langfuse_provider_config() { # <provider-base-url>
   telemetry_url_is_local_trusted "$base_url" || return 1
   telemetry_langfuse_string_safe "$base_url" || return 1
   cat <<EOF
-model = "gpt-5.5"
 model_provider = "icodex_capture"
-
-[model_providers.icodex_capture]
-name = "icodex Langfuse Capture"
-base_url = "$base_url"
-wire_api = "responses"
+model_providers.icodex_capture = { name = "icodex Langfuse Capture", base_url = "$base_url", wire_api = "responses" }
 EOF
 }
 
 telemetry_langfuse_write_provider_config() { # <config.toml> <provider-base-url>
   local file="$1" base_url="$2"
   telemetry_langfuse_provider_config "$base_url" > "$file"
+}
+
+telemetry_langfuse_provider_region() { # <provider-base-url>
+  local base_url="$1"
+  printf '%s\n' "$_TELEMETRY_LANGFUSE_PROVIDER_START"
+  telemetry_langfuse_provider_config "$base_url" || return 1
+  printf '%s\n' "$_TELEMETRY_LANGFUSE_PROVIDER_END"
+}
+
+telemetry_langfuse_strip_provider_region() { # <config.toml>
+  local file="$1" tmp
+  [[ -f "$file" ]] || return 0
+  tmp="$(mktemp)"
+  awk -v s="$_TELEMETRY_LANGFUSE_PROVIDER_START" -v e="$_TELEMETRY_LANGFUSE_PROVIDER_END" '
+    $0 == s { skip=1; next }
+    $0 == e { skip=0; next }
+    skip { next }
+    { print }
+  ' "$file" > "$tmp"
+  if ! cmp -s "$tmp" "$file"; then
+    cat "$tmp" > "$file"
+  fi
+  rm -f "$tmp"
+}
+
+telemetry_langfuse_configure_provider() { # <config.toml> <provider-base-url>
+  local file="$1" base_url="$2" tmp
+  telemetry_url_is_local_trusted "$base_url" || { _telemetry_langfuse_log_error "Langfuse capture provider URL must be local/trusted"; return 1; }
+  telemetry_langfuse_string_safe "$base_url" || { _telemetry_langfuse_log_error "invalid Langfuse capture provider URL"; return 1; }
+  tmp="$(mktemp)"
+  telemetry_langfuse_provider_region "$base_url" > "$tmp" || { rm -f "$tmp"; return 1; }
+  if [[ -f "$file" ]]; then
+    awk -v s="$_TELEMETRY_LANGFUSE_PROVIDER_START" -v e="$_TELEMETRY_LANGFUSE_PROVIDER_END" '
+      $0 == s { skip=1; next }
+      $0 == e { skip=0; next }
+      skip { next }
+      /^[[:space:]]*model_provider[[:space:]]*=/ && !in_table { next }
+      /^[[:space:]]*model_providers\.icodex_capture[[:space:]]*=/ && !in_table { next }
+      /^[[:space:]]*\[model_providers\.icodex_capture\][[:space:]]*$/ { skip_capture_table=1; in_table=1; next }
+      /^[[:space:]]*\[/ {
+        skip_capture_table=0
+        in_table=1
+      }
+      skip_capture_table { next }
+      { print }
+    ' "$file" >> "$tmp"
+  fi
+  if [[ ! -f "$file" ]] || ! cmp -s "$tmp" "$file"; then
+    cat "$tmp" > "$file"
+  fi
+  rm -f "$tmp"
+}
+
+telemetry_langfuse_capture_provider_url() {
+  local file url
+  file="$(telemetry_langfuse_capture_provider_url_file)"
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    if [[ -s "$file" ]]; then
+      IFS= read -r url < "$file" || url=""
+      if [[ -n "$url" ]]; then
+        telemetry_url_is_local_trusted "$url" && telemetry_langfuse_string_safe "$url" && { printf '%s\n' "$url"; return 0; }
+        _telemetry_langfuse_log_error "Langfuse capture provider URL must be local/trusted"
+        return 1
+      fi
+    fi
+    sleep 0.1
+  done
+  _telemetry_langfuse_log_error "Langfuse capture provider URL was not published"
+  return 1
 }
 
 telemetry_langfuse_probe_command() { # <workdir> <prompt>
@@ -127,10 +198,11 @@ telemetry_langfuse_running_pid() {
 telemetry_langfuse_export_capture_env() {
   _TELEMETRY_LANGFUSE_CAPTURE_PID_FILE="$(telemetry_langfuse_capture_pid_file)"
   LANGFUSE_CAPTURE_STATE_FILE="$(telemetry_langfuse_capture_state_file)"
+  LANGFUSE_CAPTURE_PROVIDER_URL_FILE="$(telemetry_langfuse_capture_provider_url_file)"
   LANGFUSE_TAGS="$(telemetry_langfuse_capture_tags)"
   export ICODEX_LANGFUSE_BASE_URL ICODEX_LANGFUSE_PUBLIC_KEY ICODEX_LANGFUSE_SECRET_KEY
   export ICODEX_TELEMETRY_PROJECT ICODEX_TELEMETRY_SESSION_ID
-  export LANGFUSE_TAGS LANGFUSE_CAPTURE_STATE_FILE
+  export LANGFUSE_TAGS LANGFUSE_CAPTURE_STATE_FILE LANGFUSE_CAPTURE_PROVIDER_URL_FILE
 }
 
 telemetry_langfuse_start_capture() {
@@ -170,6 +242,7 @@ telemetry_langfuse_stop_capture() {
   kill "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
   rm -f "$pid_file"
+  rm -f "$(telemetry_langfuse_capture_provider_url_file)"
   unset _TELEMETRY_LANGFUSE_CAPTURE_PID
 }
 

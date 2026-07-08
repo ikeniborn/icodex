@@ -146,6 +146,7 @@ fake_capture="$tmp/fake-capture"
 cat > "$fake_capture" <<'EOF'
 #!/usr/bin/env bash
 printf 'started\n' > "$LANGFUSE_CAPTURE_STATE_FILE"
+printf 'http://127.0.0.1:18766/v1\n' > "$LANGFUSE_CAPTURE_PROVIDER_URL_FILE"
 trap 'printf stopped >> "$LANGFUSE_CAPTURE_STATE_FILE"; exit 0' TERM
 while :; do sleep 1; done
 EOF
@@ -154,6 +155,7 @@ chmod +x "$fake_capture"
 _TELEMETRY_LANGFUSE_CAPTURE_BIN="$fake_capture"
 _TELEMETRY_LANGFUSE_CAPTURE_PID_FILE="$tmp/langfuse.pid"
 _TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE="$tmp/langfuse.state"
+_TELEMETRY_LANGFUSE_CAPTURE_PROVIDER_URL_FILE="$tmp/langfuse-provider.url"
 ICODEX_TELEMETRY=langfuse
 ICODEX_LANGFUSE_BASE_URL="http://127.0.0.1:3000"
 ICODEX_LANGFUSE_PUBLIC_KEY="pk-test"
@@ -163,8 +165,36 @@ telemetry_setup "$cfg"
 setup_rc="$?"
 assert_eq "langfuse setup succeeds" "0" "$setup_rc"
 assert_contains "langfuse setup starts capture" "$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE")" "started"
+assert_contains "langfuse setup writes provider route" "$(cat "$cfg")" "# icodex:telemetry-langfuse-provider:start"
+assert_contains "langfuse setup selects capture provider" "$(cat "$cfg")" 'model_provider = "icodex_capture"'
+assert_eq "langfuse setup removes otel-only region" "0" "$(grep -c '# icodex:telemetry-otel:start' "$cfg")"
 telemetry_cleanup
 assert_contains "langfuse cleanup stops capture" "$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE")" "stopped"
 assert_exit "cleanup safe when no capture started" 0 telemetry_cleanup
+
+no_url_capture="$tmp/no-url-capture"
+cat > "$no_url_capture" <<'EOF'
+#!/usr/bin/env bash
+printf 'started\n' > "$LANGFUSE_CAPTURE_STATE_FILE"
+trap 'printf stopped >> "$LANGFUSE_CAPTURE_STATE_FILE"; exit 0' TERM
+while :; do sleep 1; done
+EOF
+chmod +x "$no_url_capture"
+_TELEMETRY_LANGFUSE_CAPTURE_BIN="$no_url_capture"
+_TELEMETRY_LANGFUSE_CAPTURE_PID_FILE="$tmp/no-url.pid"
+_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE="$tmp/no-url.state"
+_TELEMETRY_LANGFUSE_CAPTURE_PROVIDER_URL_FILE="$tmp/no-url-provider.url"
+rm -f "$_TELEMETRY_LANGFUSE_CAPTURE_PID_FILE" "$_TELEMETRY_LANGFUSE_CAPTURE_PROVIDER_URL_FILE"
+ICODEX_TELEMETRY=langfuse
+telemetry_setup "$cfg" >/dev/null 2>&1
+setup_rc="$?"
+assert_eq "langfuse setup fails when provider url missing" "1" "$setup_rc"
+assert_contains "langfuse setup cleans failed capture" "$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE")" "stopped"
+
+ICODEX_TELEMETRY=off
+telemetry_setup "$cfg"
+setup_rc="$?"
+assert_eq "off setup removes telemetry regions" "0" "$setup_rc"
+assert_eq "off setup removed provider region" "0" "$(grep -c '# icodex:telemetry-langfuse-provider:start' "$cfg")"
 
 finish

@@ -62,6 +62,7 @@ printf 'started\n' > "$LANGFUSE_CAPTURE_STATE_FILE"
 printf 'project=%s\n' "$ICODEX_TELEMETRY_PROJECT" >> "$LANGFUSE_CAPTURE_STATE_FILE"
 printf 'session=%s\n' "$ICODEX_TELEMETRY_SESSION_ID" >> "$LANGFUSE_CAPTURE_STATE_FILE"
 printf 'tags=%s\n' "$LANGFUSE_TAGS" >> "$LANGFUSE_CAPTURE_STATE_FILE"
+printf 'http://127.0.0.1:18766/v1\n' > "$LANGFUSE_CAPTURE_PROVIDER_URL_FILE"
 trap 'printf stopped >> "$LANGFUSE_CAPTURE_STATE_FILE"; exit 0' TERM
 while :; do sleep 1; done
 EOF
@@ -70,6 +71,7 @@ chmod +x "$fake"
 _TELEMETRY_LANGFUSE_CAPTURE_BIN="$fake"
 _TELEMETRY_LANGFUSE_CAPTURE_PID_FILE="$tmp/capture.pid"
 _TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE="$tmp/capture.state"
+_TELEMETRY_LANGFUSE_CAPTURE_PROVIDER_URL_FILE="$tmp/capture-provider.url"
 
 telemetry_langfuse_start_capture
 first_pid="$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_PID_FILE")"
@@ -78,6 +80,20 @@ assert_eq "capture process running" "0" "$?"
 assert_contains "state has project" "$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE")" "project=repo"
 assert_contains "state has session" "$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE")" "session=icodex-test-session"
 assert_contains "state has tags" "$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE")" "tags=icodex.project=repo,icodex.session_id=icodex-test-session"
+assert_eq "provider url published" "http://127.0.0.1:18766/v1" "$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_PROVIDER_URL_FILE")"
+
+provider_cfg="$tmp/provider-config.toml"
+printf 'model_provider = "openai"\n[shell]\nprogram = "bash"\n' > "$provider_cfg"
+telemetry_langfuse_configure_provider "$provider_cfg" "$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_PROVIDER_URL_FILE")"
+provider_out="$(cat "$provider_cfg")"
+assert_contains "provider region marker" "$provider_out" "# icodex:telemetry-langfuse-provider:start"
+assert_contains "provider route selected" "$provider_out" 'model_provider = "icodex_capture"'
+assert_contains "provider inline config" "$provider_out" 'model_providers.icodex_capture = {'
+assert_eq "provider route not duplicated" "1" "$(grep -c 'model_provider = ' "$provider_cfg")"
+assert_contains "existing table preserved after provider route" "$provider_out" "[shell]"
+
+telemetry_langfuse_strip_provider_region "$provider_cfg"
+assert_eq "provider region removed" "0" "$(grep -c 'icodex:telemetry-langfuse-provider:start' "$provider_cfg")"
 
 telemetry_langfuse_start_capture
 second_pid="$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_PID_FILE")"
@@ -98,6 +114,7 @@ EOF
 chmod +x "$bad"
 _TELEMETRY_LANGFUSE_CAPTURE_BIN="$bad"
 rm -f "$_TELEMETRY_LANGFUSE_CAPTURE_PID_FILE"
+rm -f "$_TELEMETRY_LANGFUSE_CAPTURE_PROVIDER_URL_FILE"
 assert_exit "capture startup failure fails before launch" 1 telemetry_langfuse_start_capture
 
 finish
