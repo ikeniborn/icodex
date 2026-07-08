@@ -48,6 +48,8 @@ assert_eq "calls apply_mode on launch" "1" \
   "$(grep -Ec '^[[:space:]]*apply_mode \|\| exit 1[[:space:]]*$' "$ROOT/icodex.sh")"
 assert_eq "calls ensure_project_trust on launch" "1" \
   "$(grep -Ec '^[[:space:]]*ensure_project_trust ' "$ROOT/icodex.sh")"
+assert_eq "calls optional pii launch wrapper" "1" \
+  "$(grep -Ec '^[[:space:]]*launch_codex_with_optional_pii[[:space:]]' "$ROOT/icodex.sh")"
 assert_eq "tracked config does not enable iwiki" "0" \
   "$(grep -c 'iwiki@ai-wiki' "$ROOT/.codex-isolated/config.toml")"
 launch_order_ok="$(awk '
@@ -60,7 +62,7 @@ launch_order_ok="$(awk '
   inblock && /^[[:space:]]*install_ensure \|\| exit 1[[:space:]]*$/ && step == 5 { step = 6; next }
   inblock && /^[[:space:]]*ensure_uv_dependency \|\| exit 1[[:space:]]*$/ && step == 6 { step = 7; next }
   inblock && /^[[:space:]]*\(\([[:space:]]*ICODEX_DISABLE_PROXY[[:space:]]*\)\)[[:space:]]*\|\|[[:space:]]*proxy_ensure[[:space:]]*$/ && step == 7 { step = 8; next }
-  inblock && /^[[:space:]]*launch_codex[[:space:]]/ && step == 8 { print 1; found = 1; exit }
+  inblock && /^[[:space:]]*launch_codex_with_optional_pii[[:space:]]/ && step == 8 { print 1; found = 1; exit }
   END { if (!found) print 0 }
 ' "$ROOT/icodex.sh")"
 assert_eq "default launch wiring order" "1" "$launch_order_ok"
