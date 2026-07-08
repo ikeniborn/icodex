@@ -15,6 +15,33 @@ telemetry_otel_header() {
   printf 'Basic %s\n' "$b64"
 }
 
+telemetry_otel_error() { # <message>
+  if declare -F log_error >/dev/null 2>&1; then
+    log_error "$1"
+  else
+    printf 'ERROR: %s\n' "$1" >&2
+  fi
+}
+
+telemetry_otel_string_safe() { # <value>
+  local value="$1"
+  [[ "$value" != *$'\n'* && "$value" != *$'\r'* && "$value" != *$'\t'* ]] || return 1
+  [[ "$value" != *\\* && "$value" != *\"* ]] || return 1
+  [[ "$value" != *[[:cntrl:]]* ]]
+}
+
+telemetry_otel_endpoint_safe() { # <endpoint>
+  local endpoint="$1"
+  telemetry_otel_string_safe "$endpoint" || return 1
+  [[ "$endpoint" != *[[:space:]]* ]]
+}
+
+telemetry_otel_toml_string() { # <value>
+  local value="$1"
+  telemetry_otel_string_safe "$value" || return 1
+  printf '"%s"\n' "$value"
+}
+
 telemetry_otel_exporter_value() { # <endpoint> <authorization-header>
   local endpoint="$1" header="${2:-}"
   if [[ -n "$header" ]]; then
@@ -22,6 +49,29 @@ telemetry_otel_exporter_value() { # <endpoint> <authorization-header>
   else
     printf '{ otlp-http = { endpoint = "%s", protocol = "binary" } }\n' "$endpoint"
   fi
+}
+
+telemetry_otel_span_attributes() {
+  local root wrapper_version codex_version first key value quoted
+  root="${ICODEX_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+  wrapper_version="$(cat "$root/VERSION" 2>/dev/null || true)"
+  codex_version="$("$root/.codex-isolated/bin/codex" --version 2>/dev/null || true)"
+  first=1
+  printf '{ '
+  for key in icodex.project icodex.session_id icodex.wrapper.version icodex.codex.version; do
+    case "$key" in
+      icodex.project) value="${ICODEX_TELEMETRY_PROJECT:-}" ;;
+      icodex.session_id) value="${ICODEX_TELEMETRY_SESSION_ID:-}" ;;
+      icodex.wrapper.version) value="$wrapper_version" ;;
+      icodex.codex.version) value="$codex_version" ;;
+    esac
+    [[ -n "$value" ]] || continue
+    quoted="$(telemetry_otel_toml_string "$value")" || return 1
+    (( first )) || printf ', '
+    printf '"%s" = %s' "$key" "$quoted"
+    first=0
+  done
+  printf ' }\n'
 }
 
 telemetry_no_proxy_add_host() { # <url>
@@ -45,14 +95,17 @@ telemetry_no_proxy_add_host() { # <url>
 }
 
 telemetry_otel_region() {
-  local endpoint header exporter
+  local endpoint header exporter span_attrs
   endpoint="$(telemetry_otel_endpoint)"
   header="$(telemetry_otel_header)"
+  telemetry_otel_endpoint_safe "$endpoint" || { telemetry_otel_error "invalid ICODEX_OTEL_ENDPOINT='$endpoint'"; return 1; }
   exporter="$(telemetry_otel_exporter_value "$endpoint" "$header")"
+  span_attrs="$(telemetry_otel_span_attributes)" || { telemetry_otel_error "invalid telemetry span attribute value"; return 1; }
   printf '%s\n' "$_TELEMETRY_OTEL_START"
   printf '[otel]\n'
   printf 'environment = "local"\n'
   printf 'log_user_prompt = false\n'
+  printf 'span_attributes = %s\n' "$span_attrs"
   printf 'exporter = %s\n' "$exporter"
   printf 'metrics_exporter = %s\n' "$exporter"
   printf 'trace_exporter = %s\n' "$exporter"
@@ -63,7 +116,8 @@ telemetry_otel_configure() { # <config.toml>
   local file="$1" tmp
   local endpoint
   endpoint="$(telemetry_otel_endpoint)"
-  telemetry_url_host "$endpoint" >/dev/null || { log_error "invalid ICODEX_OTEL_ENDPOINT='$endpoint'"; return 1; }
+  telemetry_url_host "$endpoint" >/dev/null || { telemetry_otel_error "invalid ICODEX_OTEL_ENDPOINT='$endpoint'"; return 1; }
+  telemetry_otel_endpoint_safe "$endpoint" || { telemetry_otel_error "invalid ICODEX_OTEL_ENDPOINT='$endpoint'"; return 1; }
   tmp="$(mktemp)"
   if [[ -f "$file" ]]; then
     awk -v s="$_TELEMETRY_OTEL_START" -v e="$_TELEMETRY_OTEL_END" '

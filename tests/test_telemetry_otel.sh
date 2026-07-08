@@ -25,6 +25,11 @@ assert_contains "otel metrics exporter inline map" "$out" "metrics_exporter = { 
 assert_contains "otel trace exporter inline map" "$out" "trace_exporter = { otlp-http = {"
 assert_contains "otel exporter endpoint" "$out" 'endpoint = "http://127.0.0.1:4318"'
 assert_contains "prompt logging disabled" "$out" "log_user_prompt = false"
+assert_contains "span attributes map" "$out" "span_attributes = {"
+assert_contains "project span attribute" "$out" "\"icodex.project\" = \"repo\""
+assert_contains "session span attribute" "$out" "\"icodex.session_id\" = \"icodex-test-session\""
+assert_contains "wrapper version span attribute" "$out" "\"icodex.wrapper.version\" = \"0.1.0\""
+assert_contains "codex version span attribute" "$out" "\"icodex.codex.version\" = \"codex-cli 0.142.5\""
 assert_eq "no proxy localhost" "" "${NO_PROXY:-}"
 
 ICODEX_OTEL_ENDPOINT="http://otel.local:4318"
@@ -42,9 +47,37 @@ assert_contains "no_proxy preserves lowercase existing" "${no_proxy:-}" "existin
 assert_contains "no_proxy contains endpoint host" "${no_proxy:-}" "otel.local"
 
 if [[ -x "$ROOT/.codex-isolated/bin/codex" ]]; then
-  CODEX_HOME="$tmp" "$ROOT/.codex-isolated/bin/codex" --strict-config --help >/dev/null 2>&1
+  strict_home="$tmp/strict-home"
+  mkdir -p "$strict_home"
+  strict_cfg="$strict_home/config.toml"
+  : > "$strict_cfg"
+  ICODEX_OTEL_ENDPOINT="http://127.0.0.1:4318"
+  unset ICODEX_OTEL_CREDENTIALS
+  telemetry_otel_configure "$strict_cfg"
+  strict_err="$tmp/codex-strict.err"
+  timeout 10s env CODEX_HOME="$strict_home" "$ROOT/.codex-isolated/bin/codex" exec --strict-config --skip-git-repo-check --ephemeral 'true' >/dev/null 2>"$strict_err"
   code="$?"
-  assert_eq "codex strict-config accepts otel config" "0" "$code"
+  case "$code" in
+    0|1|124) PASS=$((PASS+1)); echo "PASS [codex strict-config completed or reached auth/network]" ;;
+    *) FAIL=$((FAIL+1)); echo "FAIL [codex strict-config completed or reached auth/network]: exit $code" ;;
+  esac
+  strict_out="$(cat "$strict_err")"
+  if grep -Eq 'Error loading config\.toml|unknown configuration field|invalid type' <<<"$strict_out"; then
+    echo "FAIL [codex strict-config has no config parse error]: $strict_out"
+    FAIL=$((FAIL+1))
+  else
+    echo "PASS [codex strict-config has no config parse error]"
+    PASS=$((PASS+1))
+  fi
 fi
+
+bad_cfg="$tmp/bad-config.toml"
+printf '[sandbox]\nmode = "workspace-write"\n' > "$bad_cfg"
+bad_before="$(cat "$bad_cfg")"
+ICODEX_OTEL_ENDPOINT='http://otel.local:4318/"bad'
+telemetry_otel_configure "$bad_cfg" >/dev/null 2>&1
+bad_code="$?"
+assert_eq "malformed endpoint rejected" "1" "$bad_code"
+assert_eq "malformed endpoint does not rewrite config" "$bad_before" "$(cat "$bad_cfg")"
 
 finish
