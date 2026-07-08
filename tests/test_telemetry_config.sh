@@ -36,11 +36,17 @@ case "$sid" in
 esac
 
 assert_exit "localhost trusted" 0 telemetry_url_is_local_trusted "http://localhost:3000"
+assert_exit "localhost query trusted" 0 telemetry_url_is_local_trusted "http://localhost?x=1"
+assert_exit "localhost fragment trusted" 0 telemetry_url_is_local_trusted "http://localhost#x"
+assert_exit "path at trusted" 0 telemetry_url_is_local_trusted "http://localhost/path@x"
 assert_exit "127 trusted" 0 telemetry_url_is_local_trusted "http://127.0.0.1:3000"
 assert_exit "private trusted" 0 telemetry_url_is_local_trusted "http://192.168.1.10:3000"
 assert_exit "public rejected" 1 telemetry_url_is_local_trusted "https://example.com"
 assert_exit "url credentials rejected" 1 telemetry_url_is_local_trusted "http://user:pass@localhost:3000"
 assert_exit "missing scheme rejected" 1 telemetry_url_is_local_trusted "localhost:3000"
+assert_exit "10 hostname rejected" 1 telemetry_url_is_local_trusted "http://10.evil.com"
+assert_exit "192 hostname rejected" 1 telemetry_url_is_local_trusted "http://192.168.evil.com"
+assert_exit "172 hostname rejected" 1 telemetry_url_is_local_trusted "http://172.20.evil.com"
 
 rm -rf "$tmp"
 finish

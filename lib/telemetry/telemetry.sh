@@ -34,16 +34,16 @@ telemetry_new_session_id() {
 }
 
 telemetry_url_host() { # <url>
-  local url="$1" rest host
+  local url="$1" rest authority host
   [[ "$url" == http://* || "$url" == https://* ]] || return 1
   rest="${url#*://}"
-  [[ "$rest" != *@* ]] || return 1
-  rest="${rest%%/*}"
-  if [[ "$rest" == \[*\]* ]]; then
-    host="${rest%%]*}"
+  authority="${rest%%[/?#]*}"
+  [[ "$authority" != *@* ]] || return 1
+  if [[ "$authority" == \[*\]* ]]; then
+    host="${authority%%]*}"
     host="${host#[}"
   else
-    host="${rest%%:*}"
+    host="${authority%%:*}"
   fi
   [[ -n "$host" ]] || return 1
   printf '%s\n' "$host"
@@ -52,8 +52,10 @@ telemetry_url_host() { # <url>
 telemetry_url_is_local_trusted() { # <url>
   local host
   host="$(telemetry_url_host "$1")" || return 1
+  [[ "$host" == "localhost" || "$host" == "::1" ]] && return 0
+  [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
   case "$host" in
-    localhost|127.*|::1|10.*|192.168.*) return 0 ;;
+    127.*|10.*|192.168.*) return 0 ;;
     172.*)
       local second="${host#172.}"
       second="${second%%.*}"
