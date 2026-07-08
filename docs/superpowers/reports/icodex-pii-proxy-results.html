@@ -28,13 +28,13 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)
 <body>
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden checked>
 <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
 <header>
 <label for="theme-toggle" class="theme-btn" title="Переключить тёмную/светлую тему">Тема</label>
 <h1>icodex-pii-proxy</h1>
-<p>Единый отчёт цепочки IDD-SDD. Активная вкладка: Спека.</p>
+<p>Единый отчёт цепочки IDD-SDD. Активная вкладка: План.</p>
 </header>
 <nav class="chain-tabs">
 <label for="tab-intent">Интент</label>
@@ -200,7 +200,86 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)
 </section>
 <!-- TAB:spec END -->
 <!-- TAB:plan START -->
-<section class="tab-pane" id="pane-plan"><p class="note">Этап ещё не проверен.</p></section>
+<section class="tab-pane" id="pane-plan">
+<h2>Проверка plan — 2026-07-08</h2>
+<div class="card">
+<h3>Обзор</h3>
+<p>План разбивает PII proxy на девять проверяемых задач: конфиг, CLI, masking engine, HTTP relay, install/status/NLP update, launch routing, fake-upstream integration, docs/wiki, финальная проверка.</p>
+<p>Ключевой trust contract сохранён: PII mode opt-in, protected launch fails secure, routing идёт через one-run <code>openai_base_url</code>, normal launch path без PII не меняется.</p>
+</div>
+<div class="card">
+<h3>Сводка артефакта</h3>
+<table>
+<tr><th>Поле</th><th>Значение</th></tr>
+<tr><td>Источник</td><td><code>docs/superpowers/plans/2026-07-08-icodex-pii-proxy.md</code></td></tr>
+<tr><td>Intent</td><td><code>docs/superpowers/intents/2026-07-08-icodex-pii-proxy-intent.md</code></td></tr>
+<tr><td>Spec</td><td><code>docs/superpowers/specs/2026-07-08-icodex-pii-proxy-design.md</code></td></tr>
+<tr><td>Hash</td><td><code>d9fcbdf0637553ab</code></td></tr>
+<tr><td>Вердикт проверки</td><td><span class="badge ok">OK</span></td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Граф исполнения</h3>
+<div class="flow">
+<div class="node"><strong>1. Конфиг</strong><br><code>ICODEX_PII_*</code> defaults, validation, env mapping.</div>
+<div class="node"><strong>2. CLI</strong><br><code>--pii-proxy</code>, install/status commands, help.</div>
+<div class="node"><strong>3. Маскирование</strong><br>Rules engine и обход OpenAI body.</div>
+<div class="node"><strong>4. Сервер</strong><br>Health, fail-closed JSON handling, streaming relay.</div>
+<div class="node"><strong>5. Установка</strong><br>Venv, status, NLP EN/RU install and update.</div>
+<div class="node"><strong>6. Запуск</strong><br>Старт proxy и injection <code>openai_base_url</code>.</div>
+<div class="node"><strong>7. Интеграция</strong><br>Fake upstream доказывает: raw PII не выходит за local proxy.</div>
+<div class="node"><strong>8-9. Docs/Result</strong><br>Config example, iwiki, focused/full checks, result gate.</div>
+</div>
+</div>
+<div class="card">
+<h3>Карта влияния артефактов</h3>
+<table>
+<tr><th>Область</th><th>Файлы</th><th>Зачем</th></tr>
+<tr><td>Конфигурация</td><td><code>lib/core/init.sh</code>, <code>lib/config/env.sh</code></td><td>Задаёт opt-in PII surface и отклоняет unsafe config до запуска.</td></tr>
+<tr><td>CLI</td><td><code>lib/command/args.sh</code>, <code>icodex.sh</code></td><td>Даёт явные enable/install/status/update paths без изменения default run.</td></tr>
+<tr><td>Proxy runtime</td><td><code>lib/pii-proxy/server.py</code>, <code>install.sh</code>, <code>detect.sh</code>, <code>status.sh</code></td><td>Отвечает за masking, upstream relay, runtime install и operator visibility.</td></tr>
+<tr><td>Запуск</td><td><code>lib/launcher/launch.sh</code></td><td>Стартует localhost proxy и передаёт one-run Codex config override.</td></tr>
+<tr><td>Тесты</td><td><code>tests/test_pii_proxy_*.sh</code>, <code>tests/test_pii_proxy_*.py</code></td><td>Фиксируют config, CLI, masking, launch, server, install и fake-upstream behavior.</td></tr>
+<tr><td>Документация</td><td><code>.codex_config.example</code>, iwiki page</td><td>Документирует safe user-facing setup и текущее поведение.</td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Карта проверок</h3>
+<table>
+<tr><th>Требование</th><th>Доказательство в плане</th><th>Проверка</th></tr>
+<tr><td>Защищён только OpenAI API</td><td>Proxy target — Codex OpenAI route через <code>openai_base_url</code>.</td><td>Launch test проверяет local <code>/v1</code> URL injection.</td></tr>
+<tr><td>Fail secure</td><td>Startup, install, invalid JSON и masking failure paths возвращают ошибки.</td><td>Launch и server tests проверяют отсутствие raw fallback.</td></tr>
+<tr><td>Не ломать текущее поведение</td><td>PII disabled path вызывает существующую launch semantics.</td><td>Launch test покрывает normal args; full Bash suite обязателен.</td></tr>
+<tr><td>Precision-first masking</td><td><code>rules</code> default; system/developer instructions и structural fields сохраняются.</td><td>Masking и OpenAI-shape Python tests.</td></tr>
+<tr><td>NLP install/update</td><td><code>nlp</code> installs Presidio/spaCy EN/RU models; <code>--update</code> refreshes them.</td><td>Install test проверяет download и update helper calls.</td></tr>
+<tr><td>Нет raw PII в upstream</td><td>Fake upstream получает request после proxy masking.</td><td>Integration test отклоняет raw email/token в upstream log.</td></tr>
+<tr><td>Документация актуальна</td><td><code>.codex_config.example</code> и iwiki update в Task 8.</td><td><code>wiki_lint</code> плюс result gate.</td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Контрольные точки</h3>
+<div class="flow">
+<div class="node"><strong>Согласование плана</strong><br>Проверить эту HTML-вкладку до implementation.</div>
+<div class="node"><strong>Коммиты задач</strong><br>Каждая задача завершается focused tests и scoped commit.</div>
+<div class="node"><strong>Result gate</strong><br><code>/check-chain result</code> сверяет diff с intent/spec/plan.</div>
+<div class="node"><strong>Финальный review</strong><br>Full suite evidence, diff scope, wiki lint, no raw PII logs.</div>
+</div>
+</div>
+<div class="card">
+<h3>Фазы проверки</h3>
+<p><span class="badge ok">structure passed</span> <span class="badge ok">coverage passed</span> <span class="badge ok">dependencies passed</span> <span class="badge ok">verifiability passed</span> <span class="badge ok">consistency passed</span></p>
+<p class="note">Замечания не обнаружены. TODO row обновлён: plan = checked. Implementation ещё не начат.</p>
+</div>
+<details>
+<summary>Свидетельства</summary>
+<ul>
+<li>Каждая задача содержит files, failing test step, implementation step, verification command и commit boundary.</li>
+<li>Plan covers all spec decisions: one-run <code>openai_base_url</code>, no OpenAI-compatible provider config as user feature, <code>rules|nlp</code>, EN/RU model install/update, fail-secure launch, and unchanged no-PII behavior.</li>
+<li>Python tests are dependency-free scripts; Bash tests use existing <code>tests/helpers.sh</code>.</li>
+<li>Result preparation includes focused checks, full Bash suite, <code>py_compile</code>, diff scope check, and result chain gate.</li>
+</ul>
+</details>
+</section>
 <!-- TAB:plan END -->
 <!-- TAB:result START -->
 <section class="tab-pane" id="pane-result"><p class="note">Этап ещё не проверен.</p></section>
