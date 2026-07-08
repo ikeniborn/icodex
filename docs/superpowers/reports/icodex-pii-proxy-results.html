@@ -27,14 +27,14 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)
 </head>
 <body>
 <input type="checkbox" id="theme-toggle" hidden>
-<input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden checked>
 <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
 <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
 <header>
 <label for="theme-toggle" class="theme-btn" title="Переключить тёмную/светлую тему">Тема</label>
 <h1>icodex-pii-proxy</h1>
-<p>Единый отчёт цепочки IDD-SDD. Активная вкладка: Интент.</p>
+<p>Единый отчёт цепочки IDD-SDD. Активная вкладка: Спека.</p>
 </header>
 <nav class="chain-tabs">
 <label for="tab-intent">Интент</label>
@@ -120,7 +120,84 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)
 </section>
 <!-- TAB:intent END -->
 <!-- TAB:spec START -->
-<section class="tab-pane" id="pane-spec"><p class="note">Этап ещё не проверен.</p></section>
+<section class="tab-pane" id="pane-spec">
+<h2>Проверка spec — 2026-07-08</h2>
+<div class="card">
+<h3>Обзор</h3>
+<p>Спека фиксирует выбранную архитектуру: opt-in PII proxy запускается локально, а Codex направляется в него через one-run <code>openai_base_url</code>. Persistent provider/config mutation не требуется.</p>
+<p>Основной safety contract: без PII обычный запуск не меняется; с PII включён fail-secure; masking precision-first через <code>rules</code> по умолчанию и optional <code>nlp</code> с EN/RU model install/update.</p>
+</div>
+<div class="card">
+<h3>Сводка артефакта</h3>
+<table>
+<tr><th>Поле</th><th>Значение</th></tr>
+<tr><td>Источник</td><td><code>docs/superpowers/specs/2026-07-08-icodex-pii-proxy-design.md</code></td></tr>
+<tr><td>Intent</td><td><code>docs/superpowers/intents/2026-07-08-icodex-pii-proxy-intent.md</code></td></tr>
+<tr><td>Hash</td><td><code>c4ad1c32cd57e7b9</code></td></tr>
+<tr><td>Вердикт проверки</td><td><span class="badge ok">OK</span></td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Карта покрытия требований</h3>
+<table>
+<tr><th>Outcome intent</th><th>Spec requirement</th><th>Acceptance</th></tr>
+<tr><td>PII/secrets masked before OpenAI</td><td>Local proxy masks request bodies before forwarding to <code>https://api.openai.com/v1</code>.</td><td>Fake upstream receives masked email/token.</td></tr>
+<tr><td>Fail secure when requested</td><td>Missing install, invalid config, startup timeout, and masking failure stop protected launch or request.</td><td>Focused tests assert no raw fallback.</td></tr>
+<tr><td>Install/status paths</td><td><code>--install-pii-proxy</code> and <code>--check-pii-proxy</code> are defined.</td><td>Status reports engine, models, PID/port, masking/log level.</td></tr>
+<tr><td>Langfuse separate</td><td>Langfuse is non-goal for first protection implementation.</td><td>No Langfuse behavior in first implementation plan.</td></tr>
+<tr><td>Normal launch unchanged</td><td>PII disabled path launches exactly as today.</td><td>Bash launch test covers no-PII path.</td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Граф компонентов</h3>
+<div class="flow">
+<div class="node"><strong><code>icodex.sh</code></strong><br>Sources modules, dispatches PII commands.</div>
+<div class="node"><strong><code>lib/command/args.sh</code></strong><br>Parses enable/install/status flags.</div>
+<div class="node"><strong><code>lib/config/env.sh</code></strong><br>Loads <code>ICODEX_PII_*</code> safely.</div>
+<div class="node"><strong><code>lib/pii-proxy/*</code></strong><br>Install, detect, status, server.</div>
+<div class="node"><strong><code>lib/launcher/launch.sh</code></strong><br>Starts proxy and injects <code>openai_base_url</code>.</div>
+<div class="node"><strong>Tests/docs/wiki</strong><br>Coverage and behavior documentation.</div>
+</div>
+</div>
+<div class="card">
+<h3>Поток данных</h3>
+<div class="flow">
+<div class="node">Codex built-in OpenAI provider</div>
+<div class="node"><code>http://127.0.0.1:&lt;port&gt;/v1/*</code></div>
+<div class="node">PII request masker</div>
+<div class="node"><code>https://api.openai.com/v1/*</code></div>
+<div class="node">Streaming response relay unchanged</div>
+</div>
+<p class="note">Routing uses one-run <code>-c openai_base_url=...</code>; no persistent provider adapter is selected.</p>
+</div>
+<div class="card">
+<h3>Карта рисков и мер</h3>
+<table>
+<tr><th>Риск</th><th>Мера</th></tr>
+<tr><td><code>openai_base_url</code> не влияет на нужный path.</td><td>Early integration test; stop rather than silent unprotected traffic.</td></tr>
+<tr><td>Over-masking портит результат.</td><td>Default <code>rules</code>, no broad NER, preserve instructions/structural fields.</td></tr>
+<tr><td>Startup failure bypasses protection.</td><td>Fail secure before Codex launch.</td></tr>
+<tr><td>Streaming buffering regression.</td><td>Relay chunks as they arrive; test mid-stream errors.</td></tr>
+<tr><td>Logs leak content.</td><td>Info logs counts only; debug explicit warning.</td></tr>
+<tr><td>NLP install heavy/flaky.</td><td><code>rules</code> default; <code>nlp</code> optional with EN/RU fallback models and update path.</td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Фазы проверки</h3>
+<p><span class="badge ok">structure passed</span> <span class="badge ok">coverage passed</span> <span class="badge ok">clarity passed</span> <span class="badge ok">consistency passed</span></p>
+<p class="note">Findings не обнаружены. TODO row обновлён: spec = checked.</p>
+</div>
+<details>
+<summary>Свидетельства</summary>
+<ul>
+<li>Spec covers Objective, Desired Outcomes, Health Metrics, constraints, and approved design choices from conversation.</li>
+<li>Rejected HTTP(S)_PROXY interception and custom provider as first-class user feature.</li>
+<li>Config surface includes enablement, <code>rules|nlp</code>, masking level, log level, ports, upstream, timeouts, and EN/RU NLP models.</li>
+<li>Test plan covers Bash config/launch, Python masking/server behavior, and fake-upstream integration.</li>
+<li>Documentation path includes <code>.codex_config.example</code> and iwiki update after implementation.</li>
+</ul>
+</details>
+</section>
 <!-- TAB:spec END -->
 <!-- TAB:plan START -->
 <section class="tab-pane" id="pane-plan"><p class="note">Этап ещё не проверен.</p></section>
