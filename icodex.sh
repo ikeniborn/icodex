@@ -17,7 +17,8 @@ for m in core/logging core/init core/validation command/args \
          binary/detect binary/lockfile binary/install \
          config/isolated config/permissions config/sandbox config/env config/ca_trust proxy/proxy symlink/symlink \
          plugin/superpowers plugin/loen caveman/caveman idd/idd iwiki/iwiki \
-         pii-proxy/detect pii-proxy/install pii-proxy/status launcher/launch; do
+         pii-proxy/detect pii-proxy/install pii-proxy/status \
+         telemetry/telemetry telemetry/otel telemetry/langfuse launcher/launch; do
   # shellcheck source=/dev/null
   source "$ICODEX_ROOT/lib/$m.sh"
 done
@@ -84,7 +85,13 @@ main() {
     validate_pii_config || exit 1
     detect_pii_proxy || { log_error "PII proxy not installed — run: ./icodex.sh --install-pii-proxy"; exit 1; }
   fi
-  launch_codex_with_optional_pii ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}
+  telemetry_setup "$ICODEX_HOME_DIR/config.toml" || exit 1
+  if [[ "${ICODEX_TELEMETRY:-off}" == "off" ]]; then
+    launch_codex_with_optional_pii ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}
+  else
+    launch_codex_wrapped ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}
+    exit $?
+  fi
 }
 
 main "$@"

@@ -65,3 +65,17 @@ stop_pii_proxy_server() {
     [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
   fi
 }
+
+launch_codex_wrapped() { # <args...>
+  if [[ ! -x "$ICODEX_BIN" ]]; then
+    log_error "codex binary missing — run: ./icodex.sh --install"
+    return 1
+  fi
+
+  local rc=0
+  ICODEX_LAUNCH_NO_EXEC=1 launch_codex_with_optional_pii "$@" || rc=$?
+  if declare -F telemetry_cleanup >/dev/null 2>&1; then
+    telemetry_cleanup || true
+  fi
+  return "$rc"
+}

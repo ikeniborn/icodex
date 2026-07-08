@@ -83,3 +83,44 @@ telemetry_setup_context() {
   ICODEX_TELEMETRY_SESSION_ID="${ICODEX_TELEMETRY_SESSION_ID:-$(telemetry_new_session_id)}"
   export ICODEX_TELEMETRY ICODEX_TELEMETRY_PROJECT ICODEX_TELEMETRY_SESSION_ID
 }
+
+_ICODEX_TELEMETRY_CLEANUPS=()
+
+telemetry_register_cleanup() { # <shell-snippet>
+  _ICODEX_TELEMETRY_CLEANUPS+=("$1")
+}
+
+telemetry_run_registered_cleanups() {
+  local item
+  for item in "${_ICODEX_TELEMETRY_CLEANUPS[@]}"; do
+    eval "$item"
+  done
+}
+
+telemetry_cleanup() {
+  if declare -F telemetry_langfuse_cleanup >/dev/null 2>&1; then
+    telemetry_langfuse_cleanup
+  fi
+  telemetry_run_registered_cleanups
+}
+
+telemetry_setup() { # <config.toml>
+  local config_file="${1:-${ICODEX_HOME_DIR:-}/config.toml}"
+  telemetry_setup_context || return 1
+
+  case "$ICODEX_TELEMETRY" in
+    off)
+      return 0
+      ;;
+    otel)
+      telemetry_otel_configure "$config_file" || return 1
+      ;;
+    langfuse)
+      telemetry_langfuse_start_capture || return 1
+      ;;
+    both)
+      telemetry_otel_configure "$config_file" || return 1
+      telemetry_langfuse_start_capture || return 1
+      ;;
+  esac
+}
