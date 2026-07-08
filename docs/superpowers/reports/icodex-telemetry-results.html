@@ -379,7 +379,93 @@
   <!-- TAB:plan END -->
   <!-- TAB:result START -->
   <section class="tab-pane" id="pane-result">
-    <p class="note">Этап ещё не проверен.</p>
+    <h2>Проверка result — 2026-07-08</h2>
+    <p class="lead">Результат сверяет реализацию telemetry с intent, spec и plan. Проверка подтверждает: Grafana получает metadata-only OTel path, Langfuse получает runtime route через local capture provider, telemetry выключена по умолчанию, docs и iwiki обновлены.</p>
+
+    <h3>Исполнительное резюме</h3>
+    <p>Implementation diff от approved plan commit <code>e9ea0bd</code> до <code>7498e0d</code> покрывает все семь задач плана. Изменения ограничены wrapper telemetry modules, launch wiring, config example, Russian README и focused telemetry tests.</p>
+    <p>Первичный result audit нашёл один blocking gap: Langfuse lifecycle стартовал capture process, но Codex runtime ещё не направлялся на capture provider. Commit <code>7498e0d</code> добавил provider URL publication contract, managed Codex provider route, cleanup-on-failed-publication и tests. Повторный audit implementation blocker не нашёл.</p>
+
+    <h3>Исходные якоря</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Артефакт</th><th>Свидетельство</th></tr></thead>
+      <tbody>
+        <tr><td>Intent</td><td><code>docs/superpowers/intents/2026-07-07-icodex-telemetry-intent.md</code>, hash <code>be601daccfd4f18c</code></td></tr>
+        <tr><td>Spec</td><td><code>docs/superpowers/specs/2026-07-08-icodex-telemetry-design.md</code>, hash <code>b811b7bceabff63b</code></td></tr>
+        <tr><td>Plan</td><td><code>docs/superpowers/plans/2026-07-08-icodex-telemetry.md</code>, hash <code>f308559ce47ac3ac</code></td></tr>
+        <tr><td>Diff</td><td><code>git diff e9ea0bd..HEAD</code> scoped outside unrelated GitHub plugin cache churn</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Сверка плана</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Task</th><th>Статус</th><th>Diff paths</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>1. Telemetry Config Core</td><td><span class="badge ok">DONE</span></td><td><code>lib/telemetry/telemetry.sh</code>, <code>tests/test_telemetry_config.sh</code></td><td>Modes, project/session derivation, URL trust tests.</td></tr>
+        <tr><td>2. OTel Metadata Path</td><td><span class="badge ok">DONE</span></td><td><code>lib/telemetry/otel.sh</code>, <code>tests/test_telemetry_otel.sh</code></td><td>OTLP inline maps, <code>log_user_prompt=false</code>, span attributes, strict-config check.</td></tr>
+        <tr><td>3. Langfuse Validation/Lifecycle</td><td><span class="badge ok">DONE</span></td><td><code>lib/telemetry/langfuse.sh</code>, <code>tests/test_telemetry_langfuse.sh</code></td><td>Local trusted URL/key gating, runtime tags, fake capture lifecycle, provider URL publication.</td></tr>
+        <tr><td>4. Launch Integration</td><td><span class="badge ok">DONE</span></td><td><code>icodex.sh</code>, <code>lib/launcher/launch.sh</code>, <code>tests/test_telemetry_launch.sh</code></td><td>Off path direct exec; telemetry path preserves args/exit code and cleans on TERM.</td></tr>
+        <tr><td>5. Feasibility Probe</td><td><span class="badge ok">DONE</span></td><td><code>tests/test_telemetry_feasibility.sh</code>, <code>lib/telemetry/langfuse.sh</code></td><td>Gated Codex probe posts to local <code>/v1/responses</code> with prompt sentinel and SSE.</td></tr>
+        <tr><td>6. Documentation</td><td><span class="badge ok">DONE</span></td><td><code>.codex_config.example</code>, <code>docs/README.ru.md</code>, iwiki <code>telemetry-core</code></td><td>Modes, secrets, local trusted boundary, Grafana metadata-only, Langfuse full capture.</td></tr>
+        <tr><td>7. Final Verification</td><td><span class="badge ok">DONE</span></td><td>tests and chain artifacts</td><td>Full Bash suite, gated probe, syntax checks, wiki lint, result audits.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Покрытие outcomes и требований</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Outcome / requirement</th><th>Свидетельство</th><th>Статус</th></tr></thead>
+      <tbody>
+        <tr><td>Grafana ops metrics path</td><td>Codex OTel config writer emits exporters for logs, metrics, traces and span metadata; prompt logging disabled.</td><td><span class="badge ok">OK</span></td></tr>
+        <tr><td>Langfuse full-fidelity trace path</td><td>Runtime waits for local capture provider URL and writes managed Codex <code>model_provider = "icodex_capture"</code>; gated probe proves prompt-bearing streamed request reaches localhost provider.</td><td><span class="badge ok">OK</span></td></tr>
+        <tr><td>Project/session tags</td><td>Telemetry core derives project/session; OTel span attributes and Langfuse runtime tags include them.</td><td><span class="badge ok">OK</span></td></tr>
+        <tr><td>Disabled by default</td><td><code>telemetry_mode_default</code> sets <code>off</code>; <code>off</code> removes managed telemetry regions and uses direct exec launch path.</td><td><span class="badge ok">OK</span></td></tr>
+        <tr><td>Single mode switch</td><td>Public surface uses <code>ICODEX_TELEMETRY=off|otel|langfuse|both</code>; no extra public capture toggles.</td><td><span class="badge ok">OK</span></td></tr>
+        <tr><td>Local trusted Langfuse only</td><td>Langfuse base URL and capture provider URL both require local trusted URL policy.</td><td><span class="badge ok">OK</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Диаграммы результата</h3>
+    <div class="grid">
+      <div class="card"><b>Граф сверки diff</b><br>Plan tasks → telemetry modules/tests/docs → DONE. No planned implementation task remains MISSING.</div>
+      <div class="card"><b>Карта свидетельств результатов</b><br>Grafana evidence: OTel config/tests. Langfuse evidence: provider route + gated local probe.</div>
+      <div class="card"><b>Карта лишнего и пропусков</b><br>No excess source paths outside planned wrapper/docs/tests scope. Unrelated GitHub plugin cache churn excluded.</div>
+      <div class="card"><b>Карта замечаний review</b><br>Initial CRITICAL route gap fixed by <code>7498e0d</code>; repeat audit found no implementation blocker.</div>
+      <div class="card"><b>Карта документации</b><br><code>.codex_config.example</code>, <code>docs/README.ru.md</code>, iwiki <code>telemetry-core</code>; lint has no telemetry stale/broken/orphan pages.</div>
+      <div class="card"><b>Карта решений</b><br>Hybrid mode and local trusted full capture preserved from intent/spec through implementation.</div>
+    </div>
+
+    <h3>Code review findings</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Finding</th><th>Severity</th><th>Status</th><th>Fix evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Langfuse runtime did not route Codex traffic through capture provider.</td><td>CRITICAL</td><td><span class="badge ok">fixed</span></td><td><code>7498e0d</code>: provider URL publication, managed provider route, setup cleanup on missing URL, launch/langfuse tests.</td></tr>
+        <tr><td>README documentation for telemetry was absent.</td><td>WARNING</td><td><span class="badge ok">fixed</span></td><td><code>docs/README.ru.md</code> now documents modes, local trusted boundary, route behavior, secrets.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Проверки</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Команда</th><th>Результат</th></tr></thead>
+      <tbody>
+        <tr><td><code>for t in tests/test_*.sh; do bash "$t" || exit 1; done</code></td><td><span class="badge ok">exit 0</span></td></tr>
+        <tr><td><code>ICODEX_RUN_CODEX_FEASIBILITY=1 bash tests/test_telemetry_feasibility.sh</code></td><td><span class="badge ok">PASS=15 FAIL=0</span></td></tr>
+        <tr><td><code>bash -n icodex.sh lib/telemetry/*.sh lib/launcher/launch.sh tests/test_telemetry_*.sh</code></td><td><span class="badge ok">exit 0</span></td></tr>
+        <tr><td>Combined OTel + Langfuse provider strict-config smoke</td><td><span class="badge ok">no config parse errors</span></td></tr>
+        <tr><td><code>wiki_lint(domain="icodex")</code></td><td><span class="badge ok">no broken/orphan/stale</span>; unrelated advisories/missing_source remain.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Documentation evidence</h3>
+    <p><code>.codex_config.example</code> documents all public telemetry variables. <code>docs/README.ru.md</code> documents telemetry behavior in Russian. iwiki page <code>telemetry-core</code> was updated for route, cleanup, validation, and docs evidence.</p>
+
+    <h3>Decision propagation</h3>
+    <p>No approved decision changed. The implementation keeps hybrid mode, one public mode switch, metadata-only Grafana/OTel, and full local trusted Langfuse capture. The feasibility probe confirmed the chosen Codex custom provider route for installed <code>codex-cli 0.142.5</code>.</p>
+
+    <h3>Findings</h3>
+    <p class="note">Открытых CRITICAL/WARNING findings нет.</p>
+
+    <h3>Итог</h3>
+    <p><span class="badge ok">OK</span> implementation reconciles with intent, spec, and plan. Result state recorded in plan frontmatter and TODO row.</p>
   </section>
   <!-- TAB:result END -->
 </body>
