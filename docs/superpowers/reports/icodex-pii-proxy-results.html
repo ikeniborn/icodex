@@ -296,7 +296,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)
 <tr><td>План</td><td><code>docs/superpowers/plans/2026-07-08-icodex-pii-proxy.md</code></td></tr>
 <tr><td>Hash плана</td><td><code>d9fcbdf0637553ab</code></td></tr>
 <tr><td>База</td><td><code>origin/master</code> at <code>5790ee3</code></td></tr>
-<tr><td>Вершина</td><td><code>87d278f</code></td></tr>
+<tr><td>Вершина</td><td><code>7500b14</code></td></tr>
 <tr><td>Вердикт</td><td><span class="badge ok">OK</span></td></tr>
 </table>
 </div>
@@ -344,6 +344,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)
 <tr><th>Замечание</th><th>Действие</th><th>Статус</th></tr>
 <tr><td>Potential dirty worktree from <code>chmod</code> on repo source during PII install.</td><td>Removed source-file <code>chmod</code>; proxy is executed by Python interpreter.</td><td><span class="badge ok">fixed</span></td></tr>
 <tr><td>Potential duplicate upstream path <code>/v1/v1/...</code>.</td><td>Added path normalization and fake-upstream assertion.</td><td><span class="badge ok">fixed</span></td></tr>
+<tr><td><code>ICODEX_PII_MASKING_LEVEL=secrets</code> behaved like <code>standard</code>.</td><td>Added level-aware rules filtering and regression test that preserves email/card values in secrets mode.</td><td><span class="badge ok">fixed</span></td></tr>
 <tr><td>Subagent code review not run.</td><td>Tool policy disallows spawning subagents without explicit user request; local review and verification performed instead.</td><td><span class="badge warn">noted</span></td></tr>
 </table>
 </div>
