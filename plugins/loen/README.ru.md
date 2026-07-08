@@ -1,50 +1,51 @@
 # Плагин LoEn
 
-LoEn — plugin source для Loop Engineering внутри icodex. Он добавляет навыки
-Codex, hooks, agents и шаблоны для рабочих циклов, где состояние задачи хранится
-в файлах репозитория, а не в истории чата.
+LoEn — исходник плагина для Loop Engineering внутри icodex. Он добавляет навыки
+Codex, хуки, определения агентов и шаблоны для рабочих циклов, где состояние
+задачи хранится в файлах репозитория, а не в истории чата.
 
 ## Что добавляет LoEn
 
-- Навыки `loen:loop-start`, `loen:loop-plan`, `loen:loop-act`,
-  `loen:loop-check`, `loen:loop-reflect`, `loen:loop-status`,
+- Навыки `loen:loop-start`, `loen:loop-run`, `loen:loop-plan`,
+  `loen:loop-act`, `loen:loop-check`, `loen:loop-reflect`, `loen:loop-status`,
   `loen:loop-repair`, `loen:loop-research`, `loen:loop-review` и
   `loen:loop-governance`.
-- Hooks для контроля active loop state, mutable/protected scope, role/tool
-  policy, shell/network policy и обязательных evidence перед финальным
-  результатом.
-- Agent definitions и context capsules для planner, worker, verifier, reviewer
-  и researcher.
-- Шаблоны durable loop artifacts в `docs/loen/<topic>/`.
+- Хуки для контроля активного состояния loop, изменяемой и защищённой области,
+  правил ролей и инструментов, правил командной оболочки и сети, а также
+  обязательных evidence перед финальным результатом.
+- Определения агентов и контекстные капсулы для planner, worker, verifier,
+  reviewer и researcher.
+- Шаблоны устойчивых артефактов loop в `docs/loen/<topic>/`.
 
 ## Ответственность навыков
 
 | Навык | Когда использовать | За что отвечает |
 |---|---|---|
-| `loen:loop-start` | Нужно начать loop или выбрать durable topic. | Создаёт или переиспользует `docs/loen/<topic>/`, инициализирует `loop.yaml`, stage files, `attempts.jsonl`, `handoff.md`, topic-scoped `audit.html` и `evidence/`. |
-| `loen:loop-plan` | Goal уже есть, нужен один bounded pass. | Превращает `1_goal.md`, `2_context.md` и `loop.yaml` в `3_plan.md` с точными verification commands. |
-| `loen:loop-act` | В active plan есть одно следующее действие. | Выполняет одно bounded action и записывает changed files, commands и observations в `4_act.md`. |
-| `loen:loop-check` | Изменились code, docs или configuration. | Запускает planned checks и пишет exit codes, output summaries и ссылки на evidence в `5_check.md`. |
+| `loen:loop-start` | Нужно начать loop или выбрать устойчивую тему. | Создаёт или переиспользует `docs/loen/<topic>/`, собирает контракт запуска для `delivery` или `governance`, пишет `3_plan.md` на одобрение и затем фиксирует одобренный блок `run:` в `loop.yaml`. |
+| `loen:loop-run` | Одобренный `3_plan.md` нужно довести до конечного результата. | Исполняет одобренный блок `run:` через стадии prepare, act, check и reflect, затем пишет `7_result.md` или `handoff.md`. |
+| `loen:loop-plan` | Цель уже есть, нужен один ограниченный проход. | Превращает `1_goal.md`, `2_context.md` и `loop.yaml` в `3_plan.md` с точными командами проверки. |
+| `loen:loop-act` | В активном плане есть одно следующее действие. | Выполняет одно ограниченное действие и записывает изменённые файлы, команды и наблюдения в `4_act.md`. |
+| `loen:loop-check` | Изменились код, документация или конфигурация. | Запускает запланированные проверки и пишет коды выхода, краткие итоги вывода и ссылки на evidence в `5_check.md`. |
 | `loen:loop-reflect` | Evidence проверок уже есть, нужно решение по loop. | Выбирает keep, fix, revert или handoff; пишет `6_reflect.md`, а при завершении `7_result.md`. |
-| `loen:loop-status` | Нужно понять текущее состояние одного или нескольких topics. | Читает artifacts, показывает current stage, latest evidence, open decisions и next action. |
-| `loen:loop-repair` | Evidence показывает failing test, CI failure, regression или broken behavior. | Фиксирует failure context, сужает repair surface и возвращает loop к planning/action. |
-| `loen:loop-research` | Задача является experiment с measurable question. | Записывает metrics, baseline, experiment step, check commands, observed results и decision threshold. |
-| `loen:loop-review` | Нужно review diff, branch или pull request. | Записывает review scope, findings, evidence и final review disposition в topic artifacts. |
-| `loen:loop-governance` | Topic описывает recurring check, audit, CI triage, eval drift check или cost/latency comparison. | Фиксирует recurrence policy, automation attempts, human-review requirements, verifier evidence и audit updates. |
+| `loen:loop-status` | Нужно понять текущее состояние одной или нескольких тем. | Читает артефакты, показывает текущую стадию, последнее evidence, открытые решения и следующее действие. |
+| `loen:loop-repair` | Evidence показывает падающий тест, сбой CI, regression или broken behavior. | Фиксирует контекст сбоя, сужает область ремонта и возвращает loop к planning/action. |
+| `loen:loop-research` | Задача является экспериментом с измеримым вопросом. | Записывает metrics, baseline, experiment step, команды проверки, observed results и decision threshold. |
+| `loen:loop-review` | Нужно ревью diff, branch или pull request. | Записывает область ревью, findings, evidence и итоговый статус ревью в артефактах темы. |
+| `loen:loop-governance` | Тема описывает повторяющуюся проверку, audit, CI triage, eval drift check или cost/latency comparison. | Фиксирует правила периодичности, попытки автоматизации, требования human review, verifier evidence и обновления audit. |
 
 ## Включение в icodex
 
-icodex подключает LoEn в каждый isolated Codex home при обычном запуске.
-Команды install/update остаются binary-only и LoEn не настраивают.
+icodex подключает LoEn в каждый изолированный Codex home при обычном запуске.
+Команды install/update работают только с бинарником и LoEn не настраивают.
 
 Поведение управляется переменной `ICODEX_LOEN_MODE`:
 
 | Режим | Поведение |
 |---|---|
-| `off` | Отключить LoEn wiring и hooks. |
-| `advisory` | Включить skills и неблокирующие hook-подсказки. Режим по умолчанию. |
-| `enforce` | Блокировать отсутствие loop state, нарушения порядка стадий, protected paths и отсутствие evidence. |
-| `strict` | Добавить проверки ролей, tools, shell/network и разделения worker/verifier. |
+| `off` | Отключить подключение LoEn и хуки. |
+| `advisory` | Включить skills и неблокирующие подсказки хуков. Режим по умолчанию. |
+| `enforce` | Блокировать отсутствие состояния loop, нарушения порядка стадий, protected paths и отсутствие evidence. |
+| `strict` | Добавить проверки ролей, инструментов, shell/network и разделения worker/verifier. |
 
 Пример:
 
@@ -54,85 +55,116 @@ ICODEX_LOEN_MODE=advisory ./icodex.sh
 
 ## Работа с loop
 
-Начинай с `loen:loop-start`, чтобы создать topic directory:
+Начинай с `loen:loop-start`, чтобы создать директорию темы:
 
 ```text
 docs/loen/<topic>/
 ```
 
-Типовая последовательность:
+Путь с мастером запуска:
+
+```text
+loen:loop-start -> выбрать delivery или governance -> одобрить план -> loen:loop-run <topic> -> 7_result.md или handoff.md
+```
+
+Ручные шаги `loen:loop-plan`, `loen:loop-act`, `loen:loop-check` и
+`loen:loop-reflect` остаются поддержанными для пошаговой работы, исправлений,
+ревью и совместимости с уже существующими темами.
+
+Последовательность с мастером запуска:
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 sequenceDiagram
     participant User as Пользователь
     participant Start as loen:loop-start
-    participant Plan as loen:loop-plan
-    participant Act as loen:loop-act
-    participant Check as loen:loop-check
-    participant Reflect as loen:loop-reflect
+    participant Run as loen:loop-run
     participant Status as loen:loop-status
     participant Files as docs/loen/topic
 
-    User->>Start: создать durable topic
-    Start->>Files: записать loop.yaml и stage files
-    User->>Plan: запросить bounded plan
-    Plan->>Files: обновить 3_plan.md
-    User->>Act: выполнить одно действие
-    Act->>Files: обновить 4_act.md
-    User->>Check: запустить verifier commands
-    Check->>Files: записать 5_check.md и evidence
-    User->>Reflect: выбрать keep, fix, revert или handoff
-    Reflect->>Files: обновить 6_reflect.md или 7_result.md
+    User->>Start: создать или выбрать устойчивую тему
+    Start->>User: собрать цель, scope, verifier и budget
+    Start->>User: выбрать delivery или governance
+    alt governance
+        Start->>User: выбрать report-only, auto-fix или merge-release
+        Start->>User: собрать automation и release policy
+    end
+    Start->>Files: записать draft loop.yaml, 1_goal.md, 2_context.md и 3_plan.md
+    Start->>User: одобрить 3_plan.md
+    Start->>Files: записать run.plan_approved, plan_hash, mode и subtype
+    Start-->>User: запустить loen:loop-run topic
+    User->>Run: выполнить одобренный run contract
+    Run->>Files: проверить approval, hash, mode, scope, verifier и policy
+    Run->>Files: записать attempts, evidence, 4_act.md, 5_check.md, 6_reflect.md
+    Run->>Files: записать 7_result.md или handoff.md
     User->>Status: проверить текущее состояние
     Status-->>User: стадия, evidence, следующий шаг
 ```
 
 ## Как loop доходит до решения
 
-Обычный delivery loop ведут `loop-plan`, `loop-act`, `loop-check` и
-`loop-reflect`. Governance не является step runner для обычной работы.
+Путь с мастером запуска ведут `loop-start` и `loop-run`. Ручные
+`loop-plan`, `loop-act`, `loop-check` и `loop-reflect` остаются доступными,
+когда нужно видеть каждый шаг отдельно.
 
-Каждый проход отвечает на один вопрос: приблизило ли последнее bounded action
-topic к objective, и достаточно ли evidence, чтобы оставить результат?
+Каждый проход отвечает на один вопрос: приблизило ли последнее ограниченное
+действие тему к цели, и достаточно ли evidence, чтобы оставить результат?
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 flowchart TD
-    StartTopic["loen:loop-start создаёт docs/loen/&lt;topic&gt;/"] --> SharedArtifacts["Общий setup: loop.yaml, stage files, attempts.jsonl, evidence/, audit.html"]
-    SharedArtifacts --> Branch{"Ветка выполнения?"}
+    StartTopic["loen:loop-start создаёт docs/loen/&lt;topic&gt;/"] --> SharedArtifacts["Общая подготовка: loop.yaml, файлы стадий, attempts.jsonl, evidence/, audit.html"]
+    SharedArtifacts --> Intake["Собрать цель, ограничения, scope, verifier, budget"]
+    Intake --> Branch{"Ветка выполнения?"}
+    Branch -- "delivery" --> PlanApproval["Записать и одобрить 3_plan.md"]
+    Branch -- "governance" --> StartSubtype{"Выбрать governance subtype"}
+    StartSubtype -- "report-only" --> PlanApproval
+    StartSubtype -- "auto-fix" --> PlanApproval
+    StartSubtype -- "merge-release" --> PlanApproval
+    PlanApproval --> RunContract["Записать одобренный run contract и plan hash"]
+    RunContract --> RunPreflight{"loen:loop-run preflight проходит?"}
+    RunPreflight -- "no" --> HandoffStep["handoff.md фиксирует передачу человеку"]
 
-    subgraph delivery["Delivery pass"]
-        PlanStep["loen:loop-plan пишет 3_plan.md"]
-        ActStep["loen:loop-act пишет 4_act.md"]
-        CheckStep["loen:loop-check пишет 5_check.md и evidence/*"]
-        ReflectStep{"loen:loop-reflect outcome"}
+    subgraph delivery["Проход delivery"]
+        PrepareStep["loop-run state prepare"]
+        ActStep["loop-run state act пишет 4_act.md"]
+        CheckStep["loop-run state check пишет 5_check.md и evidence/*"]
+        ReflectStep{"loop-run reflect outcome"}
         ResultStep["7_result.md плюс topic audit.html"]
-        FixStep["Fix требует ещё один bounded pass"]
-        HandoffStep["handoff.md фиксирует human handoff"]
+        FixStep["Fix требует ещё один ограниченный проход"]
     end
 
-    subgraph governance["Governance pass"]
-        GovStep["loen:loop-governance"]
-        GovPolicy["Добавляет или обновляет loop.yaml governance owner, schedule, review rules"]
-        GovAttempt["Обязательно для run: attempts.jsonl automation record"]
-        GovEvidence["Обязательно для run: evidence/* verifier output"]
+    subgraph governance["Проход governance"]
+        GovStep["loop-run governance state"]
+        GovSubtype{"Одобренный run.subtype?"}
+        ReportOnly["report-only пишет findings"]
+        AutoFix["auto-fix меняет usable mutable scope"]
+        MergeRelease["merge-release проверяет release_policy"]
+        GovPolicy["Добавляет или обновляет в loop.yaml owner, schedule и review rules"]
+        GovAttempt["Обязательно для run: запись автоматизации в attempts.jsonl"]
+        GovEvidence["Обязательно для run: вывод verifier в evidence/*"]
         GovAudit["Обязательно для run: docs/loen/&lt;topic&gt;/audit.html"]
         GovReview{"Нужен human review?"}
-        GovWait["Ожидание owner review"]
+        GovWait["Ожидание ревью owner"]
     end
 
-    Branch -- "обычная задача" --> PlanStep
-    PlanStep --> ActStep
+    RunPreflight -- "delivery" --> PrepareStep
+    PrepareStep --> ActStep
     ActStep --> CheckStep
     CheckStep --> ReflectStep
     ReflectStep -- "keep и objective достигнут" --> ResultStep
     ReflectStep -- "fix" --> FixStep
-    FixStep --> PlanStep
+    FixStep --> PrepareStep
     ReflectStep -- "handoff" --> HandoffStep
 
-    Branch -- "recurring или scheduled topic" --> GovStep
-    GovStep --> GovPolicy
+    RunPreflight -- "governance" --> GovStep
+    GovStep --> GovSubtype
+    GovSubtype -- "report-only" --> ReportOnly
+    GovSubtype -- "auto-fix" --> AutoFix
+    GovSubtype -- "merge-release" --> MergeRelease
+    ReportOnly --> GovPolicy
+    AutoFix --> GovPolicy
+    MergeRelease --> GovPolicy
     GovPolicy --> GovAttempt
     GovAttempt --> GovEvidence
     GovEvidence --> GovAudit
@@ -140,54 +172,99 @@ flowchart TD
     GovReview -- "yes" --> GovWait
     GovReview -- "no" --> ReflectStep
 
+    ManualSkills["Ручные loop-plan, loop-act, loop-check, loop-reflect остаются поддержанными"] -.-> PrepareStep
+
     classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
     classDef deliveryClass fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec
     classDef governanceClass fill:#94e2d5,color:#1e1e2e,stroke:#179299
     classDef artifactClass fill:#a6e3a1,color:#1e1e2e,stroke:#40a02b
-    class Branch,ReflectStep,GovReview decision
-    class PlanStep,ActStep,CheckStep,FixStep,HandoffStep deliveryClass
-    class GovStep,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
-    class SharedArtifacts,ResultStep artifactClass
+    class Branch,StartSubtype,RunPreflight,ReflectStep,GovSubtype,GovReview decision
+    class PrepareStep,ActStep,CheckStep,FixStep,HandoffStep,ManualSkills deliveryClass
+    class GovStep,ReportOnly,AutoFix,MergeRelease,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
+    class SharedArtifacts,PlanApproval,RunContract,ResultStep artifactClass
 ```
 
-1. `loop-plan` сужает goal до одного verifiable action и пишет checks в
+1. `loop-plan` сужает цель до одного проверяемого действия и пишет проверки в
    `3_plan.md`.
-2. `loop-act` выполняет только это action и записывает изменения в `4_act.md`.
-3. `loop-check` запускает или анализирует planned checks и сохраняет evidence в
+2. `loop-act` выполняет только это действие и записывает изменения в `4_act.md`.
+3. `loop-check` запускает или анализирует запланированные проверки и сохраняет evidence в
    `5_check.md` плюс `docs/loen/<topic>/evidence/`.
-4. `loop-reflect` читает action/check evidence и выбирает outcome: `keep`,
+4. `loop-reflect` читает evidence действия и проверок, затем выбирает outcome: `keep`,
    `fix`, `revert` или `handoff`.
-5. Если outcome равен `fix`, следующий проход начинается с более узкого plan на
-   основе failed evidence.
-6. Если outcome равен `revert`, следующий action откатывает scoped change перед
+5. Если outcome равен `fix`, следующий проход начинается с более узкого плана на
+   основе evidence сбоя.
+6. Если outcome равен `revert`, следующее действие откатывает scoped change перед
    новой проверкой.
 7. Если outcome равен `handoff`, loop записывает в `handoff.md`, почему нельзя
    безопасно продолжать.
-8. Если outcome равен `keep` и objective достигнут, `loop-reflect` пишет
+8. Если outcome равен `keep` и цель достигнута, `loop-reflect` пишет
    `7_result.md`; `audit.html` перегенерируется для topic.
 
-Loop завершён только когда у topic есть result и достаточно check evidence,
-чтобы его обосновать. `loop-status` read-only: он показывает current stage и
-next action, но не двигает loop вперёд.
+Loop завершён только когда у темы есть результат и достаточно evidence проверок,
+чтобы его обосновать. `loop-status` работает только на чтение: он показывает
+текущую стадию и следующее действие, но не двигает loop вперёд.
 
-В topic directory хранятся:
+## Контракт запуска
 
-| Artifact | Назначение |
+`loop-start` включает `loop-run` только после одобрения `3_plan.md`
+пользователем. Одобрение записывается в `loop.yaml` в блоке `run:`:
+
+```yaml
+run:
+  mode: delivery
+  subtype: null
+  plan_approved: true
+  plan_hash: "<hash of 3_plan.md>"
+  state: prepare
+  max_passes: 3
+  current_pass: 0
+```
+
+`subtype` — governance-подтип, выбранный во время `loop-start`. Для delivery
+используется `subtype: null`; для governance обязателен один из `report-only`,
+`auto-fix` или `merge-release`. `loop-run` не выбирает subtype, а только читает
+одобренное значение и проверяет соответствующую policy перед действием.
+
+`loop-run` останавливается, если нет одобрения, изменился hash плана, режим или
+подтип неверен, изменяемая область не задана, команда verifier отсутствует,
+budget пустой или политика rollback/recovery неполная. Значения изменяемой
+области вроде `none`, `null` или пустой строки считаются отсутствующей областью.
+
+Для governance `merge-release` секция `release_policy:` должна быть полной до
+любого merge или release:
+
+```yaml
+release_policy:
+  target_branch: master
+  merge_strategy: pr
+  verifier_required: true
+  evidence_required: true
+  scope_limit: "Configured mutable scope only"
+  recovery_policy: "Stop, record handoff, and leave branch inspectable."
+```
+
+`scope_limit` — обязательная граница release, отдельная от общего списка
+`mutable_scope`. Она фиксирует границу конкретного release-запуска, которую
+runner должен соблюдать при автоматизации merge/release.
+
+В директории темы хранятся:
+
+| Артефакт | Назначение |
 |---|---|
-| `1_goal.md` | User request, objective и success criterion для loop. |
-| `2_context.md` | Факты, relevant files, constraints и summaries evidence. |
-| `3_plan.md` | Bounded plan и verification commands для одного loop pass. |
-| `4_act.md` | Action evidence: changed files, commands и observations. |
-| `5_check.md` | Check results, exit codes и ссылки на verifier evidence. |
+| `1_goal.md` | Запрос пользователя, цель и критерий успеха для loop. |
+| `2_context.md` | Факты, важные файлы, ограничения и краткие итоги evidence. |
+| `3_plan.md` | Ограниченный план и команды проверки для одного прохода loop. |
+| `4_act.md` | Evidence действия: изменённые файлы, команды и наблюдения. |
+| `5_check.md` | Результаты проверок, коды выхода и ссылки на verifier evidence. |
 | `6_reflect.md` | Решение keep, fix, revert или handoff. |
-| `7_result.md` | Final outcome, когда loop завершён. |
-| `loop.yaml` | Machine-readable contract: topic, mode, scope, verifier, budget, stop rules и governance. |
-| `attempts.jsonl` | Append-only run log для manual или automated attempts. |
-| `evidence/` | Raw check output: logs, JSON summaries или verifier files. |
-| `handoff.md` | Human handoff state, если loop нельзя безопасно продолжать. |
-| `audit.html` | Regenerated human-readable audit view для этого topic по пути `docs/loen/<topic>/audit.html`. |
+| `7_result.md` | Итоговый результат, когда loop завершён. |
+| `loop.yaml` | Машиночитаемый контракт: topic, mode, scope, verifier, budget, stop rules и governance. |
+| `attempts.jsonl` | Журнал запусков, дописываемый только в конец, для ручных или автоматических попыток. |
+| `evidence/` | Сырой вывод проверок: логи, JSON-сводки или файлы verifier. |
+| `handoff.md` | Состояние передачи человеку, если loop нельзя безопасно продолжать. |
+| `audit.html` | Перегенерированное человекочитаемое audit-представление для этой темы по пути `docs/loen/<topic>/audit.html`. |
 
-Для просмотра состояния используй `loen:loop-status`. Для одного bounded pass
+Для просмотра состояния используй `loen:loop-status`. Для одного ограниченного прохода
 через loop используй `loen:loop-plan`, `loen:loop-act`, `loen:loop-check` и
 `loen:loop-reflect`.
 
@@ -202,66 +279,73 @@ Use LoEn to fix the failing proxy test.
 Ожидаемый первый проход:
 
 ```text
-loen:loop-start creates docs/loen/fix-proxy-test/
-loen:loop-plan writes a one-pass plan in 3_plan.md
-loen:loop-act changes only the scoped files
-loen:loop-check runs the configured test and stores evidence/latest-test.log
-loen:loop-reflect records keep/fix/revert/handoff
+loen:loop-start создаёт docs/loen/fix-proxy-test/
+выбрать delivery
+одобрить 3_plan.md
+loen:loop-run fix-proxy-test
+запуск записывает 7_result.md или handoff.md
 ```
 
-Если `ICODEX_LOEN_MODE=enforce`, hooks могут заблокировать правки вне
-configured mutable scope или финальный ответ без check evidence.
+Если `ICODEX_LOEN_MODE=enforce`, хуки могут заблокировать правки вне
+настроенной изменяемой области или финальный ответ без evidence проверок.
 
 ## Automation Governance
 
-Используй `loen:loop-governance` для recurring или scheduled topics: CI triage,
-dependency audits, eval drift checks, cost/latency comparisons. Он добавляет
-policy вокруг loop, но не заменяет обычный pass: plan, act, check, reflect.
+Используй `loen:loop-governance` для повторяющихся или запланированных тем:
+CI triage, dependency audits, eval drift checks, cost/latency comparisons. Он
+добавляет правила вокруг loop, но не заменяет обычный проход: plan, act, check,
+reflect.
 
-Governance topics пишут обычные LoEn artifacts в `docs/loen/<topic>/`,
-добавляют automation attempts в `attempts.jsonl`, сохраняют verifier output в
+Governance-темы пишут обычные артефакты LoEn в `docs/loen/<topic>/`,
+добавляют попытки автоматизации в `attempts.jsonl`, сохраняют вывод verifier в
 `evidence/` и перегенерируют `docs/loen/<topic>/audit.html`.
 
-`loop-governance` можно запускать сразу после `loop-start`; completed delivery
-pass не нужен. `loop-start` создаёт общие topic artifacts, а
+`loop-governance` можно запускать сразу после `loop-start`; завершённый проход
+delivery не нужен. `loop-start` создаёт общие артефакты темы, а
 `loop-governance` добавляет или обновляет секцию `governance:` внутри
-`loop.yaml`. После этого каждый governance run требует эти artifacts, прежде чем
+`loop.yaml`. После этого каждый governance-запуск требует эти артефакты, прежде чем
 его можно считать записанным:
 
-| Обязательный artifact | Назначение |
+| Обязательный артефакт | Назначение |
 |---|---|
-| `loop.yaml` `governance:` | Governance policy, добавленная в общий topic contract: owner, schedule, review rules, alert conditions и safe automation defaults. |
-| `attempts.jsonl` | Append-only automation run record со status, summary, evidence path и review flags. |
-| `evidence/` | Verifier output для scheduled или recurring run. |
-| `audit.html` | Topic-scoped audit по пути `docs/loen/<topic>/audit.html`. |
+| `loop.yaml` `governance:` | Правила governance в общем контракте темы: owner, schedule, review rules, alert conditions и безопасные значения автоматизации по умолчанию. |
+| `attempts.jsonl` | Запись запуска автоматизации, дописываемая только в конец, со status, summary, evidence path и review flags. |
+| `evidence/` | Вывод verifier для запланированного или повторяющегося запуска. |
+| `audit.html` | Audit для конкретной темы по пути `docs/loen/<topic>/audit.html`. |
 
-Automation в этом plugin source advisory. Она не должна auto-merge, выполнять
-destructive operations, менять protected scope или завершать first runs без
-human-review requirements, записанных в `loop.yaml`.
+Автоматизация в этом исходнике плагина работает в advisory-режиме. По умолчанию
+auto-merge отключён. Подтип `merge-release` может включить
+`governance.auto_merge: true` только после явного одобрения на старте и при
+полной секции `release_policy:`, включая `scope_limit`; внешние правила веток,
+запросы подтверждения от среды выполнения и правила безопасности репозитория всё
+равно применяются. Автоматизация не должна выполнять разрушительные операции,
+менять protected scope или завершать первые запуски без требований human review,
+записанных в `loop.yaml`.
 
 ## Vendoring для Codex
 
-Редактируй plugin source в этой директории. Чтобы пересобрать committed Codex
-cache, который использует icodex launch wiring, запусти:
+Редактируй исходник плагина в этой директории. Чтобы пересобрать зафиксированный
+Codex cache, который использует подключение при запуске icodex, запусти:
 
 ```bash
 ./scripts/vendor-loen.sh
 ```
 
-Скрипт копирует source tree в:
+Скрипт копирует дерево исходников в:
 
 ```text
 .codex-isolated/plugins/cache/icodex-local/loen/<version>/
 ```
 
-Он проверяет обязательные assets и удаляет generated files вроде `__pycache__`
+Он проверяет обязательные assets и удаляет сгенерированные файлы вроде `__pycache__`
 и `*.pyc`.
 
 ## Границы
 
-LoEn самодостаточен и не зависит от других workflow plugins. Он пишет loop state
-только в `docs/loen/<topic>/` и обновляет `docs/TODO.md` как global task index.
-LoEn не делает auto-merge, не переписывает protected files и не обходит
-`LOEN_MODE`.
+LoEn самодостаточен и не зависит от других workflow-плагинов. Он пишет состояние
+loop только в `docs/loen/<topic>/` и обновляет `docs/TODO.md` как общий индекс задач.
+Auto-merge по умолчанию отключён; только одобренная политика для
+`merge-release` может установить `governance.auto_merge: true`. LoEn не
+переписывает protected files и не обходит `LOEN_MODE`.
 
-Внутренние детали plugin source описаны в `plugins/loen/docs/architecture.md`.
+Внутренние детали исходника плагина описаны в `plugins/loen/docs/architecture.md`.

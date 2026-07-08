@@ -93,6 +93,13 @@ def _parse_governance_scalar(key: str, value: str) -> Any:
   return parsed
 
 
+def _parse_run_scalar(key: str, value: str) -> Any:
+  parsed = _parse_scalar(value)
+  if key in {"max_passes", "current_pass"} and isinstance(parsed, str) and re.fullmatch(r"-?[0-9]+", parsed):
+    return int(parsed)
+  return parsed
+
+
 def _parse_inline_list(value: str) -> list[str]:
   value = value.strip()
   if not (value.startswith("[") and value.endswith("]")):
@@ -130,6 +137,25 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       "auto_merge": False,
       "report_only_on_no_findings": True,
       "alert_on": [],
+    },
+    "run": {
+      "mode": "",
+      "subtype": "",
+      "plan_approved": False,
+      "plan_hash": "",
+      "state": "",
+      "max_passes": 0,
+      "current_pass": 0,
+      "approval_source": "",
+      "approved_at": "",
+    },
+    "release_policy": {
+      "target_branch": "",
+      "merge_strategy": "",
+      "verifier_required": False,
+      "evidence_required": False,
+      "scope_limit": "",
+      "recovery_policy": "",
     },
   }
   section = ""
@@ -237,8 +263,8 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
         list_target.append(stripped[2:].strip())
       continue
 
-    if section == "governance":
-      target = data["governance"]
+    if section in {"governance", "run", "release_policy"}:
+      target = data[section]
       if ":" in stripped:
         key, value = stripped.split(":", 1)
         key = key.strip()
@@ -247,7 +273,12 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
           target[key] = parsed
           list_target = None
         elif value.strip():
-          target[key] = _parse_governance_scalar(key, value)
+          if section == "governance":
+            target[key] = _parse_governance_scalar(key, value)
+          elif section == "run":
+            target[key] = _parse_run_scalar(key, value)
+          else:
+            target[key] = _parse_scalar(value)
           list_target = None
         else:
           target.setdefault(key, [])
