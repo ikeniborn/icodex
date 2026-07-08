@@ -39,7 +39,8 @@ telemetry_url_host() { # <url>
   rest="${url#*://}"
   authority="${rest%%[/?#]*}"
   [[ "$authority" != *@* ]] || return 1
-  if [[ "$authority" == \[*\]* ]]; then
+  if [[ "$authority" == \[* ]]; then
+    [[ "$authority" =~ ^\[[^]]+\](:[0-9]+)?$ ]] || return 1
     host="${authority%%]*}"
     host="${host#[}"
   else
@@ -49,11 +50,21 @@ telemetry_url_host() { # <url>
   printf '%s\n' "$host"
 }
 
+telemetry_ipv4_valid() { # <host>
+  local host="$1" a b c d octet
+  [[ "$host" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || return 1
+  IFS=. read -r a b c d <<<"$host"
+  for octet in "$a" "$b" "$c" "$d"; do
+    [[ "$octet" =~ ^[0-9]+$ ]] || return 1
+    (( 10#$octet >= 0 && 10#$octet <= 255 )) || return 1
+  done
+}
+
 telemetry_url_is_local_trusted() { # <url>
   local host
   host="$(telemetry_url_host "$1")" || return 1
   [[ "$host" == "localhost" || "$host" == "::1" ]] && return 0
-  [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+  telemetry_ipv4_valid "$host" || return 1
   case "$host" in
     127.*|10.*|192.168.*) return 0 ;;
     172.*)
