@@ -58,6 +58,45 @@ telemetry_langfuse_capture_context() {
   printf 'LANGFUSE_TAGS=%s\n' "$(telemetry_langfuse_capture_tags)"
 }
 
+telemetry_langfuse_string_safe() { # <value>
+  local value="$1"
+  [[ "$value" != *$'\n'* && "$value" != *$'\r'* && "$value" != *$'\t'* ]] || return 1
+  [[ "$value" != *\\* && "$value" != *\"* ]] || return 1
+  [[ "$value" != *[[:cntrl:]]* ]]
+}
+
+telemetry_langfuse_provider_config() { # <provider-base-url>
+  local base_url="$1"
+  telemetry_url_is_local_trusted "$base_url" || return 1
+  telemetry_langfuse_string_safe "$base_url" || return 1
+  cat <<EOF
+model = "gpt-5.5"
+model_provider = "icodex_capture"
+
+[model_providers.icodex_capture]
+name = "icodex Langfuse Capture"
+base_url = "$base_url"
+wire_api = "responses"
+EOF
+}
+
+telemetry_langfuse_write_provider_config() { # <config.toml> <provider-base-url>
+  local file="$1" base_url="$2"
+  telemetry_langfuse_provider_config "$base_url" > "$file"
+}
+
+telemetry_langfuse_probe_command() { # <workdir> <prompt>
+  local workdir="$1" prompt="$2"
+  "${ICODEX_BIN:-${ICODEX_ROOT:-.}/.codex-isolated/bin/codex}" exec \
+    --strict-config \
+    --ignore-rules \
+    --skip-git-repo-check \
+    --ephemeral \
+    -C "$workdir" \
+    --color never \
+    "$prompt"
+}
+
 telemetry_langfuse_capture_pid_running() { # <pid>
   local pid="$1"
   [[ "$pid" =~ ^[0-9]+$ ]] || return 1
