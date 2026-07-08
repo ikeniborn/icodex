@@ -183,7 +183,7 @@ contract in `loop.yaml`:
 - `run:` stores `mode`, `subtype`, `plan_approved`, `plan_hash`, state, pass
   budget, approval source, and approval time.
 - `release_policy:` stores target branch, merge strategy, verifier requirement,
-  evidence requirement, scope limits, and recovery policy for merge-release.
+  evidence requirement, `scope_limit`, and recovery policy for merge-release.
 - `governance:` stores owner, schedule, alert policy, `auto_fix`, and
   `auto_merge` for governance topics.
 

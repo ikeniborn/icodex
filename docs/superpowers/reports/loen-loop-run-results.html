@@ -259,7 +259,7 @@
   <section class="tab-pane" id="pane-result">
     <h2>Проверка result — 2026-07-08</h2>
     <p>Результат сверяет implementation commits <code>be27c37..d25354d</code> с intent, spec и plan. Guided LoEn path теперь имеет approved <code>run:</code> contract, новый <code>loen:loop-run</code> skill, audit visibility, governance subtypes и docs/wiki coverage.</p>
-    <p>Вердикт: <span class="badge ok">OK</span>. Все plan tasks закрыты, focused и full verification прошли, stale wiki contradiction про auto-merge исправлена, final Task 5 review approved.</p>
+    <p>Вердикт: <span class="badge ok">OK</span>. Все plan tasks закрыты, focused и full verification прошли, stale wiki contradiction про auto-merge исправлена, final review findings по `scope_limit` и placeholder scope закрыты.</p>
 
     <h3>Сводка артефакта</h3>
     <table>
@@ -297,7 +297,7 @@
       <tr><th>Intent/spec outcome</th><th>Evidence</th><th>Статус</th></tr>
       <tr><td><code>loop-start</code> owns intake, mode, params, approval</td><td><code>loop-start/SKILL.md</code>, README guided path, contract tests for mode/subtype/approval.</td><td><span class="badge ok">covered</span></td></tr>
       <tr><td><code>loop-run &lt;topic&gt;</code> drives approved topic</td><td>New skill documents <code>prepare -&gt; act -&gt; check -&gt; reflect</code>, preflight, result/handoff stops.</td><td><span class="badge ok">covered</span></td></tr>
-      <tr><td>Governance report-only, auto-fix, merge-release policies</td><td>Validator requires subtype policy, <code>auto_fix</code>, <code>auto_merge</code>, complete <code>release_policy</code>.</td><td><span class="badge ok">covered</span></td></tr>
+      <tr><td>Governance report-only, auto-fix, merge-release policies</td><td>Validator requires subtype policy, <code>auto_fix</code>, <code>auto_merge</code>, usable mutable scope, and complete <code>release_policy</code> including <code>scope_limit</code>.</td><td><span class="badge ok">covered</span></td></tr>
       <tr><td>Manual skills stay compatible</td><td>Docs keep manual plan/act/check/reflect path; no manual skill file removed.</td><td><span class="badge ok">covered</span></td></tr>
       <tr><td>Evidence/audit trail remains visible</td><td>Audit Runner section, attempts/evidence rendering, runtime artifact tests.</td><td><span class="badge ok">covered</span></td></tr>
     </table>
@@ -318,14 +318,14 @@
       <tr><td>Contract helpers</td><td>Task 2 review required isolated negative cases and report-only readiness.</td><td>Fixed before <code>a5cf357</code>; final Task 2 reviews approved.</td></tr>
       <tr><td>Runner skill</td><td>Task 4 review required clearer verifier failure and approval wording.</td><td>Fixed before <code>99f6085</code>; reviews approved.</td></tr>
       <tr><td>Docs/governance</td><td>Task 5 review found stale no-auto-merge wording, Russian README quality, stale core inventory.</td><td>Fixed in <code>d25354d</code>; final doc-quality review approved.</td></tr>
-      <tr><td>Final pass</td><td>No open confirmed bug remains.</td><td>Focused/full verification green.</td></tr>
+      <tr><td>Final pass</td><td>Final review found missing <code>release_policy.scope_limit</code> enforcement and placeholder <code>mutable_scope: none</code> acceptance.</td><td>Fixed with red/green tests; contract now refuses both cases.</td></tr>
     </table>
 
     <h3>Карта документационных свидетельств</h3>
     <table>
       <tr><th>Change</th><th>Repo docs</th><th>Wiki evidence</th></tr>
       <tr><td>Guided start/run path</td><td><code>README.md</code>, <code>README.ru.md</code>, <code>architecture.md</code>.</td><td><code>loen-overview</code>, <code>loen-runtime-artifacts</code>.</td></tr>
-      <tr><td>Governance subtypes and merge-release policy</td><td><code>loop-governance/SKILL.md</code>, README automation governance.</td><td><code>loen-automation-governance</code> Overview, Enforcement Boundary, Validation.</td></tr>
+      <tr><td>Governance subtypes and merge-release policy</td><td><code>loop-governance/SKILL.md</code>, README automation governance, <code>release_policy.scope_limit</code>.</td><td><code>loen-automation-governance</code> Overview, Enforcement Boundary, Validation.</td></tr>
       <tr><td>Skill catalog includes loop-run</td><td><code>tests/test_loen_plugin_core.sh</code>, README skill lists, <code>loop-run/SKILL.md</code>.</td><td><code>loen-plugin-core</code> Validation.</td></tr>
       <tr><td>Wiki health</td><td>Updated via iwiki MCP; no manual index needed.</td><td><code>wiki_lint icodex</code>: broken=[], orphans=[]; unrelated stale/missing_source/advisory remain.</td></tr>
     </table>
@@ -335,7 +335,7 @@
       <tr><th>Decision</th><th>Propagation</th><th>Статус</th></tr>
       <tr><td>Approval happens at <code>loop-start</code>; <code>loop-run</code> consumes approved contract.</td><td>Intent, spec, plan, loop-start skill, loop-run skill, runtime wiki.</td><td><span class="badge ok">consistent</span></td></tr>
       <tr><td>Governance default remains safe; <code>merge-release</code> is explicit exception.</td><td>Intent/spec/plan, governance skill, README, automation wiki.</td><td><span class="badge ok">consistent</span></td></tr>
-      <tr><td>No second LoEn-specific approval for merge/release; external gates still apply.</td><td>Loop-run skill, loop-governance skill, README, runtime/governance wiki.</td><td><span class="badge ok">consistent</span></td></tr>
+      <tr><td>No second LoEn-specific approval for merge/release; external gates still apply.</td><td>Loop-run skill, loop-governance skill, README, runtime/governance wiki; <code>scope_limit</code> now enforced.</td><td><span class="badge ok">consistent</span></td></tr>
       <tr><td>Vendored cache not updated in this plan.</td><td>Plan states no cache vendoring; diffs contain no vendored LoEn cache path.</td><td><span class="badge ok">intentional</span></td></tr>
     </table>
 
@@ -343,7 +343,7 @@
       <summary>Verification evidence</summary>
       <table>
         <tr><th>Command</th><th>Result</th></tr>
-        <tr><td><code>bash tests/test_loen_loop_run_contract.sh</code></td><td><span class="badge ok">PASS=31 FAIL=0</span></td></tr>
+        <tr><td><code>bash tests/test_loen_loop_run_contract.sh</code></td><td><span class="badge ok">PASS=36 FAIL=0</span></td></tr>
         <tr><td><code>bash tests/test_loen_runtime_artifacts.sh</code></td><td><span class="badge ok">PASS=55 FAIL=0</span></td></tr>
         <tr><td><code>bash tests/test_loen_automation_governance.sh</code></td><td><span class="badge ok">PASS=31 FAIL=0</span></td></tr>
         <tr><td><code>bash tests/test_loen_plugin_core.sh</code></td><td><span class="badge ok">PASS=166 FAIL=0</span></td></tr>

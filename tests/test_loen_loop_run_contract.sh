@@ -96,6 +96,7 @@ release_policy:
   merge_strategy: pr
   verifier_required: true
   evidence_required: true
+  scope_limit: "Configured mutable scope only"
   recovery_policy: "Stop, record handoff, and leave branch inspectable."
 YAML
 
@@ -111,6 +112,7 @@ assert_contains "template has delivery mode default" "$template_text" "mode: del
 assert_contains "template has plan approved false default" "$template_text" "plan_approved: false"
 assert_contains "template has plan hash field" "$template_text" "plan_hash:"
 assert_contains "template has release policy block" "$template_text" "release_policy:"
+assert_contains "template has release scope limit" "$template_text" "scope_limit:"
 
 parse_status_output="$(PYTHONPATH="$hook_root" python3 - "$topic_dir/loop.yaml" 2>/dev/null <<'PY'
 import sys
@@ -131,6 +133,7 @@ checks = [
     release.get("merge_strategy") == "pr",
     release.get("verifier_required") is True,
     release.get("evidence_required") is True,
+    release.get("scope_limit") == "Configured mutable scope only",
 ]
 print("OK" if all(checks) else {"run": run, "release": release})
 PY
@@ -202,6 +205,7 @@ release_policy:
   merge_strategy: pr
   verifier_required: true
   evidence_required: true
+  scope_limit: "Configured mutable scope only"
   recovery_policy: "Stop, record handoff, and leave branch inspectable."
 YAML
 bad_status_output="$(PYTHONPATH="$hook_root" python3 - "$topic_dir" 2>/dev/null <<'PY'
@@ -348,6 +352,104 @@ PY
 zero_budget_code="$?"
 assert_eq "zero budget validator helper runs" "0" "$zero_budget_code"
 assert_eq "report-only refuses zero budget" "OK" "$zero_budget_output"
+
+none_scope_dir="$tmp/docs/loen/none-scope"
+mkdir -p "$none_scope_dir"
+cp "$topic_dir/3_plan.md" "$none_scope_dir/3_plan.md"
+none_scope_plan_hash="$(PYTHONPATH="$hook_root" python3 - "$none_scope_dir/3_plan.md" 2>/dev/null <<'PY'
+import sys
+from pathlib import Path
+from loen_artifacts import plan_body_hash
+print(plan_body_hash(Path(sys.argv[1])))
+PY
+)"
+
+cat > "$none_scope_dir/loop.yaml" <<YAML
+topic: none-scope
+mode: governance
+mutable_scope:
+  - none
+verifier:
+  type: test
+  command: bash tests/test_loen_loop_run_contract.sh
+budget:
+  max_iterations: 1
+rollback_policy: "Stop and write handoff"
+run:
+  mode: governance
+  subtype: report-only
+  plan_approved: true
+  plan_hash: "$none_scope_plan_hash"
+  state: prepare
+  max_passes: 1
+  current_pass: 0
+governance:
+  auto_fix: false
+  auto_merge: false
+YAML
+none_scope_output="$(PYTHONPATH="$hook_root" python3 - "$none_scope_dir" 2>/dev/null <<'PY'
+import sys
+from pathlib import Path
+from loen_artifacts import validate_run_contract
+result = validate_run_contract(Path(sys.argv[1]))
+print("OK" if not result["ok"] and "mutable scope" in result["reason"] else result)
+PY
+)"
+none_scope_code="$?"
+assert_eq "none scope validator helper runs" "0" "$none_scope_code"
+assert_eq "runner refuses placeholder mutable scope" "OK" "$none_scope_output"
+
+missing_scope_limit_dir="$tmp/docs/loen/missing-scope-limit"
+mkdir -p "$missing_scope_limit_dir"
+cp "$topic_dir/3_plan.md" "$missing_scope_limit_dir/3_plan.md"
+missing_scope_limit_plan_hash="$(PYTHONPATH="$hook_root" python3 - "$missing_scope_limit_dir/3_plan.md" 2>/dev/null <<'PY'
+import sys
+from pathlib import Path
+from loen_artifacts import plan_body_hash
+print(plan_body_hash(Path(sys.argv[1])))
+PY
+)"
+
+cat > "$missing_scope_limit_dir/loop.yaml" <<YAML
+topic: missing-scope-limit
+mode: governance
+mutable_scope:
+  - plugins/loen/**
+verifier:
+  type: test
+  command: bash tests/test_loen_loop_run_contract.sh
+budget:
+  max_iterations: 1
+rollback_policy: "Stop and write handoff"
+run:
+  mode: governance
+  subtype: merge-release
+  plan_approved: true
+  plan_hash: "$missing_scope_limit_plan_hash"
+  state: prepare
+  max_passes: 1
+  current_pass: 0
+governance:
+  auto_fix: false
+  auto_merge: true
+release_policy:
+  target_branch: master
+  merge_strategy: pr
+  verifier_required: true
+  evidence_required: true
+  recovery_policy: "Stop and write handoff"
+YAML
+missing_scope_limit_output="$(PYTHONPATH="$hook_root" python3 - "$missing_scope_limit_dir" 2>/dev/null <<'PY'
+import sys
+from pathlib import Path
+from loen_artifacts import validate_run_contract
+result = validate_run_contract(Path(sys.argv[1]))
+print("OK" if not result["ok"] and "merge-release policy" in result["reason"] else result)
+PY
+)"
+missing_scope_limit_code="$?"
+assert_eq "missing scope limit validator helper runs" "0" "$missing_scope_limit_code"
+assert_eq "merge-release refuses missing scope limit" "OK" "$missing_scope_limit_output"
 
 printf '# Check\n\n## Result\n\nPASS\n' > "$topic_dir/5_check.md"
 printf '# Result\n\n## Outcome\n\nDone\n' > "$topic_dir/7_result.md"

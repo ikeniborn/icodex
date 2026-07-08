@@ -183,6 +183,7 @@ def loop_yaml_text(
     '  merge_strategy: ""',
     "  verifier_required: true",
     "  evidence_required: true",
+    '  scope_limit: ""',
     '  recovery_policy: ""',
     "",
   ])
@@ -320,7 +321,13 @@ def validate_run_contract(base: Path) -> dict[str, object]:
     return {"ok": False, "reason": "invalid governance subtype"}
 
   rollback_ready = bool(parsed.get("rollback_policy")) or bool(policy.get("recovery_policy"))
-  if not mutable_scope:
+  usable_mutable_scope = [
+    str(item).strip()
+    for item in mutable_scope
+    if str(item).strip().lower() not in {"", "none", "null"}
+  ]
+
+  if not usable_mutable_scope:
     return {"ok": False, "reason": "missing mutable scope"}
   if not verifier.get("command"):
     return {"ok": False, "reason": "missing verifier command"}
@@ -346,6 +353,7 @@ def validate_run_contract(base: Path) -> dict[str, object]:
       and bool(policy.get("merge_strategy"))
       and policy.get("verifier_required") is True
       and policy.get("evidence_required") is True
+      and bool(str(policy.get("scope_limit", "")).strip())
       and bool(policy.get("recovery_policy"))
     )
     if not release_ready:

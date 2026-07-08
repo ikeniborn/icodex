@@ -63,9 +63,9 @@ Any preflight failure writes `handoff.md` with topic, failed check, evidence pat
 
 ### Governance merge-release
 
-- Proceed only when `governance.auto_merge: true` and `release_policy:` includes target, strategy, verifier/evidence requirements, scope limits, and recovery policy.
+- Proceed only when `governance.auto_merge: true` and `release_policy:` includes target, strategy, verifier/evidence requirements, `scope_limit`, and recovery policy.
 - No second LoEn-specific human approval is required if start-time approval and release policy pass preflight; external branch rules, host approval prompts, and repository safety gates still apply.
-- Merge or release only according to `release_policy.target_branch`, `release_policy.merge_strategy`, verifier requirements, evidence requirements, scope limits, and recovery policy.
+- Merge or release only according to `release_policy.target_branch`, `release_policy.merge_strategy`, verifier requirements, evidence requirements, `release_policy.scope_limit`, and recovery policy.
 - Write `7_result.md` only after required verifier and evidence pass.
 - Write `handoff.md` if merge-release policy is incomplete, recovery is required, protected scope is needed, or verifier evidence fails.
 

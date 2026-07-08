@@ -18,7 +18,7 @@ Use this skill when the user asks to start a LoEn loop, create a durable loop to
    - `delivery`: bounded deliverable, verifier command, max passes, stop conditions, and rollback policy.
    - `report-only`: report target, evidence requirements, recurrence or manual trigger, owner, and alert conditions.
    - `auto-fix`: allowed fix scope, `governance.auto_fix: true`, verifier command, max passes, and handoff conditions.
-   - `merge-release`: `governance.auto_merge: true`, release target, merge strategy, verifier and evidence requirements, scope limits, and recovery policy.
+   - `merge-release`: `governance.auto_merge: true`, release target, merge strategy, verifier and evidence requirements, `release_policy.scope_limit`, and recovery policy.
 7. Create or reuse `docs/loen/<topic>/`.
 8. Create the standard topic files directly in the topic directory: `1_goal.md`, `2_context.md`, `3_plan.md`, `4_act.md`, `5_check.md`, `6_reflect.md`, `7_result.md`, `loop.yaml`, `attempts.jsonl`, `handoff.md`, and `audit.html`.
 9. Create `docs/loen/<topic>/evidence/` for run evidence files such as `latest-test.json` and `latest-test.log`.

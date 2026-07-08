@@ -11,7 +11,7 @@ Use this skill when a LoEn topic represents a recurring check, scheduled governa
 
 - `report-only`: inspect, verify, write findings and evidence, and avoid product-file edits.
 - `auto-fix`: apply bounded fixes only inside mutable scope when `governance.auto_fix: true`; never merge or release.
-- `merge-release`: proceed only when `governance.auto_merge: true` and `release_policy:` records target branch, merge strategy, verifier requirement, evidence requirement, scope limits, and recovery policy.
+- `merge-release`: proceed only when `governance.auto_merge: true` and `release_policy:` records target branch, merge strategy, verifier requirement, evidence requirement, `scope_limit`, and recovery policy.
 
 ## Procedure
 

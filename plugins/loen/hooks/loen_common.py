@@ -154,6 +154,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       "merge_strategy": "",
       "verifier_required": False,
       "evidence_required": False,
+      "scope_limit": "",
       "recovery_policy": "",
     },
   }

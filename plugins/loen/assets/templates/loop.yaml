@@ -52,6 +52,7 @@ release_policy:
   merge_strategy: ""
   verifier_required: true
   evidence_required: true
+  scope_limit: ""
   recovery_policy: ""
 context_capsule:
   required_fields:

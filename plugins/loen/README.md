@@ -244,7 +244,7 @@ as recorded:
 Automation is advisory in this plugin source. The default remains no
 auto-merge. The `merge-release` subtype may enable
 `governance.auto_merge: true` only with explicit start-time approval and a
-complete `release_policy:`; external branch rules, host approval prompts, and
+complete `release_policy:` including `scope_limit`; external branch rules, host approval prompts, and
 repository safety gates still apply. Automation must not perform destructive
 operations, edit protected scope, or complete first runs without the
 human-review requirements recorded in `loop.yaml`.
