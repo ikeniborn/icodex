@@ -64,8 +64,8 @@
 <body>
   <input type="checkbox" id="theme-toggle" hidden>
   <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
-  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden checked>
-  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden checked>
   <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
   <label for="theme-toggle" class="theme-btn" title="Переключить тёмную/светлую тему">тема</label>
   <header>
@@ -277,7 +277,104 @@
   <!-- TAB:spec END -->
   <!-- TAB:plan START -->
   <section class="tab-pane" id="pane-plan">
-    <p class="note">Этап ещё не проверен.</p>
+    <h2>Проверка plan — 2026-07-08</h2>
+    <p class="lead">План разбивает hybrid telemetry на 7 проверяемых задач: config core, OTel metadata path, Langfuse lifecycle, launch wrapping, full-capture feasibility, docs, final verification.</p>
+    <p>Проверка подтверждает dependency order: сначала создаётся общий config/session слой, затем OTel и Langfuse modules, после этого launch integration, feasibility probe, docs и final checks. Каждый task имеет file scope, command и expected result.</p>
+
+    <h3>Сводка артефакта</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Поле</th><th>Значение</th></tr></thead>
+      <tbody>
+        <tr><td>Источник</td><td><code>docs/superpowers/plans/2026-07-08-icodex-telemetry.md</code></td></tr>
+        <tr><td>Статус</td><td>Проверка plan: <span class="badge ok">OK</span></td></tr>
+        <tr><td>Hash</td><td><code>plan_hash=f308559ce47ac3ac</code></td></tr>
+        <tr><td>Chain</td><td>Intent + spec linked in frontmatter.</td></tr>
+        <tr><td>Docs/wiki</td><td>Implementation ещё не начат; docs/wiki updates запланированы в Task 6.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Якоря источника</h3>
+    <ul class="tight">
+      <li><code>Task 1</code>: telemetry config core and local/trusted URL validation.</li>
+      <li><code>Task 2</code>: Codex OTel metadata-only config region.</li>
+      <li><code>Task 3</code>: Langfuse required config and capture lifecycle.</li>
+      <li><code>Task 4</code>: launch integration and exit-code preservation.</li>
+      <li><code>Task 5</code>: full-capture feasibility checkpoint.</li>
+      <li><code>Task 6</code>: repository docs and iwiki update.</li>
+      <li><code>Task 7</code>: focused checks, syntax checks, full suite, secret diff scan, result chain.</li>
+    </ul>
+
+    <h3>Линза approval</h3>
+    <div class="grid">
+      <div class="card"><b>Безопасно</b><br>Tasks use Bash modules/tests and fake local fixtures; no external network in tests.</div>
+      <div class="card"><b>Риск</b><br>Task 5 may find Codex custom provider/auth/streaming incompatibility.</div>
+      <div class="card"><b>Заблокировано</b><br>Continuing past failed full-capture feasibility probe.</div>
+      <div class="card"><b>Human checkpoint</b><br>If Task 5 fails, result reports blocker instead of partial full capture.</div>
+    </div>
+
+    <h3>Граф шагов</h3>
+    <figure class="rpt-flow" aria-label="Граф шагов">
+      <div class="node">Task 1<br>Config core</div>
+      <div class="arrow"></div>
+      <div class="node">Task 2<br>OTel path</div>
+      <div class="arrow"></div>
+      <div class="node">Task 3<br>Langfuse lifecycle</div>
+      <div class="arrow"></div>
+      <div class="node">Task 4<br>Launch wrapping</div>
+      <div class="arrow"></div>
+      <div class="node">Task 5<br>Feasibility probe</div>
+      <div class="arrow"></div>
+      <div class="node">Task 6-7<br>Docs + verification</div>
+    </figure>
+
+    <h3>Карта влияния на артефакты</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Task</th><th>Files</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><code>lib/telemetry/telemetry.sh</code>, <code>tests/test_telemetry_config.sh</code></td><td>Mode parsing, project/session id, trusted URL policy.</td></tr>
+        <tr><td>2</td><td><code>lib/telemetry/otel.sh</code>, <code>tests/test_telemetry_otel.sh</code></td><td>Metadata-only Codex OTel region, auth header, <code>NO_PROXY</code>.</td></tr>
+        <tr><td>3</td><td><code>lib/telemetry/langfuse.sh</code>, <code>tests/test_telemetry_langfuse.sh</code></td><td>Local trusted Langfuse config and capture lifecycle.</td></tr>
+        <tr><td>4</td><td><code>icodex.sh</code>, <code>lib/launcher/launch.sh</code>, launch test</td><td>Setup hooks, direct/wrapped launch, exit-code preservation.</td></tr>
+        <tr><td>5</td><td><code>lib/telemetry/langfuse.sh</code>, feasibility test</td><td>Custom provider config and human checkpoint probe.</td></tr>
+        <tr><td>6</td><td><code>.codex_config.example</code>, <code>docs/README.ru.md</code>, iwiki</td><td>User docs and wiki consistency.</td></tr>
+        <tr><td>7</td><td>All changed artifacts</td><td>Focused/full checks and secret scan.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Карта проверок</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Check</th><th>Command</th><th>Expected</th></tr></thead>
+      <tbody>
+        <tr><td>Focused telemetry</td><td><code>bash tests/test_telemetry_*.sh</code></td><td>Each script ends with <code>FAIL=0</code>.</td></tr>
+        <tr><td>Syntax</td><td><code>bash -n lib/telemetry/*.sh lib/launcher/launch.sh icodex.sh</code></td><td>No output, exit 0.</td></tr>
+        <tr><td>Full suite</td><td><code>for t in tests/test_*.sh; do bash "$t" || exit 1; done</code></td><td>All tests pass.</td></tr>
+        <tr><td>Secret scan</td><td><code>git diff ... | rg "sk-|pk-lf-|secret|password|Authorization=Basic"</code></td><td>No real secrets, only fake/example values.</td></tr>
+        <tr><td>Chain result</td><td><code>/check-chain result docs/superpowers/plans/2026-07-08-icodex-telemetry.md</code></td><td>All tasks DONE or explicit feasibility blocker.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Поток человеческих контрольных точек</h3>
+    <div class="note"><b>Task 5:</b> full-capture feasibility is a mandatory checkpoint. If installed Codex cannot safely route traffic through local capture without auth/streaming/exit-code regression, implementation stops and reports blocker.</div>
+
+    <details>
+      <summary>Детали фаз проверки</summary>
+      <table class="rpt-table">
+        <thead><tr><th>Фаза</th><th>Статус</th><th>Свидетельство</th></tr></thead>
+        <tbody>
+          <tr><td>structure</td><td><span class="badge ok">passed</span></td><td>Plan header, file structure, tasks, steps, commands present.</td></tr>
+          <tr><td>coverage</td><td><span class="badge ok">passed</span></td><td>Spec requirements covered by Tasks 1-7.</td></tr>
+          <tr><td>dependencies</td><td><span class="badge ok">passed</span></td><td>Core helpers precede OTel/Langfuse; modules precede launch integration; docs after implementation.</td></tr>
+          <tr><td>verifiability</td><td><span class="badge ok">passed</span></td><td>Each task includes command and expected output.</td></tr>
+          <tr><td>consistency</td><td><span class="badge ok">passed</span></td><td>Function/file names remain consistent across steps.</td></tr>
+        </tbody>
+      </table>
+    </details>
+
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+
+    <h3>Итог</h3>
+    <p><span class="badge ok">OK</span> plan готов к review. После approval нужно выбрать execution mode.</p>
   </section>
   <!-- TAB:plan END -->
   <!-- TAB:result START -->
