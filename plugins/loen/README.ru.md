@@ -82,11 +82,20 @@ sequenceDiagram
     participant Status as loen:loop-status
     participant Files as docs/loen/topic
 
-    User->>Start: создать устойчивую тему
-    Start->>User: выбрать delivery или governance и одобрить план
-    Start->>Files: записать loop.yaml, 3_plan.md, evidence/ и файлы стадий
-    User->>Run: выполнить одобренную тему
-    Run->>Files: записать evidence, 4_act.md, 5_check.md, 6_reflect.md
+    User->>Start: создать или выбрать устойчивую тему
+    Start->>User: собрать цель, scope, verifier и budget
+    Start->>User: выбрать delivery или governance
+    alt governance
+        Start->>User: выбрать report-only, auto-fix или merge-release
+        Start->>User: собрать automation и release policy
+    end
+    Start->>Files: записать draft loop.yaml, 1_goal.md, 2_context.md и 3_plan.md
+    Start->>User: одобрить 3_plan.md
+    Start->>Files: записать run.plan_approved, plan_hash, mode и subtype
+    Start-->>User: запустить loen:loop-run topic
+    User->>Run: выполнить одобренный run contract
+    Run->>Files: проверить approval, hash, mode, scope, verifier и policy
+    Run->>Files: записать attempts, evidence, 4_act.md, 5_check.md, 6_reflect.md
     Run->>Files: записать 7_result.md или handoff.md
     User->>Status: проверить текущее состояние
     Status-->>User: стадия, evidence, следующий шаг
@@ -105,20 +114,32 @@ sequenceDiagram
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 flowchart TD
     StartTopic["loen:loop-start создаёт docs/loen/&lt;topic&gt;/"] --> SharedArtifacts["Общая подготовка: loop.yaml, файлы стадий, attempts.jsonl, evidence/, audit.html"]
-    SharedArtifacts --> Branch{"Ветка выполнения?"}
+    SharedArtifacts --> Intake["Собрать цель, ограничения, scope, verifier, budget"]
+    Intake --> Branch{"Ветка выполнения?"}
+    Branch -- "delivery" --> PlanApproval["Записать и одобрить 3_plan.md"]
+    Branch -- "governance" --> StartSubtype{"Выбрать governance subtype"}
+    StartSubtype -- "report-only" --> PlanApproval
+    StartSubtype -- "auto-fix" --> PlanApproval
+    StartSubtype -- "merge-release" --> PlanApproval
+    PlanApproval --> RunContract["Записать одобренный run contract и plan hash"]
+    RunContract --> RunPreflight{"loen:loop-run preflight проходит?"}
+    RunPreflight -- "no" --> HandoffStep["handoff.md фиксирует передачу человеку"]
 
     subgraph delivery["Проход delivery"]
-        PlanStep["loen:loop-plan пишет 3_plan.md"]
-        ActStep["loen:loop-act пишет 4_act.md"]
-        CheckStep["loen:loop-check пишет 5_check.md и evidence/*"]
-        ReflectStep{"loen:loop-reflect outcome"}
+        PrepareStep["loop-run state prepare"]
+        ActStep["loop-run state act пишет 4_act.md"]
+        CheckStep["loop-run state check пишет 5_check.md и evidence/*"]
+        ReflectStep{"loop-run reflect outcome"}
         ResultStep["7_result.md плюс topic audit.html"]
         FixStep["Fix требует ещё один ограниченный проход"]
-        HandoffStep["handoff.md фиксирует передачу человеку"]
     end
 
     subgraph governance["Проход governance"]
-        GovStep["loen:loop-governance"]
+        GovStep["loop-run governance state"]
+        GovSubtype{"Одобренный run.subtype?"}
+        ReportOnly["report-only пишет findings"]
+        AutoFix["auto-fix меняет usable mutable scope"]
+        MergeRelease["merge-release проверяет release_policy"]
         GovPolicy["Добавляет или обновляет в loop.yaml owner, schedule и review rules"]
         GovAttempt["Обязательно для run: запись автоматизации в attempts.jsonl"]
         GovEvidence["Обязательно для run: вывод verifier в evidence/*"]
@@ -127,17 +148,23 @@ flowchart TD
         GovWait["Ожидание ревью owner"]
     end
 
-    Branch -- "обычная задача" --> PlanStep
-    PlanStep --> ActStep
+    RunPreflight -- "delivery" --> PrepareStep
+    PrepareStep --> ActStep
     ActStep --> CheckStep
     CheckStep --> ReflectStep
     ReflectStep -- "keep и objective достигнут" --> ResultStep
     ReflectStep -- "fix" --> FixStep
-    FixStep --> PlanStep
+    FixStep --> PrepareStep
     ReflectStep -- "handoff" --> HandoffStep
 
-    Branch -- "recurring или scheduled topic" --> GovStep
-    GovStep --> GovPolicy
+    RunPreflight -- "governance" --> GovStep
+    GovStep --> GovSubtype
+    GovSubtype -- "report-only" --> ReportOnly
+    GovSubtype -- "auto-fix" --> AutoFix
+    GovSubtype -- "merge-release" --> MergeRelease
+    ReportOnly --> GovPolicy
+    AutoFix --> GovPolicy
+    MergeRelease --> GovPolicy
     GovPolicy --> GovAttempt
     GovAttempt --> GovEvidence
     GovEvidence --> GovAudit
@@ -145,14 +172,16 @@ flowchart TD
     GovReview -- "yes" --> GovWait
     GovReview -- "no" --> ReflectStep
 
+    ManualSkills["Ручные loop-plan, loop-act, loop-check, loop-reflect остаются поддержанными"] -.-> PrepareStep
+
     classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
     classDef deliveryClass fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec
     classDef governanceClass fill:#94e2d5,color:#1e1e2e,stroke:#179299
     classDef artifactClass fill:#a6e3a1,color:#1e1e2e,stroke:#40a02b
-    class Branch,ReflectStep,GovReview decision
-    class PlanStep,ActStep,CheckStep,FixStep,HandoffStep deliveryClass
-    class GovStep,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
-    class SharedArtifacts,ResultStep artifactClass
+    class Branch,StartSubtype,RunPreflight,ReflectStep,GovSubtype,GovReview decision
+    class PrepareStep,ActStep,CheckStep,FixStep,HandoffStep,ManualSkills deliveryClass
+    class GovStep,ReportOnly,AutoFix,MergeRelease,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
+    class SharedArtifacts,PlanApproval,RunContract,ResultStep artifactClass
 ```
 
 1. `loop-plan` сужает цель до одного проверяемого действия и пишет проверки в
@@ -190,6 +219,11 @@ run:
   max_passes: 3
   current_pass: 0
 ```
+
+`subtype` — governance-подтип, выбранный во время `loop-start`. Для delivery
+используется `subtype: null`; для governance обязателен один из `report-only`,
+`auto-fix` или `merge-release`. `loop-run` не выбирает subtype, а только читает
+одобренное значение и проверяет соответствующую policy перед действием.
 
 `loop-run` останавливается, если нет одобрения, изменился hash плана, режим или
 подтип неверен, изменяемая область не задана, команда verifier отсутствует,

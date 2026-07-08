@@ -81,11 +81,20 @@ sequenceDiagram
     participant Status as loen:loop-status
     participant Files as docs/loen/topic
 
-    User->>Start: create durable topic
-    Start->>User: ask delivery or governance and plan approval
-    Start->>Files: write loop.yaml, 3_plan.md, evidence/, and stage files
-    User->>Run: execute approved topic
-    Run->>Files: write evidence, 4_act.md, 5_check.md, 6_reflect.md
+    User->>Start: create or select durable topic
+    Start->>User: collect goal, scope, verifier, and budget
+    Start->>User: choose delivery or governance
+    alt governance
+        Start->>User: choose report-only, auto-fix, or merge-release
+        Start->>User: collect automation and release policy
+    end
+    Start->>Files: write loop.yaml draft, 1_goal.md, 2_context.md, and 3_plan.md
+    Start->>User: approve 3_plan.md
+    Start->>Files: record run.plan_approved, plan_hash, mode, and subtype
+    Start-->>User: launch loen:loop-run topic
+    User->>Run: execute approved run contract
+    Run->>Files: preflight approval, hash, mode, scope, verifier, and policy
+    Run->>Files: write attempts, evidence, 4_act.md, 5_check.md, 6_reflect.md
     Run->>Files: write 7_result.md or handoff.md
     User->>Status: inspect current state
     Status-->>User: stage, evidence, next action
@@ -104,20 +113,32 @@ to the objective with enough evidence to keep it?
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 flowchart TD
     StartTopic["loen:loop-start creates docs/loen/&lt;topic&gt;/"] --> SharedArtifacts["Shared setup: loop.yaml, stage files, attempts.jsonl, evidence/, audit.html"]
-    SharedArtifacts --> Branch{"Execution branch?"}
+    SharedArtifacts --> Intake["Collect goal, constraints, scope, verifier, budget"]
+    Intake --> Branch{"Execution branch?"}
+    Branch -- "delivery" --> PlanApproval["Write and approve 3_plan.md"]
+    Branch -- "governance" --> StartSubtype{"Select governance subtype"}
+    StartSubtype -- "report-only" --> PlanApproval
+    StartSubtype -- "auto-fix" --> PlanApproval
+    StartSubtype -- "merge-release" --> PlanApproval
+    PlanApproval --> RunContract["Record approved run contract and plan hash"]
+    RunContract --> RunPreflight{"loen:loop-run preflight passes?"}
+    RunPreflight -- "no" --> HandoffStep["handoff.md records human handoff"]
 
     subgraph delivery["Delivery pass"]
-        PlanStep["loen:loop-plan writes 3_plan.md"]
-        ActStep["loen:loop-act writes 4_act.md"]
-        CheckStep["loen:loop-check writes 5_check.md and evidence/*"]
-        ReflectStep{"loen:loop-reflect outcome"}
+        PrepareStep["loop-run prepare state"]
+        ActStep["loop-run act state writes 4_act.md"]
+        CheckStep["loop-run check state writes 5_check.md and evidence/*"]
+        ReflectStep{"loop-run reflect outcome"}
         ResultStep["7_result.md plus topic audit.html"]
         FixStep["Fix needs another bounded pass"]
-        HandoffStep["handoff.md records human handoff"]
     end
 
     subgraph governance["Governance pass"]
-        GovStep["loen:loop-governance"]
+        GovStep["loop-run governance state"]
+        GovSubtype{"Approved run.subtype?"}
+        ReportOnly["report-only records findings"]
+        AutoFix["auto-fix changes usable mutable scope"]
+        MergeRelease["merge-release checks release_policy"]
         GovPolicy["Adds or updates loop.yaml governance owner, schedule, review rules"]
         GovAttempt["Required for run: attempts.jsonl automation record"]
         GovEvidence["Required for run: evidence/* verifier output"]
@@ -126,17 +147,23 @@ flowchart TD
         GovWait["Wait for owner review"]
     end
 
-    Branch -- "ordinary task" --> PlanStep
-    PlanStep --> ActStep
+    RunPreflight -- "delivery" --> PrepareStep
+    PrepareStep --> ActStep
     ActStep --> CheckStep
     CheckStep --> ReflectStep
     ReflectStep -- "keep and objective met" --> ResultStep
     ReflectStep -- "fix" --> FixStep
-    FixStep --> PlanStep
+    FixStep --> PrepareStep
     ReflectStep -- "handoff" --> HandoffStep
 
-    Branch -- "recurring or scheduled topic" --> GovStep
-    GovStep --> GovPolicy
+    RunPreflight -- "governance" --> GovStep
+    GovStep --> GovSubtype
+    GovSubtype -- "report-only" --> ReportOnly
+    GovSubtype -- "auto-fix" --> AutoFix
+    GovSubtype -- "merge-release" --> MergeRelease
+    ReportOnly --> GovPolicy
+    AutoFix --> GovPolicy
+    MergeRelease --> GovPolicy
     GovPolicy --> GovAttempt
     GovAttempt --> GovEvidence
     GovEvidence --> GovAudit
@@ -144,14 +171,16 @@ flowchart TD
     GovReview -- "yes" --> GovWait
     GovReview -- "no" --> ReflectStep
 
+    ManualSkills["Manual loop-plan, loop-act, loop-check, loop-reflect remain supported"] -.-> PrepareStep
+
     classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
     classDef deliveryClass fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec
     classDef governanceClass fill:#94e2d5,color:#1e1e2e,stroke:#179299
     classDef artifactClass fill:#a6e3a1,color:#1e1e2e,stroke:#40a02b
-    class Branch,ReflectStep,GovReview decision
-    class PlanStep,ActStep,CheckStep,FixStep,HandoffStep deliveryClass
-    class GovStep,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
-    class SharedArtifacts,ResultStep artifactClass
+    class Branch,StartSubtype,RunPreflight,ReflectStep,GovSubtype,GovReview decision
+    class PrepareStep,ActStep,CheckStep,FixStep,HandoffStep,ManualSkills deliveryClass
+    class GovStep,ReportOnly,AutoFix,MergeRelease,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
+    class SharedArtifacts,PlanApproval,RunContract,ResultStep artifactClass
 ```
 
 1. `loop-plan` narrows the goal to one verifiable action and writes checks into
@@ -189,6 +218,11 @@ run:
   max_passes: 3
   current_pass: 0
 ```
+
+`subtype` is the governance subtype selected during `loop-start`. Delivery uses
+`subtype: null`; governance requires one of `report-only`, `auto-fix`, or
+`merge-release`. `loop-run` does not choose a subtype. It only reads the
+approved value and validates the matching policy before acting.
 
 `loop-run` refuses to continue when approval is missing, the plan hash changed,
 the mode or subtype is invalid, mutable scope is missing, the verifier command is
