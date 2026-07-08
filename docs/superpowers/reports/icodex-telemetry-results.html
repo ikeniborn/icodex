@@ -63,8 +63,8 @@
 </head>
 <body>
   <input type="checkbox" id="theme-toggle" hidden>
-  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden checked>
-  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden checked>
   <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
   <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
   <label for="theme-toggle" class="theme-btn" title="Переключить тёмную/светлую тему">тема</label>
@@ -179,7 +179,100 @@
   <!-- TAB:intent END -->
   <!-- TAB:spec START -->
   <section class="tab-pane" id="pane-spec">
-    <p class="note">Этап ещё не проверен.</p>
+    <h2>Проверка spec — 2026-07-08</h2>
+    <p class="lead">Спека фиксирует hybrid architecture: Codex OTel даёт metadata-only ops telemetry для Grafana, а отдельный local trusted capture layer даёт full-fidelity traces для Langfuse.</p>
+    <p>Проверка подтверждает покрытие intent outcomes: telemetry выключена по умолчанию, config surface с одним mode-switch сохранён, Grafana не получает prompt/response bodies, Langfuse full capture разрешён только для локального trusted endpoint.</p>
+
+    <h3>Сводка артефакта</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Поле</th><th>Значение</th></tr></thead>
+      <tbody>
+        <tr><td>Источник</td><td><code>docs/superpowers/specs/2026-07-08-icodex-telemetry-design.md</code></td></tr>
+        <tr><td>Статус</td><td><code>approved</code>; проверка spec: <span class="badge ok">OK</span></td></tr>
+        <tr><td>Hash</td><td><code>spec_hash=b811b7bceabff63b</code></td></tr>
+        <tr><td>Intent</td><td><code>docs/superpowers/intents/2026-07-07-icodex-telemetry-intent.md</code></td></tr>
+        <tr><td>Docs/wiki</td><td>Implementation ещё не начат; repository docs/wiki не менялись. `wiki_lint` выполнен, старые advisory/missing_source вне темы.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Якоря источника</h3>
+    <ul class="tight">
+      <li><code>Configuration Contract</code>: один mode-switch <code>ICODEX_TELEMETRY=off|otel|langfuse|both</code> и пять endpoint/auth vars.</li>
+      <li><code>Architecture</code>: mode/session orchestration, OTel metadata path, Langfuse full-capture path.</li>
+      <li><code>Error Handling</code>: fail-fast для invalid mode, bad endpoints, missing Langfuse keys, non-local capture target.</li>
+      <li><code>Testing Plan</code>: config, OTel, Langfuse, launch, docs, full Bash suite.</li>
+    </ul>
+
+    <h3>Линза approval</h3>
+    <div class="grid">
+      <div class="card"><b>Безопасно</b><br><code>off</code> остаётся default и не стартует services.</div>
+      <div class="card"><b>Риск</b><br>Full capture зависит от Codex provider/proxy feasibility и streaming/SSE поведения.</div>
+      <div class="card"><b>Заблокировано</b><br>Non-local Langfuse full capture и raw prompt export в Grafana.</div>
+      <div class="card"><b>Human checkpoint</b><br>Если capture feasibility probe не проходит, plan должен остановиться.</div>
+    </div>
+
+    <h3>Карта покрытия требований</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Intent outcome</th><th>Spec requirement</th><th>Acceptance criterion</th></tr></thead>
+      <tbody>
+        <tr><td>Grafana session dashboard</td><td>Codex OTel metadata-only path через local collector</td><td><code>ICODEX_TELEMETRY=otel</code> emits session/version/project/status metadata without prompt bodies.</td></tr>
+        <tr><td>Full local Langfuse traces</td><td>Local trusted capture layer with prompt/response/usage forwarding</td><td><code>ICODEX_TELEMETRY=langfuse</code> sends full-fidelity traces only after local URL/key validation.</td></tr>
+        <tr><td>Off by default</td><td>Single mode switch defaulting to <code>off</code></td><td>Plain launch starts no telemetry and preserves direct exec-like behavior.</td></tr>
+        <tr><td>Minimal config surface</td><td>No extra enable flags beyond <code>ICODEX_TELEMETRY</code></td><td>Only endpoint/key vars configure selected mode.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Граф компонентов</h3>
+    <div class="grid">
+      <div class="card"><b><code>icodex.sh</code></b><br>Sources telemetry modules and calls setup before launch.</div>
+      <div class="card"><b><code>lib/telemetry/telemetry.sh</code></b><br>Mode parsing, project/session id, setup dispatch, cleanup.</div>
+      <div class="card"><b><code>lib/telemetry/otel.sh</code></b><br>Codex OTel config region, credentials header, <code>NO_PROXY</code>.</div>
+      <div class="card"><b><code>lib/telemetry/langfuse.sh</code></b><br>Local URL validation, capture lifecycle, Langfuse auth/tags.</div>
+      <div class="card"><b><code>lib/launcher/launch.sh</code></b><br>Direct launch for <code>off</code>; wrapped launch when cleanup/accounting required.</div>
+      <div class="card"><b><code>.codex_config.example</code></b><br>Documents six public telemetry variables and full-capture warning.</div>
+    </div>
+
+    <h3>Поток данных</h3>
+    <figure class="rpt-flow" aria-label="Поток данных">
+      <div class="node"><code>ICODEX_TELEMETRY=off</code><br>direct Codex launch</div>
+      <div class="arrow"></div>
+      <div class="node"><code>otel</code><br>Codex OTel -> Collector -> Grafana</div>
+      <div class="arrow"></div>
+      <div class="node"><code>langfuse</code><br>Codex -> local capture -> OpenAI + Langfuse</div>
+      <div class="arrow"></div>
+      <div class="node"><code>both</code><br>metadata ops + full local trace</div>
+    </figure>
+
+    <h3>Карта рисков и мер</h3>
+    <table class="rpt-table">
+      <thead><tr><th>Риск/constraint</th><th>Мера в spec</th></tr></thead>
+      <tbody>
+        <tr><td>Prompt bodies leaking to Grafana</td><td>OTel path keeps <code>otel.log_user_prompt=false</code>; Grafana path metadata-only.</td></tr>
+        <tr><td>Full capture to untrusted endpoint</td><td>Langfuse URL must pass local/trusted validation before launch.</td></tr>
+        <tr><td>Codex auth/provider incompatibility</td><td>Implementation plan starts with capture feasibility probe and stops on failure.</td></tr>
+        <tr><td>Exit-code drift in wrapped launch</td><td>Wrapped path captures Codex child status, cleans up, exits same code.</td></tr>
+        <tr><td>Network-dependent tests</td><td>Fake capture servers and local temp homes; no external network required.</td></tr>
+      </tbody>
+    </table>
+
+    <details>
+      <summary>Детали фаз проверки</summary>
+      <table class="rpt-table">
+        <thead><tr><th>Фаза</th><th>Статус</th><th>Свидетельство</th></tr></thead>
+        <tbody>
+          <tr><td>structure</td><td><span class="badge ok">passed</span></td><td>Placeholders/duplicate headings не найдены; sections структурированы.</td></tr>
+          <tr><td>coverage</td><td><span class="badge ok">passed</span></td><td>Все user decisions покрыты: Hybrid, one mode-switch, OTel credentials only, auto project tag.</td></tr>
+          <tr><td>clarity</td><td><span class="badge ok">passed</span></td><td>Requirements имеют criteria и testing hooks.</td></tr>
+          <tr><td>consistency</td><td><span class="badge ok">passed</span></td><td>Spec согласован с refined intent и local trusted full-capture boundary.</td></tr>
+        </tbody>
+      </table>
+    </details>
+
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет.</p>
+
+    <h3>Итог</h3>
+    <p><span class="badge ok">OK</span> spec approved. Можно переходить к implementation plan.</p>
   </section>
   <!-- TAB:spec END -->
   <!-- TAB:plan START -->

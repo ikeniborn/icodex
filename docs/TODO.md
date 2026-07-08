@@ -19,4 +19,4 @@
 | chain-report-ru-update-skip | done | n/a | n/a | n/a | OK | 2026-07-07 | 2026-07-07 | LoEn pass complete: Russian-only chain HTML labels guarded, unchanged-version `--update` skips download, focused/full checks green |
 | icodex-pii-proxy | done | ✓ | ✓ | ✓ | OK | 2026-07-08 | 2026-07-08 | PII proxy complete: OpenAI-only one-run `openai_base_url`, `rules|nlp`, EN/RU NLP update, fail-secure, full suite green |
 | loen-loop-run | done | ✓ | ✓ | ✓ | OK | 2026-07-08 | 2026-07-08 | Guided LoEn start plus runner orchestration through delivery/governance modes; final review fixes verified; wiki updated |
-| icodex-telemetry | in-progress | ✓ | – | – | – | 2026-07-07 |  | Opt-in Grafana ops metrics + Langfuse LLM tracing intent checked |
+| icodex-telemetry | in-progress | ✓ | ✓ | – | – | 2026-07-07 |  | Hybrid telemetry spec checked: OTel ops + local trusted Langfuse full capture |
