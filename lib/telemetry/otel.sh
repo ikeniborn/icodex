@@ -126,7 +126,7 @@ telemetry_otel_configure() { # <config.toml>
       !skip { print }
     ' "$file" > "$tmp"
   fi
-  telemetry_otel_region >> "$tmp"
+  telemetry_otel_region >> "$tmp" || { rm -f "$tmp"; return 1; }
   if [[ ! -f "$file" ]] || ! cmp -s "$tmp" "$file"; then
     cat "$tmp" > "$file"
   fi

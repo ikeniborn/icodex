@@ -15,6 +15,8 @@ ICODEX_TELEMETRY_PROJECT="repo"
 ICODEX_TELEMETRY_SESSION_ID="icodex-test-session"
 ICODEX_OTEL_ENDPOINT=""
 unset ICODEX_OTEL_CREDENTIALS NO_PROXY no_proxy
+expected_wrapper_version="$(cat "$ROOT/VERSION" 2>/dev/null || true)"
+expected_codex_version="$("$ROOT/.codex-isolated/bin/codex" --version 2>/dev/null || true)"
 
 telemetry_otel_configure "$cfg"
 out="$(cat "$cfg")"
@@ -28,8 +30,12 @@ assert_contains "prompt logging disabled" "$out" "log_user_prompt = false"
 assert_contains "span attributes map" "$out" "span_attributes = {"
 assert_contains "project span attribute" "$out" "\"icodex.project\" = \"repo\""
 assert_contains "session span attribute" "$out" "\"icodex.session_id\" = \"icodex-test-session\""
-assert_contains "wrapper version span attribute" "$out" "\"icodex.wrapper.version\" = \"0.1.0\""
-assert_contains "codex version span attribute" "$out" "\"icodex.codex.version\" = \"codex-cli 0.142.5\""
+if [[ -n "$expected_wrapper_version" ]]; then
+  assert_contains "wrapper version span attribute" "$out" "\"icodex.wrapper.version\" = \"${expected_wrapper_version}\""
+fi
+if [[ -n "$expected_codex_version" ]]; then
+  assert_contains "codex version span attribute" "$out" "\"icodex.codex.version\" = \"${expected_codex_version}\""
+fi
 assert_eq "no proxy localhost" "" "${NO_PROXY:-}"
 
 ICODEX_OTEL_ENDPOINT="http://otel.local:4318"
@@ -79,5 +85,16 @@ telemetry_otel_configure "$bad_cfg" >/dev/null 2>&1
 bad_code="$?"
 assert_eq "malformed endpoint rejected" "1" "$bad_code"
 assert_eq "malformed endpoint does not rewrite config" "$bad_before" "$(cat "$bad_cfg")"
+
+metadata_cfg="$tmp/metadata-config.toml"
+printf '[sandbox]\nmode = "workspace-write"\n' > "$metadata_cfg"
+metadata_before="$(cat "$metadata_cfg")"
+ICODEX_OTEL_ENDPOINT="http://127.0.0.1:4318"
+unset ICODEX_OTEL_CREDENTIALS
+ICODEX_TELEMETRY_PROJECT='repo"bad'
+telemetry_otel_configure "$metadata_cfg" >/dev/null 2>&1
+metadata_code="$?"
+assert_eq "unsafe metadata rejected" "1" "$metadata_code"
+assert_eq "unsafe metadata does not rewrite config" "$metadata_before" "$(cat "$metadata_cfg")"
 
 finish
