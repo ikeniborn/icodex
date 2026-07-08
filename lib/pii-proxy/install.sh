@@ -34,7 +34,6 @@ install_isolated_pii_proxy() {
   printf '%s\n' "${ICODEX_PII_ENGINE:-rules}" > "$ICODEX_PII_PROXY_VENV/pii_proxy_engine"
   mkdir -p "$(dirname "$ICODEX_PII_PROXY_SERVER_SCRIPT")" "$ICODEX_PII_PROXY_LOG_DIR"
   ln -sf "$ICODEX_ROOT/lib/pii-proxy/server.py" "$ICODEX_PII_PROXY_SERVER_SCRIPT"
-  chmod 700 "$ICODEX_ROOT/lib/pii-proxy/server.py" 2>/dev/null || true
 }
 
 update_pii_nlp_models() {
