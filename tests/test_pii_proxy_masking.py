@@ -36,7 +36,17 @@ def test_credentials_in_url_masked():
     assert found
 
 
+def test_secrets_level_preserves_personal_pii():
+    text = "email alice@example.com token github_pat_" + "A" * 90 + " card 4111111111111111"
+    masked, found = pii.rules_mask(text, mask_token="REDACTED", masking_level="secrets")
+    assert "github_pat_" not in masked
+    assert "alice@example.com" in masked
+    assert "4111111111111111" in masked
+    assert found == ["GitHub fine-grained PAT"]
+
+
 if __name__ == "__main__":
     test_rules_mask_secrets_and_pii()
     test_rules_preserve_plain_urls_and_placeholders()
     test_credentials_in_url_masked()
+    test_secrets_level_preserves_personal_pii()

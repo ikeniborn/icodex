@@ -38,30 +38,39 @@ def _replacement(mask_token: str) -> str:
 def _patterns(mask_token: str):
     r = _replacement(mask_token)
     return [
-        (re.compile(r"\bsk-(?:proj-|ant-api03-|ant-|or-v1-)?[A-Za-z0-9\-_]{20,}"), r, "API key"),
-        (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), r, "AWS access key id"),
-        (re.compile(r"(?i)((?:aws[_-]?secret[_-]?(?:access[_-]?)?key|AWS_SECRET_ACCESS_KEY)\s*[=:]\s*)([\"']?)[A-Za-z0-9/+]{40}\2"), rf"\g<1>\g<2>{r}\g<2>", "AWS secret access key"),
-        (re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?:-----| BLOCK-----)[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?:-----| BLOCK-----)"), r, "private key"),
-        (re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{36,}\b"), r, "GitHub token"),
-        (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{82,}\b"), r, "GitHub fine-grained PAT"),
-        (re.compile(r"\bhf_[A-Za-z0-9_]{36,}\b"), r, "HuggingFace token"),
-        (re.compile(r"\bgsk_[A-Za-z0-9\-_]{50,}\b"), r, "Groq key"),
-        (re.compile(r"\bAIzaSy[A-Za-z0-9_\-]{32,}\b"), r, "Google AI Studio key"),
-        (re.compile(r"([a-zA-Z][a-zA-Z0-9+.-]*://)(?:[^@\s/]+@)+"), rf"\g<1>{r}@", "URL credentials"),
-        (re.compile(r"(?i)((?:password|passwd|pwd|db_pass|pgpassword)\s*[=:]\s*)(?:[\"'](?!\$\{)((?:[^\"'\\]|\\.){8,})[\"']|([^\s#\n\"'$]{8,}))"), rf"\g<1>{r}", "password assignment"),
-        (re.compile(r"(?i)((?:secret|api[_-]?key|access[_-]?token|auth[_-]?token)\s*[=:]\s*)[\"']?([A-Za-z0-9\-_./+=]{16,})[\"']?"), rf"\g<1>{r}", "secret assignment"),
-        (re.compile(r"\beyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]*\b"), r, "JWT"),
-        (re.compile(r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b"), r, "credit card"),
-        (re.compile(r"(?<![:/@\w])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I), r, "email"),
-        (re.compile(r"(?<!\w)(?:\+?\d[\d\s().-]{8,}\d)(?!\w)"), r, "phone"),
-        (re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b"), r, "IBAN"),
-        (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"), r, "IP address"),
+        (re.compile(r"\bsk-(?:proj-|ant-api03-|ant-|or-v1-)?[A-Za-z0-9\-_]{20,}"), r, "API key", "secrets"),
+        (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), r, "AWS access key id", "secrets"),
+        (re.compile(r"(?i)((?:aws[_-]?secret[_-]?(?:access[_-]?)?key|AWS_SECRET_ACCESS_KEY)\s*[=:]\s*)([\"']?)[A-Za-z0-9/+]{40}\2"), rf"\g<1>\g<2>{r}\g<2>", "AWS secret access key", "secrets"),
+        (re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?:-----| BLOCK-----)[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?:-----| BLOCK-----)"), r, "private key", "secrets"),
+        (re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{36,}\b"), r, "GitHub token", "secrets"),
+        (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{82,}\b"), r, "GitHub fine-grained PAT", "secrets"),
+        (re.compile(r"\bhf_[A-Za-z0-9_]{36,}\b"), r, "HuggingFace token", "secrets"),
+        (re.compile(r"\bgsk_[A-Za-z0-9\-_]{50,}\b"), r, "Groq key", "secrets"),
+        (re.compile(r"\bAIzaSy[A-Za-z0-9_\-]{32,}\b"), r, "Google AI Studio key", "secrets"),
+        (re.compile(r"([a-zA-Z][a-zA-Z0-9+.-]*://)(?:[^@\s/]+@)+"), rf"\g<1>{r}@", "URL credentials", "secrets"),
+        (re.compile(r"(?i)((?:password|passwd|pwd|db_pass|pgpassword)\s*[=:]\s*)(?:[\"'](?!\$\{)((?:[^\"'\\]|\\.){8,})[\"']|([^\s#\n\"'$]{8,}))"), rf"\g<1>{r}", "password assignment", "secrets"),
+        (re.compile(r"(?i)((?:secret|api[_-]?key|access[_-]?token|auth[_-]?token)\s*[=:]\s*)[\"']?([A-Za-z0-9\-_./+=]{16,})[\"']?"), rf"\g<1>{r}", "secret assignment", "secrets"),
+        (re.compile(r"\beyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]*\b"), r, "JWT", "secrets"),
+        (re.compile(r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b"), r, "credit card", "standard"),
+        (re.compile(r"(?<![:/@\w])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I), r, "email", "standard"),
+        (re.compile(r"(?<!\w)(?:\+?\d[\d\s().-]{8,}\d)(?!\w)"), r, "phone", "standard"),
+        (re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b"), r, "IBAN", "standard"),
+        (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"), r, "IP address", "standard"),
     ]
 
 
-def rules_mask(text: str, mask_token: str = DEFAULT_MASK_TOKEN) -> tuple[str, list[str]]:
+def rules_mask(
+    text: str,
+    mask_token: str = DEFAULT_MASK_TOKEN,
+    masking_level: str | None = None,
+) -> tuple[str, list[str]]:
+    level = (masking_level or MASKING_LEVEL).strip().lower()
+    if level == "off":
+        return text, []
     found: list[str] = []
-    for pattern, replacement, description in _patterns(mask_token):
+    for pattern, replacement, description, min_level in _patterns(mask_token):
+        if level == "secrets" and min_level != "secrets":
+            continue
         new_text = pattern.sub(replacement, text)
         if new_text != text:
             found.append(description)
@@ -72,7 +81,7 @@ def rules_mask(text: str, mask_token: str = DEFAULT_MASK_TOKEN) -> tuple[str, li
 def mask_string(value: str) -> tuple[str, list[str]]:
     if MASKING_LEVEL == "off":
         return value, []
-    return rules_mask(value)
+    return rules_mask(value, masking_level=MASKING_LEVEL)
 
 
 def _mask_value(value: Any, key: str | None = None, depth: int = 0) -> tuple[Any, list[str]]:
