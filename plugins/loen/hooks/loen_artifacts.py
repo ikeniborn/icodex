@@ -154,6 +154,16 @@ def loop_yaml_text(
     "handoff_conditions:",
     "  - schema change required",
     'rollback_policy: "Revert unsafe changes"',
+    "run:",
+    "  mode: delivery",
+    "  subtype: null",
+    "  plan_approved: false",
+    '  plan_hash: ""',
+    "  state: prepare",
+    "  max_passes: 3",
+    "  current_pass: 0",
+    '  approval_source: ""',
+    '  approved_at: ""',
     "governance:",
     "  automation_type: manual",
     '  schedule: ""',
@@ -168,6 +178,12 @@ def loop_yaml_text(
     "    - verifier_failure",
     "    - budget_exhausted",
     "    - metric_regression",
+    "release_policy:",
+    '  target_branch: ""',
+    '  merge_strategy: ""',
+    "  verifier_required: true",
+    "  evidence_required: true",
+    '  recovery_policy: ""',
     "",
   ])
 
@@ -478,6 +494,26 @@ def _governance_summary(base: Path, loop_text: str) -> GovernanceSummary:
   )
 
 
+def _runner_summary(loop_text: str) -> dict[str, object]:
+  parsed = parse_loop_yaml(loop_text)
+  run = parsed.get("run", {})
+  policy = parsed.get("release_policy", {})
+  if not isinstance(run, dict):
+    run = {}
+  if not isinstance(policy, dict):
+    policy = {}
+  return {
+    "mode": run.get("mode", ""),
+    "subtype": run.get("subtype", ""),
+    "plan_approved": run.get("plan_approved") is True,
+    "plan_hash": run.get("plan_hash", ""),
+    "state": run.get("state", ""),
+    "current_pass": run.get("current_pass", ""),
+    "max_passes": run.get("max_passes", ""),
+    "release_target": policy.get("target_branch", ""),
+  }
+
+
 def append_automation_attempt(
   *,
   base: Path,
@@ -556,6 +592,7 @@ def render_audit(base: Path, topic: str) -> str:
   loop_text = _read(base / "loop.yaml")
   summary = _summary_from_loop(loop_text, topic)
   governance = _governance_summary(base, loop_text)
+  runner = _runner_summary(loop_text)
   evidence_files = _evidence_files(base)
   has_result = _has_exact_markdown_value(_read(base / "7_result.md"), "Done")
   has_check = _has_exact_markdown_value(_read(base / "5_check.md"), "PASS")
@@ -615,6 +652,16 @@ def render_audit(base: Path, topic: str) -> str:
     f"      <p><strong>Budget:</strong> {html.escape(summary.max_iterations)} iteration(s)</p>",
     f"      <p><strong>Rollback:</strong> {html.escape(summary.rollback_policy)}</p>",
     f"      <p><strong>Final verdict:</strong> {verdict}</p>",
+    "    </section>",
+    "    <section>",
+    "      <h2>Runner</h2>",
+    f"      <p><strong>Mode:</strong> {html.escape(str(runner['mode']))}</p>",
+    f"      <p><strong>Subtype:</strong> {html.escape(str(runner['subtype']))}</p>",
+    f"      <p>plan_approved: {str(runner['plan_approved']).lower()}</p>",
+    f"      <p><strong>Plan hash:</strong> {html.escape(str(runner['plan_hash']))}</p>",
+    f"      <p><strong>State:</strong> {html.escape(str(runner['state']))}</p>",
+    f"      <p><strong>Pass:</strong> {html.escape(str(runner['current_pass']))}/{html.escape(str(runner['max_passes']))}</p>",
+    f"      <p><strong>Release target:</strong> {html.escape(str(runner['release_target']))}</p>",
     "    </section>",
     "    <section>",
     "      <h2>Verifier Result</h2>",
