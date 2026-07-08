@@ -134,18 +134,53 @@ flowchart TD
         GovernanceEvidence["evidence/* verifier output"]
         AuditHtml["docs/loen/&lt;topic&gt;/audit.html"]
         HumanReview["human review requirement"]
+        Handoff["handoff.md"]
     end
 
-    Goal --> Context
-    Context --> Plan
-    Plan --> Act
+    LoopStart["loen:loop-start"]
+    StartModeChoice{"choose run.mode"}
+    StartSubtypeSelect{"choose run.subtype for governance"}
+    LoopRun["loen:loop-run"]
+    ModeChoice{"run.mode?"}
+    SubtypeChoice{"approved run.subtype?"}
+    RunPreflight{"approval, plan hash, scope, verifier, budget, policy"}
+    DeliveryState["prepare -> act -> check -> reflect"]
+    ReportOnly["report-only"]
+    AutoFix["auto-fix"]
+    MergeRelease["merge-release"]
+
+    LoopStart --> Goal
+    LoopStart --> Context
+    LoopStart --> StartModeChoice
+    StartModeChoice -- "delivery" --> Plan
+    StartModeChoice -- "governance" --> StartSubtypeSelect
+    StartSubtypeSelect -- "report-only" --> Plan
+    StartSubtypeSelect -- "auto-fix" --> Plan
+    StartSubtypeSelect -- "merge-release" --> Plan
+    LoopStart --> LoopYaml
+    Plan --> Approval["user approves 3_plan.md"]
+    Approval --> RunContract["run.plan_approved, plan_hash, mode, subtype"]
+    RunContract --> LoopYaml
+    LoopYaml --> LoopRun
+    LoopRun --> RunPreflight
+    RunPreflight -- "fail" --> Handoff
+    RunPreflight -- "pass" --> ModeChoice
+    ModeChoice -- "delivery" --> DeliveryState
+    ModeChoice -- "governance" --> SubtypeChoice
+    SubtypeChoice -- "report-only" --> ReportOnly
+    SubtypeChoice -- "auto-fix" --> AutoFix
+    SubtypeChoice -- "merge-release" --> MergeRelease
+    ReportOnly --> GovernanceRun["loen:loop-governance"]
+    AutoFix --> GovernanceRun
+    MergeRelease --> GovernanceRun
+    DeliveryState --> Act
     Act --> Check
     Check --> Reflect
     Reflect --> Result
-    LoopYaml --> Goal
-    LoopYaml --> Plan
+    Reflect --> Handoff
+    Goal --> Context
+    Context --> Plan
     LoopYaml --> Result
-    LoopYaml --> GovernanceRun["loen:loop-governance"]
     GovernanceRun --> GovernancePolicy["governance policy"]
     GovernancePolicy --> LoopYaml
     GovernancePolicy --> Attempts
@@ -162,9 +197,12 @@ flowchart TD
     classDef contract fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
     classDef report fill:#a6e3a1,color:#1e1e2e,stroke:#40a02b
     classDef governance fill:#94e2d5,color:#1e1e2e,stroke:#179299
-    class Goal,Context,Plan,Act,Check,Reflect,Result,Attempts,Evidence,GovernanceEvidence artifact
-    class LoopYaml,GovernancePolicy,HumanReview contract
-    class GovernanceRun governance
+    classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
+    class Goal,Context,Plan,Act,Check,Reflect,Result,Attempts,Evidence,GovernanceEvidence,Handoff artifact
+    class LoopYaml,GovernancePolicy,HumanReview,Approval,RunContract contract
+    class LoopStart,LoopRun,DeliveryState governance
+    class GovernanceRun,ReportOnly,AutoFix,MergeRelease governance
+    class StartModeChoice,StartSubtypeSelect,ModeChoice,SubtypeChoice,RunPreflight decision
     class AuditHtml,TodoRow report
 ```
 
@@ -186,6 +224,11 @@ contract in `loop.yaml`:
   evidence requirement, `scope_limit`, and recovery policy for merge-release.
 - `governance:` stores owner, schedule, alert policy, `auto_fix`, and
   `auto_merge` for governance topics.
+
+`run.subtype` is set only by `loop-start` after the user chooses governance and
+one of `report-only`, `auto-fix`, or `merge-release`. Delivery topics use
+`run.subtype: null`. `loop-run` treats subtype as approved input and refuses to
+act when the subtype is unknown or the matching policy is incomplete.
 
 `loen:loop-run <topic>` validates the approved plan hash, mode, subtype, scope,
 verifier, budget, and rollback or recovery policy before entering the
