@@ -35,15 +35,15 @@ telemetry_langfuse_validate_config() {
 }
 
 telemetry_langfuse_capture_bin() {
-  printf '%s\n' "${ICODEX_LANGFUSE_CAPTURE_BIN:-${ICODEX_SHARED_DIR:-}/bin/icodex-langfuse-capture}"
+  printf '%s\n' "${_TELEMETRY_LANGFUSE_CAPTURE_BIN:-${ICODEX_SHARED_DIR:-}/bin/icodex-langfuse-capture}"
 }
 
 telemetry_langfuse_capture_pid_file() {
-  printf '%s\n' "${ICODEX_LANGFUSE_CAPTURE_PID_FILE:-${ICODEX_HOME_DIR:-$PWD}/langfuse-capture.pid}"
+  printf '%s\n' "${_TELEMETRY_LANGFUSE_CAPTURE_PID_FILE:-${ICODEX_HOME_DIR:-$PWD}/langfuse-capture.pid}"
 }
 
 telemetry_langfuse_capture_state_file() {
-  printf '%s\n' "${ICODEX_LANGFUSE_CAPTURE_STATE_FILE:-${ICODEX_HOME_DIR:-$PWD}/langfuse-capture.state}"
+  printf '%s\n' "${_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE:-${ICODEX_HOME_DIR:-$PWD}/langfuse-capture.state}"
 }
 
 telemetry_langfuse_capture_tags() {
@@ -55,7 +55,7 @@ telemetry_langfuse_capture_tags() {
 telemetry_langfuse_capture_context() {
   printf 'ICODEX_TELEMETRY_PROJECT=%s\n' "${ICODEX_TELEMETRY_PROJECT:-unknown}"
   printf 'ICODEX_TELEMETRY_SESSION_ID=%s\n' "${ICODEX_TELEMETRY_SESSION_ID:-unknown}"
-  printf 'ICODEX_LANGFUSE_TAGS=%s\n' "$(telemetry_langfuse_capture_tags)"
+  printf 'LANGFUSE_TAGS=%s\n' "$(telemetry_langfuse_capture_tags)"
 }
 
 telemetry_langfuse_capture_pid_running() { # <pid>
@@ -66,7 +66,7 @@ telemetry_langfuse_capture_pid_running() { # <pid>
 
 telemetry_langfuse_running_pid() {
   local pid_file pid
-  pid="${ICODEX_LANGFUSE_CAPTURE_PID:-}"
+  pid="${_TELEMETRY_LANGFUSE_CAPTURE_PID:-}"
   if [[ -n "$pid" ]] && telemetry_langfuse_capture_pid_running "$pid"; then
     printf '%s\n' "$pid"
     return 0
@@ -76,8 +76,7 @@ telemetry_langfuse_running_pid() {
   if [[ -f "$pid_file" ]]; then
     IFS= read -r pid < "$pid_file" || pid=""
     if telemetry_langfuse_capture_pid_running "$pid"; then
-      ICODEX_LANGFUSE_CAPTURE_PID="$pid"
-      export ICODEX_LANGFUSE_CAPTURE_PID
+      _TELEMETRY_LANGFUSE_CAPTURE_PID="$pid"
       printf '%s\n' "$pid"
       return 0
     fi
@@ -87,12 +86,12 @@ telemetry_langfuse_running_pid() {
 }
 
 telemetry_langfuse_export_capture_env() {
-  ICODEX_LANGFUSE_CAPTURE_PID_FILE="$(telemetry_langfuse_capture_pid_file)"
-  ICODEX_LANGFUSE_CAPTURE_STATE_FILE="$(telemetry_langfuse_capture_state_file)"
-  ICODEX_LANGFUSE_TAGS="$(telemetry_langfuse_capture_tags)"
+  _TELEMETRY_LANGFUSE_CAPTURE_PID_FILE="$(telemetry_langfuse_capture_pid_file)"
+  LANGFUSE_CAPTURE_STATE_FILE="$(telemetry_langfuse_capture_state_file)"
+  LANGFUSE_TAGS="$(telemetry_langfuse_capture_tags)"
   export ICODEX_LANGFUSE_BASE_URL ICODEX_LANGFUSE_PUBLIC_KEY ICODEX_LANGFUSE_SECRET_KEY
-  export ICODEX_TELEMETRY_PROJECT ICODEX_TELEMETRY_SESSION_ID ICODEX_LANGFUSE_TAGS
-  export ICODEX_LANGFUSE_CAPTURE_PID_FILE ICODEX_LANGFUSE_CAPTURE_STATE_FILE
+  export ICODEX_TELEMETRY_PROJECT ICODEX_TELEMETRY_SESSION_ID
+  export LANGFUSE_TAGS LANGFUSE_CAPTURE_STATE_FILE
 }
 
 telemetry_langfuse_start_capture() {
@@ -108,13 +107,12 @@ telemetry_langfuse_start_capture() {
   fi
 
   telemetry_langfuse_export_capture_env
-  pid_file="$ICODEX_LANGFUSE_CAPTURE_PID_FILE"
-  mkdir -p "$(dirname "$pid_file")" "$(dirname "$ICODEX_LANGFUSE_CAPTURE_STATE_FILE")"
+  pid_file="$_TELEMETRY_LANGFUSE_CAPTURE_PID_FILE"
+  mkdir -p "$(dirname "$pid_file")" "$(dirname "$LANGFUSE_CAPTURE_STATE_FILE")"
 
   "$bin" &
   pid="$!"
-  ICODEX_LANGFUSE_CAPTURE_PID="$pid"
-  export ICODEX_LANGFUSE_CAPTURE_PID
+  _TELEMETRY_LANGFUSE_CAPTURE_PID="$pid"
   printf '%s\n' "$pid" > "$pid_file"
 
   sleep 0.1
@@ -133,7 +131,7 @@ telemetry_langfuse_stop_capture() {
   kill "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
   rm -f "$pid_file"
-  unset ICODEX_LANGFUSE_CAPTURE_PID
+  unset _TELEMETRY_LANGFUSE_CAPTURE_PID
 }
 
 telemetry_langfuse_cleanup() {

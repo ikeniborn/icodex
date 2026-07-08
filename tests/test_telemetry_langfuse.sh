@@ -45,33 +45,42 @@ assert_contains "context contains project" "$context" "ICODEX_TELEMETRY_PROJECT=
 assert_contains "context contains session" "$context" "ICODEX_TELEMETRY_SESSION_ID=icodex-test-session"
 assert_contains "context tags contain project" "$context" "icodex.project=repo"
 assert_contains "context tags contain session" "$context" "icodex.session_id=icodex-test-session"
+if grep -qE 'ICODEX_LANGFUSE_CAPTURE_|ICODEX_LANGFUSE_TAGS' "$ROOT/lib/telemetry/langfuse.sh"; then
+  echo "FAIL [no extra ICODEX langfuse capture config surface]"
+  FAIL=$((FAIL+1))
+else
+  echo "PASS [no extra ICODEX langfuse capture config surface]"
+  PASS=$((PASS+1))
+fi
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 fake="$tmp/fake-capture"
 cat > "$fake" <<'EOF'
 #!/usr/bin/env bash
-printf 'started\n' > "$ICODEX_LANGFUSE_CAPTURE_STATE_FILE"
-printf 'project=%s\n' "$ICODEX_TELEMETRY_PROJECT" >> "$ICODEX_LANGFUSE_CAPTURE_STATE_FILE"
-printf 'session=%s\n' "$ICODEX_TELEMETRY_SESSION_ID" >> "$ICODEX_LANGFUSE_CAPTURE_STATE_FILE"
-trap 'printf stopped >> "$ICODEX_LANGFUSE_CAPTURE_STATE_FILE"; exit 0' TERM
+printf 'started\n' > "$LANGFUSE_CAPTURE_STATE_FILE"
+printf 'project=%s\n' "$ICODEX_TELEMETRY_PROJECT" >> "$LANGFUSE_CAPTURE_STATE_FILE"
+printf 'session=%s\n' "$ICODEX_TELEMETRY_SESSION_ID" >> "$LANGFUSE_CAPTURE_STATE_FILE"
+printf 'tags=%s\n' "$LANGFUSE_TAGS" >> "$LANGFUSE_CAPTURE_STATE_FILE"
+trap 'printf stopped >> "$LANGFUSE_CAPTURE_STATE_FILE"; exit 0' TERM
 while :; do sleep 1; done
 EOF
 chmod +x "$fake"
 
-ICODEX_LANGFUSE_CAPTURE_BIN="$fake"
-ICODEX_LANGFUSE_CAPTURE_PID_FILE="$tmp/capture.pid"
-ICODEX_LANGFUSE_CAPTURE_STATE_FILE="$tmp/capture.state"
+_TELEMETRY_LANGFUSE_CAPTURE_BIN="$fake"
+_TELEMETRY_LANGFUSE_CAPTURE_PID_FILE="$tmp/capture.pid"
+_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE="$tmp/capture.state"
 
 telemetry_langfuse_start_capture
-first_pid="$(cat "$ICODEX_LANGFUSE_CAPTURE_PID_FILE")"
+first_pid="$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_PID_FILE")"
 kill -0 "$first_pid" 2>/dev/null
 assert_eq "capture process running" "0" "$?"
-assert_contains "state has project" "$(cat "$ICODEX_LANGFUSE_CAPTURE_STATE_FILE")" "project=repo"
-assert_contains "state has session" "$(cat "$ICODEX_LANGFUSE_CAPTURE_STATE_FILE")" "session=icodex-test-session"
+assert_contains "state has project" "$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE")" "project=repo"
+assert_contains "state has session" "$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE")" "session=icodex-test-session"
+assert_contains "state has tags" "$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_STATE_FILE")" "tags=icodex.project=repo,icodex.session_id=icodex-test-session"
 
 telemetry_langfuse_start_capture
-second_pid="$(cat "$ICODEX_LANGFUSE_CAPTURE_PID_FILE")"
+second_pid="$(cat "$_TELEMETRY_LANGFUSE_CAPTURE_PID_FILE")"
 assert_eq "start is idempotent" "$first_pid" "$second_pid"
 
 telemetry_langfuse_stop_capture
@@ -87,8 +96,8 @@ cat > "$bad" <<'EOF'
 exit 42
 EOF
 chmod +x "$bad"
-ICODEX_LANGFUSE_CAPTURE_BIN="$bad"
-rm -f "$ICODEX_LANGFUSE_CAPTURE_PID_FILE"
+_TELEMETRY_LANGFUSE_CAPTURE_BIN="$bad"
+rm -f "$_TELEMETRY_LANGFUSE_CAPTURE_PID_FILE"
 assert_exit "capture startup failure fails before launch" 1 telemetry_langfuse_start_capture
 
 finish
