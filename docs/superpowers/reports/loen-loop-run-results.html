@@ -23,13 +23,13 @@
   <input type="checkbox" id="theme-toggle" hidden>
   <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
   <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
-  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden checked>
-  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
   <header>
     <div class="top">
       <div>
         <h1>Проверка chain: loen-loop-run</h1>
-        <p class="muted">Единый отчёт IDD → SDD. Активная вкладка: plan.</p>
+        <p class="muted">Единый отчёт IDD → SDD. Активная вкладка: result.</p>
       </div>
       <label for="theme-toggle" class="theme-btn" title="Переключить тему">Тема</label>
     </div>
@@ -257,7 +257,105 @@
   <!-- TAB:plan END -->
   <!-- TAB:result START -->
   <section class="tab-pane" id="pane-result">
-    <p class="note">Этап ещё не проверен.</p>
+    <h2>Проверка result — 2026-07-08</h2>
+    <p>Результат сверяет implementation commits <code>be27c37..d25354d</code> с intent, spec и plan. Guided LoEn path теперь имеет approved <code>run:</code> contract, новый <code>loen:loop-run</code> skill, audit visibility, governance subtypes и docs/wiki coverage.</p>
+    <p>Вердикт: <span class="badge ok">OK</span>. Все plan tasks закрыты, focused и full verification прошли, stale wiki contradiction про auto-merge исправлена, final Task 5 review approved.</p>
+
+    <h3>Сводка артефакта</h3>
+    <table>
+      <tr><th>Поле</th><th>Значение</th></tr>
+      <tr><td>Источник</td><td><code>docs/superpowers/plans/2026-07-08-loen-loop-run.md</code></td></tr>
+      <tr><td>Plan hash</td><td><code>db1cd4a8d3aa97ae</code></td></tr>
+      <tr><td>Diff baseline</td><td><code>f7d20df..HEAD</code></td></tr>
+      <tr><td>Changed paths</td><td>12 planned paths</td></tr>
+      <tr><td>Findings</td><td>Новых blocking findings нет</td></tr>
+    </table>
+
+    <h3>Граф сверки diff</h3>
+    <div class="flow" aria-label="Граф сверки diff">
+      <div class="step"><strong>Tests first</strong><code>tests/test_loen_loop_run_contract.sh</code><br><span class="badge ok">DONE</span></div>
+      <div class="step"><strong>Contract helpers</strong><code>loen_common.py</code>, <code>loen_artifacts.py</code><br><span class="badge ok">DONE</span></div>
+      <div class="step"><strong>Artifacts/audit</strong><code>loop.yaml</code>, audit Runner section<br><span class="badge ok">DONE</span></div>
+      <div class="step"><strong>Runner skill</strong><code>skills/loop-run/SKILL.md</code><br><span class="badge ok">DONE</span></div>
+      <div class="step"><strong>Docs/governance</strong>README, architecture, governance skill, wiki<br><span class="badge ok">DONE</span></div>
+    </div>
+
+    <h3>Таблица сверки plan</h3>
+    <table>
+      <tr><th>Plan task</th><th>Статус</th><th>Diff evidence</th></tr>
+      <tr><td>Task 1: failing contract coverage</td><td><span class="badge ok">DONE</span></td><td><code>tests/test_loen_loop_run_contract.sh</code>, red/green contract assertions.</td></tr>
+      <tr><td>Task 2: runner contract helpers</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/hooks/loen_common.py</code>, <code>plugins/loen/hooks/loen_artifacts.py</code>.</td></tr>
+      <tr><td>Task 3: runner state in artifacts</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/assets/templates/loop.yaml</code>, audit Runner rendering.</td></tr>
+      <tr><td>Task 4: loop-run skill</td><td><span class="badge ok">DONE</span></td><td><code>plugins/loen/skills/loop-run/SKILL.md</code> with preflight and state machine.</td></tr>
+      <tr><td>Task 5: docs and governance wording</td><td><span class="badge ok">DONE</span></td><td><code>README.md</code>, <code>README.ru.md</code>, <code>architecture.md</code>, <code>loop-start</code>, <code>loop-governance</code>, docs tests.</td></tr>
+      <tr><td>Task 6: verification and documentation sync</td><td><span class="badge ok">DONE</span></td><td>Focused suite, full suite exit 0, iwiki updates, final review flow.</td></tr>
+      <tr><td>EXCESS</td><td><span class="badge ok">none</span></td><td>No changed path outside plan scope in <code>git diff --name-status f7d20df..HEAD</code>.</td></tr>
+    </table>
+
+    <h3>Карта свидетельств результатов</h3>
+    <table>
+      <tr><th>Intent/spec outcome</th><th>Evidence</th><th>Статус</th></tr>
+      <tr><td><code>loop-start</code> owns intake, mode, params, approval</td><td><code>loop-start/SKILL.md</code>, README guided path, contract tests for mode/subtype/approval.</td><td><span class="badge ok">covered</span></td></tr>
+      <tr><td><code>loop-run &lt;topic&gt;</code> drives approved topic</td><td>New skill documents <code>prepare -&gt; act -&gt; check -&gt; reflect</code>, preflight, result/handoff stops.</td><td><span class="badge ok">covered</span></td></tr>
+      <tr><td>Governance report-only, auto-fix, merge-release policies</td><td>Validator requires subtype policy, <code>auto_fix</code>, <code>auto_merge</code>, complete <code>release_policy</code>.</td><td><span class="badge ok">covered</span></td></tr>
+      <tr><td>Manual skills stay compatible</td><td>Docs keep manual plan/act/check/reflect path; no manual skill file removed.</td><td><span class="badge ok">covered</span></td></tr>
+      <tr><td>Evidence/audit trail remains visible</td><td>Audit Runner section, attempts/evidence rendering, runtime artifact tests.</td><td><span class="badge ok">covered</span></td></tr>
+    </table>
+
+    <h3>Карта лишнего и пропусков</h3>
+    <table>
+      <tr><th>Категория</th><th>Результат</th><th>Evidence</th></tr>
+      <tr><td>Missing plan steps</td><td><span class="badge ok">0</span></td><td>Every task has matching changed paths and passing tests.</td></tr>
+      <tr><td>Partial work</td><td><span class="badge ok">0</span></td><td>Review loops closed Task 1-5 findings before commits.</td></tr>
+      <tr><td>Excess diff</td><td><span class="badge ok">0</span></td><td>Changed paths are plan-listed LoEn hooks, templates, skills, docs, and tests.</td></tr>
+      <tr><td>Known residual lint</td><td><span class="badge warn">advisory only</span></td><td><code>wiki_lint</code> reports pre-existing stale/missing-source/advisory items outside this runner change.</td></tr>
+    </table>
+
+    <h3>Карта замечаний code review</h3>
+    <table>
+      <tr><th>Area</th><th>Review result</th><th>Fix evidence</th></tr>
+      <tr><td>Contract tests</td><td>Task 1 review required isolated approval fixture, explicit hash helper assertion, guarded temp dir, exit-code capture.</td><td>Fixed before <code>be27c37</code>; final Task 1 reviews approved.</td></tr>
+      <tr><td>Contract helpers</td><td>Task 2 review required isolated negative cases and report-only readiness.</td><td>Fixed before <code>a5cf357</code>; final Task 2 reviews approved.</td></tr>
+      <tr><td>Runner skill</td><td>Task 4 review required clearer verifier failure and approval wording.</td><td>Fixed before <code>99f6085</code>; reviews approved.</td></tr>
+      <tr><td>Docs/governance</td><td>Task 5 review found stale no-auto-merge wording, Russian README quality, stale core inventory.</td><td>Fixed in <code>d25354d</code>; final doc-quality review approved.</td></tr>
+      <tr><td>Final pass</td><td>No open confirmed bug remains.</td><td>Focused/full verification green.</td></tr>
+    </table>
+
+    <h3>Карта документационных свидетельств</h3>
+    <table>
+      <tr><th>Change</th><th>Repo docs</th><th>Wiki evidence</th></tr>
+      <tr><td>Guided start/run path</td><td><code>README.md</code>, <code>README.ru.md</code>, <code>architecture.md</code>.</td><td><code>loen-overview</code>, <code>loen-runtime-artifacts</code>.</td></tr>
+      <tr><td>Governance subtypes and merge-release policy</td><td><code>loop-governance/SKILL.md</code>, README automation governance.</td><td><code>loen-automation-governance</code> Overview, Enforcement Boundary, Validation.</td></tr>
+      <tr><td>Skill catalog includes loop-run</td><td><code>tests/test_loen_plugin_core.sh</code>, README skill lists, <code>loop-run/SKILL.md</code>.</td><td><code>loen-plugin-core</code> Validation.</td></tr>
+      <tr><td>Wiki health</td><td>Updated via iwiki MCP; no manual index needed.</td><td><code>wiki_lint icodex</code>: broken=[], orphans=[]; unrelated stale/missing_source/advisory remain.</td></tr>
+    </table>
+
+    <h3>Карта распространения решений</h3>
+    <table>
+      <tr><th>Decision</th><th>Propagation</th><th>Статус</th></tr>
+      <tr><td>Approval happens at <code>loop-start</code>; <code>loop-run</code> consumes approved contract.</td><td>Intent, spec, plan, loop-start skill, loop-run skill, runtime wiki.</td><td><span class="badge ok">consistent</span></td></tr>
+      <tr><td>Governance default remains safe; <code>merge-release</code> is explicit exception.</td><td>Intent/spec/plan, governance skill, README, automation wiki.</td><td><span class="badge ok">consistent</span></td></tr>
+      <tr><td>No second LoEn-specific approval for merge/release; external gates still apply.</td><td>Loop-run skill, loop-governance skill, README, runtime/governance wiki.</td><td><span class="badge ok">consistent</span></td></tr>
+      <tr><td>Vendored cache not updated in this plan.</td><td>Plan states no cache vendoring; diffs contain no vendored LoEn cache path.</td><td><span class="badge ok">intentional</span></td></tr>
+    </table>
+
+    <details open>
+      <summary>Verification evidence</summary>
+      <table>
+        <tr><th>Command</th><th>Result</th></tr>
+        <tr><td><code>bash tests/test_loen_loop_run_contract.sh</code></td><td><span class="badge ok">PASS=31 FAIL=0</span></td></tr>
+        <tr><td><code>bash tests/test_loen_runtime_artifacts.sh</code></td><td><span class="badge ok">PASS=55 FAIL=0</span></td></tr>
+        <tr><td><code>bash tests/test_loen_automation_governance.sh</code></td><td><span class="badge ok">PASS=31 FAIL=0</span></td></tr>
+        <tr><td><code>bash tests/test_loen_plugin_core.sh</code></td><td><span class="badge ok">PASS=166 FAIL=0</span></td></tr>
+        <tr><td><code>bash tests/test_loen_overview_docs.sh</code></td><td><span class="badge ok">PASS=41 FAIL=0</span></td></tr>
+        <tr><td><code>python3 -m py_compile plugins/loen/hooks/*.py</code></td><td><span class="badge ok">exit 0</span></td></tr>
+        <tr><td><code>for t in tests/test_*.sh; do bash "$t" || exit 1; done</code></td><td><span class="badge ok">exit 0</span></td></tr>
+        <tr><td><code>git diff --check</code></td><td><span class="badge ok">exit 0</span></td></tr>
+      </table>
+    </details>
+
+    <h3>Findings</h3>
+    <p class="note">Новых findings нет. Result verdict: <span class="badge ok">OK</span>.</p>
   </section>
   <!-- TAB:result END -->
   </main>
