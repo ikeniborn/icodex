@@ -211,9 +211,7 @@ touch "$topic_dir/7_result.md" "$topic_dir/verifier-verdict.md" "$topic_dir/evid
 assert_hook_exit "scheduled mode passes evidence gate with artifacts" 0 "evidence-gate.py" "strict" "$topic" "$automation_done"
 
 assert_contains "governance skill documents recurrence" "$(cat "$governance_skill" 2>/dev/null)" "Record recurrence, owner, and review requirement"
-governance_skill_text="$(cat "$governance_skill" 2>/dev/null)"
-assert_contains "governance skill defaults no auto merge" "$governance_skill_text" 'Keep `auto_merge: false`'
-assert_contains "governance skill requires merge-release policy" "$governance_skill_text" '`merge-release`'
+assert_contains "governance skill forbids auto merge" "$(cat "$governance_skill" 2>/dev/null)" "auto-merge"
 assert_contains "README documents automation governance" "$(cat "$readme" 2>/dev/null)" "Automation Governance"
 assert_contains "architecture documents automation governance" "$(cat "$architecture" 2>/dev/null)" "Automation Governance"
 

@@ -23,16 +23,6 @@ stop_conditions:
 handoff_conditions:
   - schema change required
 rollback_policy: "Revert unsafe changes"
-run:
-  mode: delivery
-  subtype: null
-  plan_approved: false
-  plan_hash: ""
-  state: prepare
-  max_passes: 3
-  current_pass: 0
-  approval_source: ""
-  approved_at: ""
 governance:
   automation_type: manual
   schedule: ""
@@ -47,13 +37,6 @@ governance:
     - verifier_failure
     - budget_exhausted
     - metric_regression
-release_policy:
-  target_branch: ""
-  merge_strategy: ""
-  verifier_required: true
-  evidence_required: true
-  scope_limit: ""
-  recovery_policy: ""
 context_capsule:
   required_fields:
     - Topic

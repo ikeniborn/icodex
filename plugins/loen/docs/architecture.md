@@ -168,52 +168,6 @@ flowchart TD
     class AuditHtml,TodoRow report
 ```
 
-## Loop Runner
-
-The guided runner path is:
-
-```text
-loop-start -> run contract in loop.yaml -> loop-run state machine -> result/handoff
-```
-
-`loop-start` chooses a safe topic slug, creates the topic artifacts, writes
-`3_plan.md`, and waits for approval. After approval it records the runner
-contract in `loop.yaml`:
-
-- `run:` stores `mode`, `subtype`, `plan_approved`, `plan_hash`, state, pass
-  budget, approval source, and approval time.
-- `release_policy:` stores target branch, merge strategy, verifier requirement,
-  evidence requirement, `scope_limit`, and recovery policy for merge-release.
-- `governance:` stores owner, schedule, alert policy, `auto_fix`, and
-  `auto_merge` for governance topics.
-
-`loen:loop-run <topic>` validates the approved plan hash, mode, subtype, scope,
-verifier, budget, and rollback or recovery policy before entering the
-`prepare -> act -> check -> reflect` state machine. It stops with `handoff.md`
-when approval, policy, verifier, protected scope, budget, or recovery checks fail.
-It writes `7_result.md` only when terminal evidence supports completion.
-
-Runner preflight treats placeholder scope values as absent. A topic with
-`mutable_scope: [none]`, `mutable_scope: [null]`, or only empty strings does not
-have a usable mutable scope and must hand off before acting.
-
-Governance subtypes are `report-only`, `auto-fix`, and `merge-release`.
-`report-only` records findings without product-file edits. `auto-fix` can change
-only usable mutable scope when `governance.auto_fix: true`. `merge-release` also
-requires `governance.auto_merge: true` and complete `release_policy:`.
-
-`merge-release` release policy is complete only when it has a target branch,
-merge strategy, verifier requirement, evidence requirement, non-empty
-`scope_limit`, and recovery policy. `scope_limit` is the release-specific
-boundary used to constrain merge/release automation; it does not replace
-`mutable_scope`, and both must be usable before the runner may proceed.
-
-Audit visibility stays topic-scoped: runner attempts append `attempts.jsonl`,
-verifier output goes under `evidence/`, and `audit.html` is regenerated for
-`docs/loen/<topic>/`. Manual `loop-plan`, `loop-act`, `loop-check`, and
-`loop-reflect` remain compatible with existing topics and with users who want to
-drive each stage directly.
-
 ## Agent Isolation Levels
 
 LoEn separates role context and execution through five documented levels:
