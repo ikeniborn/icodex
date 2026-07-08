@@ -1,0 +1,99 @@
+{
+  "cases": [
+    {
+      "attempts": 0,
+      "checks": {
+        "artifact dir exists": true,
+        "audit final verdict Done": true,
+        "check PASS recorded": true,
+        "evidence present": true,
+        "plan approved": true,
+        "plan hash matches": true,
+        "preflight passes": true,
+        "result Done recorded": true
+      },
+      "evidence_files": [
+        "evidence/delivery-output.txt",
+        "evidence/latest-test.json",
+        "evidence/latest-test.log"
+      ],
+      "topic": "smoke-delivery-pass"
+    },
+    {
+      "attempts": 1,
+      "checks": {
+        "artifact dir exists": true,
+        "audit final verdict Done": true,
+        "check PASS recorded": true,
+        "evidence present": true,
+        "governance attempt recorded": true,
+        "plan approved": true,
+        "plan hash matches": true,
+        "preflight passes": true,
+        "result Done recorded": true
+      },
+      "evidence_files": [
+        "evidence/governance-report.txt",
+        "evidence/latest-test.json",
+        "evidence/latest-test.log"
+      ],
+      "topic": "smoke-governance-report-only"
+    },
+    {
+      "attempts": 1,
+      "checks": {
+        "artifact dir exists": true,
+        "audit final verdict Done": true,
+        "check PASS recorded": true,
+        "evidence present": true,
+        "governance attempt recorded": true,
+        "plan approved": true,
+        "plan hash matches": true,
+        "preflight passes": true,
+        "result Done recorded": true
+      },
+      "evidence_files": [
+        "evidence/auto-fix.txt",
+        "evidence/latest-test.json",
+        "evidence/latest-test.log"
+      ],
+      "topic": "smoke-governance-auto-fix"
+    },
+    {
+      "attempts": 1,
+      "checks": {
+        "artifact dir exists": true,
+        "audit final verdict Done": true,
+        "check PASS recorded": true,
+        "evidence present": true,
+        "governance attempt recorded": true,
+        "plan approved": true,
+        "plan hash matches": true,
+        "preflight passes": true,
+        "result Done recorded": true
+      },
+      "evidence_files": [
+        "evidence/latest-test.json",
+        "evidence/latest-test.log",
+        "evidence/release-dry-run.txt"
+      ],
+      "topic": "smoke-governance-merge-release"
+    },
+    {
+      "attempts": 1,
+      "checks": {
+        "artifact dir exists": true,
+        "audit final verdict Not done": true,
+        "expected preflight reason": true,
+        "governance attempt recorded": true,
+        "handoff reason recorded": true,
+        "plan approved": true,
+        "plan hash matches": true,
+        "preflight fails": true
+      },
+      "evidence_files": [],
+      "topic": "smoke-governance-negative-policy"
+    }
+  ],
+  "failures": []
+}

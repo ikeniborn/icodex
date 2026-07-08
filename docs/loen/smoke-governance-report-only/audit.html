@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LoEn Audit: smoke-governance-report-only</title>
+</head>
+<body>
+  <main>
+    <h1>LoEn Audit: smoke-governance-report-only</h1>
+    <section>
+      <h2>Current Status</h2>
+      <p><strong>Mode:</strong> governance</p>
+      <p><strong>Stage:</strong> plan</p>
+      <p><strong>Objective:</strong> Verify governance report-only can produce evidence without product-file edits.</p>
+      <p><strong>Verifier:</strong> smoke - test -s docs/loen/smoke-governance-report-only/evidence/governance-report.txt</p>
+      <p><strong>Budget:</strong> 2 iteration(s)</p>
+      <p><strong>Rollback:</strong> Stop, write handoff, and leave topic artifacts inspectable.</p>
+      <p><strong>Final verdict:</strong> Done</p>
+    </section>
+    <section>
+      <h2>Runner</h2>
+      <p><strong>Mode:</strong> governance</p>
+      <p><strong>Subtype:</strong> report-only</p>
+      <p>plan_approved: true</p>
+      <p><strong>Plan hash:</strong> 2d9773ff4dee36e1</p>
+      <p><strong>State:</strong> prepare</p>
+      <p><strong>Pass:</strong> 0/2</p>
+      <p><strong>Release target:</strong> </p>
+    </section>
+    <section>
+      <h2>Verifier Result</h2>
+      <p>Verifier result: Done</p>
+    </section>
+    <section>
+      <h2>Budget and Stop/Handoff State</h2>
+      <p><strong>Budget:</strong> 2 iteration(s)</p>
+      <p><strong>Stop conditions:</strong> verifier passes</p>
+      <p><strong>Handoff conditions:</strong> policy missing, verifier cannot pass within scope</p>
+    </section>
+    <section>
+      <h2>Governance</h2>
+      <p><strong>Automation type:</strong> smoke-report</p>
+      <p><strong>Schedule:</strong> manual</p>
+      <p><strong>Owner:</strong> loen-smoke</p>
+      <p><strong>Review:</strong> Human review window complete</p>
+      <p>auto_fix: false</p>
+      <p>auto_merge: false</p>
+      <p>report_only_on_no_findings: true</p>
+      <ul><li>protected_scope_attempt</li>
+<li>verifier_failure</li>
+<li>budget_exhausted</li>
+<li>metric_regression</li>
+<li>protected_scope_attempt</li>
+<li>verifier_failure</li>
+<li>budget_exhausted</li></ul>
+    </section>
+    <section>
+      <h2>Automated Attempts</h2>
+      <ul><li>2026-07-08T19:13:20Z governance:report-only result: Wrote read-only governance report evidence.</li></ul>
+    </section>
+    <section>
+      <h2>Protected Scope Findings</h2>
+      <p>No protected-scope findings recorded.</p>
+      <p><strong>Protected scope:</strong> plugins/loen/**, secrets/**, .git/**</p>
+    </section>
+<section><h2>Goal</h2><pre>Topic: `smoke-governance-report-only`
+
+Verify governance report-only can produce evidence without product-file edits.
+
+Success criterion: approved run contract reaches `result`.</pre></section>
+<section><h2>Context</h2><pre>Smoke run generated on the current master snapshot. Artifacts are topic-scoped and intended for workflow analysis.</pre></section>
+<section><h2>Plan</h2><pre>Topic: `smoke-governance-report-only`
+
+## Approved Runner Contract
+
+- Mode: `governance`
+- Subtype: `report-only`
+- Verifier: `test -s docs/loen/smoke-governance-report-only/evidence/governance-report.txt`
+- Human approval: smoke approval by Codex run on 2026-07-08
+
+## Steps
+
+1. Prepare topic-scoped smoke input and evidence.
+2. Run the verifier command exactly as recorded in `loop.yaml`.
+3. Reflect to `7_result.md` on pass, or `handoff.md` on policy failure.
+
+## Checks
+
+```bash
+test -s docs/loen/smoke-governance-report-only/evidence/governance-report.txt
+```</pre></section>
+<section><h2>Act</h2><pre>Wrote read-only governance report evidence.</pre></section>
+<section><h2>Check</h2><pre>PASS
+
+Command: `test -s docs/loen/smoke-governance-report-only/evidence/governance-report.txt`
+
+Exit code: 0
+
+Evidence: `evidence/latest-test.json`</pre></section>
+<section><h2>Reflect</h2><pre>Outcome: keep.
+
+Reason: verifier passed and evidence is present.</pre></section>
+<section><h2>Result</h2><pre>Done
+
+Smoke loop reached terminal result with verifier evidence.</pre></section>
+    <section>
+      <h2>Attempts</h2>
+      <p>1 attempt(s)</p>
+    </section>
+    <section>
+      <h2>Evidence</h2>
+      <ul><li>evidence/governance-report.txt</li>
+<li>evidence/latest-test.json</li>
+<li>evidence/latest-test.log</li></ul>
+    </section>
+  </main>
+</body>
+</html>

@@ -6,8 +6,8 @@ state in repository files instead of chat history.
 
 ## What LoEn Adds
 
-- Skills named `loen:loop-start`, `loen:loop-plan`, `loen:loop-act`,
-  `loen:loop-check`, `loen:loop-reflect`, `loen:loop-status`,
+- Skills named `loen:loop-start`, `loen:loop-run`, `loen:loop-plan`,
+  `loen:loop-act`, `loen:loop-check`, `loen:loop-reflect`, `loen:loop-status`,
   `loen:loop-repair`, `loen:loop-research`, `loen:loop-review`, and
   `loen:loop-governance`.
 - Hook scripts that can enforce active loop state, mutable/protected scope,
@@ -20,7 +20,8 @@ state in repository files instead of chat history.
 
 | Skill | Use it when | Responsibility |
 |---|---|---|
-| `loen:loop-start` | Starting a new loop or selecting a durable topic. | Creates or reuses `docs/loen/<topic>/`, initializes `loop.yaml`, stage files, `attempts.jsonl`, `handoff.md`, topic-scoped `audit.html`, and `evidence/`. |
+| `loen:loop-start` | Starting a new loop or selecting a durable topic. | Creates or reuses `docs/loen/<topic>/`, collects the delivery or governance contract, writes `3_plan.md` for approval, then records the approved `run:` contract in `loop.yaml`. |
+| `loen:loop-run` | An approved `3_plan.md` should run to a terminal outcome. | Executes the approved run contract through prepare, act, check, and reflect, then writes `7_result.md` or `handoff.md`. |
 | `loen:loop-plan` | A goal exists and the loop needs one bounded pass. | Converts `1_goal.md`, `2_context.md`, and `loop.yaml` into `3_plan.md` with exact verification commands. |
 | `loen:loop-act` | The active plan has one next action. | Executes one bounded action, then records changed files, commands, and observations in `4_act.md`. |
 | `loen:loop-check` | Code, docs, or configuration changed. | Runs planned checks and records exit codes, output summaries, and evidence references in `5_check.md`. |
@@ -59,38 +60,51 @@ Start with `loen:loop-start` to create a topic directory:
 docs/loen/<topic>/
 ```
 
-Typical sequence:
+Guided path:
+
+```text
+loen:loop-start -> choose delivery or governance -> approve plan -> loen:loop-run <topic> -> 7_result.md or handoff.md
+```
+
+Manual `loen:loop-plan`, `loen:loop-act`, `loen:loop-check`, and
+`loen:loop-reflect` remain supported for step-by-step operation, repair, review,
+and compatibility with existing topics.
+
+Guided sequence:
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 sequenceDiagram
     participant User as User
     participant Start as loen:loop-start
-    participant Plan as loen:loop-plan
-    participant Act as loen:loop-act
-    participant Check as loen:loop-check
-    participant Reflect as loen:loop-reflect
+    participant Run as loen:loop-run
     participant Status as loen:loop-status
     participant Files as docs/loen/topic
 
-    User->>Start: create durable topic
-    Start->>Files: write loop.yaml and stage files
-    User->>Plan: request bounded plan
-    Plan->>Files: update 3_plan.md
-    User->>Act: execute one action
-    Act->>Files: update 4_act.md
-    User->>Check: run verifier commands
-    Check->>Files: write 5_check.md and evidence
-    User->>Reflect: decide keep, fix, revert, or handoff
-    Reflect->>Files: update 6_reflect.md or 7_result.md
+    User->>Start: create or select durable topic
+    Start->>User: collect goal, scope, verifier, and budget
+    Start->>User: choose delivery or governance
+    alt governance
+        Start->>User: choose report-only, auto-fix, or merge-release
+        Start->>User: collect automation and release policy
+    end
+    Start->>Files: write loop.yaml draft, 1_goal.md, 2_context.md, and 3_plan.md
+    Start->>User: approve 3_plan.md
+    Start->>Files: record run.plan_approved, plan_hash, mode, and subtype
+    Start-->>User: launch loen:loop-run topic
+    User->>Run: execute approved run contract
+    Run->>Files: preflight approval, hash, mode, scope, verifier, and policy
+    Run->>Files: write attempts, evidence, 4_act.md, 5_check.md, 6_reflect.md
+    Run->>Files: write 7_result.md or handoff.md
     User->>Status: inspect current state
     Status-->>User: stage, evidence, next action
 ```
 
 ## How a Loop Reaches a Solution
 
-The normal delivery loop is driven by `loop-plan`, `loop-act`, `loop-check`, and
-`loop-reflect`. Governance is not the step runner for ordinary work.
+The guided delivery loop is driven by `loop-start` and `loop-run`. Manual
+`loop-plan`, `loop-act`, `loop-check`, and `loop-reflect` remain available when
+you want each step exposed.
 
 Each pass answers one question: did the last bounded action move the topic closer
 to the objective with enough evidence to keep it?
@@ -99,20 +113,32 @@ to the objective with enough evidence to keep it?
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 flowchart TD
     StartTopic["loen:loop-start creates docs/loen/&lt;topic&gt;/"] --> SharedArtifacts["Shared setup: loop.yaml, stage files, attempts.jsonl, evidence/, audit.html"]
-    SharedArtifacts --> Branch{"Execution branch?"}
+    SharedArtifacts --> Intake["Collect goal, constraints, scope, verifier, budget"]
+    Intake --> Branch{"Execution branch?"}
+    Branch -- "delivery" --> PlanApproval["Write and approve 3_plan.md"]
+    Branch -- "governance" --> StartSubtype{"Select governance subtype"}
+    StartSubtype -- "report-only" --> PlanApproval
+    StartSubtype -- "auto-fix" --> PlanApproval
+    StartSubtype -- "merge-release" --> PlanApproval
+    PlanApproval --> RunContract["Record approved run contract and plan hash"]
+    RunContract --> RunPreflight{"loen:loop-run preflight passes?"}
+    RunPreflight -- "no" --> HandoffStep["handoff.md records human handoff"]
 
     subgraph delivery["Delivery pass"]
-        PlanStep["loen:loop-plan writes 3_plan.md"]
-        ActStep["loen:loop-act writes 4_act.md"]
-        CheckStep["loen:loop-check writes 5_check.md and evidence/*"]
-        ReflectStep{"loen:loop-reflect outcome"}
+        PrepareStep["loop-run prepare state"]
+        ActStep["loop-run act state writes 4_act.md"]
+        CheckStep["loop-run check state writes 5_check.md and evidence/*"]
+        ReflectStep{"loop-run reflect outcome"}
         ResultStep["7_result.md plus topic audit.html"]
         FixStep["Fix needs another bounded pass"]
-        HandoffStep["handoff.md records human handoff"]
     end
 
     subgraph governance["Governance pass"]
-        GovStep["loen:loop-governance"]
+        GovStep["loop-run governance state"]
+        GovSubtype{"Approved run.subtype?"}
+        ReportOnly["report-only records findings"]
+        AutoFix["auto-fix changes usable mutable scope"]
+        MergeRelease["merge-release checks release_policy"]
         GovPolicy["Adds or updates loop.yaml governance owner, schedule, review rules"]
         GovAttempt["Required for run: attempts.jsonl automation record"]
         GovEvidence["Required for run: evidence/* verifier output"]
@@ -121,17 +147,23 @@ flowchart TD
         GovWait["Wait for owner review"]
     end
 
-    Branch -- "ordinary task" --> PlanStep
-    PlanStep --> ActStep
+    RunPreflight -- "delivery" --> PrepareStep
+    PrepareStep --> ActStep
     ActStep --> CheckStep
     CheckStep --> ReflectStep
     ReflectStep -- "keep and objective met" --> ResultStep
     ReflectStep -- "fix" --> FixStep
-    FixStep --> PlanStep
+    FixStep --> PrepareStep
     ReflectStep -- "handoff" --> HandoffStep
 
-    Branch -- "recurring or scheduled topic" --> GovStep
-    GovStep --> GovPolicy
+    RunPreflight -- "governance" --> GovStep
+    GovStep --> GovSubtype
+    GovSubtype -- "report-only" --> ReportOnly
+    GovSubtype -- "auto-fix" --> AutoFix
+    GovSubtype -- "merge-release" --> MergeRelease
+    ReportOnly --> GovPolicy
+    AutoFix --> GovPolicy
+    MergeRelease --> GovPolicy
     GovPolicy --> GovAttempt
     GovAttempt --> GovEvidence
     GovEvidence --> GovAudit
@@ -139,14 +171,16 @@ flowchart TD
     GovReview -- "yes" --> GovWait
     GovReview -- "no" --> ReflectStep
 
+    ManualSkills["Manual loop-plan, loop-act, loop-check, loop-reflect remain supported"] -.-> PrepareStep
+
     classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
     classDef deliveryClass fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec
     classDef governanceClass fill:#94e2d5,color:#1e1e2e,stroke:#179299
     classDef artifactClass fill:#a6e3a1,color:#1e1e2e,stroke:#40a02b
-    class Branch,ReflectStep,GovReview decision
-    class PlanStep,ActStep,CheckStep,FixStep,HandoffStep deliveryClass
-    class GovStep,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
-    class SharedArtifacts,ResultStep artifactClass
+    class Branch,StartSubtype,RunPreflight,ReflectStep,GovSubtype,GovReview decision
+    class PrepareStep,ActStep,CheckStep,FixStep,HandoffStep,ManualSkills deliveryClass
+    class GovStep,ReportOnly,AutoFix,MergeRelease,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
+    class SharedArtifacts,PlanApproval,RunContract,ResultStep artifactClass
 ```
 
 1. `loop-plan` narrows the goal to one verifiable action and writes checks into
@@ -168,6 +202,50 @@ flowchart TD
 The loop is complete only when the topic has a result and enough check evidence
 to justify it. `loop-status` is read-only; it summarizes the current stage and
 next action but does not advance the loop.
+
+## Runner Contract
+
+`loop-start` enables `loop-run` only after the user approves `3_plan.md`.
+Approval is recorded in `loop.yaml` under `run:`:
+
+```yaml
+run:
+  mode: delivery
+  subtype: null
+  plan_approved: true
+  plan_hash: "<hash of 3_plan.md>"
+  state: prepare
+  max_passes: 3
+  current_pass: 0
+```
+
+`subtype` is the governance subtype selected during `loop-start`. Delivery uses
+`subtype: null`; governance requires one of `report-only`, `auto-fix`, or
+`merge-release`. `loop-run` does not choose a subtype. It only reads the
+approved value and validates the matching policy before acting.
+
+`loop-run` refuses to continue when approval is missing, the plan hash changed,
+the mode or subtype is invalid, mutable scope is missing, the verifier command is
+missing, the budget is empty, or rollback/recovery policy is incomplete.
+Placeholder mutable scope values such as `none`, `null`, or an empty string are
+treated as missing scope.
+
+For governance `merge-release`, `release_policy:` must be complete before any
+merge or release work:
+
+```yaml
+release_policy:
+  target_branch: master
+  merge_strategy: pr
+  verifier_required: true
+  evidence_required: true
+  scope_limit: "Configured mutable scope only"
+  recovery_policy: "Stop, record handoff, and leave branch inspectable."
+```
+
+`scope_limit` is a required release boundary, separate from the general
+`mutable_scope` list. It records the release-specific limit the runner must obey
+when applying merge/release automation.
 
 The topic directory stores:
 
@@ -202,10 +280,10 @@ Expected first pass:
 
 ```text
 loen:loop-start creates docs/loen/fix-proxy-test/
-loen:loop-plan writes a one-pass plan in 3_plan.md
-loen:loop-act changes only the scoped files
-loen:loop-check runs the configured test and stores evidence/latest-test.log
-loen:loop-reflect records keep/fix/revert/handoff
+choose delivery
+approve 3_plan.md
+loen:loop-run fix-proxy-test
+runner writes 7_result.md or handoff.md
 ```
 
 If `ICODEX_LOEN_MODE=enforce`, edits outside the configured mutable scope or a
@@ -236,9 +314,13 @@ as recorded:
 | `evidence/` | Verifier output for the scheduled or recurring run. |
 | `audit.html` | Topic-scoped audit regenerated at `docs/loen/<topic>/audit.html`. |
 
-Automation is advisory in this plugin source. It must not auto-merge, perform
-destructive operations, edit protected scope, or complete first runs without the
-human-review requirements recorded in `loop.yaml`.
+Automation is advisory in this plugin source. The default remains no
+auto-merge. The `merge-release` subtype may enable
+`governance.auto_merge: true` only with explicit start-time approval and a
+complete `release_policy:` including `scope_limit`; external branch rules, host
+approval prompts, and repository safety gates still apply. Automation must not
+perform destructive operations, edit protected scope, or complete first runs
+without the human-review requirements recorded in `loop.yaml`.
 
 ## Vendoring for Codex
 
@@ -262,7 +344,8 @@ and `*.pyc`.
 
 LoEn is self-contained and does not depend on other workflow plugins. It writes
 loop state only under `docs/loen/<topic>/` and updates `docs/TODO.md` as the
-global task index. It does not auto-merge, rewrite protected files, or bypass
-`LOEN_MODE`.
+global task index. Auto-merge stays disabled by default; only approved
+`merge-release` policy may set `governance.auto_merge: true`. LoEn does not
+rewrite protected files or bypass `LOEN_MODE`.
 
 Plugin internals are documented in `plugins/loen/docs/architecture.md`.

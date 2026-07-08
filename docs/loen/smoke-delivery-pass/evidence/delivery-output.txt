@@ -1,0 +1,1 @@
+Delivery smoke output: bounded action completed.

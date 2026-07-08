@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LoEn Audit: smoke-governance-negative-policy</title>
+</head>
+<body>
+  <main>
+    <h1>LoEn Audit: smoke-governance-negative-policy</h1>
+    <section>
+      <h2>Current Status</h2>
+      <p><strong>Mode:</strong> governance</p>
+      <p><strong>Stage:</strong> plan</p>
+      <p><strong>Objective:</strong> Verify governance merge-release stops with handoff when release policy is incomplete.</p>
+      <p><strong>Verifier:</strong> smoke - test -s docs/loen/smoke-governance-negative-policy/evidence/release-dry-run.txt</p>
+      <p><strong>Budget:</strong> 2 iteration(s)</p>
+      <p><strong>Rollback:</strong> Stop, write handoff, and leave topic artifacts inspectable.</p>
+      <p><strong>Final verdict:</strong> Not done</p>
+    </section>
+    <section>
+      <h2>Runner</h2>
+      <p><strong>Mode:</strong> governance</p>
+      <p><strong>Subtype:</strong> merge-release</p>
+      <p>plan_approved: true</p>
+      <p><strong>Plan hash:</strong> 1be4720c53ca4c6e</p>
+      <p><strong>State:</strong> prepare</p>
+      <p><strong>Pass:</strong> 0/2</p>
+      <p><strong>Release target:</strong> master</p>
+    </section>
+    <section>
+      <h2>Verifier Result</h2>
+      <p>No verifier result recorded.</p>
+    </section>
+    <section>
+      <h2>Budget and Stop/Handoff State</h2>
+      <p><strong>Budget:</strong> 2 iteration(s)</p>
+      <p><strong>Stop conditions:</strong> verifier passes</p>
+      <p><strong>Handoff conditions:</strong> policy missing, verifier cannot pass within scope</p>
+    </section>
+    <section>
+      <h2>Governance</h2>
+      <p><strong>Automation type:</strong> smoke-negative-policy</p>
+      <p><strong>Schedule:</strong> manual</p>
+      <p><strong>Owner:</strong> loen-smoke</p>
+      <p><strong>Review:</strong> Human review required</p>
+      <p>auto_fix: false</p>
+      <p>auto_merge: true</p>
+      <p>report_only_on_no_findings: false</p>
+      <ul><li>protected_scope_attempt</li>
+<li>verifier_failure</li>
+<li>budget_exhausted</li>
+<li>metric_regression</li>
+<li>protected_scope_attempt</li>
+<li>verifier_failure</li>
+<li>budget_exhausted</li></ul>
+    </section>
+    <section>
+      <h2>Automated Attempts</h2>
+      <ul><li>2026-07-08T19:13:20Z governance:merge-release review_required: merge-release policy incomplete</li></ul>
+    </section>
+    <section>
+      <h2>Protected Scope Findings</h2>
+      <p>No protected-scope findings recorded.</p>
+      <p><strong>Protected scope:</strong> plugins/loen/**, secrets/**, .git/**</p>
+    </section>
+<section><h2>Goal</h2><pre>Topic: `smoke-governance-negative-policy`
+
+Verify governance merge-release stops with handoff when release policy is incomplete.
+
+Success criterion: approved run contract reaches `handoff`.</pre></section>
+<section><h2>Context</h2><pre>Smoke run generated on the current master snapshot. Artifacts are topic-scoped and intended for workflow analysis.</pre></section>
+<section><h2>Plan</h2><pre>Topic: `smoke-governance-negative-policy`
+
+## Approved Runner Contract
+
+- Mode: `governance`
+- Subtype: `merge-release`
+- Verifier: `test -s docs/loen/smoke-governance-negative-policy/evidence/release-dry-run.txt`
+- Human approval: smoke approval by Codex run on 2026-07-08
+
+## Steps
+
+1. Prepare topic-scoped smoke input and evidence.
+2. Run the verifier command exactly as recorded in `loop.yaml`.
+3. Reflect to `7_result.md` on pass, or `handoff.md` on policy failure.
+
+## Checks
+
+```bash
+test -s docs/loen/smoke-governance-negative-policy/evidence/release-dry-run.txt
+```</pre></section>
+<section><h2>Act</h2><pre>No action recorded yet.</pre></section>
+<section><h2>Check</h2><pre>FAIL
+
+Preflight: merge-release policy incomplete</pre></section>
+<section><h2>Reflect</h2><pre>Outcome: handoff.
+
+Reason: preflight failed before act.</pre></section>
+<section><h2>Result</h2><pre>Pending.</pre></section>
+    <section>
+      <h2>Attempts</h2>
+      <p>1 attempt(s)</p>
+    </section>
+    <section>
+      <h2>Evidence</h2>
+      <ul><li>No evidence files.</li></ul>
+    </section>
+  </main>
+</body>
+</html>

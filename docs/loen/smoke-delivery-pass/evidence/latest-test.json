@@ -1,0 +1,8 @@
+{
+  "command": "test -s docs/loen/smoke-delivery-pass/evidence/delivery-output.txt",
+  "created_at": "2026-07-08T19:13:20Z",
+  "exit_code": 0,
+  "stderr": "",
+  "stdout": "",
+  "topic": "smoke-delivery-pass"
+}

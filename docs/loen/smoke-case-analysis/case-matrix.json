@@ -1,0 +1,62 @@
+[
+  {
+    "artifact_dir": "docs/loen/smoke-delivery-pass",
+    "expected": "result",
+    "mode": "delivery",
+    "preflight_ok": true,
+    "preflight_reason": "approved run contract",
+    "subtype": "null",
+    "terminal": "result",
+    "topic": "smoke-delivery-pass",
+    "verifier_exit": 0,
+    "verifier_summary": "PASS"
+  },
+  {
+    "artifact_dir": "docs/loen/smoke-governance-report-only",
+    "expected": "result",
+    "mode": "governance",
+    "preflight_ok": true,
+    "preflight_reason": "approved run contract",
+    "subtype": "report-only",
+    "terminal": "result",
+    "topic": "smoke-governance-report-only",
+    "verifier_exit": 0,
+    "verifier_summary": "PASS"
+  },
+  {
+    "artifact_dir": "docs/loen/smoke-governance-auto-fix",
+    "expected": "result",
+    "mode": "governance",
+    "preflight_ok": true,
+    "preflight_reason": "approved run contract",
+    "subtype": "auto-fix",
+    "terminal": "result",
+    "topic": "smoke-governance-auto-fix",
+    "verifier_exit": 0,
+    "verifier_summary": "PASS"
+  },
+  {
+    "artifact_dir": "docs/loen/smoke-governance-merge-release",
+    "expected": "result",
+    "mode": "governance",
+    "preflight_ok": true,
+    "preflight_reason": "approved run contract",
+    "subtype": "merge-release",
+    "terminal": "result",
+    "topic": "smoke-governance-merge-release",
+    "verifier_exit": 0,
+    "verifier_summary": "PASS"
+  },
+  {
+    "artifact_dir": "docs/loen/smoke-governance-negative-policy",
+    "expected": "handoff",
+    "mode": "governance",
+    "preflight_ok": false,
+    "preflight_reason": "merge-release policy incomplete",
+    "subtype": "merge-release",
+    "terminal": "handoff",
+    "topic": "smoke-governance-negative-policy",
+    "verifier_exit": null,
+    "verifier_summary": "merge-release policy incomplete"
+  }
+]
