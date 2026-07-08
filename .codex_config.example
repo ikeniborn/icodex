@@ -57,6 +57,28 @@
 # use the --no-proxy flag instead.
 #ICODEX_NO_PROXY=localhost,127.0.0.1,github.com,githubusercontent.com,gitlab.com
 
+# PII proxy for Codex OpenAI API traffic. Unset/off disables (ship default).
+# When enabled, icodex starts a local proxy and launches Codex with a one-run
+# openai_base_url override pointing to 127.0.0.1.
+#ICODEX_USE_PII_PROXY=true
+
+# rules = regex + validators (default, lightweight); nlp = Presidio/spaCy mode.
+# NLP mode installs and updates English and Russian spaCy models.
+#ICODEX_PII_ENGINE=rules
+
+# off | secrets | standard. Default standard.
+#ICODEX_PII_MASKING_LEVEL=standard
+#ICODEX_PII_MASK_TOKEN=REDACTED
+#ICODEX_PII_LOG_LEVEL=info
+#ICODEX_PII_PROXY_PORT=0
+#ICODEX_PII_PROXY_PORT_MIN=20000
+#ICODEX_PII_PROXY_PORT_MAX=40000
+#ICODEX_PII_UPSTREAM_URL=https://api.openai.com/v1
+#ICODEX_PII_CONNECT_TIMEOUT=10
+#ICODEX_PII_READ_TIMEOUT=300
+#ICODEX_PII_SPACY_EN_MODEL=en_core_web_lg
+#ICODEX_PII_SPACY_RU_MODEL=ru_core_news_lg
+
 # curl TLS-trust workaround. Some hosts (e.g. ALT Linux) ship a system CA bundle
 # with GOST-algorithm roots that curl's OpenSSL build cannot decode, so it aborts
 # every HTTPS handshake ("x509_pubkey_decode: unsupported algorithm"). codex itself
