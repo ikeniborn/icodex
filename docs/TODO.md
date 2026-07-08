@@ -17,3 +17,4 @@
 | skill-subagents | done | ✓ | ✓ | ✓ | OK | 2026-07-04 | 2026-07-04 | Trust-first custom agents plus subagent routing for five isolated icodex skills |
 | check-chain-report-quality | done | ✓ | ✓ | ✓ | OK | 2026-07-06 | 2026-07-06 | Enriched check-chain chain-mode HTML reports: mandatory diagrams, Russian HTML, English markdown, HTML-first approval, tests green, wiki updated |
 | chain-report-ru-update-skip | done | n/a | n/a | n/a | OK | 2026-07-07 | 2026-07-07 | LoEn pass complete: Russian-only chain HTML labels guarded, unchanged-version `--update` skips download, focused/full checks green |
+| loen-loop-run | done | ✓ | ✓ | ✓ | OK | 2026-07-08 | 2026-07-08 | Guided LoEn start plus runner orchestration through delivery/governance modes; final review fixes verified; wiki updated |
