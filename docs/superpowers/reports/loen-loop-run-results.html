@@ -21,15 +21,15 @@
 </head>
 <body>
   <input type="checkbox" id="theme-toggle" hidden>
-  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden checked>
-  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden checked>
   <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
   <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
   <header>
     <div class="top">
       <div>
         <h1>Проверка chain: loen-loop-run</h1>
-        <p class="muted">Единый отчёт IDD → SDD. Активная вкладка: intent.</p>
+        <p class="muted">Единый отчёт IDD → SDD. Активная вкладка: spec.</p>
       </div>
       <label for="theme-toggle" class="theme-btn" title="Переключить тему">Тема</label>
     </div>
@@ -110,7 +110,75 @@
   <!-- TAB:intent END -->
   <!-- TAB:spec START -->
   <section class="tab-pane" id="pane-spec">
-    <p class="note">Этап ещё не проверен.</p>
+    <h2>Проверка spec — 2026-07-08</h2>
+    <p>Спека проектирует explicit state machine для нового `loen:loop-run <topic>` и переносит human planning gate в `loen:loop-start`. Пользователь выбирает `delivery` или `governance`, затем для governance выбирает subtype: `report-only`, `auto-fix`, `merge-release`.</p>
+    <p>Проверка spec подтверждает: intent outcomes покрыты, manual LoEn path остаётся совместимым, `merge-release` включён в текущий design, а safety gates остаются обязательными.</p>
+
+    <h3>Сводка артефакта</h3>
+    <table>
+      <tr><th>Поле</th><th>Значение</th></tr>
+      <tr><td>Источник</td><td><code>docs/superpowers/specs/2026-07-08-loen-loop-run-design.md</code></td></tr>
+      <tr><td>Intent</td><td><code>docs/superpowers/intents/2026-07-08-loen-loop-run-intent.md</code></td></tr>
+      <tr><td>Hash</td><td><code>1dd42906540a618d</code></td></tr>
+      <tr><td>Статус проверки</td><td><span class="badge ok">OK</span></td></tr>
+      <tr><td>Findings</td><td>Новых findings нет</td></tr>
+    </table>
+
+    <h3>Карта покрытия требований</h3>
+    <table>
+      <tr><th>Outcome intent</th><th>Spec requirement</th><th>Acceptance</th></tr>
+      <tr><td>`loop-start` собирает требования, intent, success criteria, mode, params.</td><td>Components: `loen:loop-start`; Data Flow steps 1-9.</td><td>Start writes goal/context/plan/loop.yaml and approval metadata.</td></tr>
+      <tr><td>Mode selection: `delivery` или `governance`.</td><td>Launch Mode Selection table.</td><td>Mode selected before final plan.</td></tr>
+      <tr><td>Governance subtypes.</td><td>`report-only`, `auto-fix`, `merge-release` table.</td><td>Subtype-specific params and policy required.</td></tr>
+      <tr><td>`loop-run <topic>` drives happy path.</td><td>Architecture and Components: `loen:loop-run`.</td><td>No manual `loop-act/check/reflect` required on happy path.</td></tr>
+      <tr><td>Terminal artifacts.</td><td>Error Handling terminal states.</td><td>`7_result.md` or `handoff.md`, evidence, audit.</td></tr>
+      <tr><td>Governance evidence.</td><td>Run Contract and Audit sections.</td><td>`governance:`, `attempts.jsonl`, evidence, `audit.html`.</td></tr>
+    </table>
+
+    <h3>Граф компонентов</h3>
+    <div class="flow" aria-label="Граф компонентов">
+      <div class="step"><strong>loop-start</strong>Intake, mode, subtype, params, plan approval.</div>
+      <div class="step"><strong>loop.yaml</strong><code>run:</code>, <code>governance:</code>, <code>release_policy:</code>.</div>
+      <div class="step"><strong>loop-run</strong>State machine and policy enforcement.</div>
+      <div class="step"><strong>Artifacts</strong><code>4_act.md</code>, <code>5_check.md</code>, <code>6_reflect.md</code>, <code>7_result.md</code>, <code>handoff.md</code>.</div>
+      <div class="step"><strong>Audit</strong><code>attempts.jsonl</code>, evidence, <code>audit.html</code>, <code>docs/TODO.md</code>.</div>
+    </div>
+
+    <h3>Поток данных</h3>
+    <table>
+      <tr><th>Шаг</th><th>Данные</th><th>Выход</th></tr>
+      <tr><td>Start intake</td><td>Objective, success criteria, constraints.</td><td><code>1_goal.md</code>, <code>2_context.md</code>.</td></tr>
+      <tr><td>Launch choice</td><td>`delivery|governance`, governance subtype.</td><td>Mode-specific policy.</td></tr>
+      <tr><td>Plan approval</td><td>Generated <code>3_plan.md</code>.</td><td><code>run.plan_approved</code>, <code>run.plan_hash</code>.</td></tr>
+      <tr><td>Runner validation</td><td><code>loop.yaml</code>, plan hash, scope, verifier, policy.</td><td>Allowed state transition or handoff.</td></tr>
+      <tr><td>Execution</td><td>Approved state machine.</td><td>Evidence, stage files, attempts, audit.</td></tr>
+    </table>
+
+    <h3>Карта рисков и мер</h3>
+    <table>
+      <tr><th>Риск</th><th>Мера в design</th></tr>
+      <tr><td>Runner starts without human-approved plan.</td><td>Stop if <code>run.plan_approved</code> false or hash mismatch.</td></tr>
+      <tr><td>Governance edits code in report-only mode.</td><td>Report-only forbids code edits.</td></tr>
+      <tr><td>Auto-fix changes unsafe scope.</td><td>Requires explicit <code>auto_fix: true</code>, mutable scope, verifier, rollback.</td></tr>
+      <tr><td>Merge/release happens without policy.</td><td>Requires start-time approval, target policy, verifier, evidence, recovery policy.</td></tr>
+      <tr><td>Existing manual LoEn flow breaks.</td><td>Manual skills remain standalone; missing <code>run:</code> only blocks <code>loop-run</code>.</td></tr>
+    </table>
+
+    <h3>Approval lens</h3>
+    <p class="note">Безопасно переходить к implementation plan: spec покрывает утверждённый intent, включает `merge-release` в текущий scope, держит planning gate в `loop-start`, а execution выносит в проверяемый `loop-run` state machine. Основной риск для plan: детализировать tests так, чтобы runner contract был проверяем без реального merge/release в unit tests.</p>
+
+    <details>
+      <summary>Evidence: phase results</summary>
+      <table>
+        <tr><th>Phase</th><th>Status</th></tr>
+        <tr><td>structure</td><td><span class="badge ok">passed</span></td></tr>
+        <tr><td>coverage</td><td><span class="badge ok">passed</span></td></tr>
+        <tr><td>clarity</td><td><span class="badge ok">passed</span></td></tr>
+        <tr><td>consistency</td><td><span class="badge ok">passed</span></td></tr>
+      </table>
+      <p>Findings: новых findings нет.</p>
+      <p>Документация: implementation ещё не начат; repository docs/wiki будут обновлены вместе с behavior changes на result stage.</p>
+    </details>
   </section>
   <!-- TAB:spec END -->
   <!-- TAB:plan START -->
