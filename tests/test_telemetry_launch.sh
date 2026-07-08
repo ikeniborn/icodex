@@ -9,7 +9,13 @@ source "$ROOT/lib/telemetry/langfuse.sh"
 source "$ROOT/lib/launcher/launch.sh"
 
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+cleanup_tmp() {
+  if [[ -f "${long_child_pid_file:-}" ]]; then
+    kill "$(cat "$long_child_pid_file")" 2>/dev/null || true
+  fi
+  rm -rf "$tmp"
+}
+trap cleanup_tmp EXIT
 
 fake_codex="$tmp/codex"
 cat > "$fake_codex" <<'EOF'
@@ -60,6 +66,55 @@ wrapped_rc="$?"
 assert_eq "telemetry launch preserves child exit code" "23" "$wrapped_rc"
 assert_eq "telemetry launch runs cleanup" "cleanup" "$(cat "$wrapped_cleanup")"
 assert_eq "telemetry launch preserves passthrough args" "$(printf '<one two>\n<special!$&*>\n<--flag=value with space>')" "$(cat "$ICODEX_TEST_ARGS_FILE")"
+
+long_child="$tmp/long-child"
+long_ready="$tmp/long-ready"
+long_child_pid_file="$tmp/long-child.pid"
+cat > "$long_child" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$$" > "$ICODEX_TEST_CHILD_PID_FILE"
+printf ready > "$ICODEX_TEST_READY_FILE"
+trap 'exit 0' TERM INT
+while :; do sleep 0.05; done
+EOF
+chmod +x "$long_child"
+
+signal_cleanup="$tmp/signal-cleanup"
+(
+  source "$ROOT/lib/core/logging.sh"
+  source "$ROOT/lib/telemetry/telemetry.sh"
+  source "$ROOT/lib/launcher/launch.sh"
+  ICODEX_BIN="$long_child"
+  ICODEX_TEST_READY_FILE="$long_ready"
+  ICODEX_TEST_CHILD_PID_FILE="$long_child_pid_file"
+  export ICODEX_BIN ICODEX_TEST_READY_FILE ICODEX_TEST_CHILD_PID_FILE
+  telemetry_register_cleanup "printf cleanup > '$signal_cleanup'"
+  launch_codex_wrapped
+  exit "$?"
+) &
+wrapper_pid="$!"
+for _ in {1..100}; do
+  [[ -f "$long_ready" ]] && break
+  sleep 0.01
+done
+if [[ ! -f "$long_ready" ]]; then
+  echo "FAIL [signal test child became ready]"
+  FAIL=$((FAIL+1))
+else
+  echo "PASS [signal test child became ready]"
+  PASS=$((PASS+1))
+fi
+kill -TERM "$wrapper_pid"
+wait "$wrapper_pid"
+term_rc="$?"
+assert_eq "telemetry TERM launch exits with conventional status" "143" "$term_rc"
+assert_eq "telemetry TERM launch runs cleanup" "cleanup" "$(cat "$signal_cleanup" 2>/dev/null)"
+if [[ -f "$long_child_pid_file" ]]; then
+  sleep 0.1
+  kill -0 "$(cat "$long_child_pid_file")" 2>/dev/null
+  child_alive="$?"
+  assert_eq "telemetry TERM launch reaps child" "1" "$child_alive"
+fi
 
 home="$tmp/home"
 mkdir -p "$home"

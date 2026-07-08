@@ -72,8 +72,18 @@ launch_codex_wrapped() { # <args...>
     return 1
   fi
 
-  local rc=0
-  ICODEX_LAUNCH_NO_EXEC=1 launch_codex_with_optional_pii "$@" || rc=$?
+  local child_pid="" rc=0 signal_status=0
+  trap 'signal_status=130; if [[ -n "${child_pid:-}" ]]; then kill -INT "$child_pid" 2>/dev/null || true; wait "$child_pid" 2>/dev/null || true; fi' INT
+  trap 'signal_status=143; if [[ -n "${child_pid:-}" ]]; then kill -TERM "$child_pid" 2>/dev/null || true; wait "$child_pid" 2>/dev/null || true; fi' TERM
+
+  ICODEX_LAUNCH_NO_EXEC=1 launch_codex_with_optional_pii "$@" &
+  child_pid="$!"
+  wait "$child_pid" || rc=$?
+  if (( signal_status != 0 )); then
+    rc="$signal_status"
+  fi
+  trap - INT TERM
+
   if declare -F telemetry_cleanup >/dev/null 2>&1; then
     telemetry_cleanup || true
   fi
