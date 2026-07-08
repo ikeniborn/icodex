@@ -111,6 +111,12 @@ def mask_openai_body(body: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     return masked, found
 
 
+def upstream_target(path: str) -> str:
+    if UPSTREAM_URL.endswith("/v1") and path.startswith("/v1/"):
+        return UPSTREAM_URL + path[3:]
+    return UPSTREAM_URL + path
+
+
 def setup_logging(log_dir: Path) -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
     handler = RotatingFileHandler(log_dir / "server.log", maxBytes=5 * 1024 * 1024, backupCount=3)
@@ -190,7 +196,7 @@ class PIIProxyHandler(http.server.BaseHTTPRequestHandler):
         self._forward(body)
 
     def _forward(self, body: bytes):
-        target = UPSTREAM_URL + self.path
+        target = upstream_target(self.path)
         headers = {
             k: v for k, v in self.headers.items()
             if k.lower() not in ("host", "content-length", "transfer-encoding")
