@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+import hashlib
 import html
 import json
 import re
 from pathlib import Path
+
+from loen_common import parse_loop_yaml
 
 
 STAGE_FILES = (
@@ -151,6 +154,16 @@ def loop_yaml_text(
     "handoff_conditions:",
     "  - schema change required",
     'rollback_policy: "Revert unsafe changes"',
+    "run:",
+    "  mode: delivery",
+    "  subtype: null",
+    "  plan_approved: false",
+    '  plan_hash: ""',
+    "  state: prepare",
+    "  max_passes: 3",
+    "  current_pass: 0",
+    '  approval_source: ""',
+    '  approved_at: ""',
     "governance:",
     "  automation_type: manual",
     '  schedule: ""',
@@ -165,6 +178,13 @@ def loop_yaml_text(
     "    - verifier_failure",
     "    - budget_exhausted",
     "    - metric_regression",
+    "release_policy:",
+    '  target_branch: ""',
+    '  merge_strategy: ""',
+    "  verifier_required: true",
+    "  evidence_required: true",
+    '  scope_limit: ""',
+    '  recovery_policy: ""',
     "",
   ])
 
@@ -232,6 +252,113 @@ def _first_heading_body(text: str) -> str:
   lines = [line for line in text.splitlines() if not line.startswith("# ")]
   body = "\n".join(lines).strip()
   return body if body else "No content recorded."
+
+
+def plan_body_hash(plan_path: Path) -> str:
+  return hashlib.sha256(_read(plan_path).encode("utf-8")).hexdigest()[:16]
+
+
+def run_contract(loop_text: str) -> dict[str, object]:
+  value = parse_loop_yaml(loop_text).get("run", {})
+  return dict(value) if isinstance(value, dict) else {}
+
+
+def release_policy(loop_text: str) -> dict[str, object]:
+  value = parse_loop_yaml(loop_text).get("release_policy", {})
+  return dict(value) if isinstance(value, dict) else {}
+
+
+def write_handoff(base: Path, reason: str, next_action: str) -> None:
+  text = "\n".join([
+    "# Handoff",
+    "",
+    f"Reason: {reason}",
+    "",
+    f"Next action: {next_action}",
+    "",
+  ])
+  base.mkdir(parents=True, exist_ok=True)
+  (base / "handoff.md").write_text(text, encoding="utf-8")
+
+
+def validate_run_contract(base: Path) -> dict[str, object]:
+  loop_text = _read(base / "loop.yaml")
+  parsed = parse_loop_yaml(loop_text)
+  run = parsed.get("run", {})
+  governance = parsed.get("governance", {})
+  policy = parsed.get("release_policy", {})
+  mutable_scope = parsed.get("mutable_scope", [])
+  verifier = parsed.get("verifier", {})
+  budget = parsed.get("budget", {})
+  if not isinstance(run, dict):
+    run = {}
+  if not isinstance(governance, dict):
+    governance = {}
+  if not isinstance(policy, dict):
+    policy = {}
+  if not isinstance(mutable_scope, list):
+    mutable_scope = []
+  if not isinstance(verifier, dict):
+    verifier = {}
+  if not isinstance(budget, dict):
+    budget = {}
+
+  if run.get("plan_approved") is not True:
+    return {"ok": False, "reason": "missing plan approval"}
+  plan_path = base / "3_plan.md"
+  if not plan_path.is_file():
+    return {"ok": False, "reason": "missing plan"}
+  if run.get("plan_hash") != plan_body_hash(plan_path):
+    return {"ok": False, "reason": "plan hash mismatch"}
+
+  run_mode = str(run.get("mode", "")).strip()
+  subtype = str(run.get("subtype", "")).strip()
+  if run_mode not in {"delivery", "governance"}:
+    return {"ok": False, "reason": "invalid run mode"}
+  if run_mode == "delivery" and subtype.lower() not in {"", "none", "null"}:
+    return {"ok": False, "reason": "invalid delivery subtype"}
+  if run_mode == "governance" and subtype not in {"report-only", "auto-fix", "merge-release"}:
+    return {"ok": False, "reason": "invalid governance subtype"}
+
+  rollback_ready = bool(parsed.get("rollback_policy")) or bool(policy.get("recovery_policy"))
+  usable_mutable_scope = [
+    str(item).strip()
+    for item in mutable_scope
+    if str(item).strip().lower() not in {"", "none", "null"}
+  ]
+
+  if not usable_mutable_scope:
+    return {"ok": False, "reason": "missing mutable scope"}
+  if not verifier.get("command"):
+    return {"ok": False, "reason": "missing verifier command"}
+  try:
+    budget_iterations = int(str(budget.get("max_iterations", "")).strip())
+  except ValueError:
+    budget_iterations = 0
+  if budget_iterations <= 0:
+    return {"ok": False, "reason": "missing budget max_iterations"}
+  if subtype == "merge-release":
+    if not rollback_ready:
+      return {"ok": False, "reason": "missing rollback or recovery policy"}
+  elif not parsed.get("rollback_policy"):
+    return {"ok": False, "reason": "missing rollback policy"}
+
+  if subtype == "auto-fix":
+    if governance.get("auto_fix") is not True:
+      return {"ok": False, "reason": "auto-fix requires governance auto_fix"}
+  if subtype == "merge-release":
+    release_ready = (
+      governance.get("auto_merge") is True
+      and bool(policy.get("target_branch"))
+      and bool(policy.get("merge_strategy"))
+      and policy.get("verifier_required") is True
+      and policy.get("evidence_required") is True
+      and bool(str(policy.get("scope_limit", "")).strip())
+      and bool(policy.get("recovery_policy"))
+    )
+    if not release_ready:
+      return {"ok": False, "reason": "merge-release policy incomplete"}
+  return {"ok": True, "reason": "approved run contract"}
 
 
 def _attempt_count(base: Path) -> int:
@@ -375,6 +502,26 @@ def _governance_summary(base: Path, loop_text: str) -> GovernanceSummary:
   )
 
 
+def _runner_summary(loop_text: str) -> dict[str, object]:
+  parsed = parse_loop_yaml(loop_text)
+  run = parsed.get("run", {})
+  policy = parsed.get("release_policy", {})
+  if not isinstance(run, dict):
+    run = {}
+  if not isinstance(policy, dict):
+    policy = {}
+  return {
+    "mode": run.get("mode", ""),
+    "subtype": run.get("subtype", ""),
+    "plan_approved": run.get("plan_approved") is True,
+    "plan_hash": run.get("plan_hash", ""),
+    "state": run.get("state", ""),
+    "current_pass": run.get("current_pass", ""),
+    "max_passes": run.get("max_passes", ""),
+    "release_target": policy.get("target_branch", ""),
+  }
+
+
 def append_automation_attempt(
   *,
   base: Path,
@@ -453,6 +600,7 @@ def render_audit(base: Path, topic: str) -> str:
   loop_text = _read(base / "loop.yaml")
   summary = _summary_from_loop(loop_text, topic)
   governance = _governance_summary(base, loop_text)
+  runner = _runner_summary(loop_text)
   evidence_files = _evidence_files(base)
   has_result = _has_exact_markdown_value(_read(base / "7_result.md"), "Done")
   has_check = _has_exact_markdown_value(_read(base / "5_check.md"), "PASS")
@@ -512,6 +660,16 @@ def render_audit(base: Path, topic: str) -> str:
     f"      <p><strong>Budget:</strong> {html.escape(summary.max_iterations)} iteration(s)</p>",
     f"      <p><strong>Rollback:</strong> {html.escape(summary.rollback_policy)}</p>",
     f"      <p><strong>Final verdict:</strong> {verdict}</p>",
+    "    </section>",
+    "    <section>",
+    "      <h2>Runner</h2>",
+    f"      <p><strong>Mode:</strong> {html.escape(str(runner['mode']))}</p>",
+    f"      <p><strong>Subtype:</strong> {html.escape(str(runner['subtype']))}</p>",
+    f"      <p>plan_approved: {str(runner['plan_approved']).lower()}</p>",
+    f"      <p><strong>Plan hash:</strong> {html.escape(str(runner['plan_hash']))}</p>",
+    f"      <p><strong>State:</strong> {html.escape(str(runner['state']))}</p>",
+    f"      <p><strong>Pass:</strong> {html.escape(str(runner['current_pass']))}/{html.escape(str(runner['max_passes']))}</p>",
+    f"      <p><strong>Release target:</strong> {html.escape(str(runner['release_target']))}</p>",
     "    </section>",
     "    <section>",
     "      <h2>Verifier Result</h2>",

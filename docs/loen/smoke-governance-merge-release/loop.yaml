@@ -1,0 +1,58 @@
+topic: smoke-governance-merge-release
+mode: governance
+status: active
+objective: "Verify governance merge-release preflight accepts complete release policy in dry-run mode."
+current_stage: plan
+stage: plan
+created: "2026-07-08T19:13:20Z"
+updated: "2026-07-08T19:13:20Z"
+mutable_scope:
+  - docs/loen/smoke-governance-merge-release/**
+protected_scope:
+  - plugins/loen/**
+  - secrets/**
+  - .git/**
+quality_gates:
+  - command: test -s docs/loen/smoke-governance-merge-release/evidence/release-dry-run.txt
+    evidence: evidence/latest-test.json
+verifier:
+  type: smoke
+  command: test -s docs/loen/smoke-governance-merge-release/evidence/release-dry-run.txt
+budget:
+  max_iterations: 2
+stop_conditions:
+  - verifier passes
+handoff_conditions:
+  - policy missing
+  - verifier cannot pass within scope
+rollback_policy: "Stop, write handoff, and leave topic artifacts inspectable."
+run:
+  mode: governance
+  subtype: merge-release
+  plan_approved: true
+  plan_hash: "915068459150a64b"
+  state: prepare
+  max_passes: 2
+  current_pass: 0
+  approval_source: loen-smoke-cases
+  approved_at: "2026-07-08T19:13:20Z"
+governance:
+  automation_type: smoke-merge-release
+  owner: loen-smoke
+  schedule: manual
+  first_runs_require_human_review: 1
+  reviewed_runs: 1
+  auto_fix: false
+  auto_merge: true
+  report_only_on_no_findings: false
+  alert_on:
+    - protected_scope_attempt
+    - verifier_failure
+    - budget_exhausted
+release_policy:
+  target_branch: "master"
+  merge_strategy: "pr"
+  verifier_required: true
+  evidence_required: true
+  scope_limit: "Dry-run only; docs/loen/smoke-governance-merge-release/**"
+  recovery_policy: "Stop, record handoff, and leave branch inspectable."

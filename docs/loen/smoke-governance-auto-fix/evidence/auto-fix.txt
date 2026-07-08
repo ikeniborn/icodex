@@ -1,0 +1,1 @@
+Auto-fix changed scratch/needs-fix.txt from BROKEN to FIXED.

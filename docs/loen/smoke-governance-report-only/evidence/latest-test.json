@@ -1,0 +1,8 @@
+{
+  "command": "test -s docs/loen/smoke-governance-report-only/evidence/governance-report.txt",
+  "created_at": "2026-07-08T19:13:20Z",
+  "exit_code": 0,
+  "stderr": "",
+  "stdout": "",
+  "topic": "smoke-governance-report-only"
+}
