@@ -16,7 +16,8 @@ export ICODEX_ROOT
 for m in core/logging core/init core/validation command/args \
          binary/detect binary/lockfile binary/install \
          config/isolated config/permissions config/sandbox config/env config/ca_trust proxy/proxy symlink/symlink \
-         plugin/superpowers plugin/loen caveman/caveman idd/idd iwiki/iwiki launcher/launch; do
+         plugin/superpowers plugin/loen caveman/caveman idd/idd iwiki/iwiki \
+         pii-proxy/detect pii-proxy/install pii-proxy/status launcher/launch; do
   # shellcheck source=/dev/null
   source "$ICODEX_ROOT/lib/$m.sh"
 done
@@ -37,6 +38,9 @@ main() {
       printf 'icodex %s\n' "$(cat "$ICODEX_ROOT/VERSION" 2>/dev/null || echo dev)"
       if [[ -x "$ICODEX_BIN" ]]; then "$ICODEX_BIN" --version; else echo "codex: not installed"; fi
       exit 0 ;;
+    check-pii-proxy)
+      check_pii_proxy_status
+      exit 0 ;;
   esac
 
   require_tools || exit 1
@@ -51,7 +55,12 @@ main() {
 
   case "$ICODEX_CMD" in
     install) setup_shared_dirs; install_ensure          || exit 1; ensure_uv_dependency || exit 1; ensure_cli_tools || exit 1; install_symlink; ensure_path_entry; exit 0 ;;
-    update)  setup_shared_dirs; install_ensure --update || exit 1; ensure_uv_dependency || exit 1; ensure_cli_tools || exit 1; install_symlink; ensure_path_entry; exit 0 ;;
+    update)  setup_shared_dirs; install_ensure --update || exit 1; ensure_uv_dependency || exit 1; ensure_cli_tools || exit 1; update_pii_nlp_models || exit 1; install_symlink; ensure_path_entry; exit 0 ;;
+    install-pii-proxy)
+      setup_shared_dirs
+      validate_pii_config || exit 1
+      install_isolated_pii_proxy || exit 1
+      exit 0 ;;
   esac
 
   # default: run
