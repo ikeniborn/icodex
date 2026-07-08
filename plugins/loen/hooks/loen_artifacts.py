@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+import hashlib
 import html
 import json
 import re
 from pathlib import Path
+
+from loen_common import parse_loop_yaml
 
 
 STAGE_FILES = (
@@ -232,6 +235,106 @@ def _first_heading_body(text: str) -> str:
   lines = [line for line in text.splitlines() if not line.startswith("# ")]
   body = "\n".join(lines).strip()
   return body if body else "No content recorded."
+
+
+def plan_body_hash(plan_path: Path) -> str:
+  return hashlib.sha256(_read(plan_path).encode("utf-8")).hexdigest()[:16]
+
+
+def run_contract(loop_text: str) -> dict[str, object]:
+  value = parse_loop_yaml(loop_text).get("run", {})
+  return dict(value) if isinstance(value, dict) else {}
+
+
+def release_policy(loop_text: str) -> dict[str, object]:
+  value = parse_loop_yaml(loop_text).get("release_policy", {})
+  return dict(value) if isinstance(value, dict) else {}
+
+
+def write_handoff(base: Path, reason: str, next_action: str) -> None:
+  text = "\n".join([
+    "# Handoff",
+    "",
+    f"Reason: {reason}",
+    "",
+    f"Next action: {next_action}",
+    "",
+  ])
+  base.mkdir(parents=True, exist_ok=True)
+  (base / "handoff.md").write_text(text, encoding="utf-8")
+
+
+def validate_run_contract(base: Path) -> dict[str, object]:
+  loop_text = _read(base / "loop.yaml")
+  parsed = parse_loop_yaml(loop_text)
+  run = parsed.get("run", {})
+  governance = parsed.get("governance", {})
+  policy = parsed.get("release_policy", {})
+  mutable_scope = parsed.get("mutable_scope", [])
+  verifier = parsed.get("verifier", {})
+  budget = parsed.get("budget", {})
+  if not isinstance(run, dict):
+    run = {}
+  if not isinstance(governance, dict):
+    governance = {}
+  if not isinstance(policy, dict):
+    policy = {}
+  if not isinstance(mutable_scope, list):
+    mutable_scope = []
+  if not isinstance(verifier, dict):
+    verifier = {}
+  if not isinstance(budget, dict):
+    budget = {}
+
+  if run.get("plan_approved") is not True:
+    return {"ok": False, "reason": "missing plan approval"}
+  plan_path = base / "3_plan.md"
+  if not plan_path.is_file():
+    return {"ok": False, "reason": "missing plan"}
+  if run.get("plan_hash") != plan_body_hash(plan_path):
+    return {"ok": False, "reason": "plan hash mismatch"}
+
+  run_mode = str(run.get("mode", "")).strip()
+  subtype = str(run.get("subtype", "")).strip()
+  if run_mode not in {"delivery", "governance"}:
+    return {"ok": False, "reason": "invalid run mode"}
+  if run_mode == "delivery" and subtype.lower() not in {"", "none", "null"}:
+    return {"ok": False, "reason": "invalid delivery subtype"}
+  if run_mode == "governance" and subtype not in {"report-only", "auto-fix", "merge-release"}:
+    return {"ok": False, "reason": "invalid governance subtype"}
+
+  rollback_ready = bool(parsed.get("rollback_policy")) or bool(policy.get("recovery_policy"))
+  if not mutable_scope:
+    return {"ok": False, "reason": "missing mutable scope"}
+  if not verifier.get("command"):
+    return {"ok": False, "reason": "missing verifier command"}
+  try:
+    budget_iterations = int(str(budget.get("max_iterations", "")).strip())
+  except ValueError:
+    budget_iterations = 0
+  if budget_iterations <= 0:
+    return {"ok": False, "reason": "missing budget max_iterations"}
+  if subtype == "merge-release":
+    if not rollback_ready:
+      return {"ok": False, "reason": "missing rollback or recovery policy"}
+  elif not parsed.get("rollback_policy"):
+    return {"ok": False, "reason": "missing rollback policy"}
+
+  if subtype == "auto-fix":
+    if governance.get("auto_fix") is not True:
+      return {"ok": False, "reason": "auto-fix requires governance auto_fix"}
+  if subtype == "merge-release":
+    release_ready = (
+      governance.get("auto_merge") is True
+      and bool(policy.get("target_branch"))
+      and bool(policy.get("merge_strategy"))
+      and policy.get("verifier_required") is True
+      and policy.get("evidence_required") is True
+      and bool(policy.get("recovery_policy"))
+    )
+    if not release_ready:
+      return {"ok": False, "reason": "merge-release policy incomplete"}
+  return {"ok": True, "reason": "approved run contract"}
 
 
 def _attempt_count(base: Path) -> int:

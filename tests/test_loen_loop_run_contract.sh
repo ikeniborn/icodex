@@ -222,6 +222,14 @@ assert_eq "runner refuses missing approval" "OK" "$bad_status_output"
 cat > "$topic_dir/loop.yaml" <<YAML
 topic: sample-runner
 mode: governance
+mutable_scope:
+  - plugins/loen/**
+verifier:
+  type: test
+  command: bash tests/test_loen_loop_run_contract.sh
+budget:
+  max_iterations: 1
+rollback_policy: "Stop and write handoff"
 run:
   mode: governance
   subtype: report-only
@@ -247,6 +255,99 @@ PY
 report_status_code="$?"
 assert_eq "report-only validator helper runs" "0" "$report_status_code"
 assert_eq "report-only contract validates without release policy" "OK" "$report_status_output"
+
+negative_dir="$tmp/docs/loen/missing-verifier"
+mkdir -p "$negative_dir"
+cp "$topic_dir/3_plan.md" "$negative_dir/3_plan.md"
+negative_plan_hash="$(PYTHONPATH="$hook_root" python3 - "$negative_dir/3_plan.md" 2>/dev/null <<'PY'
+import sys
+from pathlib import Path
+from loen_artifacts import plan_body_hash
+print(plan_body_hash(Path(sys.argv[1])))
+PY
+)"
+
+cat > "$negative_dir/loop.yaml" <<YAML
+topic: missing-verifier
+mode: governance
+mutable_scope:
+  - plugins/loen/**
+budget:
+  max_iterations: 1
+rollback_policy: "Stop and write handoff"
+run:
+  mode: governance
+  subtype: report-only
+  plan_approved: true
+  plan_hash: "$negative_plan_hash"
+  state: prepare
+  max_passes: 1
+  current_pass: 0
+governance:
+  auto_fix: false
+  auto_merge: false
+release_policy:
+  target_branch: ""
+YAML
+missing_verifier_output="$(PYTHONPATH="$hook_root" python3 - "$negative_dir" 2>/dev/null <<'PY'
+import sys
+from pathlib import Path
+from loen_artifacts import validate_run_contract
+result = validate_run_contract(Path(sys.argv[1]))
+print("OK" if not result["ok"] and "verifier" in result["reason"] else result)
+PY
+)"
+missing_verifier_code="$?"
+assert_eq "missing verifier validator helper runs" "0" "$missing_verifier_code"
+assert_eq "report-only refuses missing verifier" "OK" "$missing_verifier_output"
+
+zero_budget_dir="$tmp/docs/loen/zero-budget"
+mkdir -p "$zero_budget_dir"
+cp "$topic_dir/3_plan.md" "$zero_budget_dir/3_plan.md"
+zero_budget_plan_hash="$(PYTHONPATH="$hook_root" python3 - "$zero_budget_dir/3_plan.md" 2>/dev/null <<'PY'
+import sys
+from pathlib import Path
+from loen_artifacts import plan_body_hash
+print(plan_body_hash(Path(sys.argv[1])))
+PY
+)"
+
+cat > "$zero_budget_dir/loop.yaml" <<YAML
+topic: zero-budget
+mode: governance
+mutable_scope:
+  - plugins/loen/**
+verifier:
+  type: test
+  command: bash tests/test_loen_loop_run_contract.sh
+budget:
+  max_iterations: 0
+rollback_policy: "Stop and write handoff"
+run:
+  mode: governance
+  subtype: report-only
+  plan_approved: true
+  plan_hash: "$zero_budget_plan_hash"
+  state: prepare
+  max_passes: 1
+  current_pass: 0
+governance:
+  auto_fix: false
+  auto_merge: false
+release_policy:
+  target_branch: ""
+YAML
+zero_budget_output="$(PYTHONPATH="$hook_root" python3 - "$zero_budget_dir" 2>/dev/null <<'PY'
+import sys
+from pathlib import Path
+from loen_artifacts import validate_run_contract
+result = validate_run_contract(Path(sys.argv[1]))
+print("OK" if not result["ok"] and "budget" in result["reason"] else result)
+PY
+)"
+zero_budget_code="$?"
+assert_eq "zero budget validator helper runs" "0" "$zero_budget_code"
+assert_eq "report-only refuses zero budget" "OK" "$zero_budget_output"
 
 printf '# Check\n\n## Result\n\nPASS\n' > "$topic_dir/5_check.md"
 printf '# Result\n\n## Outcome\n\nDone\n' > "$topic_dir/7_result.md"
