@@ -174,6 +174,45 @@ The loop is complete only when the topic has a result and enough check evidence
 to justify it. `loop-status` is read-only; it summarizes the current stage and
 next action but does not advance the loop.
 
+## Runner Contract
+
+`loop-start` enables `loop-run` only after the user approves `3_plan.md`.
+Approval is recorded in `loop.yaml` under `run:`:
+
+```yaml
+run:
+  mode: delivery
+  subtype: null
+  plan_approved: true
+  plan_hash: "<hash of 3_plan.md>"
+  state: prepare
+  max_passes: 3
+  current_pass: 0
+```
+
+`loop-run` refuses to continue when approval is missing, the plan hash changed,
+the mode or subtype is invalid, mutable scope is missing, the verifier command is
+missing, the budget is empty, or rollback/recovery policy is incomplete.
+Placeholder mutable scope values such as `none`, `null`, or an empty string are
+treated as missing scope.
+
+For governance `merge-release`, `release_policy:` must be complete before any
+merge or release work:
+
+```yaml
+release_policy:
+  target_branch: master
+  merge_strategy: pr
+  verifier_required: true
+  evidence_required: true
+  scope_limit: "Configured mutable scope only"
+  recovery_policy: "Stop, record handoff, and leave branch inspectable."
+```
+
+`scope_limit` is a required release boundary, separate from the general
+`mutable_scope` list. It records the release-specific limit the runner must obey
+when applying merge/release automation.
+
 The topic directory stores:
 
 | Artifact | Purpose |
@@ -244,10 +283,10 @@ as recorded:
 Automation is advisory in this plugin source. The default remains no
 auto-merge. The `merge-release` subtype may enable
 `governance.auto_merge: true` only with explicit start-time approval and a
-complete `release_policy:` including `scope_limit`; external branch rules, host approval prompts, and
-repository safety gates still apply. Automation must not perform destructive
-operations, edit protected scope, or complete first runs without the
-human-review requirements recorded in `loop.yaml`.
+complete `release_policy:` including `scope_limit`; external branch rules, host
+approval prompts, and repository safety gates still apply. Automation must not
+perform destructive operations, edit protected scope, or complete first runs
+without the human-review requirements recorded in `loop.yaml`.
 
 ## Vendoring for Codex
 

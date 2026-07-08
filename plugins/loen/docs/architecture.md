@@ -193,10 +193,20 @@ verifier, budget, and rollback or recovery policy before entering the
 when approval, policy, verifier, protected scope, budget, or recovery checks fail.
 It writes `7_result.md` only when terminal evidence supports completion.
 
+Runner preflight treats placeholder scope values as absent. A topic with
+`mutable_scope: [none]`, `mutable_scope: [null]`, or only empty strings does not
+have a usable mutable scope and must hand off before acting.
+
 Governance subtypes are `report-only`, `auto-fix`, and `merge-release`.
 `report-only` records findings without product-file edits. `auto-fix` can change
-only mutable scope when `governance.auto_fix: true`. `merge-release` also
+only usable mutable scope when `governance.auto_fix: true`. `merge-release` also
 requires `governance.auto_merge: true` and complete `release_policy:`.
+
+`merge-release` release policy is complete only when it has a target branch,
+merge strategy, verifier requirement, evidence requirement, non-empty
+`scope_limit`, and recovery policy. `scope_limit` is the release-specific
+boundary used to constrain merge/release automation; it does not replace
+`mutable_scope`, and both must be usable before the runner may proceed.
 
 Audit visibility stays topic-scoped: runner attempts append `attempts.jsonl`,
 verifier output goes under `evidence/`, and `audit.html` is regenerated for
