@@ -78,7 +78,13 @@ main() {
   ensure_uv_dependency || exit 1
   ensure_cli_tools || exit 1
   (( ICODEX_DISABLE_PROXY )) || proxy_ensure
-  launch_codex ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}
+  ICODEX_USE_PII_PROXY_RESOLVED=false
+  if [[ "${ICODEX_USE_PII_PROXY:-false}" == "true" || "$ICODEX_USE_PII_PROXY_FLAG" == "1" ]]; then
+    ICODEX_USE_PII_PROXY_RESOLVED=true
+    validate_pii_config || exit 1
+    detect_pii_proxy || { log_error "PII proxy not installed — run: ./icodex.sh --install-pii-proxy"; exit 1; }
+  fi
+  launch_codex_with_optional_pii ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}
 }
 
 main "$@"
