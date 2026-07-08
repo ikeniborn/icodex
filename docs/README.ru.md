@@ -92,6 +92,12 @@ Superpowers и скиллы едут через git и обновляются т
 | `ICODEX_PERMISSIONS` | Точечное переопределение: только профиль управляемых прав — `dev-safe`, `ssh-on-request` или `none`; приоритетнее `ICODEX_MODE` для поля permissions | — |
 | `ICODEX_PROXY` | URL прокси, экспортируется как `HTTPS_PROXY` / `HTTP_PROXY` для codex | — |
 | `ICODEX_NO_PROXY` | Список хостов-исключений через запятую, экспортируется как `NO_PROXY` (например `localhost,127.0.0.1,github.com`) | — |
+| `ICODEX_TELEMETRY` | Opt-in telemetry mode: `off`, `otel`, `langfuse` или `both` | `off` |
+| `ICODEX_OTEL_ENDPOINT` | Локальный OTel collector endpoint для metadata-only ops metrics/Grafana | `http://127.0.0.1:4318` |
+| `ICODEX_OTEL_CREDENTIALS` | Опциональные `user:password` для OTel Basic Auth header (секрет) | — |
+| `ICODEX_LANGFUSE_BASE_URL` | Local trusted Langfuse URL для full-fidelity capture в режимах `langfuse`/`both` | — |
+| `ICODEX_LANGFUSE_PUBLIC_KEY` | Langfuse public key для local capture layer | — |
+| `ICODEX_LANGFUSE_SECRET_KEY` | Langfuse secret key для local capture layer (секрет) | — |
 | `ICODEX_CA_FIX` | Обход поломки TLS-доверия curl: `auto` — определяет CA-бандл, который OpenSSL не может декодировать, и направляет curl через отфильтрованную копию; `off` — выключает | `auto` |
 | `ICODEX_CA_BUNDLE` | Явный CA-бандл для curl/OpenSSL — экспортируется как `CURL_CA_BUNDLE` / `SSL_CERT_FILE`; пропускает детект | — |
 | `ICODEX_REPO` | GitHub-репозиторий, откуда качается бинарь codex | `openai/codex` |
@@ -106,6 +112,21 @@ Superpowers и скиллы едут через git и обновляются т
 Если `ICODEX_PROXY` задан, но прокси недоступен, icodex предупреждает и — при интерактивном
 запуске — спрашивает, продолжить ли без прокси (по умолчанию да) или выйти; без TTY
 продолжает без прокси. `--no-proxy` пропускает прокси (и проверку) целиком.
+
+### Телеметрия
+
+`icodex` поддерживает opt-in hybrid telemetry через `.codex_config`.
+
+- `ICODEX_TELEMETRY=otel` включает metadata-only OpenTelemetry для local collector/Grafana.
+- `ICODEX_TELEMETRY=langfuse` включает full prompt/response capture в local trusted Langfuse.
+- `ICODEX_TELEMETRY=both` включает оба канала.
+- По умолчанию telemetry выключена: `ICODEX_TELEMETRY=off`.
+
+Grafana/OTel не получает prompt/response bodies. Full capture разрешён только для local
+trusted Langfuse URL. При `langfuse`/`both` icodex запускает local capture layer, ждёт
+локальный provider URL от него и на время telemetry mode пишет managed Codex provider
+route в `CODEX_HOME/config.toml`; при `off` managed telemetry regions удаляются. Секреты
+OTel/Langfuse храните только в `.codex_config` или окружении, не в tracked files.
 
 > Ключи `ICODEX_*`, зарезервированные за плагином iwiki (например `ICODEX_IWIKI_*`),
 > намеренно игнорируются конфигом обёртки.

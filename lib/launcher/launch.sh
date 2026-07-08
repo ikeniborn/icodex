@@ -65,3 +65,36 @@ stop_pii_proxy_server() {
     [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
   fi
 }
+
+launch_codex_wrapped() { # <args...>
+  if [[ ! -x "$ICODEX_BIN" ]]; then
+    log_error "codex binary missing — run: ./icodex.sh --install"
+    return 1
+  fi
+
+  local child_pid="" rc=0 signal_status=0 pii_started=false
+  local codex_args=("$@")
+  if [[ "${ICODEX_USE_PII_PROXY_RESOLVED:-false}" == "true" ]]; then
+    start_pii_proxy_server || return 1
+    pii_started=true
+    codex_args=(-c "openai_base_url=\"http://127.0.0.1:${PII_PROXY_ACTIVE_PORT}/v1\"" "$@")
+  fi
+  trap 'signal_status=130; if [[ -n "${child_pid:-}" ]]; then kill -INT "$child_pid" 2>/dev/null || true; wait "$child_pid" 2>/dev/null || true; fi' INT
+  trap 'signal_status=143; if [[ -n "${child_pid:-}" ]]; then kill -TERM "$child_pid" 2>/dev/null || true; wait "$child_pid" 2>/dev/null || true; fi' TERM
+
+  "$ICODEX_BIN" "${codex_args[@]}" &
+  child_pid="$!"
+  wait "$child_pid" || rc=$?
+  if (( signal_status != 0 )); then
+    rc="$signal_status"
+  fi
+  trap - INT TERM
+  if [[ "$pii_started" == "true" ]]; then
+    stop_pii_proxy_server
+  fi
+
+  if declare -F telemetry_cleanup >/dev/null 2>&1; then
+    telemetry_cleanup || true
+  fi
+  return "$rc"
+}

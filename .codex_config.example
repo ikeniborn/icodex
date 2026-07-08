@@ -93,6 +93,32 @@
 # already in your environment always takes precedence and is left untouched.
 #ICODEX_CA_BUNDLE=/path/to/ca-bundle.crt
 
+# Opt-in telemetry. Default: off.
+#
+#   off       no telemetry setup; icodex keeps the direct Codex exec path.
+#   otel      metadata-only Codex OpenTelemetry for a local collector/Grafana.
+#   langfuse  full-fidelity LLM capture for a local trusted Langfuse instance.
+#   both      enable both paths.
+#
+# Grafana/OTel is metadata-only: prompts and responses are not exported there.
+# Langfuse capture intentionally includes prompt and response content for later
+# analysis. Use langfuse/both only with a local trusted self-hosted instance.
+# Project attribution is derived automatically from the launched project root.
+#ICODEX_TELEMETRY=off
+
+# OTel collector endpoint for Grafana/ops metrics. Optional; defaults to local.
+# If credentials are set, icodex converts them to a runtime Basic Auth header in
+# the generated Codex config. Keep credentials out of tracked files.
+#ICODEX_OTEL_ENDPOINT=http://127.0.0.1:4318
+#ICODEX_OTEL_CREDENTIALS=user:password
+
+# Local trusted Langfuse target. Required only for ICODEX_TELEMETRY=langfuse|both.
+# Public/private keys are forwarded to the local capture layer; never commit real
+# values. Public internet URLs and URLs with embedded credentials are rejected.
+#ICODEX_LANGFUSE_BASE_URL=http://127.0.0.1:3000
+#ICODEX_LANGFUSE_PUBLIC_KEY=pk-lf-...
+#ICODEX_LANGFUSE_SECRET_KEY=sk-lf-...
+
 # GitHub repo the codex binary is fetched from (default: openai/codex).
 #ICODEX_REPO=openai/codex
 
