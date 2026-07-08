@@ -5,6 +5,7 @@ ICODEX_DISABLE_PROXY=0
 ICODEX_SET_PROXY=""
 ICODEX_PASSTHROUGH=()
 ICODEX_FULL_ACCESS=0
+ICODEX_USE_PII_PROXY_FLAG=0
 
 parse_args() {
   while (( $# )); do
@@ -13,6 +14,9 @@ parse_args() {
         if [[ -z "${2:-}" ]]; then log_error "--proxy requires a url"; return 1; fi
         ICODEX_SET_PROXY="$2"; shift 2 ;;
       --no-proxy) ICODEX_DISABLE_PROXY=1; shift ;;
+      --pii-proxy) ICODEX_USE_PII_PROXY_FLAG=1; shift ;;
+      --install-pii-proxy) ICODEX_CMD="install-pii-proxy"; shift ;;
+      --check-pii-proxy) ICODEX_CMD="check-pii-proxy"; shift ;;
       --full-access) ICODEX_FULL_ACCESS=1; shift ;;
       --clear)    ICODEX_CMD="clear";   shift ;;
       --update)   ICODEX_CMD="update";  shift ;;
@@ -35,6 +39,11 @@ icodex flags:
   --proxy <url>   Save ICODEX_PROXY to .codex_config and route codex through it
   --no-proxy      Disable the proxy for this run (ICODEX_NO_PROXY is the host
                   bypass list, NOT a disable switch)
+  --pii-proxy     Enable local PII/secrets masking proxy for this run
+  --install-pii-proxy
+                  Install/update PII proxy runtime and optional NLP models
+  --check-pii-proxy
+                  Show PII proxy installation and runtime status
   --full-access   Escalate sandbox to danger-full-access for this run (prints a warning)
   --clear         Remove the saved config file (.codex_config)
   --update        Update codex binary to latest, re-pin lockfile
@@ -44,6 +53,8 @@ icodex flags:
 
 Persistent settings: copy .codex_config.example to .codex_config (ICODEX_* keys).
   ICODEX_MODE selects a run profile: ro | safe | full-ask (default) | full-auto.
+  ICODEX_USE_PII_PROXY=true enables PII proxy by default.
+  ICODEX_PII_ENGINE selects rules | nlp.
 Precedence: defaults < .codex_config < flags.
 Anything after the first non-flag (or after --) is passed to codex verbatim.
 EOF
