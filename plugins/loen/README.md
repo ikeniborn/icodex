@@ -6,8 +6,8 @@ state in repository files instead of chat history.
 
 ## What LoEn Adds
 
-- Skills named `loen:loop-start`, `loen:loop-plan`, `loen:loop-act`,
-  `loen:loop-check`, `loen:loop-reflect`, `loen:loop-status`,
+- Skills named `loen:loop-start`, `loen:loop-run`, `loen:loop-plan`,
+  `loen:loop-act`, `loen:loop-check`, `loen:loop-reflect`, `loen:loop-status`,
   `loen:loop-repair`, `loen:loop-research`, `loen:loop-review`, and
   `loen:loop-governance`.
 - Hook scripts that can enforce active loop state, mutable/protected scope,
@@ -20,7 +20,8 @@ state in repository files instead of chat history.
 
 | Skill | Use it when | Responsibility |
 |---|---|---|
-| `loen:loop-start` | Starting a new loop or selecting a durable topic. | Creates or reuses `docs/loen/<topic>/`, initializes `loop.yaml`, stage files, `attempts.jsonl`, `handoff.md`, topic-scoped `audit.html`, and `evidence/`. |
+| `loen:loop-start` | Starting a new loop or selecting a durable topic. | Creates or reuses `docs/loen/<topic>/`, collects the delivery or governance contract, writes `3_plan.md` for approval, then records the approved `run:` contract in `loop.yaml`. |
+| `loen:loop-run` | An approved `3_plan.md` should run to a terminal outcome. | Executes the approved run contract through prepare, act, check, and reflect, then writes `7_result.md` or `handoff.md`. |
 | `loen:loop-plan` | A goal exists and the loop needs one bounded pass. | Converts `1_goal.md`, `2_context.md`, and `loop.yaml` into `3_plan.md` with exact verification commands. |
 | `loen:loop-act` | The active plan has one next action. | Executes one bounded action, then records changed files, commands, and observations in `4_act.md`. |
 | `loen:loop-check` | Code, docs, or configuration changed. | Runs planned checks and records exit codes, output summaries, and evidence references in `5_check.md`. |
@@ -59,38 +60,42 @@ Start with `loen:loop-start` to create a topic directory:
 docs/loen/<topic>/
 ```
 
-Typical sequence:
+Guided path:
+
+```text
+loen:loop-start -> choose delivery or governance -> approve plan -> loen:loop-run <topic> -> 7_result.md or handoff.md
+```
+
+Manual `loen:loop-plan`, `loen:loop-act`, `loen:loop-check`, and
+`loen:loop-reflect` remain supported for step-by-step operation, repair, review,
+and compatibility with existing topics.
+
+Guided sequence:
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 sequenceDiagram
     participant User as User
     participant Start as loen:loop-start
-    participant Plan as loen:loop-plan
-    participant Act as loen:loop-act
-    participant Check as loen:loop-check
-    participant Reflect as loen:loop-reflect
+    participant Run as loen:loop-run
     participant Status as loen:loop-status
     participant Files as docs/loen/topic
 
     User->>Start: create durable topic
-    Start->>Files: write loop.yaml and stage files
-    User->>Plan: request bounded plan
-    Plan->>Files: update 3_plan.md
-    User->>Act: execute one action
-    Act->>Files: update 4_act.md
-    User->>Check: run verifier commands
-    Check->>Files: write 5_check.md and evidence
-    User->>Reflect: decide keep, fix, revert, or handoff
-    Reflect->>Files: update 6_reflect.md or 7_result.md
+    Start->>User: ask delivery or governance and plan approval
+    Start->>Files: write loop.yaml, 3_plan.md, evidence/, and stage files
+    User->>Run: execute approved topic
+    Run->>Files: write evidence, 4_act.md, 5_check.md, 6_reflect.md
+    Run->>Files: write 7_result.md or handoff.md
     User->>Status: inspect current state
     Status-->>User: stage, evidence, next action
 ```
 
 ## How a Loop Reaches a Solution
 
-The normal delivery loop is driven by `loop-plan`, `loop-act`, `loop-check`, and
-`loop-reflect`. Governance is not the step runner for ordinary work.
+The guided delivery loop is driven by `loop-start` and `loop-run`. Manual
+`loop-plan`, `loop-act`, `loop-check`, and `loop-reflect` remain available when
+you want each step exposed.
 
 Each pass answers one question: did the last bounded action move the topic closer
 to the objective with enough evidence to keep it?
@@ -202,10 +207,10 @@ Expected first pass:
 
 ```text
 loen:loop-start creates docs/loen/fix-proxy-test/
-loen:loop-plan writes a one-pass plan in 3_plan.md
-loen:loop-act changes only the scoped files
-loen:loop-check runs the configured test and stores evidence/latest-test.log
-loen:loop-reflect records keep/fix/revert/handoff
+choose delivery
+approve 3_plan.md
+loen:loop-run fix-proxy-test
+runner writes 7_result.md or handoff.md
 ```
 
 If `ICODEX_LOEN_MODE=enforce`, edits outside the configured mutable scope or a
@@ -236,8 +241,12 @@ as recorded:
 | `evidence/` | Verifier output for the scheduled or recurring run. |
 | `audit.html` | Topic-scoped audit regenerated at `docs/loen/<topic>/audit.html`. |
 
-Automation is advisory in this plugin source. It must not auto-merge, perform
-destructive operations, edit protected scope, or complete first runs without the
+Automation is advisory in this plugin source. The default remains no
+auto-merge. The `merge-release` subtype may enable
+`governance.auto_merge: true` only with explicit start-time approval and a
+complete `release_policy:`; external branch rules, host approval prompts, and
+repository safety gates still apply. Automation must not perform destructive
+operations, edit protected scope, or complete first runs without the
 human-review requirements recorded in `loop.yaml`.
 
 ## Vendoring for Codex
@@ -262,7 +271,8 @@ and `*.pyc`.
 
 LoEn is self-contained and does not depend on other workflow plugins. It writes
 loop state only under `docs/loen/<topic>/` and updates `docs/TODO.md` as the
-global task index. It does not auto-merge, rewrite protected files, or bypass
-`LOEN_MODE`.
+global task index. Auto-merge stays disabled by default; only approved
+`merge-release` policy may set `governance.auto_merge: true`. LoEn does not
+rewrite protected files or bypass `LOEN_MODE`.
 
 Plugin internals are documented in `plugins/loen/docs/architecture.md`.

@@ -1,6 +1,6 @@
 ---
 name: loop-run
-description: runner to 7_result.md or handoff.md.
+description: LoEn skill for running an approved topic contract to 7_result.md or handoff.md.
 ---
 
 # LoEn Loop Run

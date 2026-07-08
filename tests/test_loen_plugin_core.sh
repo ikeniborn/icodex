@@ -13,6 +13,7 @@ runtime_cache="$ROOT/.codex-isolated/plugins/cache/icodex-local/loen/0.1.0"
 
 expected_skills=(
   loop-start
+  loop-run
   loop-plan
   loop-act
   loop-check
@@ -123,10 +124,10 @@ assert_contains "root Russian README includes minimal example" "$root_readme_ru"
 assert_contains "root Russian README explains skill responsibilities" "$root_readme_ru" "## Ответственность навыков"
 assert_contains "root Russian README explains governance skill" "$root_readme_ru" "loen:loop-governance"
 assert_contains "root Russian README explains solution loop" "$root_readme_ru" "Как loop доходит до решения"
-assert_contains "root Russian README says governance does not replace loop pass" "$root_readme_ru" "не заменяет обычный pass"
-assert_contains "root Russian README diagrams governance branch" "$root_readme_ru" "Governance pass"
-assert_contains "root Russian README diagrams shared setup" "$root_readme_ru" "Общий setup: loop.yaml"
-assert_contains "root Russian README diagrams governance artifacts" "$root_readme_ru" "Обязательно для run: attempts.jsonl automation record"
+assert_contains "root Russian README says governance does not replace loop pass" "$root_readme_ru" "не заменяет обычный проход"
+assert_contains "root Russian README diagrams governance branch" "$root_readme_ru" "Проход governance"
+assert_contains "root Russian README diagrams shared setup" "$root_readme_ru" "Общая подготовка: loop.yaml"
+assert_contains "root Russian README diagrams governance artifacts" "$root_readme_ru" "Обязательно для run: запись автоматизации в attempts.jsonl"
 assert_contains "root Russian README Mermaid escapes topic placeholder" "$root_readme_ru_mermaid" "docs/loen/&lt;topic&gt;/"
 assert_exit "root Russian README Mermaid has no raw topic placeholder" 1 grep -qF "docs/loen/<topic>" <<<"$root_readme_ru_mermaid"
 assert_contains "root Russian README says governance can run after start" "$root_readme_ru" "можно запускать сразу после"
