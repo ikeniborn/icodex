@@ -29,12 +29,12 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
 <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
 <header>
 <label for="theme-toggle" class="theme-btn" title="Переключить тёмную/светлую тему">Тема</label>
 <h1>icodex-pii-proxy</h1>
-<p>Единый отчёт цепочки IDD-SDD. Активная вкладка: План.</p>
+<p>Единый отчёт цепочки IDD-SDD. Активная вкладка: Результат.</p>
 </header>
 <nav class="chain-tabs">
 <label for="tab-intent">Интент</label>
@@ -282,7 +282,85 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)
 </section>
 <!-- TAB:plan END -->
 <!-- TAB:result START -->
-<section class="tab-pane" id="pane-result"><p class="note">Этап ещё не проверен.</p></section>
+<section class="tab-pane" id="pane-result">
+<h2>Проверка result — 2026-07-08</h2>
+<div class="card">
+<h3>Обзор</h3>
+<p>Реализация добавила opt-in PII proxy для Codex OpenAI API traffic. Без PII режима обычный запуск остаётся через прежний `launch_codex`; при включении PII режим валидирует конфиг, требует установленный runtime, стартует localhost proxy и передаёт Codex one-run <code>openai_base_url</code>.</p>
+<p>Вердикт result gate: <span class="badge ok">OK</span>. Все задачи плана закрыты, focused checks и полный Bash suite прошли после последнего commit.</p>
+</div>
+<div class="card">
+<h3>Сводка артефакта</h3>
+<table>
+<tr><th>Поле</th><th>Значение</th></tr>
+<tr><td>План</td><td><code>docs/superpowers/plans/2026-07-08-icodex-pii-proxy.md</code></td></tr>
+<tr><td>Hash плана</td><td><code>d9fcbdf0637553ab</code></td></tr>
+<tr><td>База</td><td><code>origin/master</code> at <code>5790ee3</code></td></tr>
+<tr><td>Вершина</td><td><code>87d278f</code></td></tr>
+<tr><td>Вердикт</td><td><span class="badge ok">OK</span></td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Карта соответствия diff</h3>
+<table>
+<tr><th>Пункт плана</th><th>Реализация</th><th>Статус</th></tr>
+<tr><td>1. Config defaults/validation</td><td><code>lib/core/init.sh</code>, <code>lib/config/env.sh</code>, <code>tests/test_pii_proxy_config.sh</code></td><td><span class="badge ok">OK</span></td></tr>
+<tr><td>2. CLI flags/help</td><td><code>lib/command/args.sh</code>, <code>tests/test_pii_proxy_cli.sh</code></td><td><span class="badge ok">OK</span></td></tr>
+<tr><td>3. Rules masking/OpenAI traversal</td><td><code>lib/pii-proxy/server.py</code>, masking and shape Python tests</td><td><span class="badge ok">OK</span></td></tr>
+<tr><td>4. HTTP proxy/relay</td><td>Health, malformed JSON fail-closed, streaming upstream relay</td><td><span class="badge ok">OK</span></td></tr>
+<tr><td>5. Install/status/NLP update</td><td><code>install.sh</code>, <code>detect.sh</code>, <code>status.sh</code>, <code>--update</code> hook</td><td><span class="badge ok">OK</span></td></tr>
+<tr><td>6. Launch routing</td><td><code>launch_codex_with_optional_pii</code>, fail-secure startup, local <code>openai_base_url</code></td><td><span class="badge ok">OK</span></td></tr>
+<tr><td>7. Fake upstream integration</td><td>Raw email/token absent upstream; duplicate <code>/v1</code> regression covered</td><td><span class="badge ok">OK</span></td></tr>
+<tr><td>8. Docs/wiki</td><td><code>.codex_config.example</code> updated; iwiki page updated and linted</td><td><span class="badge ok">OK</span></td></tr>
+<tr><td>9. Final validation</td><td>Focused suite, full suite, syntax checks, diff scope, review pass</td><td><span class="badge ok">OK</span></td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Карта свидетельств</h3>
+<table>
+<tr><th>Команда</th><th>Результат</th></tr>
+<tr><td>Focused PII suite</td><td><span class="badge ok">exit 0</span> Config 21/0, CLI 9/0, install 8/0, status 3/0, launch 5/0, integration 2/0; Python masking/server tests exit 0.</td></tr>
+<tr><td><code>python3 -m py_compile lib/pii-proxy/server.py</code></td><td><span class="badge ok">exit 0</span></td></tr>
+<tr><td><code>for t in tests/test_*.sh; do bash "$t" || exit 1; done</code></td><td><span class="badge ok">exit 0</span></td></tr>
+<tr><td><code>git diff --check origin/master...HEAD</code></td><td><span class="badge ok">exit 0</span></td></tr>
+<tr><td><code>bash -n</code> over changed shell files/tests</td><td><span class="badge ok">exit 0</span></td></tr>
+<tr><td><code>wiki_lint(domain="icodex")</code></td><td><span class="badge ok">no broken refs, no orphans, no stale pages</span>; remaining missing_source/advisory items are pre-existing unrelated pages.</td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Карта безопасности</h3>
+<div class="flow">
+<div class="node"><strong>Только OpenAI route</strong><br>PII proxy applies only through Codex <code>openai_base_url</code>.</div>
+<div class="node"><strong>Fail-secure</strong><br>Missing runtime/start failure prevents protected Codex launch.</div>
+<div class="node"><strong>Precision-first</strong><br><code>rules</code> default masks high-confidence data only.</div>
+<div class="node"><strong>Контекст сохранён</strong><br>System/developer instructions и structural tool fields не маскируются.</div>
+<div class="node"><strong>Без raw logs</strong><br>Normal proxy logs counts and operational errors, not request bodies.</div>
+<div class="node"><strong>NLP managed</strong><br>EN/RU spaCy models install and refresh through PII runtime paths.</div>
+</div>
+</div>
+<div class="card">
+<h3>Карта замечаний</h3>
+<table>
+<tr><th>Замечание</th><th>Действие</th><th>Статус</th></tr>
+<tr><td>Potential dirty worktree from <code>chmod</code> on repo source during PII install.</td><td>Removed source-file <code>chmod</code>; proxy is executed by Python interpreter.</td><td><span class="badge ok">fixed</span></td></tr>
+<tr><td>Potential duplicate upstream path <code>/v1/v1/...</code>.</td><td>Added path normalization and fake-upstream assertion.</td><td><span class="badge ok">fixed</span></td></tr>
+<tr><td>Subagent code review not run.</td><td>Tool policy disallows spawning subagents without explicit user request; local review and verification performed instead.</td><td><span class="badge warn">noted</span></td></tr>
+</table>
+</div>
+<div class="card">
+<h3>Документация</h3>
+<p><code>.codex_config.example</code> documents PII enablement, engine, masking level, ports, upstream, timeouts, and EN/RU spaCy model settings.</p>
+<p>iwiki page <code>icodex/install-update-and-proxy.md</code> now documents PII proxy commands, one-run routing, fail-secure behavior, masking scope, NLP updates, and logging contract.</p>
+</div>
+<details>
+<summary>Свидетельства</summary>
+<ul>
+<li>Diff scope contains PII proxy implementation, focused tests, docs, and chain artifacts only.</li>
+<li>Integration test proves fake upstream receives masked body and path <code>/v1/responses</code>, not <code>/v1/v1/responses</code>.</li>
+<li>TODO row closed: <code>icodex-pii-proxy</code>, result = OK.</li>
+</ul>
+</details>
+</section>
 <!-- TAB:result END -->
 </main>
 </body>
