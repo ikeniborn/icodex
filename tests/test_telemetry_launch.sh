@@ -67,6 +67,27 @@ assert_eq "telemetry launch preserves child exit code" "23" "$wrapped_rc"
 assert_eq "telemetry launch runs cleanup" "cleanup" "$(cat "$wrapped_cleanup")"
 assert_eq "telemetry launch preserves passthrough args" "$(printf '<one two>\n<special!$&*>\n<--flag=value with space>')" "$(cat "$ICODEX_TEST_ARGS_FILE")"
 
+pii_args="$tmp/pii-args"
+pii_stop="$tmp/pii-stop"
+start_pii_proxy_server() {
+  PII_PROXY_ACTIVE_PORT=15432
+  return 0
+}
+stop_pii_proxy_server() {
+  printf stopped > "$pii_stop"
+}
+ICODEX_TEST_ARGS_FILE="$pii_args"
+ICODEX_TEST_EXIT_CODE=0
+ICODEX_USE_PII_PROXY_RESOLVED=true
+export ICODEX_TEST_ARGS_FILE ICODEX_TEST_EXIT_CODE ICODEX_USE_PII_PROXY_RESOLVED
+launch_codex_wrapped "pii payload"
+pii_wrapped_rc="$?"
+assert_eq "telemetry pii launch exit code" "0" "$pii_wrapped_rc"
+assert_contains "telemetry pii launch routes openai base" "$(cat "$pii_args")" '<openai_base_url="http://127.0.0.1:15432/v1">'
+assert_eq "telemetry pii launch stops proxy" "stopped" "$(cat "$pii_stop")"
+ICODEX_USE_PII_PROXY_RESOLVED=false
+export ICODEX_USE_PII_PROXY_RESOLVED
+
 long_child="$tmp/long-child"
 long_ready="$tmp/long-ready"
 long_child_pid_file="$tmp/long-child.pid"
