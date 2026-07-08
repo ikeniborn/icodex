@@ -22,14 +22,14 @@
 <body>
   <input type="checkbox" id="theme-toggle" hidden>
   <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
-  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden checked>
-  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-spec" class="tab-radio" hidden>
+  <input type="radio" name="chain-tab" id="tab-plan" class="tab-radio" hidden checked>
   <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
   <header>
     <div class="top">
       <div>
         <h1>Проверка chain: loen-loop-run</h1>
-        <p class="muted">Единый отчёт IDD → SDD. Активная вкладка: spec.</p>
+        <p class="muted">Единый отчёт IDD → SDD. Активная вкладка: plan.</p>
       </div>
       <label for="theme-toggle" class="theme-btn" title="Переключить тему">Тема</label>
     </div>
@@ -183,7 +183,76 @@
   <!-- TAB:spec END -->
   <!-- TAB:plan START -->
   <section class="tab-pane" id="pane-plan">
-    <p class="note">Этап ещё не проверен.</p>
+    <h2>Проверка plan — 2026-07-08</h2>
+    <p>План реализует spec через TDD: сначала failing contract test, затем parser/helpers/template/audit, затем новый skill `loen:loop-run`, обновление `loop-start` и LoEn docs, после этого focused/full verification и iwiki.</p>
+    <p>Проверка plan подтверждает: каждый requirement spec связан с задачей, задачи идут в dependency order, каждая задача имеет команды проверки и ожидаемый результат.</p>
+
+    <h3>Сводка артефакта</h3>
+    <table>
+      <tr><th>Поле</th><th>Значение</th></tr>
+      <tr><td>Источник</td><td><code>docs/superpowers/plans/2026-07-08-loen-loop-run.md</code></td></tr>
+      <tr><td>Spec</td><td><code>docs/superpowers/specs/2026-07-08-loen-loop-run-design.md</code></td></tr>
+      <tr><td>Hash</td><td><code>db1cd4a8d3aa97ae</code></td></tr>
+      <tr><td>Статус проверки</td><td><span class="badge ok">OK</span></td></tr>
+      <tr><td>Findings</td><td>Новых findings нет</td></tr>
+    </table>
+
+    <h3>Граф шагов</h3>
+    <div class="flow" aria-label="Граф шагов">
+      <div class="step"><strong>Task 1</strong>Failing contract test for run modes, policy, audit, docs.</div>
+      <div class="step"><strong>Task 2</strong>Parse and validate <code>run:</code> / <code>release_policy:</code>.</div>
+      <div class="step"><strong>Task 3</strong>Template and audit runner state.</div>
+      <div class="step"><strong>Task 4</strong>Create <code>loen:loop-run</code> skill.</div>
+      <div class="step"><strong>Task 5</strong>Update start/governance/user docs.</div>
+      <div class="step"><strong>Task 6</strong>iwiki + focused/full verification + result gate.</div>
+    </div>
+
+    <h3>Карта влияния на артефакты</h3>
+    <table>
+      <tr><th>Task</th><th>Files</th><th>Purpose</th></tr>
+      <tr><td>1</td><td><code>tests/test_loen_loop_run_contract.sh</code></td><td>Make desired behavior fail first.</td></tr>
+      <tr><td>2</td><td><code>loen_common.py</code>, <code>loen_artifacts.py</code></td><td>Machine-readable contract parsing and validation.</td></tr>
+      <tr><td>3</td><td><code>assets/templates/loop.yaml</code>, audit renderer</td><td>Persist and display runner state.</td></tr>
+      <tr><td>4</td><td><code>skills/loop-run/SKILL.md</code>, plugin manifest check</td><td>Expose runner workflow to Codex.</td></tr>
+      <tr><td>5</td><td><code>loop-start</code>, <code>loop-governance</code>, README, architecture</td><td>Document start gate, subtypes, manual compatibility.</td></tr>
+      <tr><td>6</td><td>iwiki pages, test suite, result chain</td><td>Verify behavior and docs consistency.</td></tr>
+    </table>
+
+    <h3>Карта проверок</h3>
+    <table>
+      <tr><th>Check</th><th>Expected evidence</th></tr>
+      <tr><td><code>bash tests/test_loen_loop_run_contract.sh</code></td><td><code>FAIL=0</code>; validates run contract and docs.</td></tr>
+      <tr><td><code>bash tests/test_loen_runtime_artifacts.sh</code></td><td><code>FAIL=0</code>; scaffold/audit compatibility.</td></tr>
+      <tr><td><code>bash tests/test_loen_automation_governance.sh</code></td><td><code>FAIL=0</code>; governance defaults remain compatible.</td></tr>
+      <tr><td><code>bash tests/test_loen_plugin_core.sh</code></td><td><code>FAIL=0</code>; plugin source remains valid.</td></tr>
+      <tr><td><code>python3 -m py_compile plugins/loen/hooks/*.py</code></td><td>exit 0.</td></tr>
+      <tr><td><code>for t in tests/test_*.sh; do bash "$t" || exit 1; done</code></td><td>full suite exits 0.</td></tr>
+    </table>
+
+    <h3>Поток человеческих контрольных точек</h3>
+    <table>
+      <tr><th>Decision</th><th>Plan handling</th></tr>
+      <tr><td>Start-time plan approval</td><td>Implemented as required contract field; runner refuses missing approval.</td></tr>
+      <tr><td>Merge/release approval</td><td>No second approval; start-time approval plus policy/evidence is enough.</td></tr>
+      <tr><td>Policy gaps or forbidden actions</td><td>Runner writes <code>handoff.md</code> and stops.</td></tr>
+      <tr><td>Implementation execution mode</td><td>After this checked report approval, user chooses subagent-driven or inline execution.</td></tr>
+    </table>
+
+    <h3>Approval lens</h3>
+    <p class="note">План готов к execution review: он начинает с failing test, сохраняет manual skills, проверяет runner refusal rules, документирует governance subtypes including `merge-release`, и требует iwiki/result consistency перед завершением.</p>
+
+    <details>
+      <summary>Evidence: phase results</summary>
+      <table>
+        <tr><th>Phase</th><th>Status</th></tr>
+        <tr><td>structure</td><td><span class="badge ok">passed</span></td></tr>
+        <tr><td>coverage</td><td><span class="badge ok">passed</span></td></tr>
+        <tr><td>dependencies</td><td><span class="badge ok">passed</span></td></tr>
+        <tr><td>verifiability</td><td><span class="badge ok">passed</span></td></tr>
+        <tr><td>consistency</td><td><span class="badge ok">passed</span></td></tr>
+      </table>
+      <p>Findings: новых findings нет.</p>
+    </details>
   </section>
   <!-- TAB:plan END -->
   <!-- TAB:result START -->
