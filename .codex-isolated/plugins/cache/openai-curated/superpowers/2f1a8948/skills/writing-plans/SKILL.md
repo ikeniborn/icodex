@@ -139,18 +139,18 @@ or offering execution:
 1. Run `$check-chain plan <path>`.
 2. If the verdict is `needs_work`, fix the markdown source first, rerun
    `$check-chain plan <path>`, and do not ask for approval yet.
-3. If the verdict is `OK`, present the generated HTML report as the approval surface.
-   Do not ask the user to approve unchecked markdown.
+3. If the verdict is `OK`, present the checked plan summary and markdown path for
+   approval. Do not ask the user to approve unchecked markdown.
 4. If the user requests changes, update the markdown source, rerun self-review and
-   `$check-chain plan <path>`, then present the regenerated HTML report again.
-5. Only after the user approves the checked HTML report, proceed to Execution Handoff.
+   `$check-chain plan <path>`, then present the checked summary again.
+5. Only after the user approves the checked plan, proceed to Execution Handoff.
 
 ## Execution Handoff
 
 After the plan has passed `$check-chain plan <path>` and the user has approved the
-generated HTML report, offer execution choice:
+checked plan, offer execution choice:
 
-**"Plan checked and report approved for `docs/superpowers/plans/<filename>.md`. Two execution options:**
+**"Plan checked and approved for `docs/superpowers/plans/<filename>.md`. Two execution options:**
 
 **1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
 

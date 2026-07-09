@@ -39,12 +39,11 @@ Stop rule: missing source data, an external resource requirement, non-self-conta
    working toggle (see `references/themes.md`).
 5. **Output directory.** Default target is `docs/reports/` in the project where the
    skill runs (the current working directory's project root). If the caller passed an
-   EXPLICIT output path (e.g. an IDD `check-*` command), write to that path instead.
-   Create the target directory if it does not exist. Never invent an unrequested path.
-   In `mode: chain` (`references/chain-report.md`) the skill creates/merges the single
-   caller-supplied `<topic>-results.html`; an existing such file passed as a merge
-   source is caller-supplied (Full zone), NOT a proposal-first default `docs/reports/`
-   file.
+   EXPLICIT output path, write to that path instead. Create the target directory if it
+   does not exist. Never invent an unrequested path. In `mode: chain`, the caller is the `result` stage. See
+   `references/chain-report.md`; the skill writes
+   the single caller-supplied `<topic>-results.html`; that path is Full zone, NOT a
+   proposal-first default `docs/reports/` file.
 
 If faithful display would require an external resource, **escalate** — do not
 inline-fetch and do not silently drop the element.
@@ -61,28 +60,25 @@ inline-fetch and do not silently drop the element.
    - any dynamic (expand, hover, animation) → `references/dynamics.md`
    - theme palettes + toggle → `references/themes.md` (always)
    - arbitrary node-edge graph / free connector / data plot → `references/svg-fallback.md`
-   - chain report (multi-tab IDD→SDD, `mode: chain`) → `references/chain-report.md`
+   - chain final result report (IDD→SDD, `mode: chain`) → `references/chain-report.md`
 
    **Gold-standard reference** — for the full SVG node grammar, animated connectors, C4,
    two-axis tables, badges, and `.note` callouts, study the in-skill `references/`
    files (`svg-diagrams.md`, `svg-fallback.md`, `css-diagrams.md`) before assembling a
    non-trivial architecture report.
 
-### Chain-mode enriched payload boundary
+### Chain-mode final payload boundary
 
-In `mode: chain`, `html-report` is a renderer and merge layer. It does not read intent,
-spec, plan, or result markdown sources in chain mode. It reads only the existing
-caller-supplied target report as a merge source, then replaces the owned tab content
-passed by the caller.
-It does not read intent, spec, plan, or result markdown sources in chain mode.
+In `mode: chain`, `html-report` is the final report renderer for `check-chain result`.
+It does not read intent, spec, plan, or result markdown sources in chain mode. It writes
+the complete caller-supplied final report payload to the target path; it does not merge
+stage-owned tabs or preserve older stage panes.
 
-`html-report` chain mode accepts a fully enriched owned-tab payload from the caller. That
+`html-report` chain mode accepts a fully enriched final payload from the caller. That
 payload may include narrative blocks, tables, `<details>`, inline SVG, CSS diagrams, and
-small inline JavaScript. Preserve the non-owned tabs byte-for-byte except for the single
-active `checked` radio state.
-Always preserve the non-owned tabs.
+small inline JavaScript. The caller owns all chain semantics.
 
-All chain report user-facing text must remain Russian. English visible UI copy is not allowed. English is allowed only for technical terms, code identifiers, file paths, stage keys (`intent`, `spec`, `plan`, `result`), hash keys, source section names, and short source fragments that would lose meaning if translated. Markdown source artifacts and implementation docs remain English outside the generated HTML report.
+All chain report user-facing text must remain Russian only. English visible UI copy is not allowed. English is allowed only for technical terms, code identifiers, file paths, stage keys (`intent`, `spec`, `plan`, `result`), hash keys, source section names, and short source fragments that would lose meaning if translated. Markdown source artifacts and implementation docs remain English outside the generated HTML report.
 
 Small inline JavaScript is allowed only as progressive enhancement for filtering,
 linked-entity highlighting, expand/collapse controls, or tab-local search. The report
@@ -101,11 +97,9 @@ external images, and no sibling assets.
    missing). If the caller passed the path, overwriting that path is **Full** zone
    (proceed — it is a regenerated artifact). Otherwise, if the target file already
    exists, **ask first** before overwriting (proposal-first).
-   In `mode: chain`, do NOT regenerate the whole file: follow the first-run vs.
-   update merge flow in `references/chain-report.md` (read the existing
-   caller-supplied `<topic>-results.html`, replace only the owned tab's marked
-   region, preserve the other three tabs). Creating and merging the unified
-   caller-supplied file are both Full zone.
+   In `mode: chain`, render the complete final report described in
+   `references/chain-report.md` and overwrite the caller-supplied
+   `<topic>-results.html`. Creating or replacing the caller-supplied file is Full zone.
 7. Report to the user: file path, file size, and any guarded-zone logs (inline script
    used / size warning).
 
@@ -124,7 +118,7 @@ Reject and fix the assembled HTML if any fails:
 - [ ] File size ≤ 5 MB — if larger, **warn** the user (soft limit).
 - [ ] Output path is under `docs/reports/` OR equals the explicit caller-supplied path — never an unrequested location.
 - [ ] In `mode: chain`, no direct reads of intent/spec/plan/result markdown sources are required by this skill.
-- [ ] In `mode: chain`, enriched owned-tab content is accepted from the caller and non-owned tabs are preserved.
+- [ ] In `mode: chain`, the complete final report content is accepted from the caller.
 - [ ] In `mode: chain`, all visible UI text is Russian; English appears only as a
       technical term, code identifier, file path, stage key, hash key, source section
       name, or short untranslated source fragment.
@@ -132,16 +126,22 @@ Reject and fix the assembled HTML if any fails:
 
 **`mode: chain` only** (see `references/chain-report.md`):
 
-- [ ] All four `<!-- TAB:{intent,spec,plan,result} START/END -->` pairs present, correctly ordered, non-overlapping.
-- [ ] Exactly one `.tab-radio` carries `checked` (exactly one active pane).
-- [ ] Theme toggle present and its `body:has(#theme-toggle…)` selectors intact alongside the tab `body:has(#tab-…)` selectors.
-- [ ] On update: the three non-owned panes are byte-identical to the pre-existing file (only the owned region + the single `checked` attribute changed).
+- [ ] The report contains intent, spec, plan, result, review, verification, docs, and
+      final verdict sections.
+- [ ] The report briefly and concretely describes every changed file or artifact in
+      Russian, including the specific change, reason, obtained result, and evidence.
+- [ ] Process diagrams are included when workflow, approval flow, hook order, command
+      flow, or multi-step execution changed; architecture/dependency diagrams are
+      included when boundaries changed.
+- [ ] Theme toggle present and wired.
+- [ ] Replacing an existing caller-supplied report does not require preserving old
+      stage-owned panes.
 
 ## Autonomy Zones
 
 | Zone | Action |
 |------|--------|
-| Full — generating HTML, choosing CSS layout, picking the diagram type; writing to an output path EXPLICITLY passed by the calling command, including merging one tab into an existing caller-supplied `mode: chain` file | proceed, no pause |
+| Full — generating HTML, choosing CSS layout, picking the diagram type; writing to an output path EXPLICITLY passed by the calling command, including replacing an existing caller-supplied `mode: chain` final report | proceed, no pause |
 | Guarded — using inline `<script>`/`<canvas>`/SVG, or approaching 5 MB | proceed, but **log** the structure CSS can't express / **warn** on size |
 | Proposal-first — which data sources to read; overwriting an existing default `docs/reports/` file with no caller path | **ask before acting** |
 | No-go — writing/deleting a file outside `docs/reports/` with NO caller-supplied path; fetching any external resource | **refuse** |

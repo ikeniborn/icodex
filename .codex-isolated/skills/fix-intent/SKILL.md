@@ -117,13 +117,13 @@ Fix any failures inline, then present.
 
 1. Show a summary of the written document.
 2. Run `$check-chain intent <path>` while the intent is still `Status: draft`.
-   The check must update frontmatter, generate the HTML report, and return `OK`
-   before any approval request. If it returns `needs_work`, fix the markdown source
-   first, rerun `$check-chain intent <path>`, and do not ask for approval yet.
-3. Present the generated HTML report, not the markdown file, as the approval surface.
-   Ask: "Review the intent HTML report. Approve it or request changes."
+   The check must update frontmatter and return `OK` before any approval request. If
+   it returns `needs_work`, fix the markdown source first, rerun `$check-chain intent
+   <path>`, and do not ask for approval yet.
+3. Present the checked intent summary and the markdown path for approval.
+   Ask: "Review the checked intent. Approve it or request changes."
 4. On changes requested: edit the markdown source → rerun `$check-chain intent <path>`
-   → present the regenerated HTML report → repeat.
+   → present the checked summary again → repeat.
 5. On approval: set `Status: approved`, then commit once:
 
 ```bash
