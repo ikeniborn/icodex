@@ -14,25 +14,30 @@ hr_text="$(cat "$HR")"
 cr_text="$(cat "$CR")"
 report_text="$(cat "$REPORT")"
 
-assert_contains "check-chain documents enriched payload" "$cc_text" "## Enriched chain report payload"
-assert_contains "check-chain keeps existing six blocks" "$cc_text" "The existing six owned-tab blocks remain mandatory"
+assert_contains "check-chain documents enriched final payload" "$cc_text" "## Enriched final report payload"
+assert_contains "check-chain documents result-only report step" "$cc_text" "### Step 5 — Result-only HTML report"
+assert_contains "check-chain forbids intermediate html" "$cc_text" 'Intermediate stages (`intent`, `spec`, `plan`) do not invoke `html-report`'
+assert_contains "check-chain result owns html" "$cc_text" 'Only the `result` stage generates or refreshes the chain HTML report'
 assert_contains "check-chain requires Russian HTML text" "$cc_text" "All HTML report user-facing text is Russian"
 assert_contains "check-chain allows only technical English exceptions" "$cc_text" "English is allowed only for technical terms"
 assert_contains "check-chain translates visible diagram titles" "$cc_text" "visible diagram titles in HTML"
 assert_contains "check-chain maps Step DAG to Russian" "$cc_text" "Step DAG -> Граф шагов"
 assert_contains "check-chain maps result evidence to Russian" "$cc_text" "Outcome Evidence Map -> Карта свидетельств результатов"
 assert_contains "check-chain keeps markdown English" "$cc_text" "All markdown artifacts remain English"
-assert_contains "check-chain documents HTML-first approval" "$cc_text" "The user approves the generated HTML report"
-assert_contains "check-chain requires OK before approval" "$cc_text" "Human approval is requested only after this stage returns OK"
+assert_contains "check-chain documents final closeout report" "$cc_text" 'The generated HTML report is a final closeout artifact at `result`'
+assert_contains "check-chain documents concrete change descriptions" "$cc_text" "concrete Russian description of the specific change made within this task"
+assert_contains "check-chain documents obtained result" "$cc_text" "what result was obtained"
+assert_contains "check-chain requires process diagrams when needed" "$cc_text" "Add process diagrams when workflow"
+assert_contains "check-chain requires OK before approval" "$cc_text" 'Human approval is requested only after this stage returns `OK`'
 assert_contains "check-chain result includes code review" "$cc_text" "Result includes a focused code review"
 assert_contains "check-chain result fixes bugs before OK" "$cc_text" 'Fix every confirmed bug before writing `result_check.verdict: OK`'
 assert_contains "check-chain result requires docs evidence" "$cc_text" "Documentation evidence is required for behavior, architecture, or user-facing changes"
 assert_contains "check-chain all stages check wiki docs" "$cc_text" "Every stage must check whether its verdict changes documented behavior"
 assert_contains "check-chain result propagates decision changes" "$cc_text" "If implementation changed an approved decision"
 assert_contains "check-chain result blocks stale chain docs" "$cc_text" 'Do not write `result_check.verdict: OK` while intent, spec, plan, repository docs, or iwiki describe stale decisions'
-assert_contains "check-chain documents markdown feedback loop" "$cc_text" "feedback is fixed in markdown source artifacts"
+assert_contains "check-chain documents markdown feedback loop" "$cc_text" 'fix the markdown source first and rerun the relevant `check-chain'
 assert_contains "check-chain prohibits invented report content" "$cc_text" "Do not invent requirements, dependencies, decisions, risks, or diagrams"
-assert_contains "check-chain cached exit stays rich" "$cc_text" "Cached quick-exit runs must regenerate the same full enriched owned-tab payload"
+assert_contains "check-chain cached result stays rich" "$cc_text" 'Cached quick-exit runs for `result` must regenerate the same full enriched report'
 
 for diagram in \
   "Outcome Chain" \
@@ -52,32 +57,39 @@ for diagram in \
   "Excess/Gap Map" \
   "Code Review Findings Map" \
   "Documentation Evidence Map" \
-  "Decision Propagation Map"
+  "Decision Propagation Map" \
+  "Change Inventory Map" \
+  "Process Flow Map"
 do
   assert_contains "check-chain mandatory diagram $diagram" "$cc_text" "$diagram"
 done
 
-assert_contains "html-report accepts enriched owned tab" "$hr_text" "chain mode accepts a fully enriched owned-tab payload from the caller"
+assert_contains "html-report accepts enriched final payload" "$hr_text" "chain mode accepts a fully enriched final payload from the caller"
+assert_contains "html-report documents concrete change descriptions" "$hr_text" "briefly and concretely describes every changed file or artifact"
 assert_contains "html-report does not read chain sources" "$hr_text" "does not read intent, spec, plan, or result markdown sources in chain mode"
 assert_contains "html-report allows inline svg" "$hr_text" "inline SVG"
 assert_contains "html-report allows small inline js" "$hr_text" "small inline JavaScript"
 assert_contains "html-report keeps self-contained report" "$hr_text" "no CDN"
-assert_contains "html-report preserves non-owned tabs" "$hr_text" "preserve the non-owned tabs"
+assert_contains "html-report replaces final report" "$hr_text" 'replacing an existing caller-supplied `mode: chain` final report'
 assert_contains "html-report prohibits English UI copy" "$hr_text" "English visible UI copy is not allowed"
 
-assert_contains "chain-report semantic blocks" "$cr_text" "Semantic owned-tab blocks"
-assert_contains "chain-report mandatory visualizations" "$cr_text" "Mandatory rich visualizations"
-assert_contains "chain-report html-first review" "$cr_text" "HTML-first review flow"
+assert_contains "chain-report final blocks" "$cr_text" "Final Report Blocks"
+assert_contains "chain-report mandatory visualizations" "$cr_text" "Mandatory Rich Visualizations"
+assert_contains "chain-report result-only review" "$cr_text" "Review Flow"
+assert_contains "chain-report generated at result" "$cr_text" 'The report is generated once at `check-chain result`'
+assert_contains "chain-report documents concrete change descriptions" "$cr_text" "concrete Russian description of the specific change made within this task"
+assert_contains "chain-report documents obtained result" "$cr_text" "what result was obtained"
+assert_contains "chain-report requires process diagrams when needed" "$cr_text" "Add process diagrams when workflow"
 assert_contains "chain-report technical English exception only" "$cr_text" "English is allowed only for technical terms"
 assert_contains "chain-report translates visible diagram titles" "$cr_text" "titles in generated HTML must be Russian"
 assert_contains "chain-report maps Step DAG to Russian" "$cr_text" "Step DAG -> Граф шагов"
 assert_contains "chain-report maps result evidence to Russian" "$cr_text" "Outcome Evidence Map -> Карта свидетельств результатов"
-assert_contains "chain-report Russian intent tab label" "$cr_text" '<label for="tab-intent">Интент</label>'
-assert_contains "chain-report Russian spec tab label" "$cr_text" '<label for="tab-spec">Спека</label>'
-assert_contains "chain-report Russian plan tab label" "$cr_text" '<label for="tab-plan">План</label>'
-assert_contains "chain-report Russian result tab label" "$cr_text" '<label for="tab-result">Результат</label>'
+assert_contains "chain-report includes intent section" "$cr_text" '<section id="intent">'
+assert_contains "chain-report includes spec section" "$cr_text" '<section id="spec">'
+assert_contains "chain-report includes plan section" "$cr_text" '<section id="plan">'
+assert_contains "chain-report includes result section" "$cr_text" '<section id="result">'
 assert_contains "chain-report source fallback" "$cr_text" "source lacks enough structure"
-assert_contains "chain-report marker contract preserved" "$cr_text" "Markers are the exact literal strings"
+assert_contains "chain-report no pane preservation" "$cr_text" "no stage-owned tab"
 
 banned_report_labels=(
   "Step DAG"

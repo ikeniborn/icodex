@@ -50,7 +50,7 @@ if [[ -f "$CC" ]]; then
   assert_contains "check-chain references spec_hash" "$body" "spec_hash"
   assert_contains "check-chain references plan_hash" "$body" "plan_hash"
   assert_contains "check-chain covers result stage" "$body" "result_check"
-  assert_contains "check-chain approval requires OK first" "$body" "Human approval is requested only after this stage returns OK"
+  assert_contains "check-chain approval requires OK first" "$body" 'Human approval is requested only after this stage returns `OK`'
   assert_exit "check-chain frontmatter parses" 0 parse_frontmatter "$CC"
 fi
 
@@ -71,8 +71,8 @@ assert_exit "brainstorming SKILL.md exists" 0 test -f "$BR"
 if [[ -f "$BR" ]]; then
   body="$(cat "$BR")"
   assert_contains "brainstorming runs spec check before approval" "$body" 'Run `$check-chain spec <path>`'
-  assert_before "brainstorming check-chain before spec approval" "$body" 'Run `$check-chain spec <path>`' "Only proceed once the user approves the checked report"
-  assert_contains "brainstorming commits after report approval" "$body" "commit the spec document once"
+  assert_before "brainstorming check-chain before spec approval" "$body" 'Run `$check-chain spec <path>`' "Only proceed once the user approves the checked spec"
+  assert_contains "brainstorming commits after checked spec approval" "$body" "commit the spec document once"
 fi
 
 WP="$SP/writing-plans/SKILL.md"
@@ -80,8 +80,8 @@ assert_exit "writing-plans SKILL.md exists" 0 test -f "$WP"
 if [[ -f "$WP" ]]; then
   body="$(cat "$WP")"
   assert_contains "writing-plans runs plan check before approval" "$body" 'Run `$check-chain plan <path>`'
-  assert_before "writing-plans check-chain before plan approval" "$body" 'Run `$check-chain plan <path>`' "Only after the user approves the checked HTML report"
-  assert_contains "writing-plans offers execution after checked report" "$body" 'After the plan has passed `$check-chain plan <path>`'
+  assert_before "writing-plans check-chain before plan approval" "$body" 'Run `$check-chain plan <path>`' "Only after the user approves the checked plan"
+  assert_contains "writing-plans offers execution after checked plan" "$body" 'After the plan has passed `$check-chain plan <path>`'
 fi
 
 finish
