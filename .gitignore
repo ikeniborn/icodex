@@ -21,9 +21,35 @@
 !.codex-isolated/skills/**
 .codex-isolated/skills/.system/
 
-# installed plugins travel in git (no re-install on clone)
+# vendored plugins travel in git only when explicitly pinned
 !.codex-isolated/plugins/
-!.codex-isolated/plugins/**
+.codex-isolated/plugins/*
+!.codex-isolated/plugins/cache/
+.codex-isolated/plugins/cache/*
+
+!.codex-isolated/plugins/cache/ikeniborn/
+.codex-isolated/plugins/cache/ikeniborn/*
+!.codex-isolated/plugins/cache/ikeniborn/loen/
+!.codex-isolated/plugins/cache/ikeniborn/loen/**
+
+!.codex-isolated/plugins/cache/openai-curated/
+.codex-isolated/plugins/cache/openai-curated/*
+!.codex-isolated/plugins/cache/openai-curated/superpowers/
+!.codex-isolated/plugins/cache/openai-curated/superpowers/**
+
+!.codex-isolated/plugins/cache/openai-curated-remote/
+.codex-isolated/plugins/cache/openai-curated-remote/*
+!.codex-isolated/plugins/cache/openai-curated-remote/github/
+.codex-isolated/plugins/cache/openai-curated-remote/github/*
+!.codex-isolated/plugins/cache/openai-curated-remote/github/0.1.8-2841cf9749ae/
+!.codex-isolated/plugins/cache/openai-curated-remote/github/0.1.8-2841cf9749ae/**
+
+.codex-isolated/plugins/.remote-plugin-install-staging/
+.codex-isolated/plugins/**/.git/
+.codex-isolated/plugins/**/.agents/
+.codex-isolated/plugins/**/.codex-remote-plugin-install.json
+.codex-isolated/plugins/**/*.lock
+.codex-isolated/plugins/**/*.tmp
 
 # Proxy URL + API key live here (chmod 600) — never commit
 .codex_config
