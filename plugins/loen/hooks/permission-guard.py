@@ -5,7 +5,7 @@ from __future__ import annotations
 import shlex
 from urllib.parse import urlparse
 
-from loen_common import block_or_nudge, command_matches, is_advisory, is_off, is_strict, loop_policy, read_event, read_loop_artifact, shell_command, tool_class
+from loen_common import block_or_nudge, command_matches, event_topic, is_advisory, is_off, is_strict, loop_policy, read_event, read_loop_artifact, should_run_hook, shell_command, tool_class
 
 SCRIPT_NAME = "permission-guard"
 NETWORK_TOOLS = {"curl", "wget", "ssh", "scp", "nc"}
@@ -49,14 +49,17 @@ def main() -> int:
   if is_off():
     return 0
   event = read_event()
-  read_loop_artifact()
+  if not should_run_hook(event):
+    return 0
+  topic_name = event_topic(event)
+  read_loop_artifact(topic_name)
   if not (is_advisory() or is_strict()):
     return 0
   if tool_class(event) != "shell":
     return 0
 
   command = shell_command(event)
-  policy = loop_policy().get("permissions", {})
+  policy = loop_policy(topic_name).get("permissions", {})
   shell_policy = policy.get("shell", {})
   for pattern in shell_policy.get("deny_patterns", []):
     if command_matches(command, pattern) or command.startswith(pattern + " "):

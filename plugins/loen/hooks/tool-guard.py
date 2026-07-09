@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """LoEn tool/role guard; reads LOEN_ARTIFACT_ROOT through loen_common."""
-from loen_common import block_or_nudge, is_advisory, is_off, is_strict, loop_policy, read_event, read_loop_artifact, tool_class
+from loen_common import block_or_nudge, event_topic, is_advisory, is_off, is_strict, loop_policy, read_event, read_loop_artifact, should_run_hook, tool_class
 
 SCRIPT_NAME = "tool-guard"
 
@@ -13,11 +13,14 @@ def main() -> int:
   if is_off():
     return 0
   event = read_event()
-  read_loop_artifact()
+  if not should_run_hook(event):
+    return 0
+  topic_name = event_topic(event)
+  read_loop_artifact(topic_name)
   if not (is_advisory() or is_strict()):
     return 0
 
-  policy = loop_policy()
+  policy = loop_policy(topic_name)
   tool = tool_class(event)
   policy_tool = _policy_tool(tool)
   role = str(event.get("agent_role") or event.get("role") or "").strip()

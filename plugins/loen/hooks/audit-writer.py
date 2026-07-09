@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from loen_artifacts import render_audit, upsert_todo_row, validate_topic_slug
-from loen_common import is_off, read_loop_artifact, topic, topic_dir
+from loen_common import event_topic, is_off, read_event, read_loop_artifact, should_run_hook, topic_dir
 
 SCRIPT_NAME = "audit-writer"
 
@@ -12,7 +12,10 @@ SCRIPT_NAME = "audit-writer"
 def main() -> int:
   if is_off():
     return 0
-  topic_name = topic()
+  event = read_event()
+  if not should_run_hook(event):
+    return 0
+  topic_name = event_topic(event)
   if not topic_name or not read_loop_artifact(topic_name):
     return 0
   try:

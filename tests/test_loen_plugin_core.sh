@@ -7,9 +7,11 @@ plugin_root="$ROOT/plugins/loen"
 manifest="$plugin_root/.codex-plugin/plugin.json"
 hooks_json="$plugin_root/hooks/hooks.json"
 architecture_doc="$plugin_root/docs/architecture.md"
-vendored_cache="$ROOT/.codex-isolated/plugins/cache/iclaude/loen/0.5.1"
+vendored_cache="$ROOT/.codex-isolated/plugins/cache/ikeniborn/loen/0.2.0"
 vendored_codex_manifest="$vendored_cache/.codex-plugin/plugin.json"
-runtime_cache="$ROOT/.codex-isolated/plugins/cache/icodex-local/loen/0.1.0"
+runtime_cache="$vendored_cache"
+legacy_iclaude_cache="$ROOT/.codex-isolated/plugins/cache/iclaude/loen"
+legacy_icodex_local_cache="$ROOT/.codex-isolated/plugins/cache/icodex-local/loen"
 
 expected_skills=(
   loop-start
@@ -163,6 +165,8 @@ print(data.get("hooks", ""))
 print(data.get("agents", ""))
 print(data.get("assets", ""))
 print(data.get("interface", {}).get("displayName", ""))
+print(data.get("author", {}).get("name", ""))
+print(data.get("interface", {}).get("developerName", ""))
 PY
 )"
 else
@@ -170,14 +174,19 @@ else
 fi
 
 assert_eq "manifest name" "loen" "$(sed -n '1p' <<<"$manifest_summary")"
-assert_eq "manifest version" "0.1.0" "$(sed -n '2p' <<<"$manifest_summary")"
+assert_eq "manifest version" "0.2.0" "$(sed -n '2p' <<<"$manifest_summary")"
 assert_eq "manifest skills path" "./skills/" "$(sed -n '3p' <<<"$manifest_summary")"
 assert_eq "manifest hooks path" "./hooks/hooks.json" "$(sed -n '4p' <<<"$manifest_summary")"
 assert_eq "manifest agents path" "./agents/" "$(sed -n '5p' <<<"$manifest_summary")"
 assert_eq "manifest assets path" "./assets/" "$(sed -n '6p' <<<"$manifest_summary")"
 assert_eq "manifest display name" "LoEn" "$(sed -n '7p' <<<"$manifest_summary")"
+assert_eq "manifest author" "ikeniborn" "$(sed -n '8p' <<<"$manifest_summary")"
+assert_eq "manifest developer" "ikeniborn" "$(sed -n '9p' <<<"$manifest_summary")"
 
 assert_exit "vendored LoEn cache exists" 0 test -d "$vendored_cache"
+assert_exit "legacy iclaude LoEn cache absent" 1 test -d "$legacy_iclaude_cache"
+assert_exit "legacy icodex-local LoEn cache absent" 1 test -d "$legacy_icodex_local_cache"
+assert_exit "stale ikeniborn LoEn 0.1.0 absent" 1 test -d "$ROOT/.codex-isolated/plugins/cache/ikeniborn/loen/0.1.0"
 assert_exit "vendored LoEn cache has Codex manifest" 0 test -f "$vendored_codex_manifest"
 
 if [[ -f "$vendored_codex_manifest" ]]; then
@@ -192,6 +201,8 @@ print(data.get("name", ""))
 print(data.get("version", ""))
 print(data.get("skills", ""))
 print(data.get("interface", {}).get("displayName", ""))
+print(data.get("author", {}).get("name", ""))
+print(data.get("interface", {}).get("developerName", ""))
 PY
 )"
 else
@@ -199,9 +210,11 @@ else
 fi
 
 assert_eq "vendored manifest name" "loen" "$(sed -n '1p' <<<"$vendored_manifest_summary")"
-assert_eq "vendored manifest version" "0.5.1" "$(sed -n '2p' <<<"$vendored_manifest_summary")"
+assert_eq "vendored manifest version" "0.2.0" "$(sed -n '2p' <<<"$vendored_manifest_summary")"
 assert_eq "vendored manifest skills path" "./skills/" "$(sed -n '3p' <<<"$vendored_manifest_summary")"
 assert_eq "vendored manifest display name" "LoEn" "$(sed -n '4p' <<<"$vendored_manifest_summary")"
+assert_eq "vendored manifest author" "ikeniborn" "$(sed -n '5p' <<<"$vendored_manifest_summary")"
+assert_eq "vendored manifest developer" "ikeniborn" "$(sed -n '6p' <<<"$vendored_manifest_summary")"
 
 skill_names=()
 for skill in "${expected_skills[@]}"; do

@@ -1,35 +1,35 @@
 #!/usr/bin/env bash
 # Wire the git-vendored LoEn plugin into each per-project Codex home.
 #
-# LoEn is vendored under .codex-isolated/plugins/cache/icodex-local/loen/<ver>/.
+# LoEn is vendored under .codex-isolated/plugins/cache/ikeniborn/loen/<ver>/.
 # The runtime marketplace root lives under the per-project CODEX_HOME so Codex
 # sees a valid host-local marketplace source on every launch.
 
 type log_warn >/dev/null 2>&1 || log_warn() { printf '[icodex] WARN: %s\n' "$*" >&2; }
 type log_error >/dev/null 2>&1 || log_error() { printf '[icodex] ERROR: %s\n' "$*" >&2; }
 
-_LOEN_MARKETPLACE="icodex-local"
+_LOEN_MARKETPLACE="ikeniborn"
 
 _loen_mode() {
-  local value="${ICODEX_LOEN_MODE:-advisory}"
+  local value="${ICODEX_LOEN_MODE:-off}"
   value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
   case "$value" in
     off|advisory|enforce|strict) printf '%s\n' "$value" ;;
     *)
-      log_warn "invalid ICODEX_LOEN_MODE '$value'; using advisory"
-      printf 'advisory\n'
+      log_warn "invalid ICODEX_LOEN_MODE '$value'; using off"
+      printf 'off\n'
       ;;
   esac
 }
 
 _loen_cache_dir() {
-  local m
+  local m latest=""
   for m in "$ICODEX_SHARED_DIR"/plugins/cache/"$_LOEN_MARKETPLACE"/loen/*/; do
     [[ -d "$m" ]] || continue
     [[ -f "$m/.codex-plugin/plugin.json" ]] || continue
-    printf '%s\n' "${m%/}"
-    return 0
+    latest="${m%/}"
   done
+  [[ -n "$latest" ]] && printf '%s\n' "$latest"
   return 0
 }
 
@@ -48,7 +48,7 @@ _write_loen_marketplace_manifest() { # <root> <mkt>
 {
   "name": "$mkt",
   "interface": {
-    "displayName": "icodex local"
+    "displayName": "$mkt"
   },
   "plugins": [
     {

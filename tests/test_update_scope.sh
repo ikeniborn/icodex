@@ -68,7 +68,7 @@ assert_eq "install exits zero" "0" "$install_rc"
 assert_eq "install ensure called" "install_ensure install" "$(cat "$work/install-called")"
 assert_eq "superpowers not called on install" "0" "$(grep -c 'ensure_superpowers_wiring called' <<<"$install_out")"
 assert_eq "loen not called on install" "0" "$(grep -c 'ensure_loen_wiring called' <<<"$install_out")"
-assert_exit "install/update did not vendor LoEn" 1 test -d "$work/.codex-isolated/plugins/cache/icodex-local/loen"
+assert_exit "install/update did not vendor LoEn" 1 test -d "$work/.codex-isolated/plugins/cache/ikeniborn/loen"
 
 rm -rf "$tmp"
 finish

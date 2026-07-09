@@ -4,7 +4,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/helpers.sh"
 
 SK="$ROOT/.codex-isolated/skills"
-SP="$ROOT/.codex-isolated/plugins/cache/openai-curated/superpowers/d6169bef/skills"
+SP=""
+for candidate in "$ROOT"/.codex-isolated/plugins/cache/openai-curated/superpowers/*/skills; do
+  if [[ -d "$candidate" ]]; then
+    SP="$candidate"
+    break
+  fi
+done
 
 parse_frontmatter() { # <file> — exit 0 iff YAML frontmatter has name + description
   python3 - "$1" <<'PY'
