@@ -42,9 +42,14 @@ Control runtime behavior with `ICODEX_LOEN_MODE`:
 | Mode | Behavior |
 |---|---|
 | `off` | Disable LoEn wiring and hooks. |
-| `advisory` | Enable skills and non-blocking hook nudges. This is the default. |
-| `enforce` | Block missing loop state, stage-order violations, protected paths, and missing evidence. |
-| `strict` | Add role, tool, shell/network, and worker/verifier separation checks. |
+| `advisory` | Enable skills and non-blocking hook nudges for active LoEn topics. |
+| `enforce` | Block active-topic stage-order violations, protected paths, and missing evidence. |
+| `strict` | Add active-topic role, tool, shell/network, and worker/verifier separation checks. |
+
+Unset mode defaults to `off`, so LoEn lifecycle hooks do not run unless you opt in.
+When enabled, hook policy is topic-bound: the active topic comes from `LOEN_TOPIC`,
+paths under `docs/loen/<topic>/`, or `docs/loen/current`. Ordinary work outside an
+active topic is not blocked just because the launch mode is `enforce` or `strict`.
 
 Example:
 
@@ -286,8 +291,9 @@ loen:loop-run fix-proxy-test
 runner writes 7_result.md or handoff.md
 ```
 
-If `ICODEX_LOEN_MODE=enforce`, edits outside the configured mutable scope or a
-final answer without check evidence can be blocked by hooks.
+If `ICODEX_LOEN_MODE=enforce`, edits outside the active topic's configured mutable
+scope or a final answer without check evidence can be blocked by hooks. Without an
+active topic, ordinary session edits pass through.
 
 ## Automation Governance
 
@@ -334,7 +340,7 @@ used by icodex launch wiring, run:
 The script copies this source tree into:
 
 ```text
-.codex-isolated/plugins/cache/icodex-local/loen/<version>/
+.codex-isolated/plugins/cache/ikeniborn/loen/<version>/
 ```
 
 It validates required assets and strips generated files such as `__pycache__`

@@ -110,6 +110,14 @@ assert_hook_stderr_contains() {
   assert_contains "$desc stderr" "$(cat "$stderr_file" 2>/dev/null)" "$needle"
 }
 
+assert_hook_stderr_eq() {
+  local desc="$1" expected="$2" hook="$3" mode="$4" topic_value="$5" payload="$6" expected_stderr="$7" code=0
+  local stderr_file="$tmp/stderr-${desc//[^A-Za-z0-9]/_}.txt"
+  run_hook_capture "$hook" "$mode" "$topic_value" "$payload" "$stderr_file" || code=$?
+  assert_eq "$desc exit" "$expected" "$code"
+  assert_eq "$desc stderr" "$expected_stderr" "$(cat "$stderr_file" 2>/dev/null)"
+}
+
 edit_payload='{"tool_name":"apply_patch","tool_input":{"patch":"*** Begin Patch\n*** Update File: src/app.py\n@@\n-old\n+new\n*** End Patch\n"}}'
 protected_patch='{"tool_name":"apply_patch","tool_input":{"patch":"*** Begin Patch\n*** Update File: migrations/001.sql\n@@\n-old\n+new\n*** End Patch\n"}}'
 raw_protected_patch='{"tool_name":"apply_patch","tool_input":"*** Begin Patch\n*** Update File: migrations/002.sql\n@@\n-old\n+new\n*** End Patch\n"}'
@@ -163,9 +171,14 @@ assert_contains "hooks registry PreToolUse matches Glob" "$pretool_matchers" "Gl
 
 assert_hook_exit "loop-gate off allows edit without topic" 0 "loop-gate.py" "off" "" "$edit_payload"
 assert_hook_exit "loop-gate advisory allows edit without topic" 0 "loop-gate.py" "advisory" "" "$edit_payload"
-assert_hook_stderr_contains "loop-gate advisory nudges missing loop" 0 "loop-gate.py" "advisory" "" "$edit_payload" "LoEn:"
-assert_hook_exit "loop-gate enforce blocks edit without topic" 2 "loop-gate.py" "enforce" "" "$edit_payload"
-assert_hook_exit "loop-gate strict blocks edit without topic" 2 "loop-gate.py" "strict" "" "$edit_payload"
+assert_hook_stderr_eq "loop-gate advisory is quiet without topic" 0 "loop-gate.py" "advisory" "" "$edit_payload" ""
+assert_hook_exit "loop-gate enforce allows edit without topic" 0 "loop-gate.py" "enforce" "" "$edit_payload"
+assert_hook_exit "loop-gate strict allows edit without topic" 0 "loop-gate.py" "strict" "" "$edit_payload"
+
+ln -s "$topic" "$artifact_root/current"
+assert_hook_exit "scope-guard blocks current active topic protected path" 2 "scope-guard.py" "enforce" "" "$protected_patch"
+assert_hook_exit "tool-guard blocks current active topic verifier edit" 2 "tool-guard.py" "strict" "" "$verifier_edit"
+rm "$artifact_root/current"
 
 assert_hook_exit "loop-gate blocks skipped stage artifact" 2 "loop-gate.py" "enforce" "$topic" "$skipped_reflect_write"
 assert_hook_stderr_contains "loop-gate advisory nudges skipped stage artifact" 0 "loop-gate.py" "advisory" "$topic" "$skipped_reflect_write" "LoEn:"

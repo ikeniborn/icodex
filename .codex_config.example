@@ -140,6 +140,16 @@
 #   ultra  fragments + maximum abbreviation
 #ICODEX_CAVEMAN_MODE=full
 
+# LoEn plugin launch mode. Default: off.
+#   off       do not enable LoEn plugin hooks.
+#   advisory  enable LoEn hooks as warnings/audit only.
+#   enforce   enable topic-bound blocking for active LoEn topics.
+#   strict    enforce plus role/tool/shell/network verifier policy.
+# Hook policy is topic-bound: active topic comes from LOEN_TOPIC, paths under
+# docs/loen/<topic>/, or docs/loen/current. Outside an active topic, ordinary
+# session edits are not blocked just because this launch mode is enforce/strict.
+#ICODEX_LOEN_MODE=off
+
 # iwiki MCP server (always on in every Codex home). The [mcp_servers.iwiki] block
 # is assembled at launch from the keys below (see lib/iwiki/iwiki.sh).
 #

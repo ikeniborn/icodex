@@ -98,8 +98,9 @@ LoEn supports four runtime modes:
 | `enforce` | Stage order, active loop state, scope, and evidence gates can block. |
 | `strict` | `enforce` plus worker/verifier separation and tool/permission checks. |
 
-The recommended initial icodex default is `advisory`, with `enforce` and
-`strict` enabled after the layer tests and manual trial loops pass.
+The recommended icodex default is `off` so lifecycle hooks do not run during
+ordinary work. Users opt in with `advisory`, with `enforce` and `strict` enabled
+only after the layer tests and manual trial loops pass.
 
 ## Non-goals
 

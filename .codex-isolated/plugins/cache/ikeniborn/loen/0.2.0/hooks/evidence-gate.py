@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """LoEn result/evidence gate; reads LOEN_ARTIFACT_ROOT through loen_common."""
-from loen_common import BLOCK, block_or_nudge, is_off, is_strict, read_event, read_loop_artifact, stderr, topic_dir
+from loen_common import BLOCK, block_or_nudge, event_topic, is_off, is_strict, read_event, read_loop_artifact, should_run_hook, stderr, topic_dir
 
 SCRIPT_NAME = "evidence-gate"
 
@@ -9,7 +9,10 @@ def main() -> int:
   if is_off():
     return 0
   event = read_event()
-  read_loop_artifact()
+  if not should_run_hook(event):
+    return 0
+  topic_name = event_topic(event)
+  read_loop_artifact(topic_name)
   verdict = str(event.get("verdict") or event.get("decision") or "").strip().lower()
   message = str(event.get("message") or "").lower()
   event_name = str(event.get("hook_event_name") or event.get("event") or "").strip().lower()
@@ -24,7 +27,7 @@ def main() -> int:
   if not wants_done:
     return 0
 
-  base = topic_dir()
+  base = topic_dir(topic_name)
   missing = []
   for filename in ("5_check.md", "7_result.md", "verifier-verdict.md"):
     if not (base / filename).is_file():

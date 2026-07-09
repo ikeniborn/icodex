@@ -71,6 +71,51 @@ _ensure_superpowers_marketplace_root() { # <cache_dir> <mkt>
   printf '%s\n' "$root"
 }
 
+_ensure_symlink_target() { # <link> <target> <label>
+  local link="$1" target="$2" label="$3"
+  if [[ -L "$link" ]]; then
+    if [[ "$(readlink "$link")" == "$target" ]]; then
+      return 0
+    fi
+    rm -f "$link"
+  elif [[ -e "$link" ]]; then
+    log_warn "$label exists and is not a symlink; leaving it unchanged: $link"
+    return 0
+  fi
+  ln -s "$target" "$link"
+}
+
+_ensure_superpowers_skills_root() {
+  local root="$ICODEX_HOME_DIR/skills" shared="$ICODEX_SHARED_DIR/skills" entry name old_dotglob old_nullglob
+  if [[ -L "$root" ]]; then
+    rm -f "$root"
+  fi
+  mkdir -p "$root"
+
+  [[ "$root" == "$shared" || ! -d "$shared" ]] && return 0
+
+  old_dotglob="$(shopt -p dotglob || true)"
+  old_nullglob="$(shopt -p nullglob || true)"
+  shopt -s nullglob dotglob
+  for entry in "$shared"/*; do
+    name="$(basename "$entry")"
+    _ensure_symlink_target "$root/$name" "$entry" "shared skill"
+  done
+  eval "$old_dotglob"
+  eval "$old_nullglob"
+}
+
+_ensure_superpowers_skill_links() { # <cache_dir>
+  local cache="$1" root skill name
+  root="$ICODEX_HOME_DIR/skills"
+  _ensure_superpowers_skills_root
+  for skill in "$cache"/skills/*/; do
+    [[ -f "$skill/SKILL.md" ]] || continue
+    name="$(basename "${skill%/}")"
+    _ensure_symlink_target "$root/$name" "${skill%/}" "superpowers skill"
+  done
+}
+
 # Idempotently rewrite the `source` line inside [marketplaces.<mkt>] to <abs>.
 _rewrite_marketplace_source() { # <config> <mkt> <abs>
   local config="$1" mkt="$2" abs="$3" tmp
@@ -99,5 +144,6 @@ ensure_superpowers_wiring() {
   fi
   mkt="$(_superpowers_marketplace_name "$cache")"
   marketplace="$(_ensure_superpowers_marketplace_root "$cache" "$mkt")"
+  _ensure_superpowers_skill_links "$cache"
   _rewrite_marketplace_source "$config" "$mkt" "$marketplace"
 }

@@ -45,7 +45,7 @@ plugins/loen/
 into:
 
 ```text
-.codex-isolated/plugins/cache/icodex-local/loen/<version>/
+.codex-isolated/plugins/cache/ikeniborn/loen/<version>/
 ```
 
 The script strips generated artifacts, validates the manifest, and preserves
@@ -78,8 +78,9 @@ enforce
 strict
 ```
 
-Unset defaults to `advisory` for the first integration. A later change may make
-`enforce` the default after trial runs pass.
+Unset defaults to `off`, so LoEn lifecycle hooks do not run during ordinary
+icodex work. Users opt in with `advisory`, `enforce`, or `strict` when they want
+LoEn skills and hook behavior active for a session.
 
 ## Legacy Exclusions
 
@@ -90,7 +91,7 @@ wiring lives under `lib/iwiki/iwiki.sh` and is unrelated to LoEn.
 
 This layer should add tests that validate:
 
-- `vendor-loen.sh` creates `.codex-isolated/plugins/cache/icodex-local/loen/<version>/`;
+- `vendor-loen.sh` creates `.codex-isolated/plugins/cache/ikeniborn/loen/<version>/`;
 - cache contains `.codex-plugin/plugin.json`, skills, hooks, agents, assets, and docs;
 - launch wiring rewrites marketplace source to a current host path;
 - plugin enablement is idempotent;

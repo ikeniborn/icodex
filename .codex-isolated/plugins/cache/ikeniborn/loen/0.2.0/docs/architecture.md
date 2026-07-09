@@ -75,7 +75,9 @@ frontmatter review state.
 flowchart TD
     Event["Codex tool event"] --> ModeCheck{"LOEN_MODE active?"}
     ModeCheck -- "No" --> PassThrough["Allow event"]
-    ModeCheck -- "Yes" --> TopicLoad["Load docs/loen/&lt;topic&gt;/loop.yaml"]
+    ModeCheck -- "Yes" --> TopicCheck{"Active topic from LOEN_TOPIC, path, or current?"}
+    TopicCheck -- "No" --> PassThrough
+    TopicCheck -- "Yes" --> TopicLoad["Load docs/loen/&lt;topic&gt;/loop.yaml"]
     TopicLoad --> ScopeCheck{"Path inside allowed scope?"}
     ScopeCheck -- "No" --> DenyScope["Deny with policy reason"]
     ScopeCheck -- "Yes" --> ToolCheck{"Tool and role allowed?"}
@@ -288,6 +290,7 @@ repository only stores deterministic policy and evidence.
 
 Scheduled runs reuse `docs/loen/<topic>/`, append JSON records to
 `attempts.jsonl`, preserve verifier evidence under `evidence/`, and regenerate
-`docs/loen/<topic>/audit.html`. Existing hooks still enforce active-loop state,
-protected scope, shell/network policy, evidence requirements, and `LOEN_MODE`;
-automation payloads are treated as ordinary tool events with extra metadata.
+`docs/loen/<topic>/audit.html`. Existing hooks still enforce active-topic loop
+state, protected scope, shell/network policy, evidence requirements, and
+`LOEN_MODE`; automation payloads are treated as ordinary tool events with extra
+metadata.

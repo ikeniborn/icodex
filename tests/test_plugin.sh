@@ -13,8 +13,10 @@ export ICODEX_SHARED_DIR="$ICODEX_HOME_DIR"
 export ICODEX_BIN="$ICODEX_HOME_DIR/bin/codex"
 CACHE="$ICODEX_HOME_DIR/plugins/cache/superpowers/superpowers/6.0.3"
 MARKETPLACE="$ICODEX_HOME_DIR/tmp/marketplaces/superpowers"
-mkdir -p "$CACHE/.codex-plugin" "$ICODEX_HOME_DIR/bin"
+mkdir -p "$CACHE/.codex-plugin" "$CACHE/skills/brainstorming" "$CACHE/skills/writing-plans" "$ICODEX_HOME_DIR/bin"
 printf '{}' > "$CACHE/.codex-plugin/plugin.json"
+printf -- '---\nname: brainstorming\ndescription: test\n---\n' > "$CACHE/skills/brainstorming/SKILL.md"
+printf -- '---\nname: writing-plans\ndescription: test\n---\n' > "$CACHE/skills/writing-plans/SKILL.md"
 cat > "$ICODEX_HOME_DIR/config.toml" <<'EOF'
 [permissions.dev-safe.filesystem]
 ":minimal" = "read"
@@ -46,6 +48,12 @@ assert_eq "source rewritten to generated marketplace" "1" \
 assert_exit "marketplace manifest created" 0 test -f "$MARKETPLACE/.agents/plugins/marketplace.json"
 assert_exit "api marketplace manifest created" 0 test -f "$MARKETPLACE/.agents/plugins/api_marketplace.json"
 assert_exit "marketplace plugin path resolves" 0 test -f "$MARKETPLACE/plugins/superpowers/.codex-plugin/plugin.json"
+assert_exit "brainstorming skill link resolves" 0 test -f "$ICODEX_HOME_DIR/skills/brainstorming/SKILL.md"
+assert_exit "writing-plans skill link resolves" 0 test -f "$ICODEX_HOME_DIR/skills/writing-plans/SKILL.md"
+assert_eq "brainstorming skill points to vendored cache" "$CACHE/skills/brainstorming" \
+  "$(readlink "$ICODEX_HOME_DIR/skills/brainstorming")"
+assert_eq "writing-plans skill points to vendored cache" "$CACHE/skills/writing-plans" \
+  "$(readlink "$ICODEX_HOME_DIR/skills/writing-plans")"
 assert_contains "manifest names superpowers" \
   "$(cat "$MARKETPLACE/.agents/plugins/marketplace.json")" '"name": "superpowers"'
 assert_contains "manifest uses relative plugin path" \

@@ -161,7 +161,7 @@ printf '{"status":"pass","command":"bash tests/test_loen_runtime_artifacts.sh"}\
 printf '# Check\n\n## Result\n\nBYPASS\n' > "$topic_dir/5_check.md"
 printf '# Result\n\n## Outcome\n\nNot Done\n' > "$topic_dir/7_result.md"
 
-assert_exit "audit writer runs for negative verdict" 0 env LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$todo_path" python3 "$audit_writer"
+assert_exit "audit writer runs for negative verdict" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$todo_path" python3 "$audit_writer"
 negative_audit="$(cat "$topic_dir/audit.html" 2>/dev/null || true)"
 assert_contains "audit negative verdict stays not done" "$negative_audit" "Not done"
 assert_eq "audit negative verdict is not done" "0" "$(grep -cF "Final verdict:</strong> Done" <<<"$negative_audit" || true)"
@@ -185,8 +185,8 @@ printf 'first attempt\nsecond attempt\n' > "$topic_dir/attempts.jsonl"
 printf '# Check\n\n## Result\n\nPASS\n' > "$topic_dir/5_check.md"
 printf '# Result\n\n## Outcome\n\nDone\n' > "$topic_dir/7_result.md"
 
-assert_exit "audit writer runs first time" 0 env LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$todo_path" python3 "$audit_writer"
-assert_exit "audit writer runs second time" 0 env LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$todo_path" python3 "$audit_writer"
+assert_exit "audit writer runs first time" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$todo_path" python3 "$audit_writer"
+assert_exit "audit writer runs second time" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$todo_path" python3 "$audit_writer"
 
 updated_audit="$(cat "$topic_dir/audit.html" 2>/dev/null || true)"
 updated_todo="$(cat "$todo_path" 2>/dev/null || true)"

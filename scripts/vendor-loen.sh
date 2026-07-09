@@ -7,7 +7,7 @@
 # portable Codex cache used by icodex launch-time marketplace wiring.
 set -euo pipefail
 VENDOR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LOEN_VENDOR_MARKETPLACE="${LOEN_VENDOR_MARKETPLACE:-icodex-local}"
+LOEN_VENDOR_MARKETPLACE="${LOEN_VENDOR_MARKETPLACE:-ikeniborn}"
 
 _loen_manifest_version() { # <manifest>
   python3 - "$1" <<'PY'
@@ -40,6 +40,26 @@ _loen_validate_cache() { # <cache_dir>
   [[ -z "$(find "$cache" -type d -name __pycache__ -print -quit)" ]] || { log_error "generated __pycache__ remained in $cache"; return 1; }
 }
 
+_vendor_loen_remove_legacy_caches() { # <dest_cache_root> <canonical_marketplace>
+  local destroot="$1" canonical="$2" legacy
+  for legacy in iclaude icodex-local; do
+    [[ "$legacy" == "$canonical" ]] && continue
+    rm -rf "$destroot/$legacy/loen"
+    rmdir "$destroot/$legacy" 2>/dev/null || true
+  done
+}
+
+_vendor_loen_remove_stale_versions() { # <dest_cache_root> <marketplace> <current_version>
+  local destroot="$1" marketplace="$2" current_version="$3" root existing
+  root="$destroot/$marketplace/loen"
+  [[ -d "$root" ]] || return 0
+  for existing in "$root"/*; do
+    [[ -d "$existing" ]] || continue
+    [[ "$(basename "$existing")" == "$current_version" ]] && continue
+    rm -rf "$existing"
+  done
+}
+
 _vendor_loen_normalize() { # <src_plugin_dir> <dest_cache_root> [marketplace]
   local src="$1" destroot="$2" marketplace="${3:-$LOEN_VENDOR_MARKETPLACE}"
   local manifest version dest
@@ -56,6 +76,8 @@ _vendor_loen_normalize() { # <src_plugin_dir> <dest_cache_root> [marketplace]
   find "$dest" -type d -name __pycache__ -prune -exec rm -rf {} +
   find "$dest" \( -name .gitignore -o -name '*.pyc' -o -name '.DS_Store' \) -delete
   _loen_validate_cache "$dest"
+  _vendor_loen_remove_stale_versions "$destroot" "$marketplace" "$version"
+  _vendor_loen_remove_legacy_caches "$destroot" "$marketplace"
   printf '%s\n' "$dest"
 }
 

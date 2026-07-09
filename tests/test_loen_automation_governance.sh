@@ -171,7 +171,7 @@ PY
 assert_eq "first automated runs require human review" "OK" "$attempt_status"
 
 printf '{"status":"pass","command":"bash tests/test_loen_automation_governance.sh"}\n' > "$topic_dir/evidence/governance-check.json"
-assert_exit "audit writer runs for governance topic" 0 env LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$tmp/TODO.md" python3 "$audit_writer"
+assert_exit "audit writer runs for governance topic" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$tmp/TODO.md" python3 "$audit_writer"
 audit_text="$(cat "$topic_dir/audit.html" 2>/dev/null || true)"
 assert_contains "audit shows governance section" "$audit_text" "Governance"
 assert_contains "audit shows automation type" "$audit_text" "dependency-audit"

@@ -14,6 +14,7 @@ from typing import Any
 
 
 BLOCK = 2
+TOPIC_RE = re.compile(r"[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,78}[a-z0-9]?")
 
 
 def mode() -> str:
@@ -320,8 +321,39 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
   return data
 
 
-def loop_policy() -> dict[str, Any]:
-  return parse_loop_yaml(read_loop_artifact())
+def loop_policy(topic_value: str | None = None) -> dict[str, Any]:
+  return parse_loop_yaml(read_loop_artifact(topic_value))
+
+
+def _valid_topic_name(candidate: str) -> bool:
+  return bool(TOPIC_RE.fullmatch(candidate))
+
+
+def current_topic() -> str:
+  current = artifact_root() / "current"
+  loop_file = current / "loop.yaml"
+  if not loop_file.is_file():
+    return ""
+  try:
+    loop_text = loop_file.read_text(encoding="utf-8")
+  except (OSError, UnicodeDecodeError):
+    return ""
+  policy = parse_loop_yaml(loop_text)
+  if str(policy.get("status", "")).strip() != "active":
+    return ""
+
+  topic_name = str(policy.get("topic") or "").strip()
+  if _valid_topic_name(topic_name) and (artifact_root() / topic_name / "loop.yaml").is_file():
+    return topic_name
+
+  try:
+    root = artifact_root().resolve()
+    resolved = current.resolve()
+  except OSError:
+    return ""
+  if resolved.parent == root and _valid_topic_name(resolved.name) and (resolved / "loop.yaml").is_file():
+    return resolved.name
+  return ""
 
 
 def stderr(message: str) -> None:
@@ -411,6 +443,37 @@ def is_loen_topic_path(path: str, topic_name: str) -> bool:
   clean = normalize_path(path)
   root = normalize_path(str(artifact_root() / topic_name))
   return clean.startswith(f"docs/loen/{topic_name}/") or clean.startswith(f"{root}/")
+
+
+def topic_from_path(path: str) -> str:
+  clean = normalize_path(path)
+  roots = ["docs/loen", normalize_path(str(artifact_root()))]
+  for root in dict.fromkeys(roots):
+    if not root or not clean.startswith(f"{root}/"):
+      continue
+    rest = clean[len(root) + 1:]
+    candidate = rest.split("/", 1)[0]
+    if _valid_topic_name(candidate):
+      return candidate
+  return ""
+
+
+def event_topic(event: dict[str, Any]) -> str:
+  explicit = topic()
+  if explicit:
+    return explicit
+  for path in extract_paths(event):
+    found = topic_from_path(path)
+    if found:
+      return found
+  current = current_topic()
+  if current:
+    return current
+  return ""
+
+
+def should_run_hook(event: dict[str, Any]) -> bool:
+  return not is_off() and bool(event_topic(event))
 
 
 def shell_command(event: dict[str, Any]) -> str:

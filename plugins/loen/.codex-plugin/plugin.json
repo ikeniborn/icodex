@@ -1,9 +1,9 @@
 {
   "name": "loen",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Loop Engineering workflow assets for bounded planning, action, checking, reflection, repair, research, review, and governance.",
   "author": {
-    "name": "icodex"
+    "name": "ikeniborn"
   },
   "license": "MIT",
   "keywords": [
@@ -21,7 +21,7 @@
     "displayName": "LoEn",
     "shortDescription": "Loop Engineering workflow assets for Codex",
     "longDescription": "LoEn provides source assets for durable loop artifacts, role-specific skills, inert hook scripts, templates, and agent definitions. Installation and runtime enablement are handled by later integration layers.",
-    "developerName": "icodex",
+    "developerName": "ikeniborn",
     "category": "Developer Tools",
     "capabilities": [
       "Interactive",
