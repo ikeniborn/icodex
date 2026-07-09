@@ -115,7 +115,7 @@ digraph brainstorming {
 - Write the validated design (spec) to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
   - (User preferences for spec location override this default)
 - Use elements-of-style:writing-clearly-and-concisely skill if available
-- Commit the design document only after `/check-chain spec <path>` returns `OK` and
+- Commit the design document only after `$check-chain spec <path>` returns `OK` and
   the user approves the generated HTML report.
 
 **Spec Self-Review:**
@@ -132,16 +132,16 @@ Fix any issues inline. No need to re-review — just fix and move on.
 After the spec self-review loop passes, validate the written spec before asking for
 approval:
 
-1. Run `/check-chain spec <path>`.
+1. Run `$check-chain spec <path>`.
 2. If the verdict is `needs_work`, fix the markdown source first, rerun
-   `/check-chain spec <path>`, and do not ask for approval yet.
+   `$check-chain spec <path>`, and do not ask for approval yet.
 3. If the verdict is `OK`, present the generated HTML report as the approval surface.
    Do not ask the user to approve unchecked markdown.
 
 > "Spec checked and report regenerated at `docs/superpowers/reports/<topic>-results.html`. Please review the HTML report and let me know if you want changes before we start writing out the implementation plan."
 
 Wait for the user's response. If they request changes, make them in the markdown source,
-rerun the spec self-review and `/check-chain spec <path>`, then present the regenerated
+rerun the spec self-review and `$check-chain spec <path>`, then present the regenerated
 HTML report again. Only proceed once the user approves the checked report.
 
 After approval, commit the spec document once.
