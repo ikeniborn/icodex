@@ -136,18 +136,18 @@ If you find issues, fix them inline. No need to re-review — just fix and move 
 After saving the plan and completing self-review, validate it before asking for approval
 or offering execution:
 
-1. Run `/check-chain plan <path>`.
+1. Run `$check-chain plan <path>`.
 2. If the verdict is `needs_work`, fix the markdown source first, rerun
-   `/check-chain plan <path>`, and do not ask for approval yet.
+   `$check-chain plan <path>`, and do not ask for approval yet.
 3. If the verdict is `OK`, present the generated HTML report as the approval surface.
    Do not ask the user to approve unchecked markdown.
 4. If the user requests changes, update the markdown source, rerun self-review and
-   `/check-chain plan <path>`, then present the regenerated HTML report again.
+   `$check-chain plan <path>`, then present the regenerated HTML report again.
 5. Only after the user approves the checked HTML report, proceed to Execution Handoff.
 
 ## Execution Handoff
 
-After the plan has passed `/check-chain plan <path>` and the user has approved the
+After the plan has passed `$check-chain plan <path>` and the user has approved the
 generated HTML report, offer execution choice:
 
 **"Plan checked and report approved for `docs/superpowers/plans/<filename>.md`. Two execution options:**

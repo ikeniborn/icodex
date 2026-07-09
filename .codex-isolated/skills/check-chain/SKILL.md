@@ -1,6 +1,6 @@
 ---
 name: check-chain
-description: Use to validate the IDD→SDD chain (intent → spec → plan → result). Triggers on "/check-chain", "check chain", "validate intent/spec/plan/result", and is the remediation the chain-gate hook points to. Runs the whole chain (sequential gate) with no argument, or a single stage with "/check-chain <stage>".
+description: Use to validate the IDD→SDD chain (intent → spec → plan → result). Triggers on "$check-chain", "check chain", and "validate intent/spec/plan/result"; this is the remediation the chain-gate hook points to. Runs the whole chain (sequential gate) with no argument, or a single stage with "$check-chain <stage>".
 ---
 
 # check-chain — unified IDD→SDD chain validator
@@ -26,11 +26,13 @@ Stop rule: any CRITICAL finding, hash mismatch uncertainty, missing artifact, or
 
 ## Invocation & argument parsing
 
+Codex skill form:
+
 ```
-/check-chain                       → whole chain (sequential gate)
-/check-chain <stage>               → that stage only      (stage ∈ intent|spec|plan|result)
-/check-chain <stage> <path>        → that stage, explicit file
-/check-chain <path>                → infer stage from the file's directory, single-stage
+$check-chain                       → whole chain (sequential gate)
+$check-chain <stage>               → that stage only      (stage ∈ intent|spec|plan|result)
+$check-chain <stage> <path>        → that stage, explicit file
+$check-chain <path>                → infer stage from the file's directory, single-stage
 ```
 
 Parse `$ARGUMENTS`:
@@ -66,7 +68,7 @@ recomputed on a hash match — trust the previous run.
 
 Locate the stage artifact by: explicit path arg → by `<topic>` in the stage dir → the
 most-recently-modified file in the stage dir. If not found, report
-«Не найден <stage>. Укажи путь: `/check-chain <stage> path/to/file.md`» and stop.
+«Не найден <stage>. Укажи путь: `$check-chain <stage> path/to/file.md`» and stop.
 
 ### Step 2 — target confirmation & init state
 
@@ -425,7 +427,7 @@ were run, confirmed bugs were fixed, and documentation stayed current.
   find docs/superpowers/intents/ -name "*<topic>*intent.md" 2>/dev/null | head -1
   find docs/superpowers/specs/   -name "*<topic>*design.md" 2>/dev/null | head -1
   ```
-- If the plan is not found — report: «Не найден план. Укажи путь: `/check-chain result path/to/plan.md`» and stop
+- If the plan is not found — report: «Не найден план. Укажи путь: `$check-chain result path/to/plan.md`» and stop
 - If the intent or spec is not found — warn the user, continue with the available documents
 
 #### Step 2. Load the documents
@@ -582,7 +584,7 @@ touch the plan body — it is the merge-gate pass signal for idd-gate).
    `Result` cell `–` (not `done`). Non-empty diff → reconcile; on `OK` close the row.
 5. Print the chain summary and the path to the HTML report.
 
-### Single stage — `/check-chain <stage> [path]`
+### Single stage — `$check-chain <stage> [path]`
 
 Run Step 0–6 for exactly that one stage. This reproduces the former per-command
 behaviour 1:1 (same confirmation, findings, verdicts, frontmatter, HTML tab, TODO cell,
