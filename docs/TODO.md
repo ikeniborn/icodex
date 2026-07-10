@@ -20,3 +20,4 @@
 | icodex-pii-proxy | done | ✓ | ✓ | ✓ | OK | 2026-07-08 | 2026-07-08 | PII proxy complete: OpenAI-only one-run `openai_base_url`, `rules|nlp`, EN/RU NLP update, fail-secure, full suite green |
 | loen-loop-run | done | ✓ | ✓ | ✓ | OK | 2026-07-08 | 2026-07-08 | Guided LoEn start plus runner orchestration through delivery/governance modes; final review fixes verified; wiki updated |
 | icodex-telemetry | done | ✓ | ✓ | ✓ | OK | 2026-07-07 | 2026-07-08 | Hybrid telemetry complete: OTel metadata path + local trusted Langfuse provider route; full suite and gated feasibility probe pass |
+| check-chain-russian-review-summary | in-progress | ✓ | – | – | – | 2026-07-11 |  | Russian terminal review summaries for intent/spec/plan; final HTML remains result-only |
