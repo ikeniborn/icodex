@@ -1,8 +1,6 @@
 # Chain Report (final IDD→SDD result report)
 
-`mode: chain` produces ONE unified report for a whole IDD→SDD task. The report is generated once at `check-chain result`, after implementation evidence exists. Earlier
-`intent`, `spec`, and `plan` validations update frontmatter and `docs/TODO.md` only;
-they do not create or refresh HTML.
+`mode: chain` produces ONE unified HTML report for a whole IDD→SDD task. The HTML report is generated only at `check-chain result`, after implementation evidence exists. Earlier `intent`, `spec`, and `plan` validations update frontmatter and `docs/TODO.md`, then print Russian terminal review summaries for approval; they do not create or refresh HTML.
 
 Default `standalone` mode (no `mode` passed) is unchanged. This file applies only when
 the caller passes `mode: chain`.
@@ -94,10 +92,7 @@ explicit Russian fallback note: `В источнике недостаточно 
 
 ## Review Flow
 
-Intent, spec, and plan review happens from checked markdown plus the validation summary,
-not from HTML. If the user requests changes before implementation, update the relevant
-markdown source first and rerun the relevant `check-chain <stage>` validation. No HTML
-is regenerated until `check-chain result`.
+Before `result`, the user reviews Russian terminal summaries printed by `check-chain intent`, `check-chain spec`, and `check-chain plan`. Feedback before implementation is applied to the English markdown source first, then the relevant `check-chain <stage>` validation is rerun and a fresh Russian terminal summary is printed. No HTML is regenerated until `check-chain result`.
 
 At result time, the final report is the user-facing closeout artifact. If the user
 requests result-report changes, update the underlying markdown, implementation,

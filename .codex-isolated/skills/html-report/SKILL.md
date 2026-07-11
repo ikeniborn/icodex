@@ -74,6 +74,8 @@ It does not read intent, spec, plan, or result markdown sources in chain mode. I
 the complete caller-supplied final report payload to the target path; it does not merge
 stage-owned tabs or preserve older stage panes.
 
+`mode: chain` is the final-result HTML path. It is not used for `intent`, `spec`, or `plan` terminal review summaries. Before implementation, `check-chain` prints Russian terminal summaries directly and keeps English markdown artifacts as the source of truth.
+
 `html-report` chain mode accepts a fully enriched final payload from the caller. That
 payload may include narrative blocks, tables, `<details>`, inline SVG, CSS diagrams, and
 small inline JavaScript. The caller owns all chain semantics.
