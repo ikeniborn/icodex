@@ -133,9 +133,25 @@ Human approval is requested only after this stage returns `OK`. If the verdict i
 OK, fix the markdown source first, rerun this same stage, and keep the artifact
 unapproved.
 
+### Step 4A — docs and wiki consistency
+
+Every stage must check whether its verdict changes documented behavior, architecture,
+workflow, command semantics, approval rules, or user-facing report output. If yes,
+update the repository docs that describe the change before final approval. When the
+iwiki MCP server has a bound domain for this project, update the relevant wiki page
+through `wiki_write_page`, `wiki_update_page`, or `wiki_delete_page`, then run
+`wiki_lint`. Broken refs, stale pages for changed sources, or wiki text that contradicts
+the checked artifact keep the stage at `needs_work`.
+
+For `intent`, `spec`, and `plan`, documentation evidence is recorded in the validation
+summary and frontmatter findings only; do not generate a stage HTML report. For
+`result`, the final chain HTML report must include documentation evidence: changed
+docs/wiki pages, unchanged-with-rationale docs, and the `wiki_lint` result when iwiki
+is bound.
+
 ### Step 4B — Russian terminal review summaries
 
-For `intent`, `spec`, and `plan`, print a Russian terminal review summary after the stage verdict is known. The summary is the user-facing review surface before implementation; it does not replace the English markdown artifact and does not create HTML.
+For `intent`, `spec`, and `plan`, print a Russian terminal review summary after the stage verdict is known, including docs/wiki consistency. The summary is the user-facing review surface before implementation; it does not replace the English markdown artifact and does not create HTML.
 
 English markdown artifacts remain the source of truth for the IDD -> SDD chain. If the user requests changes, fix the English markdown source first, rerun the relevant `check-chain <stage>`, and print a fresh Russian summary.
 
@@ -143,7 +159,7 @@ The Russian summary is not machine-readable gate state, is not written into fron
 
 #### `OK` summary
 
-When the stage returns `OK`, print an approval-oriented summary with these Russian sections:
+When the stage returns `OK` after docs/wiki consistency, print an approval-oriented summary with these Russian sections:
 
 1. `Что проверено` — stage key, artifact path, verdict, and linked artifacts.
 2. `Что означает документ` — concise explanation of the artifact meaning.
@@ -181,22 +197,6 @@ The `intent`, `spec`, and `plan` summaries do not invoke `html-report`; only the
 - `spec`: implementation direction, requirements, acceptance criteria, component and boundary decisions, risks, mitigations, and coverage of linked intent outcomes when available.
 - `plan`: execution order, dependencies, touched artifacts, verification commands, expected evidence, human checkpoints, and coverage of linked spec requirements when available.
 - `result`: no separate terminal approval summary is required because the final Russian HTML report is the closeout artifact.
-
-### Step 4A — docs and wiki consistency
-
-Every stage must check whether its verdict changes documented behavior, architecture,
-workflow, command semantics, approval rules, or user-facing report output. If yes,
-update the repository docs that describe the change before final approval. When the
-iwiki MCP server has a bound domain for this project, update the relevant wiki page
-through `wiki_write_page`, `wiki_update_page`, or `wiki_delete_page`, then run
-`wiki_lint`. Broken refs, stale pages for changed sources, or wiki text that contradicts
-the checked artifact keep the stage at `needs_work`.
-
-For `intent`, `spec`, and `plan`, documentation evidence is recorded in the validation
-summary and frontmatter findings only; do not generate a stage HTML report. For
-`result`, the final chain HTML report must include documentation evidence: changed
-docs/wiki pages, unchanged-with-rationale docs, and the `wiki_lint` result when iwiki
-is bound.
 
 ### Step 5 — Result-only HTML report
 
