@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Итоговый отчёт — check-chain-russian-review-summary — 2026-07-11</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f7f4;
+      --panel: #ffffff;
+      --text: #202124;
+      --muted: #5f6368;
+      --line: #d7d9d2;
+      --accent: #0b6b5b;
+      --accent-2: #8b3a3a;
+      --ok: #0f7b40;
+      --warn: #9a6700;
+      --code: #f1f3f1;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #171917;
+        --panel: #222522;
+        --text: #f1f3ef;
+        --muted: #b8beb6;
+        --line: #3a4039;
+        --accent: #55c7ad;
+        --accent-2: #f09a9a;
+        --ok: #64d68c;
+        --warn: #e6b450;
+        --code: #2d312d;
+      }
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header, main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    header {
+      border-bottom: 1px solid var(--line);
+    }
+    h1, h2, h3 {
+      letter-spacing: 0;
+      line-height: 1.2;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+    h2 {
+      margin: 28px 0 12px;
+      font-size: 21px;
+    }
+    h3 {
+      margin: 18px 0 10px;
+      font-size: 16px;
+    }
+    .meta, .muted {
+      color: var(--muted);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .card, table, details {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .card {
+      padding: 14px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--code);
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .ok {
+      color: var(--ok);
+      font-weight: 700;
+    }
+    .warn {
+      color: var(--warn);
+      font-weight: 700;
+    }
+    code {
+      background: var(--code);
+      padding: 1px 4px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 9px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: var(--code);
+    }
+    tr:last-child td {
+      border-bottom: 0;
+    }
+    details {
+      padding: 12px 14px;
+      margin: 10px 0;
+    }
+    summary {
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+    .step {
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--accent);
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 70px;
+    }
+    .step strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Итоговый отчёт — check-chain-russian-review-summary</h1>
+    <div class="meta">Дата: 2026-07-11 · Вердикт: <span class="ok">OK</span> · План: <code>docs/superpowers/plans/2026-07-11-check-chain-russian-review-summary.md</code></div>
+  </header>
+  <main>
+    <section>
+      <h2>Краткий вывод</h2>
+      <p>Задача выполнена: промежуточные этапы <code>intent</code>, <code>spec</code> и <code>plan</code> теперь описаны как English-source/Russian-review workflow. Английские markdown-артефакты остаются source of truth, а пользователь получает русское терминальное резюме для обсуждения и подтверждения.</p>
+      <p>HTML-отчёт сохранён как финальный артефакт только для <code>check-chain result</code>. Это убирает второй pre-result HTML lifecycle и сохраняет текущий result-only contract.</p>
+    </section>
+
+    <section>
+      <h2>Сверка артефактов</h2>
+      <div class="grid">
+        <div class="card"><span class="badge">intent</span><p>Зафиксировал цель: review на русском без перевода source artifacts и без pre-result HTML.</p></div>
+        <div class="card"><span class="badge">spec</span><p>Описал contract: <code>OK</code> и <code>needs_work</code> summaries, anchors, no-invention rule, result-only HTML.</p></div>
+        <div class="card"><span class="badge">plan</span><p>Пять задач выполнены: test-first, skill docs, report boundary, README, verification/wiki/result.</p></div>
+        <div class="card"><span class="badge">result</span><p>Проверки прошли, wiki обновлена, <code>result_check</code> записан как <code>OK</code>.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Карта процесса</h2>
+      <div class="flow">
+        <div class="step"><strong>Английский артефакт</strong><code>intent</code>/<code>spec</code>/<code>plan</code> остаются исходником.</div>
+        <div class="step"><strong>check-chain</strong>Проверяет stage и печатает русское резюме.</div>
+        <div class="step"><strong>Проверка</strong>Пользователь подтверждает или просит правки.</div>
+        <div class="step"><strong>Правка markdown</strong>Правки идут в English source, затем stage rerun.</div>
+        <div class="step"><strong>Результат</strong>Финальный HTML создаётся после implementation evidence.</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Инвентаризация изменений</h2>
+      <table>
+        <thead>
+          <tr><th>Файл</th><th>Изменение</th><th>Зачем</th><th>Свидетельство</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>.codex-isolated/skills/check-chain/SKILL.md</code></td><td>Добавлен раздел <code>Step 4B</code> для русских terminal summaries.</td><td>Дать русскую review-поверхность до выполнения.</td><td>Focused test: <code>PASS=21 FAIL=0</code>.</td></tr>
+          <tr><td><code>.codex-isolated/skills/html-report/SKILL.md</code></td><td>Уточнено, что <code>mode: chain</code> — final-result HTML path.</td><td>Не допустить pre-result HTML как approval surface.</td><td>Связанные report tests прошли.</td></tr>
+          <tr><td><code>.codex-isolated/skills/html-report/references/chain-report.md</code></td><td>Описан terminal review до result и сохранена compatibility-фраза для существующих tests.</td><td>Согласовать новый workflow со старым result-only contract.</td><td><code>test_chain_report_quality</code> и <code>test_chain_result_report_contract</code> прошли.</td></tr>
+          <tr><td><code>tests/test_check_chain_russian_review_summary.sh</code></td><td>Добавлен focused contract test.</td><td>Зафиксировать expected behavior и запрет regression.</td><td><code>PASS=21 FAIL=0</code>.</td></tr>
+          <tr><td><code>docs/README.ru.md</code></td><td>Добавлен раздел про review flow для IDD -> SDD.</td><td>Объяснить пользователю English artifacts + Russian terminal review.</td><td>Focused test covers README text.</td></tr>
+          <tr><td><code>docs/TODO.md</code></td><td>Topic закрыт как <code>done</code>.</td><td>Синхронизировать task log.</td><td>Row: <code>Result: OK</code>.</td></tr>
+          <tr><td><code>docs/superpowers/*</code></td><td>Добавлены intent, spec, plan и этот result report.</td><td>Сохранить IDD -> SDD chain evidence.</td><td>Frontmatter hashes и <code>result_check</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Покрытие плана</h2>
+      <table>
+        <thead><tr><th>Задача</th><th>Статус</th><th>Свидетельство</th></tr></thead>
+        <tbody>
+          <tr><td>Задача 1: failing contract test</td><td class="ok">Выполнено</td><td>Commit <code>c30d861</code>, ожидаемое начальное падение подтверждено.</td></tr>
+          <tr><td>Задача 2: contract для <code>check-chain</code></td><td class="ok">Выполнено</td><td>Commit <code>e8cad6d</code>, assertions для <code>check-chain</code> прошли.</td></tr>
+          <tr><td>Задача 3: граница <code>html-report</code></td><td class="ok">Выполнено</td><td>Commits <code>fc8e101</code> и <code>6d9def7</code>, связанные tests прошли.</td></tr>
+          <tr><td>Задача 4: workflow в README</td><td class="ok">Выполнено</td><td>Commits <code>72f1168</code> и <code>1abe5c3</code>, focused test прошёл.</td></tr>
+          <tr><td>Задача 5: verification и wiki</td><td class="ok">Выполнено</td><td>Focused, related и full Bash suites прошли; wiki обновлена.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Проверки</h2>
+      <table>
+        <thead><tr><th>Команда</th><th>Результат</th></tr></thead>
+        <tbody>
+          <tr><td><code>bash tests/test_check_chain_russian_review_summary.sh</code></td><td class="ok">PASS=21 FAIL=0</td></tr>
+          <tr><td><code>bash tests/test_chain_report_quality.sh</code></td><td class="ok">PASS=94 FAIL=0</td></tr>
+          <tr><td><code>bash tests/test_chain_result_report_contract.sh</code></td><td class="ok">PASS=16 FAIL=0</td></tr>
+          <tr><td><code>for t in tests/test_*.sh; do bash "$t" || exit 1; done</code></td><td class="ok">exit 0</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Документация и wiki</h2>
+      <p>Документация repository обновлена в <code>docs/README.ru.md</code>. Iwiki page <code>icodex/testing-and-project-state.md</code>, section <code>Superpowers Artifacts</code>, обновлена через MCP и опубликована wiki tool.</p>
+      <p><code>wiki_lint</code> не нашёл broken refs или orphans. Он всё ещё показывает unrelated pre-existing stale/missing-source/advisory items для других pages; они вне scope этой задачи и не противоречат обновлённому workflow.</p>
+    </section>
+
+    <section>
+      <h2>Замечания review</h2>
+      <details>
+        <summary>Итоги review по задачам</summary>
+        <ul>
+          <li>Задачи 1, 2, 3 и 4 прошли spec и quality review gates.</li>
+          <li>В задаче 4 была одна правка формулировки; исправлено commit <code>1abe5c3</code>.</li>
+          <li>Связанные tests нашли regression compatibility-фразы; исправлено commit <code>6d9def7</code>.</li>
+        </ul>
+      </details>
+    </section>
+
+    <section>
+      <h2>Финальный вердикт</h2>
+      <p class="ok">OK: план выполнен, проверки прошли, docs/wiki обновлены, result-only HTML contract сохранён.</p>
+    </section>
+  </main>
+</body>
+</html>

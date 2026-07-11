@@ -1,6 +1,6 @@
 ---
 review:
-  plan_hash: 6eb85afa5df5b657
+  plan_hash: 4f3fb3b051c9f652
   last_run: 2026-07-11
   phases:
     structure: { status: passed }
@@ -12,10 +12,16 @@ review:
 chain:
   intent: docs/superpowers/intents/2026-07-11-check-chain-russian-review-summary-intent.md
   spec: docs/superpowers/specs/2026-07-11-check-chain-russian-review-summary-design.md
+result_check:
+  verdict: OK
+  plan_hash: 4f3fb3b051c9f652
+  last_run: 2026-07-11
+  reviewed: true
+  docs_checked: true
 ---
 # Check-Chain Russian Review Summary Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a documented `check-chain` contract where `intent`, `spec`, and `plan` print Russian terminal review summaries while final HTML remains `result`-only.
 
@@ -41,7 +47,7 @@ chain:
 - Create: `tests/test_check_chain_russian_review_summary.sh`
 - Test: `bash tests/test_check_chain_russian_review_summary.sh`
 
-- [ ] **Step 1: Create the focused test**
+- [x] **Step 1: Create the focused test**
 
 Create `tests/test_check_chain_russian_review_summary.sh` with this exact content:
 
@@ -90,7 +96,7 @@ assert_contains "readme documents final html result" "$readme_ru_text" "итог
 finish
 ```
 
-- [ ] **Step 2: Run the focused test and confirm the expected failure**
+- [x] **Step 2: Run the focused test and confirm the expected failure**
 
 Run:
 
@@ -100,7 +106,7 @@ bash tests/test_check_chain_russian_review_summary.sh
 
 Expected: the command exits non-zero with several `FAIL` lines for the missing Russian terminal summary contract strings.
 
-- [ ] **Step 3: Commit the failing test**
+- [x] **Step 3: Commit the failing test**
 
 Run:
 
@@ -117,7 +123,7 @@ Expected: one commit containing only `tests/test_check_chain_russian_review_summ
 - Modify: `.codex-isolated/skills/check-chain/SKILL.md`
 - Test: `bash tests/test_check_chain_russian_review_summary.sh`
 
-- [ ] **Step 1: Insert the terminal summary section**
+- [x] **Step 1: Insert the terminal summary section**
 
 In `.codex-isolated/skills/check-chain/SKILL.md`, insert this section after `### Step 4 — final verdict` and before `### Step 4A — docs and wiki consistency`:
 
@@ -165,7 +171,7 @@ Do not use external translation services or runtime network calls. The summary i
 The `intent`, `spec`, and `plan` summaries do not invoke `html-report`; only the `result` stage generates or refreshes the chain HTML report.
 ```
 
-- [ ] **Step 2: Clarify stage-specific summary content**
+- [x] **Step 2: Clarify stage-specific summary content**
 
 In the same file, after the section from Step 1, add:
 
@@ -178,7 +184,7 @@ In the same file, after the section from Step 1, add:
 - `result`: no separate terminal approval summary is required because the final Russian HTML report is the closeout artifact.
 ```
 
-- [ ] **Step 3: Run the focused test and confirm partial progress**
+- [x] **Step 3: Run the focused test and confirm partial progress**
 
 Run:
 
@@ -188,7 +194,7 @@ bash tests/test_check_chain_russian_review_summary.sh
 
 Expected: all `check-chain` assertions pass; `html-report`, `chain-report`, and `README.ru.md` assertions still fail.
 
-- [ ] **Step 4: Commit the `check-chain` contract update**
+- [x] **Step 4: Commit the `check-chain` contract update**
 
 Run:
 
@@ -206,7 +212,7 @@ Expected: one commit modifying only `.codex-isolated/skills/check-chain/SKILL.md
 - Modify: `.codex-isolated/skills/html-report/references/chain-report.md`
 - Test: `bash tests/test_check_chain_russian_review_summary.sh`
 
-- [ ] **Step 1: Update `html-report` chain boundary**
+- [x] **Step 1: Update `html-report` chain boundary**
 
 In `.codex-isolated/skills/html-report/SKILL.md`, under `### Chain-mode final payload boundary`, add this paragraph after the first paragraph:
 
@@ -214,7 +220,7 @@ In `.codex-isolated/skills/html-report/SKILL.md`, under `### Chain-mode final pa
 `mode: chain` is the final-result HTML path. It is not used for `intent`, `spec`, or `plan` terminal review summaries. Before implementation, `check-chain` prints Russian terminal summaries directly and keeps English markdown artifacts as the source of truth.
 ```
 
-- [ ] **Step 2: Update `chain-report` caller contract**
+- [x] **Step 2: Update `chain-report` caller contract**
 
 In `.codex-isolated/skills/html-report/references/chain-report.md`, replace the first paragraph with:
 
@@ -222,7 +228,7 @@ In `.codex-isolated/skills/html-report/references/chain-report.md`, replace the 
 `mode: chain` produces ONE unified HTML report for a whole IDD→SDD task. The HTML report is generated only at `check-chain result`, after implementation evidence exists. Earlier `intent`, `spec`, and `plan` validations update frontmatter and `docs/TODO.md`, then print Russian terminal review summaries for approval; they do not create or refresh HTML.
 ```
 
-- [ ] **Step 3: Update `chain-report` review flow**
+- [x] **Step 3: Update `chain-report` review flow**
 
 In the `## Review Flow` section of `.codex-isolated/skills/html-report/references/chain-report.md`, replace the first paragraph with:
 
@@ -230,7 +236,7 @@ In the `## Review Flow` section of `.codex-isolated/skills/html-report/reference
 Before `result`, the user reviews Russian terminal summaries printed by `check-chain intent`, `check-chain spec`, and `check-chain plan`. Feedback before implementation is applied to the English markdown source first, then the relevant `check-chain <stage>` validation is rerun and a fresh Russian terminal summary is printed. No HTML is regenerated until `check-chain result`.
 ```
 
-- [ ] **Step 4: Run the focused test and confirm partial progress**
+- [x] **Step 4: Run the focused test and confirm partial progress**
 
 Run:
 
@@ -240,7 +246,7 @@ bash tests/test_check_chain_russian_review_summary.sh
 
 Expected: `check-chain`, `html-report`, and `chain-report` assertions pass; `README.ru.md` assertions still fail.
 
-- [ ] **Step 5: Commit report-boundary updates**
+- [x] **Step 5: Commit report-boundary updates**
 
 Run:
 
@@ -257,7 +263,7 @@ Expected: one commit modifying only the two `html-report` instruction files.
 - Modify: `docs/README.ru.md`
 - Test: `bash tests/test_check_chain_russian_review_summary.sh`
 
-- [ ] **Step 1: Add the Russian review workflow section**
+- [x] **Step 1: Add the Russian review workflow section**
 
 In `docs/README.ru.md`, add this section after the current introduction and before `## Как работает изоляция`:
 
@@ -271,7 +277,7 @@ In `docs/README.ru.md`, add this section after the current introduction and befo
 Промежуточный HTML для `intent`, `spec` и `plan` не создаётся. Итоговый HTML-отчёт формируется только на `check-chain result`, когда уже есть implementation evidence, diff reconciliation, verification evidence и documentation evidence.
 ```
 
-- [ ] **Step 2: Run the focused test and confirm it passes**
+- [x] **Step 2: Run the focused test and confirm it passes**
 
 Run:
 
@@ -281,7 +287,7 @@ bash tests/test_check_chain_russian_review_summary.sh
 
 Expected: output ends with `FAIL=0`.
 
-- [ ] **Step 3: Commit repository docs update**
+- [x] **Step 3: Commit repository docs update**
 
 Run:
 
@@ -301,7 +307,7 @@ Expected: one commit modifying only `docs/README.ru.md`.
 - Generate through check-chain result: `docs/superpowers/reports/check-chain-russian-review-summary-results.html`
 - Test: focused test and full Bash suite
 
-- [ ] **Step 1: Run the focused test**
+- [x] **Step 1: Run the focused test**
 
 Run:
 
@@ -311,7 +317,7 @@ bash tests/test_check_chain_russian_review_summary.sh
 
 Expected: `PASS` lines for all assertions and final `FAIL=0`.
 
-- [ ] **Step 2: Run related existing report tests**
+- [x] **Step 2: Run related existing report tests**
 
 Run:
 
@@ -322,7 +328,7 @@ bash tests/test_chain_result_report_contract.sh
 
 Expected: both commands exit `0`.
 
-- [ ] **Step 3: Run the full Bash suite**
+- [x] **Step 3: Run the full Bash suite**
 
 Run:
 
@@ -332,7 +338,7 @@ for t in tests/test_*.sh; do bash "$t" || exit 1; done
 
 Expected: command exits `0`. If a pre-existing unrelated failure appears, record the failing test, command output summary, and why it is unrelated before continuing.
 
-- [ ] **Step 4: Update iwiki documentation**
+- [x] **Step 4: Update iwiki documentation**
 
 Use MCP tools:
 
@@ -360,7 +366,7 @@ Intermediate stages do not generate or refresh HTML. The generated HTML report u
 
 Expected: `wiki_lint` reports no broken refs, stale pages, or contradictions for the updated page.
 
-- [ ] **Step 5: Run `check-chain result` for this plan**
+- [x] **Step 5: Run `check-chain result` for this plan**
 
 Invoke the check-chain skill in Codex, not as a shell command:
 
@@ -368,7 +374,7 @@ $check-chain result docs/superpowers/plans/2026-07-11-check-chain-russian-review
 
 Expected: result reconciliation reports all plan steps complete, no open CRITICAL findings, docs/wiki evidence recorded, `result_check.verdict: OK`, `docs/TODO.md` row closed with `Result: OK`, and `docs/superpowers/reports/check-chain-russian-review-summary-results.html` generated.
 
-- [ ] **Step 6: Commit final verification artifacts**
+- [x] **Step 6: Commit final verification artifacts**
 
 Run:
 
