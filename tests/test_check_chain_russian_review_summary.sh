@@ -37,6 +37,6 @@ assert_contains "chain-report markdown feedback loop" "$cr_text" 'Feedback befor
 
 assert_contains "readme documents Russian terminal review" "$readme_ru_text" "русское резюме в терминале"
 assert_contains "readme documents English artifacts" "$readme_ru_text" "английские markdown-артефакты"
-assert_contains "readme documents final html result" "$readme_ru_text" "итоговый HTML-отчёт"
+assert_contains "readme documents final html result" "$readme_ru_text" "HTML-отчёт формируется"
 
 finish

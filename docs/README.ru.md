@@ -15,7 +15,7 @@
 
 Перед выполнением работ пользователь принимает смысл на русском: `check-chain intent`, `check-chain spec` и `check-chain plan` после проверки печатают русское резюме в терминале. Если нужны правки, они вносятся в английский artifact, затем соответствующий `check-chain <stage>` запускается снова и печатает новое резюме.
 
-Промежуточный HTML для `intent`, `spec` и `plan` не создаётся. На `check-chain result` формируется итоговый HTML-отчёт, когда уже есть implementation evidence, diff reconciliation, verification evidence и documentation evidence.
+Промежуточный HTML для `intent`, `spec` и `plan` не создаётся. Итоговый HTML-отчёт формируется только на `check-chain result`, когда уже есть implementation evidence, diff reconciliation, verification evidence и documentation evidence.
 
 ## Как работает изоляция
 
