@@ -1,6 +1,6 @@
 # Chain Report (final IDD→SDD result report)
 
-`mode: chain` produces ONE unified HTML report for a whole IDD→SDD task. The HTML report is generated only at `check-chain result`, after implementation evidence exists. Earlier `intent`, `spec`, and `plan` validations update frontmatter and `docs/TODO.md`, then print Russian terminal review summaries for approval; they do not create or refresh HTML.
+`mode: chain` produces ONE unified HTML report for a whole IDD→SDD task. The HTML report is generated only at `check-chain result`, after implementation evidence exists. The report is generated once at `check-chain result`, after implementation evidence exists. Earlier `intent`, `spec`, and `plan` validations update frontmatter and `docs/TODO.md`, then print Russian terminal review summaries for approval; they do not create or refresh HTML.
 
 Default `standalone` mode (no `mode` passed) is unchanged. This file applies only when
 the caller passes `mode: chain`.
