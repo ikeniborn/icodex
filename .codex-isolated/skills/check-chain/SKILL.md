@@ -149,6 +149,55 @@ summary and frontmatter findings only; do not generate a stage HTML report. For
 docs/wiki pages, unchanged-with-rationale docs, and the `wiki_lint` result when iwiki
 is bound.
 
+### Step 4B — Russian terminal review summaries
+
+For `intent`, `spec`, and `plan`, print a Russian terminal review summary after the stage verdict is known, including docs/wiki consistency. The summary is the user-facing review surface before implementation; it does not replace the English markdown artifact and does not create HTML.
+
+English markdown artifacts remain the source of truth for the IDD -> SDD chain. If the user requests changes, fix the English markdown source first, rerun the relevant `check-chain <stage>`, and print a fresh Russian summary.
+
+The Russian summary is not machine-readable gate state, is not written into frontmatter, and is not consumed by downstream automation. It is explanatory terminal output only.
+
+#### `OK` summary
+
+When the stage returns `OK` after docs/wiki consistency, print an approval-oriented summary with these Russian sections:
+
+1. `Что проверено` — stage key, artifact path, verdict, and linked artifacts.
+2. `Что означает документ` — concise explanation of the artifact meaning.
+3. `Покрытие и связи` — how the artifact covers upstream outcomes, requirements, or plan steps.
+4. `Риски и ограничения` — approval-relevant constraints, hard limits, human checkpoints, and known risks.
+5. `Что нужно подтвердить` — the exact approval question for the user.
+6. `Source anchors` — paths, section names, finding IDs, hashes, or short fragments that make the summary traceable.
+
+The `OK` summary includes `Что нужно подтвердить` because approval is allowed only after the stage passes.
+
+#### `needs_work` summary
+
+When the stage returns `needs_work`, print a blocker-oriented summary with these Russian sections:
+
+1. `Что проверено` — stage key and artifact path.
+2. `Почему этап не прошёл` — open CRITICAL findings and important WARNING findings in Russian.
+3. `Что исправить` — concrete source changes needed before rerun.
+4. `Source anchors` — finding IDs, paths, section names, hashes, or short fragments.
+
+The `needs_work` summary must not ask the user to approve the stage.
+
+#### Summary language and anchors
+
+All explanatory terminal-review text is Russian. Technical terms may remain untranslated when translation would reduce precision: paths, function names, code identifiers, stage keys, hash keys, finding IDs, and short source fragments.
+
+Do not invent requirements, risks, decisions, dependencies, acceptance criteria, or scope in the summary. Every summary statement must be anchored in the current artifact body, linked chain artifacts, frontmatter review state, result evidence when applicable, or conversation context available to the stage.
+
+Do not use external translation services or runtime network calls. The summary is written by the agent from the checked source material.
+
+The `intent`, `spec`, and `plan` summaries do not invoke `html-report`; only the `result` stage generates or refreshes the chain HTML report.
+
+#### Stage-specific summary focus
+
+- `intent`: objective, desired outcomes, health metrics, hard constraints, autonomy zones, stop rules, and what the user approves before design work proceeds.
+- `spec`: implementation direction, requirements, acceptance criteria, component and boundary decisions, risks, mitigations, and coverage of linked intent outcomes when available.
+- `plan`: execution order, dependencies, touched artifacts, verification commands, expected evidence, human checkpoints, and coverage of linked spec requirements when available.
+- `result`: no separate terminal approval summary is required because the final Russian HTML report is the closeout artifact.
+
 ### Step 5 — Result-only HTML report
 
 Intermediate stages (`intent`, `spec`, `plan`) do not invoke `html-report`; they update
