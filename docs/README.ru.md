@@ -9,6 +9,14 @@
 умолчанию** файловая песочница и опциональная маршрутизация через прокси — поэтому Codex не
 трогает ваш домашний каталог или другие проекты, пока вы сами этого не разрешите.
 
+## Review flow для IDD -> SDD
+
+В цепочке `intent -> spec -> plan -> result` английские markdown-артефакты остаются source of truth: именно они проходят проверки, попадают в plan/result reconciliation и читаются агентами.
+
+Перед выполнением работ пользователь принимает смысл на русском: `check-chain intent`, `check-chain spec` и `check-chain plan` после проверки печатают русское резюме в терминале. Если нужны правки, они вносятся в английский artifact, затем соответствующий `check-chain <stage>` запускается снова и печатает новое резюме.
+
+Промежуточный HTML для `intent`, `spec` и `plan` не создаётся. На `check-chain result` формируется итоговый HTML-отчёт, когда уже есть implementation evidence, diff reconciliation, verification evidence и documentation evidence.
+
 ## Как работает изоляция
 
 icodex хранит состояние Codex в двух слоях:
