@@ -155,15 +155,15 @@
     <section>
       <h2>Краткий вывод</h2>
       <p>Задача выполнена: промежуточные этапы <code>intent</code>, <code>spec</code> и <code>plan</code> теперь описаны как процесс «английский источник, русская проверка». Английские markdown-артефакты остаются источником истины, а пользователь получает русское терминальное резюме для обсуждения и подтверждения.</p>
-      <p>HTML-отчёт сохранён как финальный артефакт только для <code>check-chain result</code>. Это убирает второй жизненный цикл HTML до <code>result</code> и сохраняет текущий contract «только результат».</p>
+      <p>HTML-отчёт сохранён как финальный артефакт только для <code>check-chain result</code>. Это убирает второй жизненный цикл HTML до <code>result</code> и сохраняет текущее правило «только результат».</p>
     </section>
 
     <section>
       <h2>Сверка артефактов</h2>
       <div class="grid">
         <div class="card"><span class="badge">intent</span><p>Зафиксировал цель: проверка на русском без перевода исходных артефактов и без HTML до <code>result</code>.</p></div>
-        <div class="card"><span class="badge">spec</span><p>Описал contract: резюме для <code>OK</code> и <code>needs_work</code>, anchors, правило без выдумывания и HTML только на <code>result</code>.</p></div>
-        <div class="card"><span class="badge">plan</span><p>Пять задач выполнены: сначала test, затем skill docs, граница report, README и verification/wiki/result.</p></div>
+        <div class="card"><span class="badge">spec</span><p>Описал контракт: резюме для <code>OK</code> и <code>needs_work</code>, якоря источников, правило без выдумывания и HTML только на <code>result</code>.</p></div>
+        <div class="card"><span class="badge">plan</span><p>Пять задач выполнены: сначала тест, затем документы навыка, граница отчёта, README и проверка wiki/result.</p></div>
         <div class="card"><span class="badge">result</span><p>Проверки прошли, wiki обновлена, <code>result_check</code> записан как <code>OK</code>.</p></div>
       </div>
     </section>
@@ -172,9 +172,9 @@
       <h2>Карта процесса</h2>
       <div class="flow">
         <div class="step"><strong>Английский артефакт</strong><code>intent</code>/<code>spec</code>/<code>plan</code> остаются исходником.</div>
-        <div class="step"><strong>check-chain</strong>Проверяет stage и печатает русское резюме.</div>
+        <div class="step"><strong>check-chain</strong>Проверяет этап и печатает русское резюме.</div>
         <div class="step"><strong>Проверка</strong>Пользователь подтверждает или просит правки.</div>
-        <div class="step"><strong>Правка markdown</strong>Правки идут в английский источник, затем stage запускается снова.</div>
+        <div class="step"><strong>Правка markdown</strong>Правки идут в английский источник, затем этап запускается снова.</div>
         <div class="step"><strong>Результат</strong>Финальный HTML создаётся после свидетельств реализации.</div>
       </div>
     </section>
@@ -186,13 +186,13 @@
           <tr><th>Файл</th><th>Изменение</th><th>Зачем</th><th>Свидетельство</th></tr>
         </thead>
         <tbody>
-          <tr><td><code>.codex-isolated/skills/check-chain/SKILL.md</code></td><td>Добавлен раздел <code>Step 4B</code> для русских терминальных резюме.</td><td>Дать русскую поверхность проверки до выполнения.</td><td>Focused test: <code>PASS=21 FAIL=0</code>.</td></tr>
-          <tr><td><code>.codex-isolated/skills/html-report/SKILL.md</code></td><td>Уточнено, что <code>mode: chain</code> — путь финального HTML на <code>result</code>.</td><td>Не допустить HTML до <code>result</code> как поверхность подтверждения.</td><td>Связанные report tests прошли.</td></tr>
-          <tr><td><code>.codex-isolated/skills/html-report/references/chain-report.md</code></td><td>Описана терминальная проверка до <code>result</code> и сохранена фраза совместимости для существующих tests.</td><td>Согласовать новый процесс со старым contract «только результат».</td><td><code>test_chain_report_quality</code> и <code>test_chain_result_report_contract</code> прошли.</td></tr>
-          <tr><td><code>tests/test_check_chain_russian_review_summary.sh</code></td><td>Добавлен focused contract test.</td><td>Зафиксировать ожидаемое поведение и запретить regression.</td><td><code>PASS=21 FAIL=0</code>.</td></tr>
-          <tr><td><code>docs/README.ru.md</code></td><td>Добавлен раздел про процесс проверки для IDD -> SDD.</td><td>Объяснить пользователю английские артефакты и русскую терминальную проверку.</td><td>Focused test проверяет текст README.</td></tr>
-          <tr><td><code>docs/TODO.md</code></td><td>Topic закрыт как <code>done</code>.</td><td>Синхронизировать task log.</td><td>Row: <code>Result: OK</code>.</td></tr>
-          <tr><td><code>docs/superpowers/*</code></td><td>Добавлены intent, spec, plan и этот result report.</td><td>Сохранить свидетельства IDD -> SDD chain.</td><td>Frontmatter hashes и <code>result_check</code>.</td></tr>
+          <tr><td><code>.codex-isolated/skills/check-chain/SKILL.md</code></td><td>Добавлен раздел <code>Step 4B</code> для русских терминальных резюме.</td><td>Дать русскую поверхность проверки до выполнения.</td><td>Целевой тест: <code>PASS=21 FAIL=0</code>.</td></tr>
+          <tr><td><code>.codex-isolated/skills/html-report/SKILL.md</code></td><td>Уточнено, что <code>mode: chain</code> — путь финального HTML на <code>result</code>.</td><td>Не допустить HTML до <code>result</code> как поверхность подтверждения.</td><td>Связанные тесты отчётов прошли.</td></tr>
+          <tr><td><code>.codex-isolated/skills/html-report/references/chain-report.md</code></td><td>Описана терминальная проверка до <code>result</code> и сохранена фраза совместимости для существующих тестов.</td><td>Согласовать новый процесс со старым правилом «только результат».</td><td><code>test_chain_report_quality</code> и <code>test_chain_result_report_contract</code> прошли.</td></tr>
+          <tr><td><code>tests/test_check_chain_russian_review_summary.sh</code></td><td>Добавлен целевой контрактный тест.</td><td>Зафиксировать ожидаемое поведение и запретить регресс.</td><td><code>PASS=21 FAIL=0</code>.</td></tr>
+          <tr><td><code>docs/README.ru.md</code></td><td>Добавлен раздел про процесс проверки для IDD -> SDD.</td><td>Объяснить пользователю английские артефакты и русскую терминальную проверку.</td><td>Целевой тест проверяет текст README.</td></tr>
+          <tr><td><code>docs/TODO.md</code></td><td>Тема закрыта как <code>done</code>.</td><td>Синхронизировать журнал задач.</td><td>Строка: <code>Result: OK</code>.</td></tr>
+          <tr><td><code>docs/superpowers/*</code></td><td>Добавлены intent, spec, plan и этот финальный отчёт.</td><td>Сохранить свидетельства IDD -> SDD цепочки.</td><td>Хеши frontmatter и <code>result_check</code>.</td></tr>
         </tbody>
       </table>
     </section>
@@ -202,11 +202,11 @@
       <table>
         <thead><tr><th>Задача</th><th>Статус</th><th>Свидетельство</th></tr></thead>
         <tbody>
-          <tr><td>Задача 1: падающий contract test</td><td class="ok">Выполнено</td><td>Commit <code>c30d861</code>, ожидаемое начальное падение подтверждено.</td></tr>
-          <tr><td>Задача 2: contract для <code>check-chain</code></td><td class="ok">Выполнено</td><td>Commit <code>e8cad6d</code>, assertions для <code>check-chain</code> прошли.</td></tr>
-          <tr><td>Задача 3: граница <code>html-report</code></td><td class="ok">Выполнено</td><td>Commits <code>fc8e101</code> и <code>6d9def7</code>, связанные tests прошли.</td></tr>
-          <tr><td>Задача 4: процесс в README</td><td class="ok">Выполнено</td><td>Commits <code>72f1168</code> и <code>1abe5c3</code>, focused test прошёл.</td></tr>
-          <tr><td>Задача 5: verification и wiki</td><td class="ok">Выполнено</td><td>Focused, related и full Bash suites прошли; wiki обновлена.</td></tr>
+          <tr><td>Задача 1: падающий контрактный тест</td><td class="ok">Выполнено</td><td>Коммит <code>c30d861</code>, ожидаемое начальное падение подтверждено.</td></tr>
+          <tr><td>Задача 2: контракт для <code>check-chain</code></td><td class="ok">Выполнено</td><td>Коммит <code>e8cad6d</code>, проверки для <code>check-chain</code> прошли.</td></tr>
+          <tr><td>Задача 3: граница <code>html-report</code></td><td class="ok">Выполнено</td><td>Коммиты <code>fc8e101</code> и <code>6d9def7</code>, связанные тесты прошли.</td></tr>
+          <tr><td>Задача 4: процесс в README</td><td class="ok">Выполнено</td><td>Коммиты <code>72f1168</code> и <code>1abe5c3</code>, целевой тест прошёл.</td></tr>
+          <tr><td>Задача 5: проверка и wiki</td><td class="ok">Выполнено</td><td>Целевые, связанные и полные Bash-наборы тестов прошли; wiki обновлена.</td></tr>
         </tbody>
       </table>
     </section>
@@ -231,20 +231,20 @@
     </section>
 
     <section>
-      <h2>Замечания review</h2>
+      <h2>Замечания ревью</h2>
       <details>
-        <summary>Итоги review по задачам</summary>
+        <summary>Итоги ревью по задачам</summary>
         <ul>
-          <li>Задачи 1, 2, 3 и 4 прошли проверки соответствия spec и качества.</li>
-          <li>В задаче 4 была одна правка формулировки; исправлено commit <code>1abe5c3</code>.</li>
-          <li>Связанные tests нашли regression в compatibility-фразе; исправлено commit <code>6d9def7</code>.</li>
+          <li>Задачи 1, 2, 3 и 4 прошли проверки соответствия спецификации и качества.</li>
+          <li>В задаче 4 была одна правка формулировки; исправлено коммитом <code>1abe5c3</code>.</li>
+          <li>Связанные тесты нашли регресс во фразе совместимости; исправлено коммитом <code>6d9def7</code>.</li>
         </ul>
       </details>
     </section>
 
     <section>
       <h2>Финальный вердикт</h2>
-      <p class="ok">OK: план выполнен, проверки прошли, docs/wiki обновлены, contract HTML только на <code>result</code> сохранён.</p>
+      <p class="ok">OK: план выполнен, проверки прошли, документация/wiki обновлены, правило HTML только на <code>result</code> сохранено.</p>
     </section>
   </main>
 </body>
