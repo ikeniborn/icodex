@@ -26,11 +26,10 @@ You MUST create a task for each of these items and complete them in order:
 3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
 5. **Present design** — in sections scaled to their complexity, get user approval after each section
-6. **Write design doc** — save to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
+6. **Write design doc** — save to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` and commit
 7. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
-8. **Validate written spec** — run `check-chain spec` and fix any validation findings
-9. **User reviews checked spec** — ask user to review the checked spec summary before proceeding
-10. **Transition to implementation** — invoke writing-plans skill to create implementation plan
+8. **User reviews written spec** — ask user to review the spec file before proceeding
+9. **Transition to implementation** — invoke writing-plans skill to create implementation plan
 
 ## Process Flow
 
@@ -45,8 +44,7 @@ digraph brainstorming {
     "User approves design?" [shape=diamond];
     "Write design doc" [shape=box];
     "Spec self-review\n(fix inline)" [shape=box];
-    "Run check-chain spec\n(update frontmatter)" [shape=box];
-    "User reviews checked spec?" [shape=diamond];
+    "User reviews spec?" [shape=diamond];
     "Invoke writing-plans skill" [shape=doublecircle];
 
     "Explore project context" -> "Visual questions ahead?";
@@ -59,11 +57,9 @@ digraph brainstorming {
     "User approves design?" -> "Present design sections" [label="no, revise"];
     "User approves design?" -> "Write design doc" [label="yes"];
     "Write design doc" -> "Spec self-review\n(fix inline)";
-    "Spec self-review\n(fix inline)" -> "Run check-chain spec\n(update frontmatter)";
-    "Run check-chain spec\n(update frontmatter)" -> "Write design doc" [label="needs_work"];
-    "Run check-chain spec\n(update frontmatter)" -> "User reviews checked spec?" [label="OK"];
-    "User reviews checked spec?" -> "Write design doc" [label="changes requested"];
-    "User reviews checked spec?" -> "Invoke writing-plans skill" [label="approved"];
+    "Spec self-review\n(fix inline)" -> "User reviews spec?";
+    "User reviews spec?" -> "Write design doc" [label="changes requested"];
+    "User reviews spec?" -> "Invoke writing-plans skill" [label="approved"];
 }
 ```
 
@@ -115,8 +111,7 @@ digraph brainstorming {
 - Write the validated design (spec) to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
   - (User preferences for spec location override this default)
 - Use elements-of-style:writing-clearly-and-concisely skill if available
-- Commit the design document only after `$check-chain spec <path>` returns `OK` and
-  the user approves the checked spec.
+- Commit the design document to git
 
 **Spec Self-Review:**
 After writing the spec document, look at it with fresh eyes:
@@ -128,23 +123,12 @@ After writing the spec document, look at it with fresh eyes:
 
 Fix any issues inline. No need to re-review — just fix and move on.
 
-**Validation-First User Review Gate:**
-After the spec self-review loop passes, validate the written spec before asking for
-approval:
+**User Review Gate:**
+After the spec review loop passes, ask the user to review the written spec before proceeding:
 
-1. Run `$check-chain spec <path>`.
-2. If the verdict is `needs_work`, fix the markdown source first, rerun
-   `$check-chain spec <path>`, and do not ask for approval yet.
-3. If the verdict is `OK`, present the checked spec summary and markdown path for
-   approval. Do not ask the user to approve unchecked markdown.
+> "Spec written and committed to `<path>`. Please review it and let me know if you want to make any changes before we start writing out the implementation plan."
 
-> "Spec checked at `<path>`. Please review the checked spec summary and let me know if you want changes before we start writing out the implementation plan."
-
-Wait for the user's response. If they request changes, make them in the markdown source,
-rerun the spec self-review and `$check-chain spec <path>`, then present the checked
-summary again. Only proceed once the user approves the checked spec.
-
-After approval, commit the spec document once.
+Wait for the user's response. If they request changes, make them and re-run the spec review loop. Only proceed once the user approves.
 
 **Implementation:**
 
