@@ -57,6 +57,21 @@ Purpose: a single human-readable index of what is being worked on and what is do
 - **Create on demand.** If `docs/TODO.md` is absent, the first `$check-chain <stage>` run creates it with the header row, then appends.
 - **Manual rows are allowed.** A task may be added by hand before any `$check-chain <stage>` run; the skill then updates the matching `<topic>` row instead of duplicating it.
 
+## Task Topic and Thread Title
+
+**Every task must define one canonical `<topic>` before work starts.**
+
+- `<topic>` is a semantic, English, lowercase kebab-case slug: words joined by hyphens, e.g. `thread-title-task-naming-policy`.
+- Use the same `<topic>` across:
+  - thread title;
+  - `docs/TODO.md` `Topic`;
+  - Superpowers chain topic;
+  - git branch suffix: `dev-<topic>`.
+- Do not use vague topics such as `fix`, `update`, `work`, `misc`, `phase1`, or `changes`.
+- Prefer topics that describe the task domain and intended outcome, not just the implementation step.
+- If a branch already exists, derive `<topic>` from the branch suffix unless it is vague.
+- If thread title, TODO topic, chain topic, and branch name disagree, stop and normalize them to one `<topic>` before continuing.
+
 ## Superpowers Chain Order
 
 **For every non-trivial behavior, architecture, CLI/API, or feature change, keep the
