@@ -1,6 +1,6 @@
 ---
 review:
-  plan_hash: 438b6d07b2c6eac7
+  plan_hash: 4390269442ae74b1
   last_run: 2026-07-16
   phases:
     structure: { status: passed }
@@ -33,6 +33,17 @@ chain:
 - Modify `.codex_config.example`: document required settings, optional command override, new optional variables, reranker support, chat/search/seed settings, and generated project-dir behavior.
 - Update iwiki page `iwiki-mcp-integration` after implementation using `wiki_update_page`.
 
+## Result Diff Baseline
+
+Before starting Task 1, store the current branch tip outside the working tree so the result gate can reconcile implementation commits after the plan's intermediate commits:
+
+```bash
+git rev-parse HEAD > .git/icodex-iwiki-reranker-config.result-base
+cat .git/icodex-iwiki-reranker-config.result-base
+```
+
+Expected: prints the commit SHA for the approved plan state. Use this stored SHA in Task 6 as the value after `--since=`.
+
 ## Coverage Matrix
 
 - Spec 3.1 runtime variable support: Task 1 tests, Task 3 implementation.
@@ -48,7 +59,7 @@ chain:
 - Modify: `tests/test_iwiki_env.sh`
 - Test: `tests/test_iwiki_env.sh`
 
-- [ ] **Step 1: Add a failing parser assertion for wrapped reranker config**
+- [ ] **Step 1: Add parser coverage for wrapped reranker config**
 
 Insert this block after the existing raw-key rejection assertions near the top of `tests/test_iwiki_env.sh`:
 
@@ -59,7 +70,7 @@ assert_exit "raw IWIKI_RERANK_MODEL rejected" 1 _config_key_allowed IWIKI_RERANK
 
 Definition of done: the test file explicitly covers a newly supported wrapper key and confirms raw `IWIKI_RERANK_MODEL` remains rejected.
 
-- [ ] **Step 2: Add a failing load_config assertion for raw versus wrapped reranker config**
+- [ ] **Step 2: Add load_config coverage for raw versus wrapped reranker config**
 
 Extend the first temporary config block in `tests/test_iwiki_env.sh` from:
 
@@ -115,10 +126,11 @@ In `tests/test_iwiki_wiring.sh`, after `export ICODEX_IWIKI_LLM_KEY="test-key"`,
 
 ```bash
 export ICODEX_PROJECT_ROOT="$tmp/project-root"
+export ICODEX_IWIKI_PROJECT_DIR="$tmp/wrong-project"
 mkdir -p "$ICODEX_PROJECT_ROOT"
 ```
 
-Definition of done: the main wiring scenario has a deterministic project root available before `ensure_iwiki_wiring` runs.
+Definition of done: the main wiring scenario has a deterministic project root available before `ensure_iwiki_wiring` runs, plus a deliberately wrong manual wrapper value to prove generated project root wins.
 
 - [ ] **Step 2: Add new optional variables to the main wiring scenario**
 
@@ -166,9 +178,10 @@ assert_contains "set optional bfs top k" "$cfg" 'IWIKI_BFS_TOP_K = "11"'
 assert_contains "set optional seed threshold" "$cfg" 'IWIKI_SEED_THRESHOLD = "0.17"'
 assert_contains "set optional write seed threshold" "$cfg" 'IWIKI_WRITE_SEED_THRESHOLD = "0.37"'
 assert_contains "set optional chat model" "$cfg" 'IWIKI_CHAT_MODEL = "chat-test-model"'
+assert_eq "manual project dir ignored" "0" "$(grep -cF "$tmp/wrong-project" "$ICODEX_HOME_DIR/config.toml")"
 ```
 
-Definition of done: generated TOML includes the generated project root and each set representative new optional variable.
+Definition of done: generated TOML includes the generated project root and each set representative new optional variable, and does not include the deliberately wrong `ICODEX_IWIKI_PROJECT_DIR` value.
 
 - [ ] **Step 4: Assert unset optional lines remain absent**
 
@@ -194,6 +207,7 @@ printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
 assert_exit "missing project root -> noop 0" 0 ensure_iwiki_wiring
 assert_eq "guard project: no region" "0" "$(grep -cF '[mcp_servers.iwiki]' "$ICODEX_HOME_DIR/config.toml")"
 export ICODEX_PROJECT_ROOT="$tmp/project-root"
+unset ICODEX_IWIKI_PROJECT_DIR
 ```
 
 Definition of done: missing project root becomes a non-failing no-region case.
@@ -216,7 +230,7 @@ Run:
 bash tests/test_iwiki_wiring.sh
 ```
 
-Expected before Task 3: failure that mentions missing `IWIKI_PROJECT_DIR` or a new optional line not found in generated TOML.
+Expected before Task 3: failure that mentions missing `IWIKI_PROJECT_DIR`, the wrong manual project dir appearing, or a new optional line not found in generated TOML.
 
 ### Task 3: Extend iwiki TOML generation
 
@@ -426,11 +440,12 @@ Definition of done: example documents current supported runtime keys and explici
 Run:
 
 ```bash
-grep -n 'ICODEX_IWIKI_PROJECT_DIR' .codex_config.example || true
-grep -n 'IWIKI_LLM_KEY=.*[^.]' .codex_config.example || true
+grep -n '^[[:space:]]*ICODEX_IWIKI_PROJECT_DIR=' .codex_config.example || true
+grep -n '^[[:space:]]*ICODEX_IWIKI_LLM_KEY=' .codex_config.example || true
+grep -n '^#ICODEX_IWIKI_LLM_KEY=sk-\.\.\.' .codex_config.example
 ```
 
-Expected: first command prints no uncommented key assignment; second command shows only commented placeholder content such as `#ICODEX_IWIKI_LLM_KEY=sk-...`.
+Expected: first two commands print nothing; the third command shows the commented placeholder `#ICODEX_IWIKI_LLM_KEY=sk-...`.
 
 - [ ] **Step 3: Commit example docs**
 
@@ -548,20 +563,26 @@ Expected: changed files are limited to planned implementation files, chain artif
 
 - [ ] **Step 2: Run result gate**
 
-Run the result stage for this plan:
+Print the stored base SHA:
 
 ```bash
-$check-chain result docs/superpowers/plans/2026-07-16-icodex-iwiki-reranker-config.md
+cat .git/icodex-iwiki-reranker-config.result-base
 ```
 
-Expected: result reconciliation marks all plan tasks done, reports no missing required work, and records verification evidence.
+Expected: prints the same SHA stored before Task 1.
+
+Invoke the result stage with `--since=` followed by the exact SHA printed above. This is a Codex skill invocation, not a shell command; the final argument must look like `--since=abc1234` with the stored full SHA value.
+
+Expected: result reconciliation marks all plan tasks done, reports no missing required work, and records verification evidence from the full diff since the stored base SHA.
 
 - [ ] **Step 3: Address result findings if any**
 
 If result gate reports an open critical finding, fix the exact source file named by the finding, rerun the focused verification command named by the finding, and rerun:
 
 ```bash
-$check-chain result docs/superpowers/plans/2026-07-16-icodex-iwiki-reranker-config.md
+cat .git/icodex-iwiki-reranker-config.result-base
 ```
+
+Then rerun the result stage with `--since=` followed by the exact SHA printed above. This is a Codex skill invocation, not a shell command; the final argument must look like `--since=abc1234` with the stored full SHA value.
 
 Expected: result verdict becomes `OK` before branch closeout.
