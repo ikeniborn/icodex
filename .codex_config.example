@@ -154,25 +154,36 @@
 # is assembled at launch from the keys below (see lib/iwiki/iwiki.sh).
 #
 # Command + required tier (iwiki is NOT wired if a required value is missing):
-#   ICODEX_IWIKI_COMMAND    Path to the iwiki-mcp binary. OPTIONAL: auto-detected
-#                           via `command -v iwiki-mcp` (uv-tool launcher on
-#                           ~/.local/bin) when unset. Set for non-standard installs.
-#   ICODEX_IWIKI_BASE_DIR   Personal wiki store path. REQUIRED.
-#   ICODEX_IWIKI_LLM_BASE_URL  Embeddings endpoint base URL. REQUIRED.
-#   ICODEX_IWIKI_LLM_KEY    Secret embeddings API key, forwarded as IWIKI_LLM_KEY
-#                           via the config.toml `env_vars` allowlist. REQUIRED,
-#                           SECRET (git-ignored, chmod 600) — never in a tracked file.
+#   ICODEX_IWIKI_COMMAND       Path to the iwiki-mcp binary. OPTIONAL:
+#                              auto-detected via `command -v iwiki-mcp` when unset.
+#   ICODEX_IWIKI_BASE_DIR      Personal wiki store path. REQUIRED.
+#   ICODEX_IWIKI_LLM_BASE_URL  OpenAI-compatible endpoint base URL. REQUIRED.
+#   ICODEX_IWIKI_LLM_KEY       Secret API key, forwarded as IWIKI_LLM_KEY via
+#                              `env_vars`. REQUIRED, SECRET — never commit a real
+#                              value.
 #
-# Optional tuning (written to the block only if set; otherwise the server default
-# shown applies):
-#   ICODEX_IWIKI_EMBED_MODEL       (default text-embedding-3-small)
-#   ICODEX_IWIKI_EMBED_DIMENSIONS  (default 1536; must match the embed model)
-#   ICODEX_IWIKI_TOP_K             (default 8)
-#   ICODEX_IWIKI_SCORE_THRESHOLD   (default 0.2)
-#   ICODEX_IWIKI_GRAPH_DEPTH       (default 2)
-#   ICODEX_IWIKI_CHUNK_SIZE        (default 512)
-#   ICODEX_IWIKI_CHUNK_OVERLAP     (default 64)
-#   ICODEX_IWIKI_SUMMARY_MAX_CHARS (default 400)
+# Project directory:
+#   IWIKI_PROJECT_DIR is generated from the launched project root. Do not add
+#   ICODEX_IWIKI_PROJECT_DIR here; icodex intentionally ignores that setting so
+#   stale local config cannot point iwiki at the wrong project.
+#
+# Optional passthrough settings (written only if set; otherwise iwiki-mcp uses
+# its own defaults):
+#   ICODEX_IWIKI_EMBED_MODEL              (default text-embedding-3-small)
+#   ICODEX_IWIKI_EMBED_DIMENSIONS         (default 1536; must match embed model)
+#   ICODEX_IWIKI_TOP_K                    (default 8)
+#   ICODEX_IWIKI_SCORE_THRESHOLD          (default 0.2)
+#   ICODEX_IWIKI_SEARCH_MODE              (default hybrid; hybrid|lexical|semantic)
+#   ICODEX_IWIKI_RERANK_MODEL             (default empty; optional reranker model)
+#   ICODEX_IWIKI_GRAPH_DEPTH              (default 2)
+#   ICODEX_IWIKI_SEED_TOP_K               (default 5)
+#   ICODEX_IWIKI_BFS_TOP_K                (default 10)
+#   ICODEX_IWIKI_SEED_THRESHOLD           (default 0.15)
+#   ICODEX_IWIKI_WRITE_SEED_THRESHOLD     (default 0.35)
+#   ICODEX_IWIKI_CHAT_MODEL               (default empty; optional classifier model)
+#   ICODEX_IWIKI_CHUNK_SIZE               (default 512)
+#   ICODEX_IWIKI_CHUNK_OVERLAP            (default 64)
+#   ICODEX_IWIKI_SUMMARY_MAX_CHARS        (default 400)
 #
 #ICODEX_IWIKI_COMMAND=/home/you/.local/bin/iwiki-mcp
 #ICODEX_IWIKI_BASE_DIR=/home/you/Documents/Project/iwiki-personal
@@ -180,3 +191,10 @@
 #ICODEX_IWIKI_LLM_KEY=sk-...
 #ICODEX_IWIKI_EMBED_MODEL=ollama-bge-m3
 #ICODEX_IWIKI_EMBED_DIMENSIONS=1024
+#ICODEX_IWIKI_SEARCH_MODE=hybrid
+#ICODEX_IWIKI_RERANK_MODEL=
+#ICODEX_IWIKI_SEED_TOP_K=5
+#ICODEX_IWIKI_BFS_TOP_K=10
+#ICODEX_IWIKI_SEED_THRESHOLD=0.15
+#ICODEX_IWIKI_WRITE_SEED_THRESHOLD=0.35
+#ICODEX_IWIKI_CHAT_MODEL=

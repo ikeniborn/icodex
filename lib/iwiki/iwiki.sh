@@ -2,31 +2,34 @@
 # Wire the iwiki MCP server into the per-project Codex home config.toml at launch.
 # Always on: a delimited region registers [mcp_servers.iwiki]. The block is built
 # from ICODEX_IWIKI_* config: command falls back to `command -v iwiki-mcp`;
-# IWIKI_BASE_DIR / IWIKI_LLM_BASE_URL and the secret IWIKI_LLM_KEY are required
-# (any unresolved -> warn + skip). Every other IWIKI_* server var is written only
-# when its ICODEX_IWIKI_* is set, else the server default applies. The secret is
-# forwarded via env_vars (mapped by apply_iwiki_env in lib/config/env.sh), never
-# written literally. Mirrors the region mechanism in lib/config/isolated.sh
-# (_sync_agents_base_region).
+# IWIKI_BASE_DIR / IWIKI_LLM_BASE_URL, generated IWIKI_PROJECT_DIR, and the
+# secret IWIKI_LLM_KEY are required (any unresolved -> warn + skip). Every other
+# IWIKI_* server var is written only when its ICODEX_IWIKI_* is set, else the
+# server default applies. The secret is forwarded via env_vars (mapped by
+# apply_iwiki_env in lib/config/env.sh), never written literally. IWIKI_PROJECT_DIR
+# is generated from ICODEX_PROJECT_ROOT so Codex-spawned iwiki-mcp resolves the
+# project .iwiki.toml even when its cwd is CODEX_HOME. Mirrors the region
+# mechanism in lib/config/isolated.sh (_sync_agents_base_region).
 
 _IWIKI_REGION_START="# icodex:iwiki:start"
 _IWIKI_REGION_END="# icodex:iwiki:end"
 
 # Optional IWIKI_* server vars (each has a server-side default). Written only when
 # the matching ICODEX_IWIKI_<NAME> is set. Extend this list to expose new vars.
-_IWIKI_OPTIONAL_VARS="EMBED_MODEL EMBED_DIMENSIONS TOP_K SCORE_THRESHOLD GRAPH_DEPTH CHUNK_SIZE CHUNK_OVERLAP SUMMARY_MAX_CHARS"
+_IWIKI_OPTIONAL_VARS="EMBED_MODEL EMBED_DIMENSIONS TOP_K SCORE_THRESHOLD SEARCH_MODE RERANK_MODEL GRAPH_DEPTH SEED_TOP_K BFS_TOP_K SEED_THRESHOLD WRITE_SEED_THRESHOLD CHAT_MODEL CHUNK_SIZE CHUNK_OVERLAP SUMMARY_MAX_CHARS"
 
 # Emit the [mcp_servers.iwiki] block (without the region markers) from resolved
 # values. command/env_vars precede the [.env] subtable header so they bind to the
 # parent table, not the subtable. Optional vars are appended only when set.
-_iwiki_region_body() { # <command> <base_dir> <llm_base_url>
-  local cmd="$1" base="$2" url="$3" name cfg val
+_iwiki_region_body() { # <command> <base_dir> <llm_base_url> <project_dir>
+  local cmd="$1" base="$2" url="$3" project="$4" name cfg val
   printf '[mcp_servers.iwiki]\n'
   printf 'command = "%s"\n' "$cmd"
   printf 'env_vars = ["IWIKI_LLM_KEY"]\n'
   printf '[mcp_servers.iwiki.env]\n'
   printf 'IWIKI_BASE_DIR = "%s"\n' "$base"
   printf 'IWIKI_LLM_BASE_URL = "%s"\n' "$url"
+  printf 'IWIKI_PROJECT_DIR = "%s"\n' "$project"
   for name in $_IWIKI_OPTIONAL_VARS; do
     cfg="ICODEX_IWIKI_${name}"
     val="${!cfg:-}"
@@ -56,17 +59,18 @@ _iwiki_strip_existing_wiring() { # <config>
 # No-op when ICODEX_HOME_DIR is unset or the config file does not exist.
 ensure_iwiki_wiring() {
   [[ -n "${ICODEX_HOME_DIR:-}" ]] || return 0
-  local file="$ICODEX_HOME_DIR/config.toml" body tmp cmd base url key
+  local file="$ICODEX_HOME_DIR/config.toml" body tmp cmd base url key project
   [[ -f "$file" ]] || return 0
   cmd="${ICODEX_IWIKI_COMMAND:-$(command -v iwiki-mcp || true)}"
   base="${ICODEX_IWIKI_BASE_DIR:-}"
   url="${ICODEX_IWIKI_LLM_BASE_URL:-}"
   key="${ICODEX_IWIKI_LLM_KEY:-${IWIKI_LLM_KEY:-}}"
-  if [[ -z "$cmd" || -z "$base" || -z "$url" || -z "$key" ]]; then
-    log_warn "iwiki: required setting (command/base_dir/llm_base_url/llm_key) unresolved, skipping iwiki wiring"
+  project="${ICODEX_PROJECT_ROOT:-}"
+  if [[ -z "$cmd" || -z "$base" || -z "$url" || -z "$key" || -z "$project" ]]; then
+    log_warn "iwiki: required setting (command/base_dir/llm_base_url/llm_key/project_root) unresolved, skipping iwiki wiring"
     return 0
   fi
-  body="$(_iwiki_region_body "$cmd" "$base" "$url")"
+  body="$(_iwiki_region_body "$cmd" "$base" "$url" "$project")"
   tmp="$(mktemp)"
   _iwiki_strip_existing_wiring "$file" > "$tmp"
   printf '%s\n%s\n%s\n' "$_IWIKI_REGION_START" "$body" "$_IWIKI_REGION_END" >> "$tmp"

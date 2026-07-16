@@ -10,18 +10,24 @@ trap 'rm -rf "$tmp"' EXIT
 # --- _config_key_allowed: ICODEX_IWIKI_* wrapper allowed, raw IWIKI_* rejected ---
 assert_exit "ICODEX_IWIKI_LLM_KEY allowed" 0 _config_key_allowed ICODEX_IWIKI_LLM_KEY
 assert_exit "raw IWIKI_LLM_KEY rejected"   1 _config_key_allowed IWIKI_LLM_KEY
+assert_exit "ICODEX_IWIKI_RERANK_MODEL allowed" 0 _config_key_allowed ICODEX_IWIKI_RERANK_MODEL
+assert_exit "raw IWIKI_RERANK_MODEL rejected" 1 _config_key_allowed IWIKI_RERANK_MODEL
 assert_exit "raw IWIKI_BASE_DIR rejected"  1 _config_key_allowed IWIKI_BASE_DIR
 assert_exit "ICODEX_PROXY still allowed"   0 _config_key_allowed ICODEX_PROXY
 
 # --- load_config exports the wrapper key; raw key in file is ignored ---
 cat > "$cfg" <<'EOF'
 ICODEX_IWIKI_LLM_KEY=sk-secret
+ICODEX_IWIKI_RERANK_MODEL=rerank-test-model
 IWIKI_LLM_KEY=raw-should-be-ignored
+IWIKI_RERANK_MODEL=raw-rerank-should-be-ignored
 EOF
-unset ICODEX_IWIKI_LLM_KEY IWIKI_LLM_KEY
+unset ICODEX_IWIKI_LLM_KEY IWIKI_LLM_KEY ICODEX_IWIKI_RERANK_MODEL IWIKI_RERANK_MODEL
 load_config "$cfg"
-assert_eq "wrapper key loaded"        "sk-secret" "${ICODEX_IWIKI_LLM_KEY:-}"
-assert_eq "raw key in file ignored"   ""          "${IWIKI_LLM_KEY:-}"
+assert_eq "wrapper key loaded"         "sk-secret"         "${ICODEX_IWIKI_LLM_KEY:-}"
+assert_eq "wrapper rerank loaded"      "rerank-test-model" "${ICODEX_IWIKI_RERANK_MODEL:-}"
+assert_eq "raw key in file ignored"    ""                  "${IWIKI_LLM_KEY:-}"
+assert_eq "raw rerank in file ignored" ""                  "${IWIKI_RERANK_MODEL:-}"
 
 # --- apply_iwiki_env: maps wrapper -> IWIKI_LLM_KEY when target unset ---
 unset IWIKI_LLM_KEY; ICODEX_IWIKI_LLM_KEY="sk-secret"

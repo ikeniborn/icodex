@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Итоговый отчёт — icodex-iwiki-reranker-config — 2026-07-16</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --panel-2: #eef2f7;
+      --text: #1b2430;
+      --muted: #566579;
+      --line: #cfd8e3;
+      --accent: #0f766e;
+      --accent-2: #1d4ed8;
+      --ok: #15803d;
+      --warn: #b45309;
+      --bad: #b91c1c;
+      --shadow: 0 10px 24px rgba(15, 23, 42, .08);
+    }
+    [data-theme="dark"] {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-2: #202833;
+      --text: #e6edf3;
+      --muted: #9aa7b5;
+      --line: #303946;
+      --accent: #2dd4bf;
+      --accent-2: #60a5fa;
+      --ok: #4ade80;
+      --warn: #fbbf24;
+      --bad: #f87171;
+      --shadow: 0 10px 24px rgba(0, 0, 0, .28);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header {
+      padding: 28px clamp(16px, 4vw, 48px) 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    main {
+      width: min(1180px, calc(100% - 32px));
+      margin: 24px auto 48px;
+    }
+    h1, h2, h3 { line-height: 1.2; margin: 0 0 12px; }
+    h1 { font-size: clamp(26px, 4vw, 42px); }
+    h2 { font-size: 24px; margin-top: 28px; }
+    h3 { font-size: 18px; margin-top: 20px; }
+    p { margin: 0 0 12px; }
+    code {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 1px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .92em;
+    }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 18px;
+      flex-wrap: wrap;
+    }
+    .button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      margin: 16px 0 22px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+    .badge {
+      display: inline-block;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0;
+      background: var(--panel-2);
+    }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .muted { color: var(--muted); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: var(--panel-2); }
+    tr:last-child td { border-bottom: 0; }
+    details {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin: 14px 0;
+      box-shadow: var(--shadow);
+    }
+    summary { cursor: pointer; font-weight: 700; }
+    .flow {
+      width: 100%;
+      min-height: 120px;
+      margin: 12px 0 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .flow text { fill: var(--text); font-size: 13px; }
+    .flow .box { fill: var(--panel-2); stroke: var(--line); rx: 8; }
+    .flow .line { stroke: var(--accent-2); stroke-width: 2; marker-end: url(#arrow); }
+    .flow .okline { stroke: var(--ok); stroke-width: 2; marker-end: url(#arrow-ok); }
+    .note {
+      border-left: 4px solid var(--accent);
+      background: var(--panel);
+      padding: 12px 14px;
+      margin: 14px 0;
+      border-radius: 0 8px 8px 0;
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <header>
+    <h1>Итоговый отчёт — icodex-iwiki-reranker-config — 2026-07-16</h1>
+    <p>Финальная сверка result для цепочки <code>intent</code> → <code>spec</code> → <code>plan</code> → <code>result</code>.</p>
+    <div class="toolbar">
+      <span class="badge ok">Вердикт result: OK</span>
+      <button class="button" type="button" onclick="toggleTheme()">Переключить тему</button>
+    </div>
+  </header>
+  <main>
+    <section>
+      <h2>Краткий итог</h2>
+      <p>Задача выполнена: icodex теперь передаёт новые необязательные настройки iwiki через существующий шаблон <code>ICODEX_IWIKI_*</code>, генерирует <code>IWIKI_PROJECT_DIR</code> из <code>ICODEX_PROJECT_ROOT</code> и не принимает ручной <code>ICODEX_IWIKI_PROJECT_DIR</code> как источник истины.</p>
+      <p>Секрет <code>IWIKI_LLM_KEY</code> по-прежнему не пишется в TOML: он передаётся только через <code>env_vars = ["IWIKI_LLM_KEY"]</code>. Документация в <code>.codex_config.example</code> и странице iwiki <code>iwiki-mcp-integration</code> обновлена.</p>
+      <p>Фокусные проверки iwiki прошли. Полная suite остановилась на предсуществующем сбое в <code>tests/test_idd_skills.sh</code>; тот же сбой воспроизведён на base <code>946ffd08ea2981315d1c8a6efa835eec488cda89</code>, а diff этой задачи не трогает failing test или Superpowers skill files.</p>
+    </section>
+
+    <section>
+      <h2>Сводка артефактов</h2>
+      <table>
+        <thead><tr><th>Артефакт</th><th>Состояние</th><th>Якорь</th></tr></thead>
+        <tbody>
+          <tr><td>intent</td><td><span class="badge ok">пройден</span></td><td><code>docs/superpowers/intents/2026-07-16-icodex-iwiki-reranker-config-intent.md</code>, hash <code>ab3f6219df317890</code></td></tr>
+          <tr><td>spec</td><td><span class="badge ok">пройден</span></td><td><code>docs/superpowers/specs/2026-07-16-icodex-iwiki-reranker-config-design.md</code>, hash <code>61fc80928ffd0b4d</code></td></tr>
+          <tr><td>plan</td><td><span class="badge ok">пройден</span></td><td><code>docs/superpowers/plans/2026-07-16-icodex-iwiki-reranker-config.md</code>, hash <code>4390269442ae74b1</code></td></tr>
+          <tr><td>result</td><td><span class="badge ok">OK</span></td><td>diff since <code>946ffd08ea2981315d1c8a6efa835eec488cda89</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Сверка плана</h2>
+      <table>
+        <thead><tr><th>Шаг</th><th>Статус</th><th>Свидетельство</th></tr></thead>
+        <tbody>
+          <tr><td>Задача 1 — покрытие env parser</td><td><span class="badge ok">выполнено</span></td><td><code>tests/test_iwiki_env.sh</code>: wrapped <code>ICODEX_IWIKI_RERANK_MODEL</code> загружается, raw <code>IWIKI_RERANK_MODEL</code> отклоняется.</td></tr>
+          <tr><td>Задача 2 — тесты wiring</td><td><span class="badge ok">выполнено</span></td><td><code>tests/test_iwiki_wiring.sh</code>: synthetic project root, новые строки необязательных настроек, guard для missing project-root.</td></tr>
+          <tr><td>Задача 3 — генерация TOML</td><td><span class="badge ok">выполнено</span></td><td><code>lib/iwiki/iwiki.sh</code>: список optional расширен, <code>IWIKI_PROJECT_DIR</code> генерируется, required guard обновлён.</td></tr>
+          <tr><td>Задача 4 — пример config</td><td><span class="badge ok">выполнено</span></td><td><code>.codex_config.example</code>: описаны reranker/search/seed/chat settings и generated project-dir behavior; активной строки секрета нет.</td></tr>
+          <tr><td>Задача 5 — wiki и проверки</td><td><span class="badge ok">выполнено</span></td><td>Страница iwiki <code>icodex/iwiki-mcp-integration</code>; фокусные тесты прошли; оговорка по полной suite записана.</td></tr>
+          <tr><td>Задача 6 — сверка result</td><td><span class="badge ok">выполнено</span></td><td><code>result_check</code>, <code>docs/TODO.md</code>, финальный HTML-отчёт.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Карта изменений</h2>
+      <table>
+        <thead><tr><th>Путь или артефакт</th><th>Что изменилось</th><th>Причина</th><th>Результат и проверка</th></tr></thead>
+        <tbody>
+          <tr><td><code>lib/iwiki/iwiki.sh</code></td><td>Добавлены optional names <code>SEARCH_MODE</code>, <code>RERANK_MODEL</code>, <code>SEED_TOP_K</code>, <code>BFS_TOP_K</code>, <code>SEED_THRESHOLD</code>, <code>WRITE_SEED_THRESHOLD</code>, <code>CHAT_MODEL</code>; добавлен <code>IWIKI_PROJECT_DIR</code>.</td><td>Поддержать новый набор upstream <code>iwiki-mcp</code> и явный project root.</td><td><code>bash tests/test_iwiki_wiring.sh</code> → <code>PASS=47 FAIL=0</code>.</td></tr>
+          <tr><td><code>tests/test_iwiki_env.sh</code></td><td>Проверен путь wrapped/raw rerank key через <code>load_config</code>.</td><td>Зафиксировать границу parser: raw <code>IWIKI_*</code> не принимаются.</td><td><code>bash tests/test_iwiki_env.sh</code> → <code>PASS=14 FAIL=0</code>.</td></tr>
+          <tr><td><code>tests/test_iwiki_wiring.sh</code></td><td>Добавлены проверки generated project dir, новых optionals, missing project-root guard и отсутствия секрета.</td><td>Доказать поведение runtime TOML.</td><td><code>PASS=47 FAIL=0</code>.</td></tr>
+          <tr><td><code>.codex_config.example</code></td><td>Обновлён iwiki block: required keys, optional passthrough keys, generated <code>IWIKI_PROJECT_DIR</code>, ignored manual project-dir key.</td><td>Пользовательская доступность без чтения исходного кода.</td><td>Проверки grep: нет active <code>ICODEX_IWIKI_PROJECT_DIR=</code>, нет active <code>ICODEX_IWIKI_LLM_KEY=</code>, placeholder присутствует.</td></tr>
+          <tr><td>iwiki <code>iwiki-mcp-integration</code></td><td>Обновлены sections <code>Optional Server Variables</code> и <code>Project Binding</code>.</td><td>Документация должна совпадать с поведением runtime.</td><td><code>wiki_lint</code>: <code>broken=[]</code>, <code>orphans=[]</code>.</td></tr>
+          <tr><td><code>docs/TODO.md</code></td><td>Topic закрыт как <code>done</code> / <code>Result: OK</code>.</td><td>Журнал задач должен отражать завершённый result gate.</td><td>Строка <code>icodex-iwiki-reranker-config</code> закрыта датой <code>2026-07-16</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Покрытие intent и spec</h2>
+      <table>
+        <thead><tr><th>Требование</th><th>Свидетельство</th><th>Статус</th></tr></thead>
+        <tbody>
+          <tr><td>Новые <code>ICODEX_IWIKI_*</code> optional vars пишутся только когда set.</td><td><code>_IWIKI_OPTIONAL_VARS</code> и assertions в <code>tests/test_iwiki_wiring.sh</code>.</td><td><span class="badge ok">покрыто</span></td></tr>
+          <tr><td><code>IWIKI_PROJECT_DIR</code> генерируется из project root.</td><td><code>project="${ICODEX_PROJECT_ROOT:-}"</code> и TOML assertion на synthetic root.</td><td><span class="badge ok">покрыто</span></td></tr>
+          <tr><td>Manual <code>ICODEX_IWIKI_PROJECT_DIR</code> не становится источником истины.</td><td>Тест задаёт wrong value и проверяет отсутствие в generated TOML.</td><td><span class="badge ok">покрыто</span></td></tr>
+          <tr><td>Secret handling сохраняется.</td><td><code>env_vars = ["IWIKI_LLM_KEY"]</code>, synthetic secret absent assertion.</td><td><span class="badge ok">покрыто</span></td></tr>
+          <tr><td>Документация совпадает с поведением.</td><td><code>.codex_config.example</code> и страница iwiki обновлены.</td><td><span class="badge ok">покрыто</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Схемы результата</h2>
+      <div class="grid">
+        <div class="card"><h3>Граф сверки diff</h3><p>Задачи плана → изменённые пути → result OK.</p></div>
+        <div class="card"><h3>Карта свидетельств результатов</h3><p>Desired Outcomes из intent → тесты, wiki и evidence из config.</p></div>
+        <div class="card"><h3>Карта лишнего и пропусков</h3><p>Лишних git changes нет. Пропущенной работы плана нет.</p></div>
+        <div class="card"><h3>Карта замечаний code review</h3><p>Критических нет. Важных нет. Незначительные оговорки записаны.</p></div>
+        <div class="card"><h3>Карта изменений</h3><p>Изменённый артефакт → конкретное изменение → evidence.</p></div>
+        <div class="card"><h3>Карта документации</h3><p>Изменённое поведение → <code>.codex_config.example</code> или iwiki page.</p></div>
+        <div class="card"><h3>Карта решений</h3><p>Decision drift отсутствует; intent, spec и plan остаются актуальны.</p></div>
+        <div class="card"><h3>Карта процесса</h3><p>TDD RED → реализация → spec review → проверка качества → docs/wiki → result gate.</p></div>
+      </div>
+      <svg class="flow" viewBox="0 0 960 190" role="img" aria-label="Карта процесса">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent-2)"/></marker>
+          <marker id="arrow-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ok)"/></marker>
+        </defs>
+        <rect class="box" x="30" y="35" width="150" height="70"/><text x="55" y="65">План</text><text x="55" y="88">6 задач</text>
+        <line class="line" x1="180" y1="70" x2="255" y2="70"/>
+        <rect class="box" x="255" y="35" width="170" height="70"/><text x="280" y="65">Diff</text><text x="280" y="88">4 repo paths</text>
+        <line class="line" x1="425" y1="70" x2="500" y2="70"/>
+        <rect class="box" x="500" y="35" width="180" height="70"/><text x="525" y="65">Документация</text><text x="525" y="88">config и iwiki</text>
+        <line class="okline" x1="680" y1="70" x2="755" y2="70"/>
+        <rect class="box" x="755" y="35" width="170" height="70"/><text x="780" y="65">Вердикт</text><text x="780" y="88">OK</text>
+        <path class="line" d="M340 105 C340 150 585 150 585 105"/>
+        <text x="385" y="158">фокусные проверки подтверждают поведение runtime</text>
+      </svg>
+      <table>
+        <thead><tr><th>Диаграмма</th><th>Содержание</th></tr></thead>
+        <tbody>
+          <tr><td>Карта изменений</td><td>Каждый изменённый артефакт связан с причиной и evidence.</td></tr>
+          <tr><td>Карта документационных свидетельств</td><td><code>.codex_config.example</code> и страница iwiki покрывают изменённое поведение.</td></tr>
+          <tr><td>Карта распространения решений</td><td>Decision drift отсутствует; intent/spec/plan остаются актуальны.</td></tr>
+          <tr><td>Карта процесса</td><td>TDD RED → реализация → spec review → проверка качества → docs/wiki → result gate.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Проверки и code review</h2>
+      <table>
+        <thead><tr><th>Проверка</th><th>Результат</th><th>Комментарий</th></tr></thead>
+        <tbody>
+          <tr><td><code>bash tests/test_iwiki_env.sh</code></td><td><span class="badge ok">PASS=14 FAIL=0</span></td><td>Проверяет key filtering и secret env mapping.</td></tr>
+          <tr><td><code>bash tests/test_iwiki_wiring.sh</code></td><td><span class="badge ok">PASS=47 FAIL=0</span></td><td>Проверяет generated TOML, optionals, guards и idempotence.</td></tr>
+          <tr><td><code>bash tests/test_iwiki_binding.sh</code></td><td><span class="badge ok">PASS=14 FAIL=0</span></td><td>Подтверждает сохранение project `.iwiki.toml` ownership.</td></tr>
+          <tr><td><code>for t in tests/test_*.sh; do bash "$t" || exit 1; done</code></td><td><span class="badge warn">остановлен</span></td><td><code>tests/test_idd_skills.sh</code>: <code>PASS=17 FAIL=6</code>; тот же сбой есть на base, поэтому не введён этим diff.</td></tr>
+          <tr><td><code>wiki_lint(domain="icodex")</code></td><td><span class="badge ok">broken=[]; orphans=[]; stale=[]</span></td><td><code>missing_source=[]</code> и <code>legacy_wikilink=[]</code>; остались только старые advisory по длинным lead-секциям вне задачи.</td></tr>
+        </tbody>
+      </table>
+      <details>
+        <summary>Замечания code review</summary>
+        <p>Задачи 1-5 прошли отдельные проверки spec compliance и качества. Открытых Critical или Important замечаний нет. Финальная проверка подтвердила актуальный iwiki state после повторного update и push.</p>
+      </details>
+    </section>
+
+    <section>
+      <h2>Документационные свидетельства</h2>
+      <div class="note">
+        <p><code>wiki_update_page</code> для <code>iwiki-mcp-integration</code>: <code>committed=true</code>, <code>pushed=true</code>. <code>wiki_search</code> на <code>IWIKI_PROJECT_DIR RERANK_MODEL SEARCH_MODE</code> возвращает обновлённую страницу, а <code>wiki_lint</code> не показывает stale или missing source.</p>
+      </div>
+      <table>
+        <thead><tr><th>Поведение</th><th>Документ</th><th>Состояние</th></tr></thead>
+        <tbody>
+          <tr><td>Новые optional server variables и reranker behavior</td><td>iwiki <code>Optional Server Variables</code></td><td><span class="badge ok">обновлено</span></td></tr>
+          <tr><td>Сгенерированный project root для MCP server</td><td>iwiki <code>Project Binding</code></td><td><span class="badge ok">обновлено</span></td></tr>
+          <tr><td>Пользовательский config template</td><td><code>.codex_config.example</code></td><td><span class="badge ok">обновлено</span></td></tr>
+          <tr><td>Live config с секретами</td><td><code>.codex_config</code></td><td><span class="badge ok">не изменялся</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Риски, расхождения и итог</h2>
+      <table>
+        <thead><tr><th>Тип</th><th>Описание</th><th>Решение</th></tr></thead>
+        <tbody>
+          <tr><td>Пропуски плана</td><td>Не найдены.</td><td><span class="badge ok">OK</span></td></tr>
+          <tr><td>Лишние git changes</td><td>Не найдены в diff этого выполнения от base <code>946ffd0</code>; полный PR diff к <code>master</code> также включает более ранний branch commit с <code>.iwiki.toml</code>.</td><td><span class="badge warn">branch-base note</span></td></tr>
+          <tr><td>Полная suite</td><td>Предсуществующий сбой в <code>tests/test_idd_skills.sh</code>.</td><td><span class="badge warn">записано как оговорка</span></td></tr>
+          <tr><td>Публикация wiki</td><td>Обновления iwiki committed и pushed через MCP.</td><td><span class="badge ok">OK</span></td></tr>
+        </tbody>
+      </table>
+      <p><strong>Финальный вердикт:</strong> <span class="badge ok">OK</span>. Шаги плана покрыты, required docs обновлены, focused verification прошла, открытых result blockers нет.</p>
+    </section>
+  </main>
+  <script>
+    function toggleTheme() {
+      var body = document.body;
+      body.setAttribute('data-theme', body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    }
+  </script>
+</body>
+</html>
