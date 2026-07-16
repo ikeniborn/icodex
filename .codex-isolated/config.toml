@@ -12,7 +12,7 @@
 #
 # [model_providers.litellm]
 # name = "litellm"
-# base_url = "https://homelab.ikeniborn.ru/litellm/v1"
+# base_url = "https://homelab.ikeniborn.ru/llm/v1"
 # env_key = "OPENAI_API_KEY"
 
 # --- Superpowers plugin (vendored under .codex-isolated/plugins/cache) ---
