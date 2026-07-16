@@ -13,14 +13,24 @@ source "$ROOT/lib/iwiki/iwiki.sh"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-# Required tier + command driven explicitly. Two optional passthrough vars are set;
-# the other six are unset and must be OMITTED (server default applies).
+# Required tier + command driven explicitly. Optional passthrough vars are set;
+# the absent set below must be OMITTED (server default applies).
 export ICODEX_IWIKI_COMMAND="$tmp/bin/iwiki-mcp"
 export ICODEX_IWIKI_BASE_DIR="$tmp/wiki-base"
 export ICODEX_IWIKI_LLM_BASE_URL="http://test-llm:1234/v1"
 export ICODEX_IWIKI_LLM_KEY="test-key"
+export ICODEX_PROJECT_ROOT="$tmp/project-root"
+export ICODEX_IWIKI_PROJECT_DIR="$tmp/wrong-project"
+mkdir -p "$ICODEX_PROJECT_ROOT"
 export ICODEX_IWIKI_EMBED_MODEL="ollama-bge-m3"
 export ICODEX_IWIKI_TOP_K="5"
+export ICODEX_IWIKI_SEARCH_MODE="semantic"
+export ICODEX_IWIKI_RERANK_MODEL="rerank-test-model"
+export ICODEX_IWIKI_SEED_TOP_K="7"
+export ICODEX_IWIKI_BFS_TOP_K="11"
+export ICODEX_IWIKI_SEED_THRESHOLD="0.17"
+export ICODEX_IWIKI_WRITE_SEED_THRESHOLD="0.37"
+export ICODEX_IWIKI_CHAT_MODEL="chat-test-model"
 unset ICODEX_IWIKI_EMBED_DIMENSIONS ICODEX_IWIKI_SCORE_THRESHOLD \
       ICODEX_IWIKI_GRAPH_DEPTH ICODEX_IWIKI_CHUNK_SIZE \
       ICODEX_IWIKI_CHUNK_OVERLAP ICODEX_IWIKI_SUMMARY_MAX_CHARS
@@ -35,11 +45,22 @@ assert_contains "resolved command"         "$cfg" "command = \"$tmp/bin/iwiki-mc
 assert_contains "env_vars present"         "$cfg" 'env_vars = ["IWIKI_LLM_KEY"]'
 assert_contains "resolved base dir"        "$cfg" "IWIKI_BASE_DIR = \"$tmp/wiki-base\""
 assert_contains "resolved llm url"         "$cfg" 'IWIKI_LLM_BASE_URL = "http://test-llm:1234/v1"'
+assert_contains "resolved project dir"     "$cfg" "IWIKI_PROJECT_DIR = \"$tmp/project-root\""
 assert_contains "set optional embed model" "$cfg" 'IWIKI_EMBED_MODEL = "ollama-bge-m3"'
 assert_contains "set optional top_k"       "$cfg" 'IWIKI_TOP_K = "5"'
+assert_contains "set optional search mode" "$cfg" 'IWIKI_SEARCH_MODE = "semantic"'
+assert_contains "set optional rerank model" "$cfg" 'IWIKI_RERANK_MODEL = "rerank-test-model"'
+assert_contains "set optional seed top k" "$cfg" 'IWIKI_SEED_TOP_K = "7"'
+assert_contains "set optional bfs top k" "$cfg" 'IWIKI_BFS_TOP_K = "11"'
+assert_contains "set optional seed threshold" "$cfg" 'IWIKI_SEED_THRESHOLD = "0.17"'
+assert_contains "set optional write seed threshold" "$cfg" 'IWIKI_WRITE_SEED_THRESHOLD = "0.37"'
+assert_contains "set optional chat model" "$cfg" 'IWIKI_CHAT_MODEL = "chat-test-model"'
+assert_eq "manual project dir ignored" "0" "$(grep -cF "$tmp/wrong-project" "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "unset optional dims absent"    "0" "$(grep -c 'IWIKI_EMBED_DIMENSIONS' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "unset optional chunk absent"   "0" "$(grep -c 'IWIKI_CHUNK_SIZE' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "unset optional summary absent" "0" "$(grep -c 'IWIKI_SUMMARY_MAX_CHARS' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "unset optional graph absent" "0" "$(grep -c 'IWIKI_GRAPH_DEPTH' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "unset optional score absent" "0" "$(grep -c 'IWIKI_SCORE_THRESHOLD' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "secret not written literally"  "0" "$(grep -c 'test-key' "$ICODEX_HOME_DIR/config.toml")"
 assert_contains "original key kept"        "$cfg" 'model = "gpt-5.5"'
 assert_eq "no hardcoded home path" "0" "$(grep -c '/home/ikeniborn' "$ICODEX_HOME_DIR/config.toml")"
@@ -118,6 +139,16 @@ assert_exit "missing key -> noop 0" 0 ensure_iwiki_wiring
 assert_eq "guard key: no region" "0" "$(grep -cF '[mcp_servers.iwiki]' "$ICODEX_HOME_DIR/config.toml")"
 export ICODEX_IWIKI_LLM_KEY="test-key"
 
+# --- guard: missing project root -> no region, returns 0 ---
+unset ICODEX_PROJECT_ROOT
+export ICODEX_HOME_DIR="$tmp/home-guard-project"
+mkdir -p "$ICODEX_HOME_DIR"
+printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
+assert_exit "missing project root -> noop 0" 0 ensure_iwiki_wiring
+assert_eq "guard project: no region" "0" "$(grep -cF '[mcp_servers.iwiki]' "$ICODEX_HOME_DIR/config.toml")"
+export ICODEX_PROJECT_ROOT="$tmp/project-root"
+unset ICODEX_IWIKI_PROJECT_DIR
+
 # --- no-op when home is unset ---
 unset ICODEX_HOME_DIR
 assert_exit "unset home -> noop 0" 0 ensure_iwiki_wiring
@@ -136,7 +167,11 @@ assert_eq "absent config not created" "1" "$([[ -f "$ICODEX_HOME_DIR/config.toml
   export ICODEX_IWIKI_BASE_DIR="$tmp/wiki-base"
   export ICODEX_IWIKI_LLM_BASE_URL="http://test-llm:1234/v1"
   export ICODEX_IWIKI_LLM_KEY="test-key"
+  export ICODEX_PROJECT_ROOT="$tmp/project-root"
   unset ICODEX_IWIKI_EMBED_MODEL ICODEX_IWIKI_EMBED_DIMENSIONS ICODEX_IWIKI_TOP_K \
+        ICODEX_IWIKI_SEARCH_MODE ICODEX_IWIKI_RERANK_MODEL ICODEX_IWIKI_SEED_TOP_K \
+        ICODEX_IWIKI_BFS_TOP_K ICODEX_IWIKI_SEED_THRESHOLD \
+        ICODEX_IWIKI_WRITE_SEED_THRESHOLD ICODEX_IWIKI_CHAT_MODEL \
         ICODEX_IWIKI_SCORE_THRESHOLD ICODEX_IWIKI_GRAPH_DEPTH ICODEX_IWIKI_CHUNK_SIZE \
         ICODEX_IWIKI_CHUNK_OVERLAP ICODEX_IWIKI_SUMMARY_MAX_CHARS
   export ICODEX_HOME_DIR="$tmp/home-sete"
