@@ -21,4 +21,4 @@
 | loen-loop-run | done | ✓ | ✓ | ✓ | OK | 2026-07-08 | 2026-07-08 | Guided LoEn start plus runner orchestration through delivery/governance modes; final review fixes verified; wiki updated |
 | icodex-telemetry | done | ✓ | ✓ | ✓ | OK | 2026-07-07 | 2026-07-08 | Hybrid telemetry complete: OTel metadata path + local trusted Langfuse provider route; full suite and gated feasibility probe pass |
 | check-chain-russian-review-summary | done | ✓ | ✓ | ✓ | OK | 2026-07-11 | 2026-07-11 | Russian terminal review summaries for intent/spec/plan; final HTML remains result-only |
-| icodex-iwiki-reranker-config | in-progress | ✓ | – | – | – | 2026-07-16 |  | Add newer upstream iwiki `ICODEX_IWIKI_*` config and generated `IWIKI_PROJECT_DIR` for Codex MCP wiring |
+| icodex-iwiki-reranker-config | in-progress | ✓ | ✓ | – | – | 2026-07-16 |  | Add newer upstream iwiki `ICODEX_IWIKI_*` config and generated `IWIKI_PROJECT_DIR` for Codex MCP wiring |
