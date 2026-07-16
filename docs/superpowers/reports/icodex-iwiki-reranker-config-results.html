@@ -274,19 +274,19 @@
           <tr><td><code>bash tests/test_iwiki_wiring.sh</code></td><td><span class="badge ok">PASS=47 FAIL=0</span></td><td>Проверяет generated TOML, optionals, guards и idempotence.</td></tr>
           <tr><td><code>bash tests/test_iwiki_binding.sh</code></td><td><span class="badge ok">PASS=14 FAIL=0</span></td><td>Подтверждает сохранение project `.iwiki.toml` ownership.</td></tr>
           <tr><td><code>for t in tests/test_*.sh; do bash "$t" || exit 1; done</code></td><td><span class="badge warn">остановлен</span></td><td><code>tests/test_idd_skills.sh</code>: <code>PASS=17 FAIL=6</code>; тот же сбой есть на base, поэтому не введён этим diff.</td></tr>
-          <tr><td><code>wiki_lint(domain="icodex")</code></td><td><span class="badge ok">broken=[]; orphans=[]</span></td><td>Остались предсуществующие findings: stale, missing_source, legacy_wikilink, missing_frontmatter, long_lead.</td></tr>
+          <tr><td><code>wiki_lint(domain="icodex")</code></td><td><span class="badge ok">broken=[]; orphans=[]; stale=[]</span></td><td><code>missing_source=[]</code> и <code>legacy_wikilink=[]</code>; остались только старые advisory по длинным lead-секциям вне задачи.</td></tr>
         </tbody>
       </table>
       <details>
         <summary>Замечания code review</summary>
-        <p>Задачи 1-5 прошли отдельные проверки spec compliance и качества. Открытых Critical или Important замечаний нет. Неблокирующая оговорка: <code>wiki_sync</code> не опубликован из-за внешней dirty state в iwiki base; локальный wiki update committed.</p>
+        <p>Задачи 1-5 прошли отдельные проверки spec compliance и качества. Открытых Critical или Important замечаний нет. Финальная проверка подтвердила актуальный iwiki state после повторного update и push.</p>
       </details>
     </section>
 
     <section>
       <h2>Документационные свидетельства</h2>
       <div class="note">
-        <p><code>wiki_update_page</code> для <code>Optional Server Variables</code> и <code>Project Binding</code>: <code>committed=true</code>, <code>pushed=false</code>. Причина непубликации: внешняя iwiki base имеет unstaged changes и блокирует pull --rebase. Это не меняет состояние repo branch.</p>
+        <p><code>wiki_update_page</code> для <code>iwiki-mcp-integration</code>: <code>committed=true</code>, <code>pushed=true</code>. <code>wiki_search</code> на <code>IWIKI_PROJECT_DIR RERANK_MODEL SEARCH_MODE</code> возвращает обновлённую страницу, а <code>wiki_lint</code> не показывает stale или missing source.</p>
       </div>
       <table>
         <thead><tr><th>Поведение</th><th>Документ</th><th>Состояние</th></tr></thead>
@@ -305,9 +305,9 @@
         <thead><tr><th>Тип</th><th>Описание</th><th>Решение</th></tr></thead>
         <tbody>
           <tr><td>Пропуски плана</td><td>Не найдены.</td><td><span class="badge ok">OK</span></td></tr>
-          <tr><td>Лишние git changes</td><td>Не найдены; изменённые repo paths соответствуют плану.</td><td><span class="badge ok">OK</span></td></tr>
+          <tr><td>Лишние git changes</td><td>Не найдены в diff этого выполнения от base <code>946ffd0</code>; полный PR diff к <code>master</code> также включает более ранний branch commit с <code>.iwiki.toml</code>.</td><td><span class="badge warn">branch-base note</span></td></tr>
           <tr><td>Полная suite</td><td>Предсуществующий сбой в <code>tests/test_idd_skills.sh</code>.</td><td><span class="badge warn">записано как оговорка</span></td></tr>
-          <tr><td>Публикация wiki</td><td><code>wiki_sync</code> заблокирован внешним dirty state в iwiki base.</td><td><span class="badge warn">не блокирует локальный result</span></td></tr>
+          <tr><td>Публикация wiki</td><td>Обновления iwiki committed и pushed через MCP.</td><td><span class="badge ok">OK</span></td></tr>
         </tbody>
       </table>
       <p><strong>Финальный вердикт:</strong> <span class="badge ok">OK</span>. Шаги плана покрыты, required docs обновлены, focused verification прошла, открытых result blockers нет.</p>
