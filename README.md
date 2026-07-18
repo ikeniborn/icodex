@@ -8,6 +8,22 @@ projects unless you ask it to.
 
 _Russian version / Русская версия: [`docs/README.ru.md`](docs/README.ru.md)._
 
+## Workflow boundaries
+
+IDD->SDD/Superpowers and LoEn are separate workflow systems. Non-trivial
+Superpowers work follows `fix-intent -> check-chain -> brainstorming ->
+writing-plans -> implementation -> check-chain result`. Durable LoEn workspace
+tasks use `loen:loop-*` skills and repository artifacts under `docs/loen/<topic>/`
+instead; a LoEn loop does not require `fix-intent`, `superpowers:*`, or
+`$check-chain` unless the user explicitly chooses the IDD->SDD chain for a
+separate non-LoEn change.
+
+Task naming uses one canonical kebab-case `<topic>` across controlled artifacts:
+`docs/TODO.md`, the Superpowers chain topic or LoEn topic directory, and the
+`dev-<topic>` branch suffix. Thread titles are best-effort only; if the Codex
+surface cannot change or request a UI title, the agent records the chosen topic in
+the conversation and continues.
+
 ## How isolation works
 
 icodex keeps Codex state in two layers:

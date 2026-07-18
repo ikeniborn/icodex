@@ -17,6 +17,22 @@
 
 Промежуточный HTML для `intent`, `spec` и `plan` не создаётся. Итоговый HTML-отчёт формируется только на `check-chain result`, когда уже есть implementation evidence, diff reconciliation, verification evidence и documentation evidence.
 
+## Границы workflow
+
+IDD -> SDD/Superpowers и LoEn — отдельные workflow. Нетри­виальная работа через
+Superpowers идёт по цепочке `fix-intent -> check-chain -> brainstorming ->
+writing-plans -> implementation -> check-chain result`. Устойчивые LoEn-задачи
+используют навыки `loen:loop-*` и артефакты репозитория в `docs/loen/<topic>/`;
+активный LoEn loop сам по себе не требует `fix-intent`, `superpowers:*` или
+`$check-chain`, если пользователь явно не выбирает IDD -> SDD для отдельного
+не-LoEn изменения.
+
+Именование задач использует один canonical kebab-case `<topic>` для управляемых
+артефактов: `docs/TODO.md`, topic цепочки Superpowers или директория LoEn topic,
+и suffix ветки `dev-<topic>`. Thread title — best-effort: если текущая Codex
+поверхность не умеет менять или запрашивать UI-title, агент фиксирует выбранный
+topic в разговоре и продолжает.
+
 ## Как работает изоляция
 
 icodex хранит состояние Codex в двух слоях:

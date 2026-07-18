@@ -128,6 +128,10 @@ assert_eq "pending spec blocks writing-plans SKILL.md read" "2" "$(run_gate "$sk
 skill_bash='{"session_id":"s1","tool_name":"Bash","tool_input":{"cmd":"sed -n '\''1,120p'\'' .codex-isolated/plugins/cache/openai-curated/superpowers/3fdeeb49/skills/writing-plans/SKILL.md"}}'
 assert_eq "pending spec blocks writing-plans bash read" "2" "$(run_gate "$skill_bash")"
 
+# 2c. LoEn workflow skills are not part of the IDD/Superpowers gate.
+loen_skill_read='{"session_id":"s1","tool_name":"Read","tool_input":{"file_path":".codex-isolated/plugins/cache/ikeniborn/loen/0.2.0/skills/loop-start/SKILL.md"}}'
+assert_eq "pending spec allows loen loop-start SKILL.md read" "0" "$(run_gate "$loen_skill_read")"
+
 # 3. apply_patch creating a plan while spec NOT passed -> block (spec->plan gate).
 patch='{"session_id":"s1","tool_name":"apply_patch","tool_input":{"patch":"*** Begin Patch\n*** Add File: docs/superpowers/plans/2026-06-30-foo.md\n+# Plan\n*** End Patch\n"}}'
 assert_eq "apply_patch plan create blocks on unpassed spec" "2" "$(run_gate "$patch")"
