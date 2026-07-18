@@ -59,23 +59,40 @@ Purpose: a single human-readable index of what is being worked on and what is do
 
 ## Task Topic and Thread Title
 
-**Every task must define one canonical `<topic>` before work starts.**
+**Every task must define one canonical `<topic>` before work starts for the
+workflow artifacts the agent can control.**
 
 - `<topic>` is a semantic, English, lowercase kebab-case slug: words joined by hyphens, e.g. `thread-title-task-naming-policy`.
-- Use the same `<topic>` across:
-  - thread title;
+- Use the same `<topic>` across applicable controlled surfaces:
   - `docs/TODO.md` `Topic`;
-  - Superpowers chain topic;
+  - Superpowers chain topic, for IDD->SDD work;
+  - LoEn topic directory, for LoEn loop work;
   - git branch suffix: `dev-<topic>`.
+- Thread title is best-effort only: if the platform exposes a title-control
+  mechanism, set or request the same `<topic>` there. If no such mechanism is
+  available, state the chosen `<topic>` in the conversation and do not block
+  work merely because the UI title cannot be changed.
 - Do not use vague topics such as `fix`, `update`, `work`, `misc`, `phase1`, or `changes`.
 - Prefer topics that describe the task domain and intended outcome, not just the implementation step.
 - If a branch already exists, derive `<topic>` from the branch suffix unless it is vague.
-- If thread title, TODO topic, chain topic, and branch name disagree, stop and normalize them to one `<topic>` before continuing.
+- If controlled artifacts such as TODO topic, chain/LoEn topic, and branch name
+  disagree, stop and normalize them to one `<topic>` before continuing. Do not
+  treat an inaccessible UI thread title as a blocking artifact.
 
 ## Superpowers Chain Order
 
 **For every non-trivial behavior, architecture, CLI/API, or feature change, keep the
-Superpowers workflow gated by `check-chain`:**
+Superpowers workflow gated by `check-chain`, except LoEn loop workspaces:**
+
+**LoEn carve-out:** tasks that start, continue, audit, repair, research, review, or
+govern durable LoEn workspaces through `loen:loop-*` skills use the LoEn lifecycle
+only. Do not run `fix-intent`, `superpowers:brainstorming`,
+`superpowers:writing-plans`, `superpowers:subagent-driven-development`,
+`superpowers:executing-plans`, `superpowers:finishing-a-development-branch`, or
+`$check-chain` merely because a LoEn loop is active. LoEn task state lives in
+`docs/loen/<topic>/` and the global `docs/TODO.md` row uses LoEn stage cells
+(`Intent: n/a`, `Spec: n/a`, `Plan: n/a`) unless the user explicitly chooses the
+IDD->SDD chain for a separate non-LoEn change.
 
 1. `fix-intent` creates or updates `docs/superpowers/intents/*-intent.md`.
 2. `$check-chain intent` validates the intent before any brainstorming starts.

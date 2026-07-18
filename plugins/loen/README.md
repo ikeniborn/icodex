@@ -350,7 +350,9 @@ and `*.pyc`.
 
 LoEn is self-contained and does not depend on other workflow plugins. It writes
 loop state only under `docs/loen/<topic>/` and updates `docs/TODO.md` as the
-global task index. Auto-merge stays disabled by default; only approved
+global task index. The LoEn lifecycle is complete on its own; cross-workflow
+validation is opt-in for separate work. Auto-merge stays disabled by default;
+only approved
 `merge-release` policy may set `governance.auto_merge: true`. LoEn does not
 rewrite protected files or bypass `LOEN_MODE`.
 
