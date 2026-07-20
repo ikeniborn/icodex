@@ -15,9 +15,11 @@ cr_text="$(cat "$CR")"
 report_text="$(cat "$REPORT")"
 
 assert_contains "check-chain documents enriched final payload" "$cc_text" "## Enriched final report payload"
-assert_contains "check-chain documents result-only report step" "$cc_text" "### Step 5 — Result-only HTML report"
+assert_contains "check-chain documents result-only report step" "$cc_text" "### Step 5 — Result-only optional HTML report"
 assert_contains "check-chain forbids intermediate html" "$cc_text" 'Intermediate stages (`intent`, `spec`, `plan`) do not invoke `html-report`'
-assert_contains "check-chain result owns html" "$cc_text" 'Only the `result` stage generates or refreshes the chain HTML report'
+assert_contains "check-chain result owns html offer" "$cc_text" 'Only the `result` stage may offer to generate or refresh the chain HTML report'
+assert_contains "check-chain result asks before html" "$cc_text" 'Ask the user in Russian whether to generate the HTML report'
+assert_contains "check-chain result honors html refusal" "$cc_text" 'If the user declines, do not invoke `html-report`'
 assert_contains "check-chain requires Russian HTML text" "$cc_text" "All HTML report user-facing text is Russian"
 assert_contains "check-chain allows only technical English exceptions" "$cc_text" "English is allowed only for technical terms"
 assert_contains "check-chain translates visible diagram titles" "$cc_text" "visible diagram titles in HTML"
@@ -37,7 +39,7 @@ assert_contains "check-chain result propagates decision changes" "$cc_text" "If 
 assert_contains "check-chain result blocks stale chain docs" "$cc_text" 'Do not write `result_check.verdict: OK` while intent, spec, plan, repository docs, or iwiki describe stale decisions'
 assert_contains "check-chain documents markdown feedback loop" "$cc_text" 'fix the markdown source first and rerun the relevant `check-chain'
 assert_contains "check-chain prohibits invented report content" "$cc_text" "Do not invent requirements, dependencies, decisions, risks, or diagrams"
-assert_contains "check-chain cached result stays rich" "$cc_text" 'Cached quick-exit runs for `result` must regenerate the same full enriched report'
+assert_contains "check-chain cached result asks for report" "$cc_text" 'Cached quick-exit runs for `result` must still ask whether to generate the optional HTML'
 
 for diagram in \
   "Outcome Chain" \
@@ -76,7 +78,8 @@ assert_contains "html-report prohibits English UI copy" "$hr_text" "English visi
 assert_contains "chain-report final blocks" "$cr_text" "Final Report Blocks"
 assert_contains "chain-report mandatory visualizations" "$cr_text" "Mandatory Rich Visualizations"
 assert_contains "chain-report result-only review" "$cr_text" "Review Flow"
-assert_contains "chain-report generated at result" "$cr_text" 'The report is generated once at `check-chain result`'
+assert_contains "chain-report offered at result" "$cr_text" 'The HTML report may be offered only at `check-chain result`'
+assert_contains "chain-report refusal skips generation" "$cr_text" 'If the user declines, no HTML report is generated or refreshed'
 assert_contains "chain-report documents concrete change descriptions" "$cr_text" "concrete Russian description of the specific change made within this task"
 assert_contains "chain-report documents obtained result" "$cr_text" "what result was obtained"
 assert_contains "chain-report requires process diagrams when needed" "$cr_text" "Add process diagrams when workflow"
