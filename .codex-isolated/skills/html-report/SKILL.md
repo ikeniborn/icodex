@@ -40,10 +40,7 @@ Stop rule: missing source data, an external resource requirement, non-self-conta
 5. **Output directory.** Default target is `docs/reports/` in the project where the
    skill runs (the current working directory's project root). If the caller passed an
    EXPLICIT output path, write to that path instead. Create the target directory if it
-   does not exist. Never invent an unrequested path. In `mode: chain`, the caller is the `result` stage. See
-   `references/chain-report.md`; the skill writes
-   the single caller-supplied `<topic>-results.html`; that path is Full zone, NOT a
-   proposal-first default `docs/reports/` file.
+   does not exist. Never invent an unrequested path. In `mode: chain`, the caller is the `result` stage after the user accepts the optional report offer. See `references/chain-report.md`; once invoked, the skill writes the single caller-supplied `<topic>-results.html`; that path is Full zone, NOT a proposal-first default `docs/reports/` file.
 
 If faithful display would require an external resource, **escalate** — do not
 inline-fetch and do not silently drop the element.
@@ -69,12 +66,10 @@ inline-fetch and do not silently drop the element.
 
 ### Chain-mode final payload boundary
 
-In `mode: chain`, `html-report` is the final report renderer for `check-chain result`.
-It does not read intent, spec, plan, or result markdown sources in chain mode. It writes
-the complete caller-supplied final report payload to the target path; it does not merge
-stage-owned tabs or preserve older stage panes.
+In `mode: chain`, `html-report` is the optional final report renderer for
+`check-chain result` after the user accepts report generation. It does not read intent, spec, plan, or result markdown sources in chain mode. It writes the complete caller-supplied final report payload to the target path; it does not merge stage-owned tabs or preserve older stage panes.
 
-`mode: chain` is the final-result HTML path. It is not used for `intent`, `spec`, or `plan` terminal review summaries. Before implementation, `check-chain` prints Russian terminal summaries directly and keeps English markdown artifacts as the source of truth.
+`mode: chain` is the optional final-result HTML path. It is not used for `intent`, `spec`, or `plan` terminal review summaries. Before implementation, `check-chain` prints Russian terminal summaries directly and keeps English markdown artifacts as the source of truth.
 
 `html-report` chain mode accepts a fully enriched final payload from the caller. That
 payload may include narrative blocks, tables, `<details>`, inline SVG, CSS diagrams, and
@@ -101,7 +96,8 @@ external images, and no sibling assets.
    exists, **ask first** before overwriting (proposal-first).
    In `mode: chain`, render the complete final report described in
    `references/chain-report.md` and overwrite the caller-supplied
-   `<topic>-results.html`. Creating or replacing the caller-supplied file is Full zone.
+   `<topic>-results.html`. Creating or replacing the caller-supplied file is Full zone
+   because `check-chain result` already asked the user whether to generate the report.
 7. Report to the user: file path, file size, and any guarded-zone logs (inline script
    used / size warning).
 

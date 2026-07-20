@@ -121,9 +121,17 @@ Phases run strictly sequentially; phase N+1 starts only when phase N has no CRIT
 body. For each finding: dedupe by `section + text + section_hash`; otherwise create
 `id: F-NNN` (monotonic), `phase`, `severity`, `section`, `section_hash`, `fragment`
 (≤140-char quote, `null` for structural), `text`, `fix`, `verdict: open`, `verdict_at: null`.
-Write the updated frontmatter; report the phase; request verdicts (CRITICAL mandatory
-`accepted|wontfix|fixed`, WARNING desirable, INFO optional). All CRITICAL closed →
-`phase.status = passed`; else `in_progress`, stop and ask to fix and rerun.
+Write the updated frontmatter and report the phase. For routine fixable findings, fix the English source instead of asking the user for a verdict, then rerun the same stage.
+Request user verdicts only when a real fork remains or a finding cannot be safely fixed
+from the current source material; CRITICAL forks require `accepted|wontfix|fixed`,
+WARNING forks are desirable, INFO forks are optional. All CRITICAL findings closed or
+fixed → `phase.status = passed`; else `in_progress`, stop and ask for the source fix,
+rerun, or the specific fork clarification.
+
+Review may recurse for every stage: finding -> fix the English source artifact ->
+rerun the same `check-chain <stage>` -> print a fresh Russian summary. Plan review may recurse: finding -> fix the English source artifact -> rerun `check-chain plan` -> print a fresh Russian summary. Ask the user only when a real fork remains:
+contradictory artifacts, disputed scope, an unresolvable human decision, or a
+trade-off that cannot be decided from the current source material.
 
 ### Step 4 — final verdict
 
@@ -145,9 +153,9 @@ the checked artifact keep the stage at `needs_work`.
 
 For `intent`, `spec`, and `plan`, documentation evidence is recorded in the validation
 summary and frontmatter findings only; do not generate a stage HTML report. For
-`result`, the final chain HTML report must include documentation evidence: changed
-docs/wiki pages, unchanged-with-rationale docs, and the `wiki_lint` result when iwiki
-is bound.
+`result`, include documentation evidence in the terminal result summary and, when the
+user asks for an HTML report, in the optional final chain HTML report: changed docs/wiki
+pages, unchanged-with-rationale docs, and the `wiki_lint` result when iwiki is bound.
 
 ### Step 4B — Russian terminal review summaries
 
@@ -189,35 +197,89 @@ Do not invent requirements, risks, decisions, dependencies, acceptance criteria,
 
 Do not use external translation services or runtime network calls. The summary is written by the agent from the checked source material.
 
-The `intent`, `spec`, and `plan` summaries do not invoke `html-report`; only the `result` stage generates or refreshes the chain HTML report.
+The `intent`, `spec`, and `plan` summaries do not invoke `html-report`; only the `result` stage may offer to generate or refresh the chain HTML report.
 
 #### Stage-specific summary focus
 
 - `intent`: objective, desired outcomes, health metrics, hard constraints, autonomy zones, stop rules, and what the user approves before design work proceeds.
 - `spec`: implementation direction, requirements, acceptance criteria, component and boundary decisions, risks, mitigations, and coverage of linked intent outcomes when available.
-- `plan`: execution order, dependencies, touched artifacts, verification commands, expected evidence, human checkpoints, and coverage of linked spec requirements when available.
-- `result`: no separate terminal approval summary is required because the final Russian HTML report is the closeout artifact.
+- `result`: no separate terminal approval summary is required for artifact approval; the result closeout is the terminal verdict plus an optional final Russian HTML report when the user requests it.
 
-### Step 5 — Result-only HTML report
+##### `spec` design review summary
+
+The `spec` stage must challenge the design for errors, completeness, requirement coverage, acceptance criteria, risks, mitigations, and human checkpoints.
+
+For `OK`, the Russian terminal summary must include:
+
+1. `Что проверено` — spec path, linked intent, verdict, and reviewed phase list.
+2. `Найденные ошибки и спорные места` — blocking findings found during this run or a clear statement that no blocking errors remain.
+3. `Что исправлено или доработано` — source-level corrections already made in the review loop, or `ничего не требовалось` when no correction was needed.
+4. `Что будет спроектировано` — expected design decisions, requirements, component boundaries, or workflow changes from the spec, without claiming implementation exists.
+5. `Какие требования будут закрыты` — user tasks, intent outcomes, or requirements covered by the spec.
+6. `Критерии приёмки` — acceptance criteria, DoD, or evidence that will later prove the design is implementable.
+7. `Оставшиеся решения пользователя` — human checkpoints that remain before planning, or `нет`.
+8. `Source anchors` — requirement IDs, section names, finding IDs, hashes, and short fragments.
+
+For `needs_work`, the Russian terminal summary must include:
+
+1. `Что проверено` — spec path, linked intent, and reviewed phases.
+2. `Найденные ошибки и спорные места` — open CRITICAL findings and important WARNING findings.
+3. `Что ещё нужно доработать` — concrete English-source edits required before rerun.
+4. `Каких требований или критериев не хватает` — missing or unsupported requirements, acceptance criteria, risks, mitigations, boundaries, or intent coverage.
+5. `Где нужен пользователь` — exact unresolved fork or clarification, only when the checker cannot decide safely from sources.
+6. `Source anchors` — finding IDs, requirement IDs, section names, hashes, and short fragments.
+
+During `spec`, describe design intent and acceptance criteria only; actual implementation evidence belongs to `result`.
+
+##### `plan` skeptical review summary
+
+The `plan` stage must challenge the plan for errors, completeness, expected outputs, solved problems, verification evidence, and human checkpoints.
+
+For `OK`, the Russian terminal summary must include:
+
+1. `Что проверено` — plan path, linked spec/intent, verdict, and reviewed phase list.
+2. `Найденные ошибки и спорные места` — blocking findings found during this run or a clear statement that no blocking errors remain.
+3. `Что исправлено или доработано` — source-level corrections already made in the review loop, or `ничего не требовалось` when no correction was needed.
+4. `Что будет реализовано` — expected implementation outputs from the plan steps, without claiming they already exist.
+5. `Какие проблемы будут закрыты` — user problems, intent outcomes, or spec requirements covered by the plan.
+6. `Проверка результата` — verification commands and expected evidence after implementation.
+7. `Оставшиеся решения пользователя` — human checkpoints that remain before execution, or `нет`.
+8. `Source anchors` — plan steps, linked requirement IDs or section names, finding IDs, and hashes.
+
+For `needs_work`, the Russian terminal summary must include:
+
+1. `Что проверено` — plan path, linked spec/intent, and reviewed phases.
+2. `Найденные ошибки и спорные места` — open CRITICAL findings and important WARNING findings.
+3. `Что ещё нужно доработать` — concrete English-source edits required before rerun.
+4. `Каких результатов не хватает` — missing or unsupported expected outputs, solved problems, requirements, or verification evidence.
+5. `Где нужен пользователь` — exact unresolved fork or clarification, only when the checker cannot decide safely from sources.
+6. `Source anchors` — finding IDs, plan steps, linked requirement IDs or section names, hashes, and short fragments.
+
+During `plan`, describe expected outcomes only; actual implementation evidence belongs to `result`.
+
+### Step 5 — Result-only optional HTML report
 
 Intermediate stages (`intent`, `spec`, `plan`) do not invoke `html-report`; they update
 frontmatter and `docs/TODO.md` only. Cached quick-exit runs for `intent`, `spec`, and `plan` do not regenerate HTML. This removes per-step HTML work from the IDD→SDD chain.
 
-Only the `result` stage generates or refreshes the chain HTML report. It invokes the
-`html-report` skill (`skill: "html-report"`) with `mode: chain`, output
-`docs/superpowers/reports/<topic>-results.html`, and passes a complete single final
-report for the completed task. Determine `<topic>` from the plan basename minus `.md`,
-strip the `^YYYY-MM-DD-` date prefix, and strip a trailing `-plan` suffix if present;
-fallback to the bare basename.
+HTML report generation is optional even at `result`. Ask the user in Russian whether to generate the HTML report after the result verdict is known. If the user declines, do not invoke `html-report`, do not create or refresh `docs/superpowers/reports/<topic>-results.html`, and finish with the terminal result summary only.
 
-The final report is built from the current intent, spec, plan, result reconciliation,
-review findings, verification evidence, documentation evidence, and TODO row state. It
-is one self-contained Russian HTML file: all visible report text must be Russian-only
-except technical terms, paths, code identifiers, stage keys, hash keys, and short source
-fragments. It may use tabs or sections for readability, but it is generated once from
-the `result` stage, not incrementally by stage-owned tab merges.
+Only the `result` stage may offer to generate or refresh the chain HTML report. When the
+user accepts, invoke the `html-report` skill (`skill: "html-report"`) with
+`mode: chain`, output `docs/superpowers/reports/<topic>-results.html`, and pass a
+complete single final report for the completed task. Determine `<topic>` from the plan
+basename minus `.md`, strip the `^YYYY-MM-DD-` date prefix, and strip a trailing
+`-plan` suffix if present; fallback to the bare basename.
 
-**Final report payload (MANDATORY).** Reconstruct the full block set from current chain
+When generated, the final report is built from the current intent, spec, plan, result
+reconciliation, review findings, verification evidence, documentation evidence, and
+TODO row state. It is one self-contained Russian HTML file: all visible report text must
+be Russian-only except technical terms, paths, code identifiers, stage keys, hash keys,
+and short source fragments. It may use tabs or sections for readability, but it is
+generated only after explicit user acceptance at `result`, not incrementally by
+stage-owned tab merges.
+
+**Final report payload (when accepted).** Reconstruct the full block set from current chain
 artifacts and result evidence:
 
 1. `<h2>` heading — «Итоговый отчёт — <topic> — <last_run>».
@@ -273,11 +335,9 @@ Visible Russian title map for canonical diagram identifiers:
 - Change Inventory Map -> Карта изменений
 - Process Flow Map -> Карта процесса
 
-The generated HTML report is a final closeout artifact at `result`, not the approval
-surface for intermediate `intent`, `spec`, or `plan` stages. Markdown artifacts remain
-the editable source of truth. If the user gives feedback on intent/spec/plan before
-implementation, fix the markdown source first and rerun the relevant `check-chain
-<stage>`; no HTML is regenerated until `check-chain result`.
+The generated HTML report is a final closeout artifact at `result` when the user accepts report generation, not the approval surface for intermediate `intent`, `spec`, or `plan` stages.
+
+Markdown artifacts remain the editable source of truth. If the user gives feedback on intent/spec/plan before implementation, fix the markdown source first and rerun the relevant `check-chain <stage>`; no HTML is offered or regenerated before `check-chain result`.
 
 Do not invent requirements, dependencies, decisions, risks, or diagrams. Every narrative
 sentence and every diagram edge must be anchored in the current artifact body, linked
@@ -338,9 +398,10 @@ Mandatory rich visualizations in the final report:
   - `Decision Propagation Map`: implementation decision drift → intent/spec/plan/doc/wiki updates.
   - `Process Flow Map`: before/after process or approval flow when workflow changed.
 
-Cached quick-exit runs for `result` must regenerate the same full enriched report from
-the current source artifacts, stored frontmatter, and `result_check`, not a thinner
-status-only report.
+Cached quick-exit runs for `result` must still ask whether to generate the optional HTML
+report. If the user accepts, regenerate the same full enriched report from the current
+source artifacts, stored frontmatter, and `result_check`, not a thinner status-only
+report.
 
 ### Step 6 — TODO.md upsert
 
@@ -458,6 +519,10 @@ Closed checklist:
 Closed checklist:
 - Each spec requirement is covered by ≥1 plan step
 - Each plan step is bound to a spec requirement (no "extras")
+- Each plan step names the user problem, intent outcome, or spec requirement it closes;
+  missing closure mapping → WARNING, and closure that contradicts source scope → CRITICAL
+- The plan summary can answer what will be implemented and which problems will be
+  closed without inventing unstated work; unsupported closure claims → CRITICAL
 
 #### Phase 3: dependencies
 
@@ -465,6 +530,10 @@ Closed checklist:
 - Step order: using the result of step M in step N → M < N
 - Cyclic dependencies between steps
 - Artifact availability (a file/function mentioned in a step is created in a previous step)
+- Hidden human decisions: a step depends on user choice, disputed scope, or a
+  proposal-first/no-go autonomy zone but does not mark a HUMAN CHECKPOINT
+- Contradictory artifacts: plan instructions conflict with linked intent/spec/docs/wiki
+  and the conflict is not resolved before execution
 
 #### Phase 4: verifiability
 
@@ -472,12 +541,19 @@ Closed checklist:
 - Each step has a measurable definition of done (DoD)
 - Steps with no explicit result ("work through", "study", "improve" without an output)
 - Steps with no verification command / expected output
+- Each step has a measurable expected output that can appear in result reconciliation
+- Verification evidence is specific enough to prove the expected output after execution
+- The plan distinguishes expected outcomes from actual result evidence
 
 #### Phase 5: consistency
 
 Closed checklist:
 - Use the diff of changed plan/spec sections already computed in Step 2 (init-state) — do NOT recompute hashes
 - Summary of changed sections
+- Plan text that claims implementation is already completed before `result` evidence
+  exists → CRITICAL
+- Repeated user review requests asking for errors, completeness, and final outcomes are
+  answered by the plan summary sections, not by a generic approval prompt only
 
 ### result reconciliation and review
 
@@ -582,11 +658,15 @@ through the chain before result can pass:
 
 Do not write `result_check.verdict: OK` while intent, spec, plan, repository docs, or iwiki describe stale decisions. A stale cross-chain artifact is `CRITICAL`; an intentionally unchanged artifact requires a recorded rationale in the final report.
 
-#### Step 8. Build the report
+#### Step 8. Optional report offer
 
-Emit the single final report through the shared **Step 5 — Result-only HTML report**
-flow (`html-report`, `mode: chain`) with the full final payload. The reconciliation
-content must include:
+After result reconciliation and the terminal verdict, ask the user whether to generate
+the optional final HTML report. If the user declines, skip `html-report` and continue to
+Step 9 with terminal evidence only.
+
+If the user accepts, emit the single final report through the shared **Step 5 —
+Result-only optional HTML report** flow (`html-report`, `mode: chain`) with the full
+final payload. The reconciliation content must include:
 
 - Reconciliation table — one row per plan step → badge `DONE` / `PARTIAL` / `MISSING` /
   `EXCESS` (from reconciliation Step 4), with the matched diff paths.
@@ -601,13 +681,14 @@ content must include:
 - Findings — every `[CRITICAL]` / `[WARNING]` / `[INFO]` from the severity table.
 - Summary — the `verdict` badge (`OK` / `needs_work`).
 
-Do not depend on existing intent / spec / plan report tabs. Build this report from the
-current markdown artifacts and result evidence.
+Do not depend on existing intent / spec / plan report tabs. When the report is
+requested, build it from the current markdown artifacts and result evidence.
 
 #### Step 9. Write the state into the plan frontmatter
 
-After the report, write a machine-readable block into the **plan frontmatter** (do NOT
-touch the plan body — it is the merge-gate pass signal for idd-gate).
+After the optional report decision, write a machine-readable block into the **plan
+frontmatter** (do NOT touch the plan body — it is the merge-gate pass signal for
+idd-gate).
 
 1. Compute the plan body hash via the canonical algorithm (see above).
 2. Determine the verdict: `OK` if there are no open CRITICAL findings, no MISSING plan
@@ -643,16 +724,16 @@ touch the plan body — it is the merge-gate pass signal for idd-gate).
 3. For each stage in `[intent, spec, plan, result]`:
    - artifact absent → record it (`Intent: n/a` etc.) and continue;
    - Step 0 quick-exit passes → `✓ cached`, continue;
-   - else run the stage's full Step 1–6 (findings → verdicts → frontmatter → TODO cell; only `result` generates the final HTML report);
+   - else run the stage's full Step 1–6 (findings → verdicts → frontmatter → TODO cell; only `result` may offer the optional final HTML report);
    - stage ends `needs_work` (open CRITICAL) → STOP: «chain остановлен на `<stage>`,
      почини и перезапусти». Do not run downstream stages.
 4. `result` needs a `git diff`. Reached with an empty diff → emit INFO
    «result pending implementation», chain verdict «OK up to plan», leave the TODO
    `Result` cell `–` (not `done`). Non-empty diff → reconcile; on `OK` close the row.
-5. Print the chain summary and, when `result` ran, the path to the final HTML report.
+5. Print the chain summary and, when `result` ran and the user accepted the report, the path to the final HTML report.
 
 ### Single stage — `$check-chain <stage> [path]`
 
 Run Step 0–6 for exactly that one stage. `intent`, `spec`, and `plan` write validation
-frontmatter plus the TODO cell and do not generate HTML. `result` additionally writes
-the single final report for the completed task.
+frontmatter plus the TODO cell and do not generate HTML. `result` additionally offers
+the optional single final report for the completed task.

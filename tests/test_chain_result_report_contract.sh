@@ -30,14 +30,17 @@ BR="$(cat "$SP/brainstorming/SKILL.md")"
 WP="$(cat "$SP/writing-plans/SKILL.md")"
 
 assert_contains "check-chain forbids intermediate HTML reports" "$CC" 'Intermediate stages (`intent`, `spec`, `plan`) do not invoke `html-report`'
-assert_contains "check-chain result owns final report" "$CC" 'Only the `result` stage generates or refreshes the chain HTML report'
+assert_contains "check-chain result owns optional final report" "$CC" 'Only the `result` stage may offer to generate or refresh the chain HTML report'
+assert_contains "check-chain result asks before final report" "$CC" 'Ask the user in Russian whether to generate the HTML report'
+assert_contains "check-chain result skips declined final report" "$CC" 'If the user declines, do not invoke `html-report`'
 assert_contains "check-chain final report covers whole task" "$CC" "single final report for the completed task"
 assert_contains "check-chain final report describes concrete changes" "$CC" "concrete Russian description of the specific change made within this task"
 assert_contains "check-chain final report records obtained result" "$CC" "what result was obtained"
 assert_contains "check-chain final report requires process diagrams when needed" "$CC" "Add process diagrams when workflow"
 assert_contains "check-chain cached non-result stays markdown-only" "$CC" 'Cached quick-exit runs for `intent`, `spec`, and `plan` do not regenerate HTML'
 assert_contains "html-report documents result-only chain mode" "$HR" 'In `mode: chain`, the caller is the `result` stage'
-assert_contains "chain-report documents result-only generation" "$CR" 'The report is generated once at `check-chain result`'
+assert_contains "chain-report documents result-only offer" "$CR" 'The HTML report may be offered only at `check-chain result`'
+assert_contains "chain-report documents declined report skip" "$CR" 'If the user declines, no HTML report is generated or refreshed'
 assert_contains "chain-report documents concrete change descriptions" "$CR" "concrete Russian description of the specific change made within this task"
 
 assert_not_contains "fix-intent does not require generated HTML approval" "$FI" "generated HTML report"

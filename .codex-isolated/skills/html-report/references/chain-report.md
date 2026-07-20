@@ -1,13 +1,13 @@
 # Chain Report (final IDD→SDD result report)
 
-`mode: chain` produces ONE unified HTML report for a whole IDD→SDD task. The HTML report is generated only at `check-chain result`, after implementation evidence exists. The report is generated once at `check-chain result`, after implementation evidence exists. Earlier `intent`, `spec`, and `plan` validations update frontmatter and `docs/TODO.md`, then print Russian terminal review summaries for approval; they do not create or refresh HTML.
+`mode: chain` produces ONE unified HTML report for a whole IDD→SDD task when the user accepts the result-stage report offer. The HTML report may be offered only at `check-chain result`, after implementation evidence exists. If the user declines, no HTML report is generated or refreshed. Earlier `intent`, `spec`, and `plan` validations update frontmatter and `docs/TODO.md`, then print Russian terminal review summaries for approval; they do not create or refresh HTML.
 
 Default `standalone` mode (no `mode` passed) is unchanged. This file applies only when
 the caller passes `mode: chain`.
 
 ## Caller Contract
 
-The caller is `check-chain result`. It invokes the skill with:
+The caller is `check-chain result` after the user accepts the optional report offer. It invokes the skill with:
 
 - `mode: chain` — selects this code path.
 - `target: docs/superpowers/reports/<topic>-results.html` — the final report file.
@@ -17,7 +17,7 @@ The caller is `check-chain result`. It invokes the skill with:
 
 The skill never reads chain sources itself; all report content arrives inline. It may
 overwrite an existing caller-supplied `target` without asking because the target is an
-explicit regenerated artifact.
+explicit regenerated artifact requested through the result-stage report offer.
 
 ## Final Report Blocks
 
@@ -94,10 +94,11 @@ explicit Russian fallback note: `В источнике недостаточно 
 
 Before `result`, the user reviews Russian terminal summaries printed by `check-chain intent`, `check-chain spec`, and `check-chain plan`. Feedback before implementation is applied to the English markdown source first, then the relevant `check-chain <stage>` validation is rerun and a fresh Russian terminal summary is printed. No HTML is regenerated until `check-chain result`.
 
-At result time, the final report is the user-facing closeout artifact. If the user
-requests result-report changes, update the underlying markdown, implementation,
-verification evidence, docs, or wiki source first, rerun the affected checks, then
-regenerate the final report with `check-chain result`.
+At result time, ask the user whether to generate the final report. If the user declines,
+finish with the terminal result summary and do not invoke `html-report`. If the user
+accepts and later requests result-report changes, update the underlying markdown,
+implementation, verification evidence, docs, or wiki source first, rerun the affected
+checks, then offer to regenerate the final report with `check-chain result`.
 
 Small inline JavaScript may support filtering, highlighting, expand/collapse controls,
 or local search, but the report must remain readable without JavaScript. Never add CDN
@@ -146,6 +147,7 @@ acceptable. The renderer may use this high-level skeleton:
 
 ## Autonomy
 
-The unified `target` is caller-supplied ⇒ **Full** zone: create or replace it without a
-proposal-first pause. The proposal-first overwrite rule applies only when the skill
-chooses the default `docs/reports/` path with no explicit caller path.
+The unified `target` is caller-supplied after a result-stage report offer ⇒ **Full**
+zone: create or replace it without a second proposal-first pause. The proposal-first
+overwrite rule applies only when the skill chooses the default `docs/reports/` path with
+no explicit caller path.

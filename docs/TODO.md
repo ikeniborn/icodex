@@ -22,3 +22,4 @@
 | icodex-telemetry | done | ✓ | ✓ | ✓ | OK | 2026-07-07 | 2026-07-08 | Hybrid telemetry complete: OTel metadata path + local trusted Langfuse provider route; full suite and gated feasibility probe pass |
 | check-chain-russian-review-summary | done | ✓ | ✓ | ✓ | OK | 2026-07-11 | 2026-07-11 | Russian terminal review summaries for intent/spec/plan; final HTML remains result-only |
 | icodex-iwiki-reranker-config | done | ✓ | ✓ | ✓ | OK | 2026-07-16 | 2026-07-16 | Added newer upstream iwiki `ICODEX_IWIKI_*` config and generated `IWIKI_PROJECT_DIR`; focused iwiki tests pass; full suite has unrelated pre-existing `test_idd_skills` failure |
+| check-chain-plan-review-summary | done | ✓ | ✓ | ✓ | OK | 2026-07-20 | 2026-07-20 | Strengthened `check-chain spec`/`plan` reviews and made result HTML optional by user request |
