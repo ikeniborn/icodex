@@ -188,10 +188,58 @@ Test: every changed line must trace directly to the user's request.
 - **When creating a `dev-*` branch, check existing local `dev-*` branches first.**
   - **No existing `dev-*` branch** → do not offer or create a worktree; create the branch in the main worktree.
   - **Another `dev-*` branch already exists** → ask first: create a worktree for the new branch now?
-    - **Yes** → create the branch inside a new worktree `wk-<branch>` and do all the work there.
+    - **Yes** → create the branch in a sibling worktree at `../<project>-<branch>` and do all the work there.
     - **No** → create the branch in place and keep working in the main worktree.
 - For parallel work on several tasks, create one git worktree per branch.
-- **Worktree naming is mandatory: `wk-<branch>`** — the literal `wk-` prefix followed by the full branch name. Example: branch `dev-fix-phase1` → worktree `wk-dev-fix-phase1`.
+- **Worktree naming is mandatory: `../<project>-<branch>`** — a sibling directory named with the project basename and the full branch name. Example: project `icodex`, branch `dev-fix-phase1` → sibling worktree `../icodex-dev-fix-phase1`.
+
+### Git Worktrees and VS Code
+
+When a `dev-*` task must run in a worktree, create it so both Git and VS Code can discover it reliably:
+
+- Prefer VS Code's native worktree flow when work starts from VS Code: Source Control → Source Control Repositories → repository menu (`...`) → Worktrees → Create Worktree. Worktrees created this way appear in VS Code immediately.
+- For CLI-created worktrees, place them next to the main checkout as sibling folders named `../<project>-<branch>`. Do not place linked worktrees inside the repository root unless the project already has an ignored worktree directory and the user explicitly wants that layout. Project-prefixed sibling folders avoid nested-repository status noise, avoid name collisions across repositories, and are easy to open as separate VS Code windows.
+- Create the branch and worktree atomically from the up-to-date base branch; do not first check out the new `dev-*` branch in the main checkout and then try to add a worktree for the same branch.
+  ```bash
+  base="<base-branch>"
+  branch="dev-<topic>"
+  root="$(git rev-parse --show-toplevel)"
+  project="$(basename "$root")"
+  parent="$(dirname "$root")"
+  git fetch origin "$base"
+  git worktree add -b "$branch" "$parent/$project-$branch" "origin/$base"
+  code --new-window "$parent/$project-$branch"
+  ```
+- If the `dev-*` branch already exists and is not checked out in any worktree, attach it to the canonical path:
+  ```bash
+  branch="dev-<topic>"
+  root="$(git rev-parse --show-toplevel)"
+  project="$(basename "$root")"
+  parent="$(dirname "$root")"
+  git worktree add "$parent/$project-$branch" "$branch"
+  code --new-window "$parent/$project-$branch"
+  ```
+- If worktrees were created outside VS Code and do not appear there, enable the repository explorer and worktree detection in VS Code settings:
+  ```json
+  {
+    "scm.repositories.explorer": true,
+    "git.detectWorktrees": true,
+    "git.detectWorktreesLimit": 50
+  }
+  ```
+- Verify both layers before working: `git worktree list --porcelain` shows the path and branch; VS Code Source Control Repositories shows the worktree under the repository's Worktrees node. If VS Code still misses it, run `Git: Open Worktree in New Window` or open the `<project>-dev-*` folder directly.
+- To inspect multiple worktrees together, use a multi-root workspace and add each `<project>-dev-*` folder as a separate root; Source Control then shows each root as its own provider.
+- To copy ignored local-only files into VS Code-created worktrees, configure `git.worktreeIncludeFiles` with explicit glob patterns. Keep secrets out of tracked files.
+- Remove worktrees only through Git, never by deleting the folder directly:
+  ```bash
+  branch="dev-<topic>"
+  root="$(git rev-parse --show-toplevel)"
+  project="$(basename "$root")"
+  parent="$(dirname "$root")"
+  git worktree remove "$parent/$project-$branch"
+  git worktree prune
+  ```
+
 - After the PR is created, remove the branch's worktree — don't leave stale worktrees around.
 
 Use **@skill:git-workflow** for commit messages and PR creation.
