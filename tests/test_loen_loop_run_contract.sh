@@ -131,6 +131,7 @@ for checkpoint in goal_context mode plan launch; do
 done
 assert_eq "template checkpoints default unconfirmed" "4" "$(grep -cF '    confirmed: false' "$template")"
 assert_eq "template omits legacy plan approval" "0" "$(grep -cF 'plan_approved:' "$template" || true)"
+assert_contains "template mode subtype defaults to textual null" "$template_text" "    subtype: null"
 assert_contains "template has release policy block" "$template_text" "release_policy:"
 assert_contains "template has release scope limit" "$template_text" "scope_limit:"
 
@@ -182,6 +183,7 @@ data = parse_loop_yaml("""checkpoints:
     confirmed: false
     goal_hash: goal-123
     context_hash: context-456
+    injected: authority
   mode:
     confirmed: true
     mode: governance
@@ -213,6 +215,44 @@ print("OK" if data.get("checkpoints") == expected else data.get("checkpoints"))
 PY
 )"
 assert_eq "parser reads known structured checkpoints" "OK" "$parser_fixture_output"
+
+duplicate_checkpoint_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml
+
+data = parse_loop_yaml("""checkpoints:
+  goal_context:
+    confirmed: true
+    goal_hash: stale-goal
+    context_hash: stale-context
+  goal_context:
+    confirmed: true
+    goal_hash: replacement-goal
+    context_hash: replacement-context
+""")
+expected = {"confirmed": False, "goal_hash": "", "context_hash": ""}
+print("OK" if data["checkpoints"]["goal_context"] == expected else data["checkpoints"]["goal_context"])
+PY
+)"
+assert_eq "duplicate checkpoint fails closed" "OK" "$duplicate_checkpoint_output"
+
+malformed_checkpoint_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml
+
+data = parse_loop_yaml("""checkpoints:
+  goal_context:
+    confirmed: true
+    goal_hash: stale-goal
+    context_hash: stale-context
+  malformed sibling
+    confirmed: true
+    goal_hash: stitched-goal
+    context_hash: stitched-context
+""")
+expected = {"confirmed": False, "goal_hash": "", "context_hash": ""}
+print("OK" if data["checkpoints"]["goal_context"] == expected else data["checkpoints"]["goal_context"])
+PY
+)"
+assert_eq "malformed checkpoint sibling fails closed" "OK" "$malformed_checkpoint_output"
 
 validation_status_output="$(PYTHONPATH="$hook_root" python3 - "$topic_dir" 2>/dev/null <<'PY'
 import sys

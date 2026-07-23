@@ -35,7 +35,7 @@ checkpoints:
   mode:
     confirmed: false
     mode: ""
-    subtype: ""
+    subtype: null
   plan:
     confirmed: false
     plan_hash: ""

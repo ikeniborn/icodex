@@ -95,6 +95,7 @@ for checkpoint in goal_context mode plan launch; do
 done
 assert_eq "loop checkpoints default unconfirmed" "4" "$(grep -cF '    confirmed: false' "$topic_dir/loop.yaml")"
 assert_eq "loop omits legacy plan approval" "0" "$(grep -cF 'plan_approved:' "$topic_dir/loop.yaml" || true)"
+assert_contains "loop mode subtype defaults to textual null" "$loop_text" "    subtype: null"
 
 assert_contains "audit topic" "$audit_text" "LoEn Audit: sample-runtime-topic"
 assert_contains "audit status section" "$audit_text" "Current Status"
@@ -156,7 +157,7 @@ checks = [
     data.get("rollback_policy") == "Revert unsafe changes",
     data.get("checkpoints") == {
         "goal_context": {"confirmed": False, "goal_hash": "", "context_hash": ""},
-        "mode": {"confirmed": False, "mode": "", "subtype": ""},
+        "mode": {"confirmed": False, "mode": "", "subtype": "null"},
         "plan": {"confirmed": False, "plan_hash": ""},
         "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": ""},
     },

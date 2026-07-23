@@ -166,7 +166,7 @@ def loop_yaml_text(
     "  mode:",
     "    confirmed: false",
     '    mode: ""',
-    '    subtype: ""',
+    "    subtype: null",
     "  plan:",
     "    confirmed: false",
     '    plan_hash: ""',

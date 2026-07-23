@@ -15,6 +15,12 @@ from typing import Any
 
 BLOCK = 2
 TOPIC_RE = re.compile(r"[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,78}[a-z0-9]?")
+CHECKPOINT_DEFAULTS: dict[str, dict[str, Any]] = {
+  "goal_context": {"confirmed": False, "goal_hash": "", "context_hash": ""},
+  "mode": {"confirmed": False, "mode": "", "subtype": ""},
+  "plan": {"confirmed": False, "plan_hash": ""},
+  "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": ""},
+}
 
 
 def mode() -> str:
@@ -128,12 +134,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
     "budget": {},
     "stop_conditions": [],
     "handoff_conditions": [],
-    "checkpoints": {
-      "goal_context": {"confirmed": False, "goal_hash": "", "context_hash": ""},
-      "mode": {"confirmed": False, "mode": "", "subtype": ""},
-      "plan": {"confirmed": False, "plan_hash": ""},
-      "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": ""},
-    },
+    "checkpoints": {name: dict(fields) for name, fields in CHECKPOINT_DEFAULTS.items()},
     "governance": {
       "automation_type": "",
       "schedule": "",
@@ -168,6 +169,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
   section = ""
   subsection = ""
   current_checkpoint = ""
+  seen_checkpoints: set[str] = set()
   current_agent = ""
   current_list_item: dict[str, Any] | None = None
   list_target: list[Any] | None = None
@@ -232,13 +234,27 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       continue
 
     if section == "checkpoints":
-      if indent == 2 and stripped.endswith(":"):
+      if indent == 2:
+        if not stripped.endswith(":"):
+          if current_checkpoint:
+            data["checkpoints"][current_checkpoint] = dict(CHECKPOINT_DEFAULTS[current_checkpoint])
+          current_checkpoint = ""
+          continue
         checkpoint = stripped[:-1]
-        current_checkpoint = checkpoint if checkpoint in data["checkpoints"] else ""
+        if checkpoint not in CHECKPOINT_DEFAULTS:
+          current_checkpoint = ""
+        elif checkpoint in seen_checkpoints:
+          data["checkpoints"][checkpoint] = dict(CHECKPOINT_DEFAULTS[checkpoint])
+          current_checkpoint = ""
+        else:
+          seen_checkpoints.add(checkpoint)
+          current_checkpoint = checkpoint
         continue
       if indent == 4 and current_checkpoint and ":" in stripped:
         key, value = stripped.split(":", 1)
-        data["checkpoints"][current_checkpoint][key.strip()] = _parse_scalar(value)
+        key = key.strip()
+        if key in CHECKPOINT_DEFAULTS[current_checkpoint]:
+          data["checkpoints"][current_checkpoint][key] = _parse_scalar(value)
       continue
 
     if section == "agents":
