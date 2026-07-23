@@ -1,93 +1,62 @@
 ---
 name: loop-run
-description: LoEn skill for running an approved topic contract to 7_result.md or handoff.md.
+description: Use when an existing LoEn topic has an approved plan and the user requests a runner pass.
 ---
 
 # LoEn Loop Run
 
-Use this skill when a LoEn topic has an approved `3_plan.md` and needs one runner pass to terminal `7_result.md` or `handoff.md`.
+Invocation is not launch confirmation. Every mode and subtype uses the launch checkpoint.
 
 ## Required Input
 
-Pass a topic slug:
+Require one safe topic slug and resolve `docs/loen/<topic>/`. Reject unsafe or missing topics.
 
-```text
-loen:loop-run sample-topic
-```
+## Launch Gate
 
-Resolve artifacts under `docs/loen/<topic>/`.
-
-## Preflight
-
-1. Read `loop.yaml` and `3_plan.md`.
-2. Verify `run.plan_approved: true`; on missing plan approval, write `handoff.md` and stop.
-3. Verify `run.plan_hash` matches the current `3_plan.md` body hash; on mismatch, write `handoff.md` and stop.
-4. Verify `run.mode` is `delivery` or `governance`.
-5. For governance mode, verify `run.subtype` is `report-only`, `auto-fix`, or `merge-release`.
-6. Verify scope, verifier, budget, and rollback or recovery policy are present and usable.
-7. For governance `merge-release`, verify `governance.auto_merge: true` and a complete `release_policy:` block before acting.
-
-Any preflight failure writes `handoff.md` with topic, failed check, evidence path when available, and required next human action, then stops.
+1. Run the complete contract validator with `require_launch=false`. Validate current goal/context hashes and confirmation, explicit mode/subtype, current plan hash and plan approval, mutable/protected scope, verifier, budget, stop/handoff conditions, rollback or recovery policy, and all mode-specific policy. Any failure writes `handoff.md` and stops.
+2. Present the final contract fields: topic, objective and observable outcome, success criteria, mutable/protected scope, verifier, budget, rollback or recovery, mode/subtype, bounded plan, checks/evidence, risks, terminal condition, and current goal/context/plan hashes.
+3. Ask exactly one explicit launch question. Ask whether to launch this exact contract now; do not combine it with another decision.
+4. A refusal or ambiguous response does not authorize execution: append a `refused` launch event and stop. Do not modify action, check, result, or product files.
+5. On explicit approval, write the current goal, context, and plan hashes into the launch checkpoint, set it confirmed, and append a confirmed launch event with timestamp, mode, subtype, and hashes.
+6. Repeat the complete preflight with `require_launch=true`. If it fails, reset the launch checkpoint, append a reset event, and stop before the state machine. Write `handoff.md` with the failed check and required human action.
 
 ## State Machine
 
 `prepare -> act -> check -> reflect`
 
-- `prepare`: complete preflight and select the next bounded plan step.
-- `act`: perform only actions allowed by mode policy and scope.
-- `check`: run the configured verifier and save evidence.
-- `reflect`: decide terminal success, retry within budget, rollback/recover, or handoff.
+- `prepare`: select the next bounded approved plan step after the successful launch preflight.
+- `act`: perform only actions permitted by scope and mode policy.
+- `check`: run the verifier and save evidence.
+- `reflect`: decide verified success, bounded retry, rollback/recovery, or handoff.
 
 ## Mode Policy
 
 ### Delivery
 
-- Execute plan steps only inside declared mutable scope.
-- Run the configured verifier after each action.
-- Write `7_result.md` when verifier passes and the plan outcome is complete.
-- Write `handoff.md` on verifier failure that cannot be fixed within budget, protected scope, forbidden tool, or rollback need.
+- Execute approved plan steps only inside mutable scope.
+- Verify each action. Write `7_result.md` only when outcome and verifier pass.
+- Write `handoff.md` when policy, scope, budget, verifier, or rollback blocks completion.
 
 ### Governance report-only
 
-- Inspect, verify, and report only.
-- Do not change product files except LoEn artifacts and evidence.
-- Write `7_result.md` with findings and evidence when verifier/report generation completes.
-- Write `handoff.md` when policy, verifier, or evidence is incomplete.
+- Inspect, verify, and report only; change no product files.
+- Write result with evidence, or hand off when policy/verifier/evidence is incomplete.
 
 ### Governance auto-fix
 
-- Apply bounded fixes only inside mutable scope when `governance.auto_fix: true`.
-- Never merge, release, or touch protected scope.
-- Run verifier after each fix and record evidence.
-- Write `7_result.md` on verified fix; write `handoff.md` when budget, verifier, protected scope, or policy blocks completion.
+- Require `governance.auto_fix: true`; fix only inside mutable scope.
+- Never merge, release, or touch protected scope. Verify each fix.
 
 ### Governance merge-release
 
-- Proceed only when `governance.auto_merge: true` and `release_policy:` includes target, strategy, verifier/evidence requirements, `scope_limit`, and recovery policy.
-- No second LoEn-specific human approval is required if start-time approval and release policy pass preflight; external branch rules, host approval prompts, and repository safety gates still apply.
-- Merge or release only according to `release_policy.target_branch`, `release_policy.merge_strategy`, verifier requirements, evidence requirements, `release_policy.scope_limit`, and recovery policy.
-- Write `7_result.md` only after required verifier and evidence pass.
-- Write `handoff.md` if merge-release policy is incomplete, recovery is required, protected scope is needed, or verifier evidence fails.
+- The universal launch checkpoint is required for merge-release. Plan approval alone is insufficient.
+- Require `governance.auto_merge: true` and complete release target, strategy, verifier/evidence requirements, scope limit, and recovery policy.
+- Merge or release only under that policy and external repository safety gates. Write result only after required verification and evidence pass.
 
 ## Stop Rules
 
-Stop and write `handoff.md` for:
-
-- plan approval missing or false
-- plan hash mismatch
-- mode policy incomplete
-- verifier failure that cannot be fixed within budget and policy
-- protected scope required or touched
-- budget exhaustion
-- forbidden tool
-- merge-release policy incomplete
+Stop with `handoff.md` for failed preflight, stale or missing approval/hash, incomplete mode policy, unfixable verifier failure, protected scope, exhausted budget, forbidden tool, or required recovery.
 
 ## Output
 
-Report:
-
-- topic
-- final state
-- changed artifacts
-- evidence path
-- terminal `7_result.md` or `handoff.md`
+Report topic, final state, changed artifacts, evidence path, and terminal `7_result.md` or `handoff.md`.

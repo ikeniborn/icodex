@@ -7,7 +7,11 @@ plugin_root="$ROOT/plugins/loen"
 hook_root="$plugin_root/hooks"
 template="$plugin_root/assets/templates/loop.yaml"
 loop_start="$plugin_root/skills/loop-start/SKILL.md"
+loop_plan="$plugin_root/skills/loop-plan/SKILL.md"
 loop_run="$plugin_root/skills/loop-run/SKILL.md"
+goal_template="$plugin_root/assets/templates/1_goal.md"
+context_template="$plugin_root/assets/templates/2_context.md"
+plan_template="$plugin_root/assets/templates/3_plan.md"
 loop_governance="$plugin_root/skills/loop-governance/SKILL.md"
 readme="$plugin_root/README.md"
 readme_ru="$plugin_root/README.ru.md"
@@ -663,14 +667,74 @@ assert_eq "audit renderer helper runs" "0" "$audit_status_code"
 assert_eq "audit renders runner state" "OK" "$audit_status_output"
 
 loop_start_text="$(cat "$loop_start")"
+loop_plan_text="$(cat "$loop_plan")"
 loop_run_text="$(cat "$loop_run")"
 loop_governance_text="$(cat "$loop_governance")"
-assert_contains "loop-start asks delivery or governance" "$loop_start_text" 'delivery` or `governance'
-assert_contains "loop-start asks governance subtype" "$loop_start_text" 'report-only`, `auto-fix`, or `merge-release'
-assert_contains "loop-start records plan approval" "$loop_start_text" "run.plan_approved"
+
+assert_ordered_lines() {
+  local label="$1"
+  local file="$2"
+  shift 2
+  local previous=0 marker line result=OK
+  for marker in "$@"; do
+    line="$(grep -nF -m1 -- "$marker" "$file" | cut -d: -f1)"
+    if [[ -z "$line" || "$line" -le "$previous" ]]; then
+      result="expected '$marker' after line $previous"
+      break
+    fi
+    previous="$line"
+  done
+  assert_eq "$label" "OK" "$result"
+}
+
+assert_ordered_lines "loop-start preserves confirmation and planning gate order" "$loop_start" \
+  "Resolve every unresolved assumption adaptively, one question at a time." \
+  "Obtain explicit confirmation of the complete goal and context." \
+  'Ask the user to select `delivery` or `governance`; never infer mode or subtype.' \
+  "Write the integrated plan from the confirmed goal, context, mode, and subtype." \
+  "Obtain separate explicit approval of the complete plan." \
+  'To continue, run `loen:loop-run <topic>`.'
+
+assert_contains "loop-start gives exact continuation command" "$loop_start_text" 'To continue, run `loen:loop-run <topic>`.'
+assert_eq "loop-start continuation command appears once" "1" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_start")"
+assert_eq "loop-start does not offer immediate run" "0" "$(grep -Eic 'offer.*(start|run).*immediately|start.*immediately' "$loop_start" || true)"
+assert_contains "loop-start forbids automatic runner invocation" "$loop_start_text" 'Never invoke `loen:loop-run` automatically.'
+assert_contains "loop-start requires empty unresolved assumptions" "$loop_start_text" 'Unresolved Assumptions` must be explicitly empty'
+assert_contains "loop-start hashes confirmed goal and context" "$loop_start_text" 'Hash the current confirmed `1_goal.md` and `2_context.md`'
+assert_contains "loop-start invalidates downstream checkpoints" "$loop_start_text" "deterministic invalidation"
+assert_contains "loop-start appends checkpoint audit events" "$loop_start_text" "append checkpoint reset and confirmation events"
+
+for heading in "User Request" "Objective" "Observable Outcome" "Success Criteria"; do
+  assert_contains "goal template has $heading heading" "$(cat "$goal_template")" "## $heading"
+done
+for heading in "Facts" "Constraints" "Mutable Scope" "Protected Scope" "Verifier" "Budget" "Rollback or Recovery" "Unresolved Assumptions"; do
+  assert_contains "context template has $heading heading" "$(cat "$context_template")" "## $heading"
+done
+for heading in "Preconditions" "Steps" "Success-Criterion Mapping" "Checks and Evidence" "Risks" "Rollback or Recovery" "Terminal Condition"; do
+  assert_contains "plan template has $heading heading" "$(cat "$plan_template")" "## $heading"
+done
+
+assert_contains "loop-plan is existing-topic replan only" "$loop_plan_text" "existing topic replan only"
+assert_contains "loop-plan validates upstream checkpoints" "$loop_plan_text" "Validate the goal/context and mode checkpoints"
+assert_contains "loop-plan resets plan checkpoint" "$loop_plan_text" "Reset the plan checkpoint"
+assert_contains "loop-plan resets launch checkpoint" "$loop_plan_text" "reset the launch checkpoint"
+assert_contains "loop-plan appends reset events" "$loop_plan_text" "Append a reset event for each reset checkpoint"
+assert_contains "loop-plan separately approves plan" "$loop_plan_text" "Obtain separate explicit plan approval"
+assert_contains "loop-plan never launches" "$loop_plan_text" 'Never confirm launch or invoke `loen:loop-run`.'
+
+assert_contains "loop-run invocation is not confirmation" "$loop_run_text" "Invocation is not launch confirmation."
+assert_contains "loop-run validates prelaunch without launch" "$loop_run_text" "require_launch=false"
+assert_contains "loop-run presents final contract fields" "$loop_run_text" "Present the final contract fields"
+assert_contains "loop-run asks one launch question" "$loop_run_text" "Ask exactly one explicit launch question."
+assert_contains "loop-run records refusal and stops" "$loop_run_text" 'append a `refused` launch event and stop'
+assert_contains "loop-run records approval hashes" "$loop_run_text" "write the current goal, context, and plan hashes into the launch checkpoint"
+assert_contains "loop-run repeats full launch preflight" "$loop_run_text" 'Repeat the complete preflight with `require_launch=true`.'
+assert_contains "loop-run resets failed launch" "$loop_run_text" "reset the launch checkpoint, append a reset event, and stop before the state machine"
 assert_contains "loop-run documents state machine" "$loop_run_text" "prepare -> act -> check -> reflect"
 assert_contains "loop-run refuses missing approval" "$loop_run_text" "plan approval"
 assert_contains "loop-run supports merge release" "$loop_run_text" "merge-release"
+assert_contains "merge-release requires universal launch checkpoint" "$loop_run_text" "universal launch checkpoint is required"
+assert_contains "merge-release says plan approval is insufficient" "$loop_run_text" "Plan approval alone is insufficient"
 assert_contains "governance skill names subtypes" "$loop_governance_text" "report-only"
 assert_contains "README documents loop-run" "$(cat "$readme")" "loen:loop-run"
 assert_contains "Russian README documents loop-run" "$(cat "$readme_ru")" "loen:loop-run"
