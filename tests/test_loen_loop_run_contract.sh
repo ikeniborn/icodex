@@ -270,6 +270,22 @@ PY
 )"
 assert_eq "invalid checkpoint indentation fails closed" "OK" "$invalid_indent_output"
 
+tab_indent_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml
+
+data = parse_loop_yaml("""checkpoints:
+  goal_context:
+    confirmed: true
+    goal_hash: stale-goal
+\tmalformed: tab-indentation
+    context_hash: stitched-context
+""")
+expected = {"confirmed": False, "goal_hash": "", "context_hash": ""}
+print("OK" if data["checkpoints"]["goal_context"] == expected else data["checkpoints"]["goal_context"])
+PY
+)"
+assert_eq "tab-indented checkpoint line fails closed" "OK" "$tab_indent_output"
+
 duplicate_confirmed_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
 from loen_common import parse_loop_yaml
 

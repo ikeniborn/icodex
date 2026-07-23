@@ -182,6 +182,14 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
     indent = len(line) - len(line.lstrip(" "))
     stripped = line.strip()
 
+    leading_whitespace = line[:len(line) - len(line.lstrip())]
+    if section == "checkpoints" and "\t" in leading_whitespace:
+      if current_checkpoint:
+        data["checkpoints"][current_checkpoint] = dict(CHECKPOINT_DEFAULTS[current_checkpoint])
+      current_checkpoint = ""
+      current_checkpoint_fields = set()
+      continue
+
     if indent == 0:
       section = ""
       subsection = ""
