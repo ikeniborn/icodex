@@ -5,16 +5,16 @@
 # to a valid path on every host and is rewritten here from $ICODEX_ROOT. Codex
 # validates the source on every launch, so this runs on the default (launch) path.
 
-# Echo the absolute vendored cache dir, or nothing when the plugin is not vendored.
-# Anchored at $ICODEX_SHARED_DIR so the glob is independent of the process CWD and the per-project home.
-_superpowers_cache_dir() {
-  local m
-  for m in "$ICODEX_SHARED_DIR"/plugins/cache/*/superpowers/*/; do
-    [[ -d "$m" ]] || continue
-    printf '%s\n' "${m%/}"
-    return 0
-  done
-  return 0
+# Resolve only vendor/superpowers/pin; this function is shared by runtime and tests.
+_superpowers_pinned_cache_dir() {
+  local pin="$ICODEX_ROOT/vendor/superpowers/pin" rel cache
+  [[ -f "$pin" ]] || { log_error "superpowers pin missing: $pin"; return 1; }
+  [[ "$(wc -l < "$pin" | tr -d ' ')" == 1 ]] || { log_error "superpowers pin malformed: expected one line"; return 1; }
+  IFS= read -r rel < "$pin"
+  [[ "$rel" =~ ^[A-Za-z0-9._-]+/superpowers/[A-Za-z0-9._-]+$ ]] || { log_error "superpowers pin malformed: $rel"; return 1; }
+  cache="$ICODEX_SHARED_DIR/plugins/cache/$rel"
+  [[ -d "$cache" && -f "$cache/.codex-plugin/plugin.json" ]] || { log_error "superpowers pinned cache missing: $cache"; return 1; }
+  printf '%s\n' "$cache"
 }
 
 # Derive the marketplace name from the cache path: …/cache/<mkt>/superpowers/<ver>
@@ -129,20 +129,26 @@ _rewrite_marketplace_source() { # <config> <mkt> <abs>
   rm -f "$tmp"
 }
 
+_superpowers_config_has_identity() { # <config> <marketplace>
+  local config="$1" mkt="$2"
+  grep -qFx "[marketplaces.$mkt]" "$config" &&
+    grep -qFx "[plugins.\"superpowers@$mkt\"]" "$config"
+}
+
 # Orchestrate: fix the source path in the committed base config.
 ensure_superpowers_wiring() {
   local config="$ICODEX_HOME_DIR/config.toml"
   if [[ ! -f "$config" ]]; then
     log_error "missing $config — cannot configure superpowers"
-    return 0
+    return 1
   fi
   local cache mkt marketplace
-  cache="$(_superpowers_cache_dir)"
-  if [[ -z "$cache" ]]; then
-    log_warn "superpowers plugin not vendored under .codex-isolated/plugins/cache"
-    return 0
-  fi
+  cache="$(_superpowers_pinned_cache_dir)" || return 1
   mkt="$(_superpowers_marketplace_name "$cache")"
+  _superpowers_config_has_identity "$config" "$mkt" || {
+    log_error "superpowers marketplace mismatch: expected $mkt in $config"
+    return 1
+  }
   marketplace="$(_ensure_superpowers_marketplace_root "$cache" "$mkt")"
   _ensure_superpowers_skill_links "$cache"
   _rewrite_marketplace_source "$config" "$mkt" "$marketplace"

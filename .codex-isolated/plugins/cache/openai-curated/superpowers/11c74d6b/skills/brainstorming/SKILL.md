@@ -97,6 +97,7 @@ digraph brainstorming {
 - Ask after each section whether it looks right so far
 - Cover: architecture, components, data flow, error handling, testing
 - Be ready to go back and clarify if something doesn't make sense
+- Treat approval after each presented design section as provisional design-section feedback. It helps shape the draft but is not final checked-spec approval.
 
 **Design for isolation and clarity:**
 
@@ -137,7 +138,7 @@ After the spec self-review passes, validate the written spec before asking for a
 2. If the verdict is `needs_work`, fix the markdown source and rerun the same command. Do not ask for approval yet.
 3. If the verdict is `OK`, present the checked spec and its terminal review summary to the user.
 
-Only proceed once the user approves the checked spec. Do not ask the user to approve unchecked markdown.
+Only proceed once the user approves the checked spec. Do not ask the user to approve unchecked markdown. Earlier provisional design-section feedback does not satisfy this gate.
 
 > "Spec checked at `<path>`. Please review it and let me know if you want changes before we start writing the implementation plan."
 

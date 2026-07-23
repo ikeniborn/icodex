@@ -142,6 +142,8 @@ After saving the plan and completing self-review, validate it before asking for 
 
 Only after the user approves the checked plan may execution be offered.
 
+Commit the approved plan after that approval and before execution handoff when the plan or its check metadata changed. Do not offer execution from uncommitted machine state.
+
 ## Execution Handoff
 
 After the plan has passed `$check-chain plan <path>` and the user has approved the checked plan, offer execution choice:

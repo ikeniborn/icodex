@@ -4,13 +4,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/helpers.sh"
 
 SK="$ROOT/.codex-isolated/skills"
-SP=""
-for candidate in "$ROOT"/.codex-isolated/plugins/cache/openai-curated/superpowers/*/skills; do
-  if [[ -d "$candidate" ]]; then
-    SP="$candidate"
-    break
-  fi
-done
+export ICODEX_ROOT="$ROOT"
+export ICODEX_SHARED_DIR="$ROOT/.codex-isolated"
+source "$ROOT/lib/core/logging.sh"
+source "$ROOT/lib/plugin/superpowers.sh"
+SP="$(_superpowers_pinned_cache_dir)/skills"
 
 parse_frontmatter() { # <file> — exit 0 iff YAML frontmatter has name + description
   python3 - "$1" <<'PY'
@@ -71,7 +69,12 @@ assert_exit "brainstorming SKILL.md exists" 0 test -f "$BR"
 if [[ -f "$BR" ]]; then
   body="$(cat "$BR")"
   assert_contains "brainstorming runs spec check before approval" "$body" 'Run `$check-chain spec <path>`'
+  assert_contains "brainstorming distinguishes provisional feedback" "$body" "provisional design-section feedback"
+  assert_contains "brainstorming needs_work returns to source" "$body" 'verdict is `needs_work`'
   assert_before "brainstorming check-chain before spec approval" "$body" 'Run `$check-chain spec <path>`' "Only proceed once the user approves the checked spec"
+  assert_before "brainstorming fixes before successful recheck" "$body" '2. If the verdict is `needs_work`' '3. If the verdict is `OK`'
+  assert_before "brainstorming approval before commit" "$body" "approves the checked spec" "commit the spec document once"
+  assert_before "brainstorming commit before plan handoff" "$body" "commit the spec document once" "Invoke the writing-plans skill"
   assert_contains "brainstorming commits after checked spec approval" "$body" "commit the spec document once"
 fi
 
@@ -80,7 +83,11 @@ assert_exit "writing-plans SKILL.md exists" 0 test -f "$WP"
 if [[ -f "$WP" ]]; then
   body="$(cat "$WP")"
   assert_contains "writing-plans runs plan check before approval" "$body" 'Run `$check-chain plan <path>`'
+  assert_contains "writing-plans needs_work returns to source" "$body" 'verdict is `needs_work`'
   assert_before "writing-plans check-chain before plan approval" "$body" 'Run `$check-chain plan <path>`' "Only after the user approves the checked plan"
+  assert_before "writing-plans fixes before successful recheck" "$body" '2. If the verdict is `needs_work`' '3. If the verdict is `OK`'
+  assert_before "writing-plans approval before commit" "$body" "approves the checked plan" "Commit the approved plan"
+  assert_before "writing-plans commit before execution handoff" "$body" "Commit the approved plan" "offer execution choice"
   assert_contains "writing-plans offers execution after checked plan" "$body" 'After the plan has passed `$check-chain plan <path>`'
 fi
 

@@ -11,9 +11,12 @@ export ICODEX_ROOT="$tmp"
 export ICODEX_HOME_DIR="$tmp/.codex-isolated"
 export ICODEX_SHARED_DIR="$ICODEX_HOME_DIR"
 export ICODEX_BIN="$ICODEX_HOME_DIR/bin/codex"
-CACHE="$ICODEX_HOME_DIR/plugins/cache/superpowers/superpowers/6.0.3"
-MARKETPLACE="$ICODEX_HOME_DIR/tmp/marketplaces/superpowers"
+CACHE="$ICODEX_HOME_DIR/plugins/cache/openai-curated/superpowers/11c74d6b"
+PIN="$ICODEX_ROOT/vendor/superpowers/pin"
+MARKETPLACE="$ICODEX_HOME_DIR/tmp/marketplaces/openai-curated"
 mkdir -p "$CACHE/.codex-plugin" "$CACHE/skills/brainstorming" "$CACHE/skills/writing-plans" "$ICODEX_HOME_DIR/bin"
+mkdir -p "$(dirname "$PIN")"
+printf 'openai-curated/superpowers/11c74d6b\n' > "$PIN"
 printf '{}' > "$CACHE/.codex-plugin/plugin.json"
 printf -- '---\nname: brainstorming\ndescription: test\n---\n' > "$CACHE/skills/brainstorming/SKILL.md"
 printf -- '---\nname: writing-plans\ndescription: test\n---\n' > "$CACHE/skills/writing-plans/SKILL.md"
@@ -29,11 +32,11 @@ cat > "$ICODEX_HOME_DIR/config.toml" <<'EOF'
 "**/.token" = "deny"
 "**/secrets/**" = "deny"
 
-[marketplaces.superpowers]
+[marketplaces.openai-curated]
 source_type = "local"
 source = "__ICODEX_ROOT__/.codex-isolated/plugins/cache/superpowers/superpowers/<ver>"
 
-[plugins."superpowers@superpowers"]
+[plugins."superpowers@openai-curated"]
 enabled = true
 EOF
 
@@ -113,14 +116,40 @@ printf '\n[marketplaces.other]\nsource = "/keep/me"\n' >> "$cfg"
 ensure_superpowers_wiring
 assert_eq "other section preserved" "1" "$(grep -cFx 'source = "/keep/me"' "$cfg")"
 
-# 7. missing cache -> warn, no crash, no rewrite
-cfg_before_missing="$(cat "$cfg")"
-rm -rf "$ICODEX_SHARED_DIR/plugins"
-missing_code=0
-warn="$(ensure_superpowers_wiring 2>&1 >/dev/null)" || missing_code=$?
-assert_eq "missing cache does not fail" "0" "$missing_code"
-assert_contains "warns when not vendored" "$warn" "not vendored"
-assert_eq "config untouched on missing cache" "$cfg_before_missing" "$(cat "$cfg")"
+# 7. extra unpinned cache does not affect exact selection.
+mkdir -p "$ICODEX_SHARED_DIR/plugins/cache/other/superpowers/999/skills/brainstorming"
+printf test > "$ICODEX_SHARED_DIR/plugins/cache/other/superpowers/999/skills/brainstorming/SKILL.md"
+ensure_superpowers_wiring
+assert_eq "extra cache does not change pinned skill target" "$CACHE/skills/brainstorming" \
+  "$(readlink "$ICODEX_HOME_DIR/skills/brainstorming")"
+
+assert_preflight_failure() { # <description> <expected-message>
+  local desc="$1" expected="$2" code=0 output
+  local cfg_before marketplace_before links_before
+  cfg_before="$(sha256sum "$cfg")"
+  marketplace_before="$(find "$ICODEX_HOME_DIR/tmp" -type f -o -type l | sort | xargs -r ls -ld)"
+  links_before="$(find "$ICODEX_HOME_DIR/skills" -type l -print -exec readlink {} \; | sort)"
+  output="$(ensure_superpowers_wiring 2>&1)" || code=$?
+  assert_exit "$desc fails" 1 test "$code" -eq 0
+  assert_contains "$desc reports cause" "$output" "$expected"
+  assert_eq "$desc preserves config" "$cfg_before" "$(sha256sum "$cfg")"
+  assert_eq "$desc preserves marketplace root" "$marketplace_before" "$(find "$ICODEX_HOME_DIR/tmp" -type f -o -type l | sort | xargs -r ls -ld)"
+  assert_eq "$desc preserves skill links" "$links_before" "$(find "$ICODEX_HOME_DIR/skills" -type l -print -exec readlink {} \; | sort)"
+}
+
+# 8. all invalid state fails before config, marketplace, or skill-link mutations.
+rm -f "$PIN"
+assert_preflight_failure "missing pin" "pin missing"
+printf '../escape\n' > "$PIN"
+assert_preflight_failure "malformed pin" "pin malformed"
+printf 'openai-curated/superpowers/missing\n' > "$PIN"
+assert_preflight_failure "missing pinned target" "pinned cache missing"
+printf 'openai-curated/superpowers/11c74d6b\n' > "$PIN"
+mv "$CACHE" "$CACHE.saved"
+assert_preflight_failure "renamed pinned target" "pinned cache missing"
+mv "$CACHE.saved" "$CACHE"
+sed -i 's/superpowers@openai-curated/superpowers@wrong-marketplace/' "$cfg"
+assert_preflight_failure "marketplace mismatch" "marketplace mismatch"
 
 rm -rf "$tmp"
 finish
