@@ -15,9 +15,7 @@ This skill is for existing topic replan only. New topics must use `loen:loop-sta
 4. PLAN INVALIDATION: Before writing changed `3_plan.md`, reset plan and launch and append one reset event for each. Reset the plan checkpoint and reset the launch checkpoint. Append a reset event for each reset checkpoint. Clear both confirmations and hashes, then write the candidate plan.
 5. Keep one bounded pass with preconditions, steps, success-criterion mapping, exact checks and evidence, risks, rollback or recovery, and terminal condition.
 6. PLAN APPROVAL REQUEST: Present the complete plan. Obtain separate explicit plan approval; refusal or ambiguity leaves plan unconfirmed and stops.
-7. PLAN RESTORATION: Explicit approval restores plan only; launch remains unconfirmed. Hash the approved plan and append its plan confirmation event.
-
-Never confirm launch or invoke `loen:loop-run`.
+7. PLAN RESTORATION: After explicit plan approval, write only `checkpoints.plan.confirmed: true` and its current `plan_hash`, append the confirmed plan event, and leave `checkpoints.launch.confirmed: false`. Explicit approval restores plan only; launch remains unconfirmed.
 
 PROHIBITION: MUST NOT write `checkpoints.launch.confirmed: true`.
 

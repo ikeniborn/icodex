@@ -35,8 +35,6 @@ PROHIBITION: MUST NOT write `checkpoints.launch.confirmed: true`.
 
 PROHIBITION: MUST NOT invoke `loen:loop-run`.
 
-Never invoke `loen:loop-run` automatically. Never confirm launch in this skill.
-
 ## Output
 
 Report topic, artifact directory, mode/subtype, goal/context confirmation, and plan approval. The continuation command is output only. End with exactly:
