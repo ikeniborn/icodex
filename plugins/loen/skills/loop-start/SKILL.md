@@ -22,10 +22,23 @@ Create and fully plan a new LoEn topic. Never launch it.
 11. Write `loop.yaml` with topic metadata, objective, scopes, quality gates, verifier, budget, stop and handoff conditions, rollback policy, run mode/subtype/state/pass limits, all checkpoint fields, and selected governance or release policy. Leave launch unconfirmed with empty hashes.
 12. Keep `docs/TODO.md` as the only global registry. Durable topic artifacts, not chat history, are authoritative.
 
+## Deterministic Invalidation
+
+- INVALIDATE-GOAL-CONTEXT: Any content change to `1_goal.md` or `2_context.md` resets goal_context, mode, plan, and launch.
+- INVALIDATE-MODE: Any mode or subtype change resets mode, plan, and launch.
+- INVALIDATE-PLAN: Any content change to `3_plan.md` resets plan and launch.
+- RESTORE-PLAN: Reapproval restores plan only; launch remains unconfirmed.
+- INVALIDATE-FAILED-PREFLIGHT: Failed post-confirmation preflight resets launch only.
+- RESET-AUDIT: Every reset appends one reset event; never infer confirmation or approval.
+
+PROHIBITION: MUST NOT write `checkpoints.launch.confirmed: true`.
+
+PROHIBITION: MUST NOT invoke `loen:loop-run`.
+
 Never invoke `loen:loop-run` automatically. Never confirm launch in this skill.
 
 ## Output
 
-Report topic, artifact directory, mode/subtype, goal/context confirmation, and plan approval. End with exactly:
+Report topic, artifact directory, mode/subtype, goal/context confirmation, and plan approval. The continuation command is output only. End with exactly:
 
 To continue, run `loen:loop-run <topic>`.

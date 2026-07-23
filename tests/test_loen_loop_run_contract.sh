@@ -675,9 +675,14 @@ assert_ordered_lines() {
   local label="$1"
   local file="$2"
   shift 2
-  local previous=0 marker line result=OK
+  local previous=0 marker line count result=OK
   for marker in "$@"; do
+    count="$(grep -cF -- "$marker" "$file" || true)"
     line="$(grep -nF -m1 -- "$marker" "$file" | cut -d: -f1)"
+    if [[ "$count" != "1" ]]; then
+      result="expected one '$marker', found $count"
+      break
+    fi
     if [[ -z "$line" || "$line" -le "$previous" ]]; then
       result="expected '$marker' after line $previous"
       break
@@ -703,6 +708,14 @@ assert_contains "loop-start requires empty unresolved assumptions" "$loop_start_
 assert_contains "loop-start hashes confirmed goal and context" "$loop_start_text" 'Hash the current confirmed `1_goal.md` and `2_context.md`'
 assert_contains "loop-start invalidates downstream checkpoints" "$loop_start_text" "deterministic invalidation"
 assert_contains "loop-start appends checkpoint audit events" "$loop_start_text" "append checkpoint reset and confirmation events"
+assert_contains "goal/context changes reset all checkpoints" "$loop_start_text" 'INVALIDATE-GOAL-CONTEXT: Any content change to `1_goal.md` or `2_context.md` resets goal_context, mode, plan, and launch.'
+assert_contains "mode changes reset mode plan launch" "$loop_start_text" 'INVALIDATE-MODE: Any mode or subtype change resets mode, plan, and launch.'
+assert_contains "plan changes reset plan launch" "$loop_start_text" 'INVALIDATE-PLAN: Any content change to `3_plan.md` resets plan and launch.'
+assert_contains "plan reapproval restores plan only" "$loop_start_text" 'RESTORE-PLAN: Reapproval restores plan only; launch remains unconfirmed.'
+assert_contains "post-confirmation failure resets launch only" "$loop_start_text" 'INVALIDATE-FAILED-PREFLIGHT: Failed post-confirmation preflight resets launch only.'
+assert_contains "every reset has reset event" "$loop_start_text" 'RESET-AUDIT: Every reset appends one reset event; never infer confirmation or approval.'
+assert_contains "loop-start must not write launch true" "$loop_start_text" 'PROHIBITION: MUST NOT write `checkpoints.launch.confirmed: true`.'
+assert_contains "loop-start must not invoke runner" "$loop_start_text" 'PROHIBITION: MUST NOT invoke `loen:loop-run`.'
 
 for heading in "User Request" "Objective" "Observable Outcome" "Success Criteria"; do
   assert_contains "goal template has $heading heading" "$(cat "$goal_template")" "## $heading"
@@ -721,6 +734,17 @@ assert_contains "loop-plan resets launch checkpoint" "$loop_plan_text" "reset th
 assert_contains "loop-plan appends reset events" "$loop_plan_text" "Append a reset event for each reset checkpoint"
 assert_contains "loop-plan separately approves plan" "$loop_plan_text" "Obtain separate explicit plan approval"
 assert_contains "loop-plan never launches" "$loop_plan_text" 'Never confirm launch or invoke `loen:loop-run`.'
+assert_contains "loop-plan exact upstream validation" "$loop_plan_text" 'UPSTREAM VALIDATION: Validate confirmed goal_context hashes against current `1_goal.md` and `2_context.md`, then validate confirmed explicit mode and subtype.'
+assert_contains "loop-plan plan change reset mapping" "$loop_plan_text" 'PLAN INVALIDATION: Before writing changed `3_plan.md`, reset plan and launch and append one reset event for each.'
+assert_contains "loop-plan approval restores only plan" "$loop_plan_text" 'PLAN RESTORATION: Explicit approval restores plan only; launch remains unconfirmed.'
+assert_ordered_lines "loop-plan preserves replan gate order" "$loop_plan" \
+  'UPSTREAM VALIDATION:' \
+  'PLAN REGENERATION:' \
+  'PLAN INVALIDATION:' \
+  'PLAN APPROVAL REQUEST:' \
+  '## Output'
+assert_contains "loop-plan must not write launch true" "$loop_plan_text" 'PROHIBITION: MUST NOT write `checkpoints.launch.confirmed: true`.'
+assert_contains "loop-plan must not invoke runner" "$loop_plan_text" 'PROHIBITION: MUST NOT invoke `loen:loop-run`.'
 
 assert_contains "loop-run invocation is not confirmation" "$loop_run_text" "Invocation is not launch confirmation."
 assert_contains "loop-run validates prelaunch without launch" "$loop_run_text" "require_launch=false"
@@ -730,6 +754,16 @@ assert_contains "loop-run records refusal and stops" "$loop_run_text" 'append a 
 assert_contains "loop-run records approval hashes" "$loop_run_text" "write the current goal, context, and plan hashes into the launch checkpoint"
 assert_contains "loop-run repeats full launch preflight" "$loop_run_text" 'Repeat the complete preflight with `require_launch=true`.'
 assert_contains "loop-run resets failed launch" "$loop_run_text" "reset the launch checkpoint, append a reset event, and stop before the state machine"
+assert_ordered_lines "loop-run preserves launch gate order" "$loop_run" \
+  'PRELAUNCH VALIDATION:' \
+  'FINAL CONTRACT SUMMARY:' \
+  'LAUNCH QUESTION:' \
+  'REFUSAL PATH:' \
+  'LAUNCH APPROVAL WRITE:' \
+  'POST-APPROVAL PREFLIGHT:' \
+  'POST-CONFIRMATION FAILURE:' \
+  '## State Machine' \
+  '`prepare`:'
 assert_contains "loop-run documents state machine" "$loop_run_text" "prepare -> act -> check -> reflect"
 assert_contains "loop-run refuses missing approval" "$loop_run_text" "plan approval"
 assert_contains "loop-run supports merge release" "$loop_run_text" "merge-release"

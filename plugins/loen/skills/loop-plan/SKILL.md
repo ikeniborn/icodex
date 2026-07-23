@@ -10,14 +10,18 @@ This skill is for existing topic replan only. New topics must use `loen:loop-sta
 ## Procedure
 
 1. Resolve and validate the topic slug, then require existing `1_goal.md`, `2_context.md`, and `loop.yaml`.
-2. Validate the goal/context and mode checkpoints, including current artifact hashes and a valid explicit mode/subtype. Stop on any missing, stale, or unconfirmed upstream field.
-3. Reset the plan checkpoint and reset the launch checkpoint before changing `3_plan.md`. Clear their stored hashes and confirmations.
-4. Append a reset event for each reset checkpoint to `attempts.jsonl`, including prior hashes, mode/subtype, outcome, and timestamp.
-5. Rewrite `3_plan.md` from the fixed template using only confirmed upstream inputs. Keep one bounded pass with preconditions, steps, success-criterion mapping, exact checks and evidence, risks, rollback or recovery, and terminal condition.
-6. Present the complete plan. Obtain separate explicit plan approval; refusal or ambiguity leaves plan unconfirmed and stops.
-7. Hash the approved plan, confirm only the plan checkpoint, and append its confirmation event. Keep launch unconfirmed with empty hashes.
+2. UPSTREAM VALIDATION: Validate confirmed goal_context hashes against current `1_goal.md` and `2_context.md`, then validate confirmed explicit mode and subtype. Validate the goal/context and mode checkpoints without inference. Stop on any missing, stale, unconfirmed, or inferred upstream field.
+3. PLAN REGENERATION: Regenerate the complete candidate plan in memory from only those validated upstream inputs; do not write it yet.
+4. PLAN INVALIDATION: Before writing changed `3_plan.md`, reset plan and launch and append one reset event for each. Reset the plan checkpoint and reset the launch checkpoint. Append a reset event for each reset checkpoint. Clear both confirmations and hashes, then write the candidate plan.
+5. Keep one bounded pass with preconditions, steps, success-criterion mapping, exact checks and evidence, risks, rollback or recovery, and terminal condition.
+6. PLAN APPROVAL REQUEST: Present the complete plan. Obtain separate explicit plan approval; refusal or ambiguity leaves plan unconfirmed and stops.
+7. PLAN RESTORATION: Explicit approval restores plan only; launch remains unconfirmed. Hash the approved plan and append its plan confirmation event.
 
 Never confirm launch or invoke `loen:loop-run`.
+
+PROHIBITION: MUST NOT write `checkpoints.launch.confirmed: true`.
+
+PROHIBITION: MUST NOT invoke `loen:loop-run`.
 
 ## Output
 

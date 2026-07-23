@@ -13,12 +13,13 @@ Require one safe topic slug and resolve `docs/loen/<topic>/`. Reject unsafe or m
 
 ## Launch Gate
 
-1. Run the complete contract validator with `require_launch=false`. Validate current goal/context hashes and confirmation, explicit mode/subtype, current plan hash and plan approval, mutable/protected scope, verifier, budget, stop/handoff conditions, rollback or recovery policy, and all mode-specific policy. Any failure writes `handoff.md` and stops.
-2. Present the final contract fields: topic, objective and observable outcome, success criteria, mutable/protected scope, verifier, budget, rollback or recovery, mode/subtype, bounded plan, checks/evidence, risks, terminal condition, and current goal/context/plan hashes.
-3. Ask exactly one explicit launch question. Ask whether to launch this exact contract now; do not combine it with another decision.
-4. A refusal or ambiguous response does not authorize execution: append a `refused` launch event and stop. Do not modify action, check, result, or product files.
-5. On explicit approval, write the current goal, context, and plan hashes into the launch checkpoint, set it confirmed, and append a confirmed launch event with timestamp, mode, subtype, and hashes.
-6. Repeat the complete preflight with `require_launch=true`. If it fails, reset the launch checkpoint, append a reset event, and stop before the state machine. Write `handoff.md` with the failed check and required human action.
+1. PRELAUNCH VALIDATION: Run the complete contract validator with `require_launch=false`. Validate current goal/context hashes and confirmation, explicit mode/subtype, current plan hash and plan approval, mutable/protected scope, verifier, budget, stop/handoff conditions, rollback or recovery policy, and all mode-specific policy. Any failure writes `handoff.md` and stops.
+2. FINAL CONTRACT SUMMARY: Present the final contract fields: topic, objective and observable outcome, success criteria, mutable/protected scope, verifier, budget, rollback or recovery, mode/subtype, bounded plan, checks/evidence, risks, terminal condition, and current goal/context/plan hashes.
+3. LAUNCH QUESTION: Ask exactly one explicit launch question. Ask whether to launch this exact contract now; do not combine it with another decision.
+4. REFUSAL PATH: A refusal or ambiguous response does not authorize execution; append a `refused` launch event and stop. Do not modify action, check, result, or product files.
+5. LAUNCH APPROVAL WRITE: On explicit approval, write the current goal, context, and plan hashes into the launch checkpoint, set it confirmed, and append a confirmed launch event with timestamp, mode, subtype, and hashes.
+6. POST-APPROVAL PREFLIGHT: Repeat the complete preflight with `require_launch=true`.
+7. POST-CONFIRMATION FAILURE: If that preflight fails, reset the launch checkpoint, append a reset event, and stop before the state machine. Write `handoff.md` with the failed check and required human action.
 
 ## State Machine
 
