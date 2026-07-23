@@ -732,6 +732,7 @@ for heading in "Preconditions" "Steps" "Success-Criterion Mapping" "Checks and E
 done
 
 assert_contains "loop-plan is existing-topic replan only" "$loop_plan_text" "existing topic replan only"
+assert_contains "loop-plan keeps topic artifact root" "$loop_plan_text" 'docs/loen/<topic>/'
 assert_contains "loop-plan validates upstream checkpoints" "$loop_plan_text" "Validate the goal/context and mode checkpoints"
 assert_contains "loop-plan resets plan checkpoint" "$loop_plan_text" "Reset the plan checkpoint"
 assert_contains "loop-plan resets launch checkpoint" "$loop_plan_text" "reset the launch checkpoint"
