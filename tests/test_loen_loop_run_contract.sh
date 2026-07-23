@@ -774,10 +774,15 @@ done
 assert_eq "loop-start exact continuation output appears once" "1" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_start")"
 assert_eq "loop-plan has no continuation output" "0" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_plan" || true)"
 
-checkpoint_event_contract='Call `append_checkpoint_event` with `checkpoint`, `decision`, `created_at`, `hashes: {goal_hash, context_hash, plan_hash}`, `mode`, `subtype`, and `outcome`.'
+checkpoint_event_contract='Call `append_checkpoint_event(base=docs/loen/<topic>, checkpoint=checkpoint, decision=decision, hashes={goal_hash, context_hash, plan_hash}, mode=mode, subtype=subtype, outcome=outcome, created_at=created_at)`.'
 for event_skill in "$loop_start" "$loop_plan" "$loop_run"; do
-  assert_contains "$(basename "$(dirname "$event_skill")") names checkpoint event API fields" "$(cat "$event_skill")" "$checkpoint_event_contract"
-  assert_eq "$(basename "$(dirname "$event_skill")") does not use timestamp event field" "0" "$(grep -Eic 'checkpoint event[^.]*timestamp|append_checkpoint_event[^.]*timestamp' "$event_skill" || true)"
+  event_skill_name="$(basename "$(dirname "$event_skill")")"
+  event_skill_text="$(cat "$event_skill")"
+  assert_contains "$event_skill_name names complete checkpoint event API signature" "$event_skill_text" "$checkpoint_event_contract"
+  for event_key in base checkpoint decision hashes goal_hash context_hash plan_hash mode subtype outcome created_at; do
+    assert_contains "$event_skill_name checkpoint event instruction has $event_key" "$event_skill_text" "$event_key"
+  done
+  assert_eq "$event_skill_name has no standalone timestamp field" "0" "$(printf '%s\n' "$event_skill_text" | grep -Eic '(^|[^[:alnum:]_])timestamp([^[:alnum:]_]|$)' || true)"
 done
 
 assert_contains "loop-run invocation is not confirmation" "$loop_run_text" "Invocation is not launch confirmation."
@@ -788,7 +793,8 @@ assert_contains "loop-run presents final contract fields" "$loop_run_text" "Pres
 assert_contains "loop-run asks one launch question" "$loop_run_text" "Ask exactly one explicit launch question."
 assert_contains "loop-run records refusal and stops" "$loop_run_text" 'append a `refused` launch event and stop'
 assert_contains "loop-run records approval hashes" "$loop_run_text" "write the current goal, context, and plan hashes into the launch checkpoint"
-for launch_field in confirmed goal_hash context_hash plan_hash; do
+assert_contains "loop-run writes explicit launch confirmation before event" "$loop_run_text" 'write `checkpoints.launch.confirmed: true`, `checkpoints.launch.goal_hash`, `checkpoints.launch.context_hash`, and `checkpoints.launch.plan_hash` before appending the confirmed event.'
+for launch_field in goal_hash context_hash plan_hash; do
   launch_key="checkpoints.launch.$launch_field"
   assert_contains "loop-run names launch $launch_field field" "$loop_run_text" "\`$launch_key\`"
 done

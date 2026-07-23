@@ -18,11 +18,11 @@ Require one safe topic slug and resolve `docs/loen/<topic>/`. Reject unsafe or m
 3. FINAL CONTRACT SUMMARY: Present the final contract fields: topic, objective and observable outcome, success criteria, mutable/protected scope, verifier, budget, rollback or recovery, mode/subtype, bounded plan, checks/evidence, risks, terminal condition, and current goal/context/plan hashes.
 4. LAUNCH QUESTION: Ask exactly one explicit launch question. Ask whether to launch this exact contract now; do not combine it with another decision.
 5. REFUSAL PATH: A refusal or ambiguous response does not authorize execution; append a `refused` launch event and stop. Do not modify action, check, result, or product files.
-6. LAUNCH APPROVAL WRITE: On explicit approval, write the current goal, context, and plan hashes into the launch checkpoint using `checkpoints.launch.confirmed`, `checkpoints.launch.goal_hash`, `checkpoints.launch.context_hash`, and `checkpoints.launch.plan_hash`, then append a confirmed launch event.
+6. LAUNCH APPROVAL WRITE: On explicit approval, write the current goal, context, and plan hashes into the launch checkpoint: write `checkpoints.launch.confirmed: true`, `checkpoints.launch.goal_hash`, `checkpoints.launch.context_hash`, and `checkpoints.launch.plan_hash` before appending the confirmed event.
 7. POST-APPROVAL PREFLIGHT: Repeat the complete preflight with `require_launch=true`.
 8. POST-CONFIRMATION FAILURE: If that preflight fails, reset the launch checkpoint, append a reset event, and stop before the state machine. Write `handoff.md` with the failed check and required human action.
 
-Call `append_checkpoint_event` with `checkpoint`, `decision`, `created_at`, `hashes: {goal_hash, context_hash, plan_hash}`, `mode`, `subtype`, and `outcome`.
+Call `append_checkpoint_event(base=docs/loen/<topic>, checkpoint=checkpoint, decision=decision, hashes={goal_hash, context_hash, plan_hash}, mode=mode, subtype=subtype, outcome=outcome, created_at=created_at)`.
 
 ## State Machine
 
