@@ -202,8 +202,9 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
       continue
     leading = line[:len(line) - len(line.lstrip())]
     if "\t" in leading:
-      if section in CANONICAL_MAPPINGS or section in CANONICAL_LIST_SECTIONS or section in {"quality_gates", "agents", "stages", "tools", "permissions", "execution"}:
-        duplicates.append(f"{section}.<malformed-indentation>")
+      diagnostic = f"{section}.<malformed-indentation>" if section else "<malformed-indentation>"
+      if diagnostic not in duplicates:
+        duplicates.append(diagnostic)
       continue
     indent = len(line) - len(line.lstrip(" "))
     stripped = line.strip()
@@ -432,17 +433,12 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
     stripped = line.strip()
 
     leading_whitespace = line[:len(line) - len(line.lstrip())]
-    if "\t" in leading_whitespace and (
-      section in CANONICAL_MAPPINGS
-      or section in CANONICAL_LIST_SECTIONS
-      or section in {"quality_gates", "agents", "stages", "tools", "permissions", "execution"}
-    ):
-      continue
-    if section == "checkpoints" and "\t" in leading_whitespace:
-      if current_checkpoint:
-        data["checkpoints"][current_checkpoint] = dict(CHECKPOINT_DEFAULTS[current_checkpoint])
-      current_checkpoint = ""
-      current_checkpoint_fields = set()
+    if "\t" in leading_whitespace:
+      if section == "checkpoints":
+        if current_checkpoint:
+          data["checkpoints"][current_checkpoint] = dict(CHECKPOINT_DEFAULTS[current_checkpoint])
+        current_checkpoint = ""
+        current_checkpoint_fields = set()
       continue
 
     if indent == 0:
@@ -577,7 +573,20 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
         continue
       if indent == 4 and current_agent and mapping is not None and mapping[0] in AGENT_MEMBERS:
         key, value = mapping
-        data["agents"][current_agent][key] = _parse_inline_list(value) or _parse_scalar(value)
+        parsed = _parse_inline_list(value)
+        if parsed or value.strip() == "[]":
+          data["agents"][current_agent][key] = parsed
+          list_target = None
+        elif value.strip():
+          data["agents"][current_agent][key] = _parse_scalar(value)
+          list_target = None
+        else:
+          data["agents"][current_agent][key] = []
+          list_target = data["agents"][current_agent][key]
+      elif indent == 4 and mapping is not None:
+        list_target = None
+      elif indent == 6 and stripped.startswith("- ") and list_target is not None:
+        list_target.append(stripped[2:].strip())
       continue
 
     if section == "stages":
@@ -589,7 +598,20 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
         continue
       if indent == 4 and current_agent and mapping is not None and mapping[0] in STAGE_MEMBERS:
         key, value = mapping
-        data["stages"][current_agent][key] = _parse_inline_list(value) or _parse_scalar(value)
+        parsed = _parse_inline_list(value)
+        if parsed or value.strip() == "[]":
+          data["stages"][current_agent][key] = parsed
+          list_target = None
+        elif value.strip():
+          data["stages"][current_agent][key] = _parse_scalar(value)
+          list_target = None
+        else:
+          data["stages"][current_agent][key] = []
+          list_target = data["stages"][current_agent][key]
+      elif indent == 4 and mapping is not None:
+        list_target = None
+      elif indent == 6 and stripped.startswith("- ") and list_target is not None:
+        list_target.append(stripped[2:].strip())
       continue
 
     if section == "tools":
@@ -601,7 +623,10 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
           data["tools"][key] = parsed
           list_target = None
         else:
+          data["tools"][key] = []
           list_target = data["tools"][key]
+      elif indent == 2 and mapping is not None:
+        list_target = None
       elif indent == 4 and stripped.startswith("- ") and list_target is not None:
         list_target.append(stripped[2:].strip())
       continue
@@ -648,9 +673,9 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
             target[key] = _parse_scalar(value)
           list_target = None
         else:
-          target.setdefault(key, [])
+          target[key] = []
           list_target = target[key]
-      elif stripped.startswith("- ") and list_target is not None:
+      elif indent == 4 and stripped.startswith("- ") and list_target is not None:
         list_target.append(stripped[2:].strip())
       continue
 
@@ -671,8 +696,10 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
           target[key] = _parse_scalar(value)
           list_target = None
         else:
-          target.setdefault(key, [])
+          target[key] = []
           list_target = target[key]
+      elif indent == 4 and mapping is not None:
+        list_target = None
       elif indent == 6 and stripped.startswith("- ") and list_target is not None:
         list_target.append(stripped[2:].strip())
 

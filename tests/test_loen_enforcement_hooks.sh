@@ -258,9 +258,36 @@ PY
 }
 
 assert_malformed_runtime_authority "loop-gate rejects duplicate status" "loop-gate.py" "enforce" "$edit_payload" "status: active" $'status: done\nstatus: active'
+assert_malformed_runtime_authority "loop-gate rejects tab-prefixed status override" "loop-gate.py" "enforce" "$edit_payload" "status: active" $'status: active\n\tstatus: done'
 assert_malformed_runtime_authority "tool-guard rejects duplicate tools allowed" "tool-guard.py" "strict" "$verifier_read" "  allowed:" $'  allowed: [read]\n  allowed:'
 assert_malformed_runtime_authority "tool-guard rejects mixed-indent tools authority" "tool-guard.py" "strict" "$verifier_read" "  allowed:" $' \tallowed: [read]\n  allowed:'
 assert_malformed_runtime_authority "scope-guard rejects duplicate permission scope expansion" "scope-guard.py" "enforce" "$outside_edit" $'    mutable_scope:\n      - src/**\n      - tests/**' $'    mutable_scope:\n      - outside/**\n    mutable_scope:\n      - src/**\n      - tests/**'
+
+cp "$topic_dir/loop.yaml" "$topic_dir/loop.yaml.valid"
+python3 - "$topic_dir/loop.yaml" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace("    - search\n    - apply_patch", "    - search\n  metadata:\n    - edit", 1)
+path.write_text(text, encoding="utf-8")
+PY
+assert_hook_stderr_contains "tool-guard ignores list item below unknown sibling" 2 "tool-guard.py" "strict" "$topic" "$test_edit" "tool class not allowed"
+mv "$topic_dir/loop.yaml.valid" "$topic_dir/loop.yaml"
+
+cp "$topic_dir/loop.yaml" "$topic_dir/loop.yaml.valid"
+python3 - "$topic_dir/loop.yaml" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace("      - tests/**", "      - tests/**\n    metadata:\n      - outside/**", 1)
+path.write_text(text, encoding="utf-8")
+PY
+assert_hook_stderr_contains "scope-guard ignores list item below unknown sibling" 2 "scope-guard.py" "enforce" "$topic" "$outside_edit" "outside mutable scope"
+mv "$topic_dir/loop.yaml.valid" "$topic_dir/loop.yaml"
 
 assert_hook_exit "permission-guard allows configured shell command" 0 "permission-guard.py" "strict" "$topic" "$shell_allow"
 assert_hook_exit "permission-guard blocks destructive git" 2 "permission-guard.py" "strict" "$topic" "$shell_deny"

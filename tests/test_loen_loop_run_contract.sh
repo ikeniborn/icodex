@@ -494,6 +494,93 @@ PY
 )"
 assert_eq "checked parser diagnoses every runtime authority family" "OK" "$runtime_authority_diagnostics_output"
 
+tabbed_top_level_authority_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml, parse_loop_yaml_checked
+
+keys = ("topic", "mode", "status", "stage", "current_stage")
+failed = []
+for key in keys:
+    text = f"{key}: canonical\n\t{key}: injected\n"
+    tolerant = parse_loop_yaml(text)
+    _, diagnostics = parse_loop_yaml_checked(text)
+    if tolerant.get(key) == "injected" or not diagnostics:
+        failed.append(key)
+print("OK" if not failed else ",".join(failed))
+PY
+)"
+assert_eq "tab-prefixed top-level authority is ignored and diagnosed" "OK" "$tabbed_top_level_authority_output"
+
+canonical_list_parent_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml
+
+text = """tools:
+  allowed:
+    - read
+  metadata:
+    - write
+  denied:
+    - network
+  defaults:
+    - secrets
+agents:
+  worker:
+    tools:
+      - read
+    metadata:
+      - edit
+stages:
+  act:
+    roles:
+      - worker
+    metadata:
+      - verifier
+permissions:
+  filesystem:
+    mutable_scope:
+      - src/**
+    metadata:
+      - outside/**
+    protected_scope:
+      - secrets/**
+    defaults:
+      - src/**
+  network:
+    allowlist:
+      - example.com
+    metadata:
+      - evil.example
+  shell:
+    allow:
+      - pytest
+    metadata:
+      - rm -rf
+    deny_patterns:
+      - git reset --hard
+    defaults:
+      - echo
+governance:
+  alert_on:
+    - verifier_failure
+  metadata:
+    - ignored_alert
+"""
+data = parse_loop_yaml(text)
+expected = (
+    data["tools"] == {"allowed": ["read"], "denied": ["network"]}
+    and data["agents"]["worker"]["tools"] == ["read"]
+    and data["stages"]["act"]["roles"] == ["worker"]
+    and data["permissions"]["filesystem"]["mutable_scope"] == ["src/**"]
+    and data["permissions"]["filesystem"]["protected_scope"] == ["secrets/**"]
+    and data["permissions"]["network"]["allowlist"] == ["example.com"]
+    and data["permissions"]["shell"]["allow"] == ["pytest"]
+    and data["permissions"]["shell"]["deny_patterns"] == ["git reset --hard"]
+    and data["governance"]["alert_on"] == ["verifier_failure"]
+)
+print("OK" if expected else data)
+PY
+)"
+assert_eq "block list items require exact canonical parent" "OK" "$canonical_list_parent_output"
+
 duplicate_checkpoint_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
 from loen_common import parse_loop_yaml
 
