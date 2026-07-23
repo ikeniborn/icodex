@@ -882,7 +882,8 @@ assert_contains "loop-run separately inspects supplemental fields" "$loop_run_te
 assert_contains "loop-run presents final contract fields" "$loop_run_text" "Present the final contract fields"
 assert_contains "loop-run asks one launch question" "$loop_run_text" "Ask exactly one explicit launch question."
 assert_contains "loop-run records refusal and stops" "$loop_run_text" 'append a `refused` launch event and stop'
-assert_contains "loop-run records approval hashes" "$loop_run_text" "write the current goal, context, plan, and policy hashes into the launch checkpoint"
+assert_contains "loop-run records approval hashes" "$loop_run_text" "write the current goal, context, plan, and computed policy hashes into the launch checkpoint"
+assert_contains "loop-run computes launch policy with production helper" "$loop_run_text" 'compute the current policy hash with `run_policy_hash(parsed, run_mode, subtype)` over its exact canonical field set before writing the launch checkpoint or confirmed event'
 assert_contains "loop-run writes explicit launch confirmation before event" "$loop_run_text" 'write `checkpoints.launch.confirmed: true`, `checkpoints.launch.goal_hash`, `checkpoints.launch.context_hash`, `checkpoints.launch.plan_hash`, and `checkpoints.launch.policy_hash` before appending the confirmed event.'
 for launch_field in goal_hash context_hash plan_hash policy_hash; do
   launch_key="checkpoints.launch.$launch_field"
@@ -907,18 +908,33 @@ assert_contains "loop-run supports merge release" "$loop_run_text" "merge-releas
 assert_contains "merge-release requires universal launch checkpoint" "$loop_run_text" "universal launch checkpoint is required"
 assert_contains "merge-release says plan approval is insufficient" "$loop_run_text" "Plan approval alone is insufficient"
 
-policy_transition_status="$(PYTHONPATH="$hook_root" python3 - "$tmp/policy-transition" <<'PY'
+policy_transition_status="$(PYTHONPATH="$hook_root" python3 - "$tmp/policy-transition-root" "$plugin_root/assets/templates" <<'PY'
 import re
 import sys
 from pathlib import Path
 
-from loen_artifacts import append_checkpoint_event, artifact_body_hash, run_policy_hash, validate_run_contract
+from loen_artifacts import append_checkpoint_event, artifact_body_hash, run_policy_hash, scaffold_topic, validate_run_contract
 from loen_common import parse_loop_yaml
 
-base = Path(sys.argv[1])
-base.mkdir(parents=True)
-for name, text in (("1_goal.md", "# Goal\n\nGoal.\n"), ("2_context.md", "# Context\n\nContext.\n"), ("3_plan.md", "# Plan\n\nPlan.\n"), ("4_act.md", "")):
+root = Path(sys.argv[1])
+base = scaffold_topic(
+    artifact_root=root,
+    template_dir=Path(sys.argv[2]),
+    topic="transition",
+    objective="Execute approved transition.",
+    mutable_scope=["plugins/loen/**"],
+    protected_scope=["README.md"],
+    verifier_command="bash tests/test_loen_loop_run_contract.sh",
+    quality_gate_command="bash tests/test_loen_loop_run_contract.sh",
+    created_date="2026-07-23",
+)
+required = {"1_goal.md", "2_context.md", "3_plan.md", "4_act.md", "5_check.md", "6_reflect.md", "7_result.md", "loop.yaml", "attempts.jsonl", "handoff.md", "audit.html"}
+if not required <= {path.name for path in base.iterdir()}:
+    raise SystemExit("production scaffold incomplete")
+states = ["scaffold"]
+for name, text in (("1_goal.md", "# Goal\n\nGoal.\n"), ("2_context.md", "# Context\n\nContext.\n"), ("3_plan.md", "# Plan\n\nPlan.\n")):
     (base / name).write_text(text, encoding="utf-8")
+(base / "4_act.md").write_text("", encoding="utf-8")
 hashes = {name: artifact_body_hash(base / filename) for name, filename in (("goal_hash", "1_goal.md"), ("context_hash", "2_context.md"), ("plan_hash", "3_plan.md"))}
 text = f'''topic: transition
 mode: delivery
@@ -944,9 +960,11 @@ text = text.replace("POLICY", policy)
 (base / "loop.yaml").write_text(text, encoding="utf-8")
 if validate_run_contract(base, require_launch=False)["ok"] is not True:
     raise SystemExit("prelaunch rejected")
+states.append("prelaunch")
 if (base / "4_act.md").read_text(encoding="utf-8"):
     raise SystemExit("invocation acted")
 append_checkpoint_event(base=base, checkpoint="launch", decision="refused", hashes={})
+states.append("refused")
 if (base / "4_act.md").read_text(encoding="utf-8"):
     raise SystemExit("refusal acted")
 launch = hashes | {"policy_hash": policy}
@@ -956,6 +974,7 @@ text = text.replace('  launch:\n    confirmed: false\n    goal_hash: ""\n    con
 append_checkpoint_event(base=base, checkpoint="launch", decision="confirmed", hashes=launch)
 if validate_run_contract(base)["ok"] is not True:
     raise SystemExit("launch rejected")
+states.append("launched")
 original = (base / "loop.yaml").read_text(encoding="utf-8")
 mutations = {
     "delivery-to-governance": lambda value: value.replace("    mode: delivery\n    subtype: \"\"", "    mode: governance\n    subtype: report-only"),
@@ -977,6 +996,7 @@ for label, mutate in mutations.items():
         raise SystemExit(f"{label} mutation accepted")
     if (base / "4_act.md").read_text(encoding="utf-8"):
         raise SystemExit(f"{label} mutation acted")
+states.append("policy-rejected")
 
 mutated = mutations["mutable-scope"](original)
 current_policy = run_policy_hash(parse_loop_yaml(mutated), "delivery", "")
@@ -990,10 +1010,14 @@ mutated = re.sub(r"(  launch:\n(?:    .*\n)*?    policy_hash: )[^\n]+", rf"\g<1>
 append_checkpoint_event(base=base, checkpoint="launch", decision="confirmed", hashes=hashes | {"policy_hash": current_policy})
 if validate_run_contract(base)["ok"] is not True:
     raise SystemExit("reconfirmed current policy rejected")
+states.append("reconfirmed")
 (base / "4_act.md").write_text("validated action\n", encoding="utf-8")
+states.append("acted")
 events = [line for line in (base / "attempts.jsonl").read_text(encoding="utf-8").splitlines() if line]
 if len(events) != 4 or '"decision": "refused"' not in events[0] or any('"decision": "confirmed"' not in line for line in events[1:]):
     raise SystemExit("event order/count mismatch")
+if states != ["scaffold", "prelaunch", "refused", "launched", "policy-rejected", "reconfirmed", "acted"]:
+    raise SystemExit(f"state order mismatch: {states}")
 print("OK")
 PY
 )"
