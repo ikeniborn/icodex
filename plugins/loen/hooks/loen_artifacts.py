@@ -304,7 +304,11 @@ def _validate_checkpoints(
   *,
   require_launch: bool,
 ) -> tuple[dict[str, object] | None, str, str]:
-  checkpoint_sections = sum(line == "checkpoints:" for line in loop_text.splitlines())
+  checkpoint_sections = 0
+  for raw_line in loop_text.splitlines():
+    normalized = raw_line.split("#", 1)[0].rstrip()
+    if normalized == normalized.lstrip() and normalized == "checkpoints:":
+      checkpoint_sections += 1
   if checkpoint_sections == 0:
     return {"ok": False, "reason": "legacy checkpoint contract"}, "", ""
   if checkpoint_sections != 1:

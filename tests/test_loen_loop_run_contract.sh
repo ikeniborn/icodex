@@ -435,6 +435,14 @@ run:
   plan_approved: true
   plan_hash: legacy
 """, encoding="utf-8")
+elif scenario == "non-top-level-checkpoints":
+  base = fixture(scenario)
+  (base / "loop.yaml").write_text("""topic: non-top-level
+# checkpoints:
+run:
+  checkpoints:
+    confirmed: true
+""", encoding="utf-8")
 elif scenario == "goal-unconfirmed":
   base = fixture(scenario, overrides={"goal_confirmed": "false"})
 elif scenario == "goal-stale":
@@ -480,6 +488,22 @@ elif scenario == "duplicate-checkpoints":
     goal_hash: split-authority
     context_hash: split-authority
 checkpoints:
+  goal_context:""",
+  )
+  loop_path.write_text(text, encoding="utf-8")
+elif scenario in {"duplicate-checkpoints-comment", "duplicate-checkpoints-spaces"}:
+  base = fixture(scenario)
+  loop_path = base / "loop.yaml"
+  duplicate_header = "checkpoints: # duplicate" if scenario.endswith("comment") else "checkpoints:   "
+  text = loop_path.read_text(encoding="utf-8")
+  text = text.replace(
+    "checkpoints:\n  goal_context:",
+    f"""checkpoints:
+  goal_context:
+    confirmed: true
+    goal_hash: split-authority
+    context_hash: split-authority
+{duplicate_header}
   goal_context:""",
   )
   loop_path.write_text(text, encoding="utf-8")
@@ -535,6 +559,7 @@ run_contract_case() {
 }
 
 run_contract_case "legacy contract rejected" "legacy" "legacy checkpoint contract"
+run_contract_case "commented and nested checkpoints ignored" "non-top-level-checkpoints" "legacy checkpoint contract"
 run_contract_case "goal/context confirmation required" "goal-unconfirmed" "goal/context confirmation missing"
 run_contract_case "stale goal rejected" "goal-stale" "goal hash mismatch"
 run_contract_case "stale context rejected" "context-stale" "context hash mismatch"
@@ -551,6 +576,8 @@ run_contract_case "missing goal artifact rejected" "missing-goal" "goal hash mis
 run_contract_case "missing context artifact rejected" "missing-context" "context hash mismatch"
 run_contract_case "missing plan artifact rejected" "missing-plan" "plan hash mismatch"
 run_contract_case "duplicate checkpoint contract rejected" "duplicate-checkpoints" "invalid checkpoint contract"
+run_contract_case "commented duplicate checkpoint contract rejected" "duplicate-checkpoints-comment" "invalid checkpoint contract"
+run_contract_case "spaced duplicate checkpoint contract rejected" "duplicate-checkpoints-spaces" "invalid checkpoint contract"
 run_contract_case "unreadable goal artifact rejected" "unreadable-goal" "unreadable goal artifact"
 run_contract_case "unreadable context artifact rejected" "unreadable-context" "unreadable context artifact"
 run_contract_case "unreadable plan artifact rejected" "unreadable-plan" "unreadable plan artifact"
