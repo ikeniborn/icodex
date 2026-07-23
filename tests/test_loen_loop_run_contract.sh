@@ -595,19 +595,42 @@ sed -i '0,/subtype: merge-release/s//subtype: report-only/' "$topic_dir/loop.yam
 printf '# Check\n\n## Result\n\nPASS\n' > "$topic_dir/5_check.md"
 printf '# Result\n\n## Outcome\n\nDone\n' > "$topic_dir/7_result.md"
 printf '{"status":"pass"}\n' > "$topic_dir/evidence/latest-test.json"
-audit_status_output="$(PYTHONPATH="$hook_root" python3 - "$topic_dir" 2>/dev/null <<'PY'
+cat > "$topic_dir/attempts.jsonl" <<'JSONL'
+legacy plain attempt
+{"automation":true,"created_at":"2026-07-23T09:00:00Z","effective_status":"pass","run_type":"governance","summary":"mixed automation survives"}
+not-json {
+{"checkpoint":"goal_context","context_hash":"historical-context","created_at":"2026-07-23T10:00:00Z","decision":"reset","event":"checkpoint","goal_hash":"historical-goal","mode":"delivery","plan_hash":"historical-plan","subtype":""}
+{"checkpoint":"launch","context_hash":"context-hash","created_at":"2026-07-23T11:00:00Z","decision":"confirmed","event":"checkpoint","goal_hash":"goal-hash","mode":"governance","plan_hash":"PLAN_HASH","subtype":"report-only"}
+JSONL
+sed -i "s/PLAN_HASH/$plan_hash/" "$topic_dir/attempts.jsonl"
+audit_status_output="$(PYTHONPATH="$hook_root" python3 - "$topic_dir" "$plan_hash" 2>/dev/null <<'PY'
 import sys
 from pathlib import Path
 from loen_artifacts import render_audit
 base = Path(sys.argv[1])
 text = render_audit(base, "sample-runner")
+checkpoint_section = text.split("<h2>Checkpoints</h2>", 1)[1].split("</section>", 1)[0]
 checks = [
     "Runner" in text,
+    "Governance" in text,
+    "mixed automation survives" in text,
     "report-only" in text,
     "plan_approved: true" in text,
+    "Checkpoints" in text,
+    all(name in text for name in ("goal_context", "mode", "plan", "launch")),
+    "confirmed: true" in text,
+    "goal-hash" in text,
+    "context-hash" in text,
+    sys.argv[2] in text,
+    "historical-goal" not in checkpoint_section,
+    "reset" not in checkpoint_section,
+    "2 checkpoint event(s)" in text,
+    "Checkpoint History" in text,
+    "historical-goal" in text,
+    "reset" in text,
     "Final verdict:</strong> Done" in text,
 ]
-print("OK" if all(checks) else text[:500])
+print("OK" if all(checks) else text)
 PY
 )"
 audit_status_code="$?"

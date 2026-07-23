@@ -31,6 +31,8 @@ RUNTIME_FILES = STAGE_FILES + (
 )
 
 SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,78}[a-z0-9]?$")
+CHECKPOINT_NAMES = {"goal_context", "mode", "plan", "launch"}
+CHECKPOINT_DECISIONS = {"confirmed", "reset", "refused"}
 
 
 @dataclass(frozen=True)
@@ -576,6 +578,20 @@ def _automation_attempts(base: Path) -> list[dict[str, object]]:
   return attempts
 
 
+def _checkpoint_events(base: Path) -> list[dict[str, object]]:
+  events: list[dict[str, object]] = []
+  for line in _read(base / "attempts.jsonl").splitlines():
+    if not line.strip():
+      continue
+    try:
+      data = json.loads(line)
+    except json.JSONDecodeError:
+      continue
+    if isinstance(data, dict) and data.get("event") == "checkpoint":
+      events.append(data)
+  return events
+
+
 def _governance_summary(base: Path, loop_text: str) -> GovernanceSummary:
   policy = governance_policy(loop_text)
   attempts = _automation_attempts(base)
@@ -611,7 +627,42 @@ def _runner_summary(loop_text: str) -> dict[str, object]:
     "current_pass": run.get("current_pass", ""),
     "max_passes": run.get("max_passes", ""),
     "release_target": policy.get("target_branch", ""),
+    "checkpoints": parsed.get("checkpoints", {}) if isinstance(parsed.get("checkpoints"), dict) else {},
   }
+
+
+def append_checkpoint_event(
+  *,
+  base: Path,
+  checkpoint: str,
+  decision: str,
+  goal_hash: str = "",
+  context_hash: str = "",
+  plan_hash: str = "",
+  mode: str = "",
+  subtype: str = "",
+  created_at: str = "",
+) -> dict[str, object]:
+  if checkpoint not in CHECKPOINT_NAMES:
+    raise ValueError(f"invalid checkpoint: {checkpoint}")
+  if decision not in CHECKPOINT_DECISIONS:
+    raise ValueError(f"invalid checkpoint decision: {decision}")
+  record: dict[str, object] = {
+    "event": "checkpoint",
+    "checkpoint": checkpoint,
+    "decision": decision,
+    "goal_hash": goal_hash,
+    "context_hash": context_hash,
+    "plan_hash": plan_hash,
+    "mode": mode,
+    "subtype": subtype,
+    "created_at": created_at,
+  }
+  attempts_path = base / "attempts.jsonl"
+  attempts_path.parent.mkdir(parents=True, exist_ok=True)
+  with attempts_path.open("a", encoding="utf-8") as handle:
+    handle.write(json.dumps(record, sort_keys=True) + "\n")
+  return record
 
 
 def append_automation_attempt(
@@ -693,6 +744,7 @@ def render_audit(base: Path, topic: str) -> str:
   summary = _summary_from_loop(loop_text, topic)
   governance = _governance_summary(base, loop_text)
   runner = _runner_summary(loop_text)
+  checkpoint_events = _checkpoint_events(base)
   evidence_files = _evidence_files(base)
   has_result = _has_exact_markdown_value(_read(base / "7_result.md"), "Done")
   has_check = _has_exact_markdown_value(_read(base / "5_check.md"), "PASS")
@@ -717,6 +769,30 @@ def render_audit(base: Path, topic: str) -> str:
     "</li>"
     for item in governance.automated_attempts
   ) or "<li>No automated attempts recorded.</li>"
+  checkpoints = runner["checkpoints"]
+  checkpoint_html = "\n".join(
+    "<li>"
+    f"<strong>{html.escape(name)}</strong>: "
+    + ", ".join(
+      f"{html.escape(str(key))}: {html.escape(str(value).lower() if isinstance(value, bool) else str(value))}"
+      for key, value in (checkpoints.get(name, {}) if isinstance(checkpoints, dict) else {}).items()
+    )
+    + "</li>"
+    for name in ("goal_context", "mode", "plan", "launch")
+  )
+  checkpoint_event_html = "\n".join(
+    "<li>"
+    f"{html.escape(str(item.get('created_at', '')))} "
+    f"{html.escape(str(item.get('checkpoint', '')))} "
+    f"{html.escape(str(item.get('decision', '')))}"
+    f"; goal_hash: {html.escape(str(item.get('goal_hash', '')))}"
+    f"; context_hash: {html.escape(str(item.get('context_hash', '')))}"
+    f"; plan_hash: {html.escape(str(item.get('plan_hash', '')))}"
+    f"; mode: {html.escape(str(item.get('mode', '')))}"
+    f"; subtype: {html.escape(str(item.get('subtype', '')))}"
+    "</li>"
+    for item in checkpoint_events
+  ) or "<li>No checkpoint events recorded.</li>"
 
   sections = [
     ("Goal", _read(base / "1_goal.md")),
@@ -762,6 +838,15 @@ def render_audit(base: Path, topic: str) -> str:
     f"      <p><strong>State:</strong> {html.escape(str(runner['state']))}</p>",
     f"      <p><strong>Pass:</strong> {html.escape(str(runner['current_pass']))}/{html.escape(str(runner['max_passes']))}</p>",
     f"      <p><strong>Release target:</strong> {html.escape(str(runner['release_target']))}</p>",
+    "    </section>",
+    "    <section>",
+    "      <h2>Checkpoints</h2>",
+    f"      <ul>{checkpoint_html}</ul>",
+    "    </section>",
+    "    <section>",
+    "      <h2>Checkpoint History</h2>",
+    f"      <p>{len(checkpoint_events)} checkpoint event(s)</p>",
+    f"      <ul>{checkpoint_event_html}</ul>",
     "    </section>",
     "    <section>",
     "      <h2>Verifier Result</h2>",

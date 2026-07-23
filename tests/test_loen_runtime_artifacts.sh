@@ -170,6 +170,72 @@ else
 fi
 assert_eq "loop yaml parses into contract" "OK" "$parse_status"
 
+checkpoint_event_status="$(PYTHONPATH="$plugin_root/hooks" python3 - "$workdir/checkpoint-events" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+from loen_artifacts import append_checkpoint_event
+
+base = Path(sys.argv[1])
+inputs = [
+    ("goal_context", "confirmed"),
+    ("mode", "reset"),
+    ("plan", "refused"),
+    ("launch", "confirmed"),
+]
+for checkpoint, decision in inputs:
+    append_checkpoint_event(
+        base=base,
+        checkpoint=checkpoint,
+        decision=decision,
+        goal_hash="goal-123",
+        context_hash="context-456",
+        plan_hash="plan-789",
+        mode="governance",
+        subtype="report-only",
+        created_at="2026-07-23T12:34:56Z",
+    )
+
+attempts_path = base / "attempts.jsonl"
+records = [json.loads(line) for line in attempts_path.read_text(encoding="utf-8").splitlines()]
+expected = [
+    {
+        "checkpoint": checkpoint,
+        "context_hash": "context-456",
+        "created_at": "2026-07-23T12:34:56Z",
+        "decision": decision,
+        "event": "checkpoint",
+        "goal_hash": "goal-123",
+        "mode": "governance",
+        "plan_hash": "plan-789",
+        "subtype": "report-only",
+    }
+    for checkpoint, decision in inputs
+]
+if records != expected:
+    raise SystemExit({"records": records, "expected": expected})
+if attempts_path.read_text(encoding="utf-8").splitlines()[0] != json.dumps(expected[0], sort_keys=True):
+    raise SystemExit("checkpoint event JSON is not key-sorted")
+
+line_count = len(records)
+for kwargs in (
+    {"checkpoint": "unknown", "decision": "confirmed"},
+    {"checkpoint": "plan", "decision": "ignored"},
+):
+    try:
+        append_checkpoint_event(base=base, **kwargs)
+    except ValueError:
+        pass
+    else:
+        raise SystemExit(f"accepted invalid checkpoint event: {kwargs}")
+if len(attempts_path.read_text(encoding="utf-8").splitlines()) != line_count:
+    raise SystemExit("invalid checkpoint event appended a line")
+print("OK")
+PY
+)"
+assert_eq "checkpoint events append validated sorted JSONL" "OK" "$checkpoint_event_status"
+
 printf '{"status":"pass","command":"bash tests/test_loen_runtime_artifacts.sh"}\n' > "$topic_dir/evidence/latest-test.json"
 printf '# Check\n\n## Result\n\nBYPASS\n' > "$topic_dir/5_check.md"
 printf '# Result\n\n## Outcome\n\nNot Done\n' > "$topic_dir/7_result.md"
