@@ -22,7 +22,22 @@ Require one safe topic slug and resolve `docs/loen/<topic>/`. Reject unsafe or m
 7. POST-APPROVAL PREFLIGHT: Repeat the complete preflight with `require_launch=true`.
 8. POST-CONFIRMATION FAILURE: If that preflight fails, reset the launch checkpoint, append a reset event, and stop before the state machine. Write `handoff.md` with the failed check and required human action.
 
-Call `append_checkpoint_event(base=docs/loen/<topic>, checkpoint=checkpoint, decision=decision, hashes={goal_hash, context_hash, plan_hash}, mode=mode, subtype=subtype, outcome=outcome, created_at=created_at)`.
+`Path` comes from `pathlib`. Call:
+
+```python
+append_checkpoint_event(
+  base=Path("docs/loen/<topic>"),
+  checkpoint="<checkpoint>",
+  decision="<decision>",
+  hashes={"goal_hash": goal_hash, "context_hash": context_hash, "plan_hash": plan_hash},
+  mode=mode,
+  subtype=subtype,
+  outcome="<outcome>",
+  created_at=created_at,
+)
+```
+
+For an event with fewer relevant hashes, pass a dictionary containing only the relevant exact key/value pairs; never pass a set.
 
 ## State Machine
 

@@ -774,14 +774,29 @@ done
 assert_eq "loop-start exact continuation output appears once" "1" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_start")"
 assert_eq "loop-plan has no continuation output" "0" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_plan" || true)"
 
-checkpoint_event_contract='Call `append_checkpoint_event(base=docs/loen/<topic>, checkpoint=checkpoint, decision=decision, hashes={goal_hash, context_hash, plan_hash}, mode=mode, subtype=subtype, outcome=outcome, created_at=created_at)`.'
+checkpoint_event_contract='append_checkpoint_event(
+  base=Path("docs/loen/<topic>"),
+  checkpoint="<checkpoint>",
+  decision="<decision>",
+  hashes={"goal_hash": goal_hash, "context_hash": context_hash, "plan_hash": plan_hash},
+  mode=mode,
+  subtype=subtype,
+  outcome="<outcome>",
+  created_at=created_at,
+)'
 for event_skill in "$loop_start" "$loop_plan" "$loop_run"; do
   event_skill_name="$(basename "$(dirname "$event_skill")")"
   event_skill_text="$(cat "$event_skill")"
-  assert_contains "$event_skill_name names complete checkpoint event API signature" "$event_skill_text" "$checkpoint_event_contract"
+  assert_exit "$event_skill_name names complete checkpoint event API signature" 0 bash -c '[[ "$1" == *"$2"* ]]' _ "$event_skill_text" "$checkpoint_event_contract"
   for event_key in base checkpoint decision hashes goal_hash context_hash plan_hash mode subtype outcome created_at; do
     assert_contains "$event_skill_name checkpoint event instruction has $event_key" "$event_skill_text" "$event_key"
   done
+  assert_contains "$event_skill_name imports Path source" "$event_skill_text" '`Path` comes from `pathlib`.'
+  assert_contains "$event_skill_name checkpoint event uses Path base" "$event_skill_text" 'base=Path("docs/loen/<topic>")'
+  assert_contains "$event_skill_name checkpoint event uses hash mapping" "$event_skill_text" 'hashes={"goal_hash": goal_hash, "context_hash": context_hash, "plan_hash": plan_hash}'
+  assert_contains "$event_skill_name allows relevant hash subset mapping" "$event_skill_text" 'For an event with fewer relevant hashes, pass a dictionary containing only the relevant exact key/value pairs; never pass a set.'
+  assert_eq "$event_skill_name rejects bare base example" "0" "$(grep -cF 'base=docs/loen/<topic>' "$event_skill" || true)"
+  assert_eq "$event_skill_name rejects set-like hashes example" "0" "$(grep -cF 'hashes={goal_hash' "$event_skill" || true)"
   assert_eq "$event_skill_name has no standalone timestamp field" "0" "$(printf '%s\n' "$event_skill_text" | grep -Eic '(^|[^[:alnum:]_])timestamp([^[:alnum:]_]|$)' || true)"
 done
 

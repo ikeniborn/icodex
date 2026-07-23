@@ -31,7 +31,22 @@ Create and fully plan a new LoEn topic. Never launch it.
 - INVALIDATE-FAILED-PREFLIGHT: Failed post-confirmation preflight resets launch only.
 - RESET-AUDIT: Every reset appends one reset event; never infer confirmation or approval.
 
-Call `append_checkpoint_event(base=docs/loen/<topic>, checkpoint=checkpoint, decision=decision, hashes={goal_hash, context_hash, plan_hash}, mode=mode, subtype=subtype, outcome=outcome, created_at=created_at)`.
+`Path` comes from `pathlib`. Call:
+
+```python
+append_checkpoint_event(
+  base=Path("docs/loen/<topic>"),
+  checkpoint="<checkpoint>",
+  decision="<decision>",
+  hashes={"goal_hash": goal_hash, "context_hash": context_hash, "plan_hash": plan_hash},
+  mode=mode,
+  subtype=subtype,
+  outcome="<outcome>",
+  created_at=created_at,
+)
+```
+
+For an event with fewer relevant hashes, pass a dictionary containing only the relevant exact key/value pairs; never pass a set.
 
 PROHIBITION: MUST NOT write `checkpoints.launch.confirmed: true`.
 
