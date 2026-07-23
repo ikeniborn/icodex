@@ -1,6 +1,6 @@
 ---
 review:
-  plan_hash: 2d399776ded12580
+  plan_hash: 8ccbfcc2f31e6f74
   last_run: 2026-07-23
   phases:
     structure: { status: passed }
@@ -39,6 +39,16 @@ chain:
 - Modify `plugins/loen/skills/loop-run/SKILL.md`: separate invocation from launch confirmation and repeat preflight after confirmation.
 - Modify `tests/test_loen_loop_run_contract.sh`: cover parser, hashes, checkpoint validation, invalidation, audit events, skill order, legacy refusal, and no-execution scenarios.
 - Modify `tests/test_loen_runtime_artifacts.sh`: cover generated checkpoint defaults and audit rendering.
+- Modify `tests/test_loen_workflow_transitions.sh`: require explicit valid timestamps in executable transition evidence.
+- Create `vendor/superpowers/pin`: identify the exact runtime cache path.
+- Create `vendor/superpowers/patches/*.patch`: store ordered icodex validation-first deltas outside generated cache state.
+- Modify `scripts/vendor-superpowers.sh`: apply patches with zero fuzz in staging and publish cache/pin atomically.
+- Modify `lib/plugin/superpowers.sh`: resolve exactly the pinned cache and fail before runtime mutations on invalid state.
+- Modify `tests/test_vendor.sh`: cover overlay replay, conflict rollback, unique discovery, and atomic publication.
+- Modify `tests/test_plugin.sh`: cover exact pin selection and pre-mutation failure.
+- Modify `tests/test_idd_skills.sh` and `tests/test_chain_result_report_contract.sh`: resolve the shared pin and strengthen workflow semantics.
+- Modify `.codex-isolated/plugins/cache/openai-curated/superpowers/11c74d6b/skills/brainstorming/SKILL.md` and `writing-plans/SKILL.md`: materialized validation-first overlay output.
+- Modify `.codex-isolated/config.toml`: update pin-maintenance guidance without adding private TOML keys.
 - Modify `plugins/loen/docs/architecture.md`: final verified architecture flow.
 - Modify `plugins/loen/README.md`: final English user workflow and migration break.
 - Modify `plugins/loen/README.ru.md`: final Russian user workflow and migration break.
@@ -613,9 +623,9 @@ git add plugins/loen/docs/architecture.md plugins/loen/README.md plugins/loen/RE
 git commit -m "docs(loen): document checkpointed start workflow"
 ```
 
-### Task 7: Final Verification and Result Reconciliation
+### Task 7: Pre-Hardening Verification Baseline
 
-**Closes:** All acceptance outcomes and the measurable done condition; no implementation files change in this task.
+**Closes:** R1-R9 verification before review-discovered R10-R13 blockers; no implementation files change in this task.
 
 **Files:**
 - Verify: all files listed above
@@ -653,4 +663,234 @@ Expected: clean diff; changed paths map to Tasks 1-6; remaining legacy-key match
 
 Run `$check-chain result docs/superpowers/plans/2026-07-23-loen-start-mode-gates.md`.
 
-Expected: every plan step maps to diff/test/doc evidence, verdict `OK`, and `docs/TODO.md` topic `loen-start-mode-gates` closes as `done`.
+Expected: review may reopen the topic when confirmed blockers remain; final closure moves to Task 11.
+
+### Task 8: Harden Canonical Parsing and Audit Events
+
+**Closes:** R10, R11; canonical null, duplicate authority refusal, and timestamped audit outcomes.
+
+**Files:**
+- Modify: `plugins/loen/hooks/loen_common.py`
+- Modify: `plugins/loen/hooks/loen_artifacts.py`
+- Modify: `tests/test_loen_loop_run_contract.sh`
+- Modify: `tests/test_loen_runtime_artifacts.sh`
+- Modify: `tests/test_loen_workflow_transitions.sh`
+- Modify: `plugins/loen/skills/loop-start/SKILL.md`
+- Modify: `plugins/loen/skills/loop-plan/SKILL.md`
+- Modify: `plugins/loen/skills/loop-run/SKILL.md`
+
+- [ ] **Step 1: Add failing semantic-null and independent hash-vector tests**
+
+Test bare null variants, quoted null, and expected SHA-256 prefixes computed directly from literal canonical JSON rather than `run_policy_hash()`.
+
+```bash
+bash tests/test_loen_loop_run_contract.sh
+```
+
+Expected: FAIL because bare null is currently parsed as textual `"null"`.
+
+- [ ] **Step 2: Add failing canonical duplicate matrix**
+
+Cover every top-level policy field, verifier/budget/governance/release-policy member, checkpoint name/field, and quality-gate item key. Include comments, unrelated nested keys, and quoted `#` controls that must remain valid.
+
+```bash
+bash tests/test_loen_loop_run_contract.sh
+```
+
+Expected: FAIL because non-checkpoint duplicates currently use last-value wins.
+
+- [ ] **Step 3: Implement semantic scalar parsing and checked diagnostics**
+
+Keep `parse_loop_yaml(text) -> dict`. Add a quote-aware checked parser path returning diagnostics to `validate_run_contract()`. Normalize delivery null subtype before validation/hash input and return the stable reason `invalid canonical authority` for duplicate authority paths.
+
+```bash
+bash tests/test_loen_loop_run_contract.sh
+```
+
+Expected: all contract tests pass, including independent vectors and duplicate matrix.
+
+- [ ] **Step 4: Add failing timestamp schema and no-write tests**
+
+Cover valid second/fractional `Z`, and reject empty, offset, lowercase, date-only, invalid date/time. Assert invalid append leaves JSONL unchanged and malformed history is excluded.
+
+```bash
+bash tests/test_loen_runtime_artifacts.sh
+```
+
+Expected: FAIL because empty `created_at` is currently accepted.
+
+- [ ] **Step 5: Implement shared timestamp validation**
+
+Use one strict validator in writer and reader. Preserve call signature but require callers to pass canonical timestamps; update skill examples and workflow fixtures.
+
+```bash
+bash tests/test_loen_runtime_artifacts.sh
+bash tests/test_loen_workflow_transitions.sh
+```
+
+Expected: all timestamp and executable-transition tests pass.
+
+- [ ] **Step 6: Commit runtime hardening**
+
+```bash
+git add plugins/loen/hooks/loen_common.py plugins/loen/hooks/loen_artifacts.py tests/test_loen_loop_run_contract.sh tests/test_loen_runtime_artifacts.sh tests/test_loen_workflow_transitions.sh plugins/loen/skills/loop-start/SKILL.md plugins/loen/skills/loop-plan/SKILL.md plugins/loen/skills/loop-run/SKILL.md
+git commit -m "fix(loen): harden policy parsing and audit events"
+```
+
+### Task 9: Make Superpowers Overlay Durable and Cache Selection Deterministic
+
+**Closes:** R12; re-vendor durability, atomic publication, and exact runtime cache selection.
+
+**Files:**
+- Create: `vendor/superpowers/pin`
+- Create: `vendor/superpowers/patches/0001-brainstorming-check-chain.patch`
+- Create: `vendor/superpowers/patches/0002-writing-plans-check-chain.patch`
+- Modify: `scripts/vendor-superpowers.sh`
+- Modify: `lib/plugin/superpowers.sh`
+- Modify: `.codex-isolated/config.toml`
+- Modify: `tests/test_vendor.sh`
+- Modify: `tests/test_plugin.sh`
+
+- [ ] **Step 1: Add failing vendor-overlay tests**
+
+Fixtures must prove ordered zero-fuzz application, required markers, rejection of zero/multiple source caches, conflict rollback, and atomic cache/pin publication.
+
+```bash
+bash tests/test_vendor.sh
+```
+
+Expected: FAIL because no pin/patch staging API exists.
+
+- [ ] **Step 2: Implement staged fail-closed vendoring**
+
+Normalize the unique source into a sibling staging directory, apply every ordered patch with `patch --batch --forward --fuzz=0 -p1`, validate output, then replace destination and pin only after success. Any failure preserves previous destination and pin.
+
+```bash
+bash tests/test_vendor.sh
+```
+
+Expected: all refresh, drift, ambiguity, and rollback tests pass.
+
+- [ ] **Step 3: Add failing exact-pin runtime tests**
+
+Cover valid pin, malformed/missing pin, missing target, extra unpinned cache, marketplace mismatch, and proof that failure does not alter config, marketplace root, or skill links.
+
+```bash
+bash tests/test_plugin.sh
+```
+
+Expected: FAIL because runtime currently chooses first glob match and tolerates missing cache.
+
+- [ ] **Step 4: Implement deterministic pre-mutation resolution**
+
+Read and validate the dedicated pin, enumerate cache directories, require one exact match and configured marketplace identity, then wire only after all checks pass.
+
+```bash
+bash tests/test_plugin.sh
+```
+
+Expected: exact-pin and existing idempotence/CWD tests pass.
+
+- [ ] **Step 5: Materialize and verify overlay patches**
+
+Generate unified patches from clean pinned upstream to the reviewed skill outputs. Reapply them to a clean fixture and compare the resulting two `SKILL.md` files byte-for-byte with committed cache files.
+
+```bash
+bash tests/test_vendor.sh
+bash tests/test_idd_skills.sh
+```
+
+Expected: committed cache is reproducible from pin plus ordered patches.
+
+- [ ] **Step 6: Commit durable vendoring**
+
+```bash
+git add vendor/superpowers/pin vendor/superpowers/patches/0001-brainstorming-check-chain.patch vendor/superpowers/patches/0002-writing-plans-check-chain.patch scripts/vendor-superpowers.sh lib/plugin/superpowers.sh .codex-isolated/config.toml .codex-isolated/plugins/cache/openai-curated/superpowers/11c74d6b/skills/brainstorming/SKILL.md .codex-isolated/plugins/cache/openai-curated/superpowers/11c74d6b/skills/writing-plans/SKILL.md tests/test_vendor.sh tests/test_plugin.sh
+git commit -m "fix(plugin): pin and replay Superpowers overlay"
+```
+
+### Task 10: Strengthen IDD Workflow Contracts and Documentation
+
+**Closes:** R12 documentation/workflow acceptance and R9 expanded documentation impact.
+
+**Files:**
+- Modify: `.codex-isolated/plugins/cache/openai-curated/superpowers/11c74d6b/skills/brainstorming/SKILL.md`
+- Modify: `.codex-isolated/plugins/cache/openai-curated/superpowers/11c74d6b/skills/writing-plans/SKILL.md`
+- Modify: `tests/test_idd_skills.sh`
+- Modify: `tests/test_chain_result_report_contract.sh`
+- Modify: `plugins/loen/docs/architecture.md`
+- Modify: `plugins/loen/README.md`
+- Modify: `plugins/loen/README.ru.md`
+- Update through iwiki MCP: `icodex/loen-runtime-artifacts.md`
+- Update through iwiki MCP: `icodex/plugin-and-hook-wiring.md`
+
+- [ ] **Step 1: Add semantic workflow and shared-pin tests**
+
+Require one shared pin resolver in repository tests. Assert provisional design-section feedback is not final spec approval; cover `needs_work -> fix -> OK -> approval -> commit` and plan `needs_work -> fix -> OK -> approval -> execution handoff` order. Continue forbidding intermediate HTML requirements.
+
+```bash
+bash tests/test_idd_skills.sh
+bash tests/test_chain_result_report_contract.sh
+```
+
+Expected: FAIL on current first-glob selection and incomplete approval distinction.
+
+- [ ] **Step 2: Clarify skill approval and commit semantics**
+
+Preserve upstream brainstorming feedback while explicitly distinguishing it from checked-artifact approval. Require spec and plan artifact commits after approval and before downstream handoff where machine state changed.
+
+```bash
+bash tests/test_idd_skills.sh
+bash tests/test_chain_result_report_contract.sh
+```
+
+Expected: all IDD skill/report contracts pass without intermediate HTML coupling.
+
+- [ ] **Step 3: Update repository docs and iwiki**
+
+Document semantic null, duplicate refusal, required timestamps, pin/patch maintenance, atomic refresh, deterministic selection, and recovery from overlay conflict. Run `wiki_lint` after MCP updates.
+
+```bash
+bash tests/test_loen_plugin_core.sh
+bash tests/test_loen_runtime_artifacts.sh
+```
+
+Expected: repository docs match verified runtime behavior; wiki has no stale or broken pages.
+
+- [ ] **Step 4: Commit workflow and docs**
+
+```bash
+git add .codex-isolated/plugins/cache/openai-curated/superpowers/11c74d6b/skills/brainstorming/SKILL.md .codex-isolated/plugins/cache/openai-curated/superpowers/11c74d6b/skills/writing-plans/SKILL.md tests/test_idd_skills.sh tests/test_chain_result_report_contract.sh plugins/loen/docs/architecture.md plugins/loen/README.md plugins/loen/README.ru.md
+git commit -m "docs(workflow): harden checked approval contracts"
+```
+
+### Task 11: Final Verification and Consistent Result State
+
+**Closes:** R13 and every expanded intent outcome.
+
+**Files:**
+- Verify: every path in the expanded File Map
+- Update through `$check-chain result`: this plan frontmatter and `docs/TODO.md`
+
+- [ ] **Step 1: Run focused and full verification**
+
+```bash
+python3 -m py_compile plugins/loen/hooks/*.py
+for t in tests/test_loen_*.sh; do bash "$t" || exit 1; done
+for t in tests/test_*.sh; do bash "$t" || exit 1; done
+git diff --check origin/master...HEAD
+```
+
+Expected: every command exits 0.
+
+- [ ] **Step 2: Run independent reviews**
+
+Review runtime correctness, overlay durability, workflow semantics, diff scope, and docs/wiki consistency. Fix every confirmed finding and rerun focused checks.
+
+Expected: no open critical or important findings.
+
+- [ ] **Step 3: Reconcile result and close state atomically**
+
+Run `$check-chain result docs/superpowers/plans/2026-07-23-loen-start-mode-gates.md`. Decline or accept optional HTML independently of machine state. Write matching `result_check.plan_hash`, `result_check.verdict: OK`, and `docs/TODO.md` `done/Result: OK/Closed` only after verdict `OK`.
+
+Expected: no missing/excess paths, plan hash matches, TODO and plan state agree.

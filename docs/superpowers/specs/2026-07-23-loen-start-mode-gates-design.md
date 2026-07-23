@@ -1,6 +1,6 @@
 ---
 review:
-  spec_hash: cc2ac7a44ed97608
+  spec_hash: 103feca81a163fa3
   last_run: 2026-07-23
   phases:
     structure: { status: passed }
@@ -42,6 +42,10 @@ loop-run <topic>
 - `loop-run` cannot start unless all required confirmations are present and current.
 - Missing, stale, contradictory, or legacy confirmation state produces a clear refusal and recovery path.
 - Done when: negative scenarios prove `loop-run` cannot start without all four ordered checkpoints, positive scenarios start only after explicit launch authorization, and topic-quality tests verify required planning inputs.
+- Canonical policy values preserve JSON null semantics, reject duplicate authority fields, and match independent hash vectors.
+- Every checkpoint event carries a valid UTC RFC3339 timestamp.
+- Re-vendoring and cache upgrades preserve validation-first Superpowers gates through a strict project overlay and deterministic pin.
+- Chain result state and `docs/TODO.md` remain machine-readable and consistent.
 
 ## Requirements
 
@@ -194,6 +198,54 @@ Acceptance criteria:
 - Documentation updates occur after contract and test changes, so examples match the verified final behavior.
 - Repository documentation and the bound `icodex` wiki contain no stale description of immediate launch or plan approval as execution authority.
 
+### R10: Canonical Policy Parsing and Duplicate Refusal
+
+Bare YAML null spellings (`null`, `Null`, `NULL`, `~`, and an empty scalar) represent a null value; quoted `"null"` remains a string. Delivery subtype canonicalization maps null to the empty runtime subtype before policy hashing, while canonical JSON preserves JSON null semantics for fields whose parsed contract value is null.
+
+The tolerant `parse_loop_yaml(text) -> dict` API remains available to non-enforcement consumers. The run-contract enforcement boundary additionally obtains parser diagnostics and rejects duplicate canonical authority paths instead of accepting first- or last-value wins. The duplicate set includes top-level policy fields, keys inside verifier, budget, governance and release policy, checkpoint names and fields, and keys inside each quality-gate item. Comments, quoted `#` characters, and unrelated nested mappings must not create false duplicate findings.
+
+Acceptance criteria:
+
+- Independent JSON vectors prove canonical policy hashes without using `run_policy_hash()` as the expected-value oracle.
+- Bare null variants produce the documented semantic result; quoted null remains distinguishable.
+- Every duplicate canonical authority path blocks preflight with one stable malformed-authority reason.
+- Existing tolerant parser callers retain their dict-returning API.
+
+### R11: Timestamped Checkpoint Audit Events
+
+Every checkpoint event must contain a real UTC RFC3339 timestamp in canonical `YYYY-MM-DDTHH:MM:SS[.fraction]Z` form. The writer rejects empty, offset, lowercase, date-only, and invalid calendar/time values before modifying `attempts.jsonl`. The reader applies the same validation and excludes malformed historical checkpoint events without treating history as current authority.
+
+Acceptance criteria:
+
+- Writer and reader share one timestamp validator.
+- Invalid writes leave `attempts.jsonl` byte-for-byte unchanged.
+- Valid second and fractional-second UTC timestamps round-trip.
+- Existing skill examples and workflow fixtures provide explicit timestamps.
+
+### R12: Durable Superpowers Validation Overlay and Deterministic Pin
+
+Project-specific validation-first edits must not rely on hand-edited generated cache state. icodex stores an explicit Superpowers cache pin and ordered unified patch files outside the cache. Vendoring normalizes upstream content into staging, applies every patch with zero fuzz, verifies required markers, and atomically publishes the cache and pin only after all checks pass. Patch conflict, missing patch, ambiguous source discovery, or malformed output leaves the previous cache and pin unchanged.
+
+Runtime wiring reads the exact pin, validates its `<marketplace>/superpowers/<version>` shape, resolves that exact cache directory, verifies its plugin manifest and configured marketplace identity, and refuses missing or ambiguous cache state before mutating runtime config, marketplace files, or skill links. Repository tests resolve the same pin rather than selecting the first glob match.
+
+Acceptance criteria:
+
+- Re-vendoring the pinned upstream fixture reproduces validation-first skill markers.
+- Upstream drift that prevents a zero-fuzz patch fails without changing the installed cache or pin.
+- Missing, malformed, stale, or ambiguous pin/cache state returns non-zero before runtime mutations.
+- A successful refresh publishes cache and pin together and runtime selects exactly that cache.
+- The workflow distinguishes provisional design-section feedback from final checked-artifact approval and covers `needs_work -> fix -> OK -> approval -> commit/handoff` ordering.
+
+### R13: Consistent Chain Completion State
+
+Expanded blocker work reopens the existing topic. `docs/TODO.md` remains `in-progress` until result reconciliation succeeds. Completion requires a matching `result_check.plan_hash`, `result_check.verdict: OK`, and a `done` TODO row with `Result: OK`; declining optional HTML does not waive machine-readable result state.
+
+Acceptance criteria:
+
+- Upstream intent, spec, and plan hashes are refreshed after scope changes.
+- Result reconciliation finds no missing or excess paths.
+- TODO closure and `result_check` are written together after the final verdict.
+
 ## Components and Boundaries
 
 ### `loen:loop-start`
@@ -216,6 +268,10 @@ The shared LoEn contract parser and preflight validator own checkpoint shape, ha
 
 Templates expose the new checkpoint shape with unconfirmed defaults. Generated `1_goal.md`, `2_context.md`, and `3_plan.md` must be complete runtime artifacts with no unresolved `{{...}}` placeholder tokens. Audit rendering displays checkpoint decisions and invalidations using existing topic audit artifacts and reads current authority from `checkpoints`, not removed `run.*` fields.
 
+### Superpowers Vendor Overlay
+
+`vendor/superpowers/pin` identifies one exact vendored cache. Ordered patches under `vendor/superpowers/patches/` contain only icodex-owned validation-first deltas. `scripts/vendor-superpowers.sh` owns strict staging and atomic publication; `lib/plugin/superpowers.sh` owns exact runtime resolution and pre-mutation refusal. Vendored skill files remain the materialized runtime artifact, while patches and pin are the durable source of the project delta.
+
 ## Data Flow
 
 1. `loop-start` creates or selects the topic and drafts `1_goal.md` and `2_context.md`.
@@ -230,6 +286,9 @@ Templates expose the new checkpoint shape with unconfirmed defaults. Generated `
 10. Explicit approval writes the launch checkpoint bound to all three artifact hashes and the policy hash, then appends an audit event containing all four hashes.
 11. `loop-run` repeats full preflight. Success enters runner execution; failure resets launch and records refusal evidence.
 12. Any later upstream mutation applies the R7 invalidation table before another run.
+13. Runtime parsing rejects ambiguous authority and audit writes require validated UTC timestamps.
+14. Superpowers refresh applies the pinned ordered overlay in staging and publishes atomically.
+15. Runtime wiring resolves only the pinned cache before creating links or rewriting configuration.
 
 ## Error Handling
 
@@ -245,6 +304,9 @@ Refusals must name the failed checkpoint, explain the mismatch, and give one con
 | Legacy contract | Resume `loop-start`; no automatic migration. |
 | Launch declined or ambiguous | Leave launch unconfirmed and exit without execution. |
 | Post-confirmation preflight failure | Reset launch, record failure, and report the failed prerequisite. |
+| Duplicate canonical authority path | Refuse the malformed contract and require correction before confirmation. |
+| Missing or invalid checkpoint timestamp | Reject the event before changing `attempts.jsonl`. |
+| Overlay conflict or ambiguous pin/cache | Abort refresh or wiring before replacing cache or mutating runtime files. |
 
 No refusal path may perform action, check, reflect, merge, release, publication, or other runner work.
 
@@ -276,12 +338,18 @@ Focused contract tests must verify behavior and state transitions rather than ke
 - one deterministic executable workflow-transition test uses real scaffolded artifacts, the validator, and persisted events to prove: valid prelaunch state; invocation performs no action; refusal records an event and performs no action; explicit launch confirmation; repeated preflight; mode/policy mutation rejection; and action only after current full validation;
 - runner/audit summary tests prove current authority comes from `checkpoints` after legacy `run.*` fields are removed;
 - existing LoEn focused tests continue to pass after fixtures adopt the new contract.
+- independent policy hash vectors cover semantic null and quoted-null distinctions;
+- a duplicate matrix covers every canonical authority path without false positives from comments or quoted values;
+- event tests cover valid and invalid canonical UTC timestamps plus no-write-on-error;
+- vendor tests cover zero-fuzz overlay replay, rollback on conflict, unique source discovery, and atomic cache/pin publication;
+- plugin tests cover exact pinned selection and pre-mutation refusal for missing, malformed, stale, and ambiguous state;
+- workflow tests cover checked spec/plan ordering through `needs_work`, correction, `OK`, approval, commit, and execution handoff.
 
 Positive tests must include evidence that runner execution begins only after explicit launch confirmation. Negative tests must include evidence that no runner action occurred.
 
 ## Documentation Impact
 
-Implementation must update runtime artifact documentation, relevant skill instructions, templates, and the bound `icodex` wiki pages as their source behavior changes. As the final implementation step, R9 updates `plugins/loen/docs/architecture.md`, `plugins/loen/README.md`, and `plugins/loen/README.ru.md` against the verified contract. Documentation must describe the primary integrated planning flow, standalone replan role, breaking legacy behavior, checkpoint invalidation, and separate launch confirmation.
+Implementation must update runtime artifact documentation, relevant skill instructions, templates, Superpowers vendor-maintenance documentation, and the bound `icodex` wiki pages as their source behavior changes. As the final implementation step, R9 updates `plugins/loen/docs/architecture.md`, `plugins/loen/README.md`, and `plugins/loen/README.ru.md` against the verified contract. Documentation must describe the primary integrated planning flow, standalone replan role, breaking legacy behavior, checkpoint invalidation, separate launch confirmation, canonical parsing and timestamps, and durable pinned-overlay maintenance.
 
 ## Out of Scope
 
