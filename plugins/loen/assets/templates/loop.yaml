@@ -24,15 +24,26 @@ handoff_conditions:
   - schema change required
 rollback_policy: "Revert unsafe changes"
 run:
-  mode: delivery
-  subtype: null
-  plan_approved: false
-  plan_hash: ""
   state: prepare
   max_passes: 3
   current_pass: 0
-  approval_source: ""
-  approved_at: ""
+checkpoints:
+  goal_context:
+    confirmed: false
+    goal_hash: ""
+    context_hash: ""
+  mode:
+    confirmed: false
+    mode: ""
+    subtype: ""
+  plan:
+    confirmed: false
+    plan_hash: ""
+  launch:
+    confirmed: false
+    goal_hash: ""
+    context_hash: ""
+    plan_hash: ""
 governance:
   automation_type: manual
   schedule: ""

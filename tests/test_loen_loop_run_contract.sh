@@ -81,6 +81,23 @@ run:
   current_pass: 0
   approval_source: loop-start
   approved_at: "2026-07-08T00:00:00Z"
+checkpoints:
+  goal_context:
+    confirmed: true
+    goal_hash: "goal-hash"
+    context_hash: "context-hash"
+  mode:
+    confirmed: true
+    mode: governance
+    subtype: merge-release
+  plan:
+    confirmed: true
+    plan_hash: "$plan_hash"
+  launch:
+    confirmed: true
+    goal_hash: "goal-hash"
+    context_hash: "context-hash"
+    plan_hash: "$plan_hash"
 governance:
   automation_type: release-governance
   owner: maintainer
@@ -108,9 +125,12 @@ assert_exit "loop-run skill exists" 0 test -f "$loop_run"
 
 template_text="$(cat "$template")"
 assert_contains "template has run block" "$template_text" "run:"
-assert_contains "template has delivery mode default" "$template_text" "mode: delivery"
-assert_contains "template has plan approved false default" "$template_text" "plan_approved: false"
-assert_contains "template has plan hash field" "$template_text" "plan_hash:"
+assert_contains "template has checkpoints block" "$template_text" "checkpoints:"
+for checkpoint in goal_context mode plan launch; do
+  assert_contains "template has $checkpoint checkpoint" "$template_text" "  $checkpoint:"
+done
+assert_eq "template checkpoints default unconfirmed" "4" "$(grep -cF '    confirmed: false' "$template")"
+assert_eq "template omits legacy plan approval" "0" "$(grep -cF 'plan_approved:' "$template" || true)"
 assert_contains "template has release policy block" "$template_text" "release_policy:"
 assert_contains "template has release scope limit" "$template_text" "scope_limit:"
 
@@ -121,6 +141,7 @@ from loen_common import parse_loop_yaml
 
 data = parse_loop_yaml(Path(sys.argv[1]).read_text(encoding="utf-8"))
 run = data.get("run", {})
+checkpoints = data.get("checkpoints", {})
 release = data.get("release_policy", {})
 checks = [
     run.get("mode") == "governance",
@@ -129,6 +150,17 @@ checks = [
     run.get("state") == "prepare",
     run.get("max_passes") == 2,
     run.get("current_pass") == 0,
+    checkpoints == {
+        "goal_context": {"confirmed": True, "goal_hash": "goal-hash", "context_hash": "context-hash"},
+        "mode": {"confirmed": True, "mode": "governance", "subtype": "merge-release"},
+        "plan": {"confirmed": True, "plan_hash": run.get("plan_hash")},
+        "launch": {
+            "confirmed": True,
+            "goal_hash": "goal-hash",
+            "context_hash": "context-hash",
+            "plan_hash": run.get("plan_hash"),
+        },
+    },
     release.get("target_branch") == "master",
     release.get("merge_strategy") == "pr",
     release.get("verifier_required") is True,
@@ -141,6 +173,46 @@ PY
 parse_status_code="$?"
 assert_eq "parser helper runs" "0" "$parse_status_code"
 assert_eq "parser reads run and release policy" "OK" "$parse_status_output"
+
+parser_fixture_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml
+
+data = parse_loop_yaml("""checkpoints:
+  goal_context:
+    confirmed: false
+    goal_hash: goal-123
+    context_hash: context-456
+  mode:
+    confirmed: true
+    mode: governance
+    subtype: report-only
+  plan:
+    confirmed: false
+    plan_hash: plan-789
+  launch:
+    confirmed: true
+    goal_hash: goal-123
+    context_hash: context-456
+    plan_hash: plan-789
+  unknown:
+    confirmed: true
+    injected: authority
+""")
+expected = {
+    "goal_context": {"confirmed": False, "goal_hash": "goal-123", "context_hash": "context-456"},
+    "mode": {"confirmed": True, "mode": "governance", "subtype": "report-only"},
+    "plan": {"confirmed": False, "plan_hash": "plan-789"},
+    "launch": {
+        "confirmed": True,
+        "goal_hash": "goal-123",
+        "context_hash": "context-456",
+        "plan_hash": "plan-789",
+    },
+}
+print("OK" if data.get("checkpoints") == expected else data.get("checkpoints"))
+PY
+)"
+assert_eq "parser reads known structured checkpoints" "OK" "$parser_fixture_output"
 
 validation_status_output="$(PYTHONPATH="$hook_root" python3 - "$topic_dir" 2>/dev/null <<'PY'
 import sys

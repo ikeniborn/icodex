@@ -89,6 +89,12 @@ assert_contains "loop budget" "$loop_text" "max_iterations: 3"
 assert_contains "loop stop condition" "$loop_text" "quality gates pass"
 assert_contains "loop handoff condition" "$loop_text" "schema change required"
 assert_contains "loop rollback policy" "$loop_text" 'rollback_policy: "Revert unsafe changes"'
+assert_contains "loop checkpoints block" "$loop_text" "checkpoints:"
+for checkpoint in goal_context mode plan launch; do
+  assert_contains "loop $checkpoint checkpoint" "$loop_text" "  $checkpoint:"
+done
+assert_eq "loop checkpoints default unconfirmed" "4" "$(grep -cF '    confirmed: false' "$topic_dir/loop.yaml")"
+assert_eq "loop omits legacy plan approval" "0" "$(grep -cF 'plan_approved:' "$topic_dir/loop.yaml" || true)"
 
 assert_contains "audit topic" "$audit_text" "LoEn Audit: sample-runtime-topic"
 assert_contains "audit status section" "$audit_text" "Current Status"
@@ -148,6 +154,12 @@ checks = [
     "quality gates pass" in data.get("stop_conditions", []),
     "schema change required" in data.get("handoff_conditions", []),
     data.get("rollback_policy") == "Revert unsafe changes",
+    data.get("checkpoints") == {
+        "goal_context": {"confirmed": False, "goal_hash": "", "context_hash": ""},
+        "mode": {"confirmed": False, "mode": "", "subtype": ""},
+        "plan": {"confirmed": False, "plan_hash": ""},
+        "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": ""},
+    },
 ]
 print("OK" if all(checks) else "BAD")
 PY

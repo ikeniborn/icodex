@@ -128,6 +128,12 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
     "budget": {},
     "stop_conditions": [],
     "handoff_conditions": [],
+    "checkpoints": {
+      "goal_context": {"confirmed": False, "goal_hash": "", "context_hash": ""},
+      "mode": {"confirmed": False, "mode": "", "subtype": ""},
+      "plan": {"confirmed": False, "plan_hash": ""},
+      "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": ""},
+    },
     "governance": {
       "automation_type": "",
       "schedule": "",
@@ -161,6 +167,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
   }
   section = ""
   subsection = ""
+  current_checkpoint = ""
   current_agent = ""
   current_list_item: dict[str, Any] | None = None
   list_target: list[Any] | None = None
@@ -175,6 +182,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
     if indent == 0:
       section = ""
       subsection = ""
+      current_checkpoint = ""
       current_agent = ""
       current_list_item = None
       list_target = None
@@ -221,6 +229,16 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       if ":" in stripped:
         key, value = stripped.split(":", 1)
         data[section][key.strip()] = _parse_scalar(value)
+      continue
+
+    if section == "checkpoints":
+      if indent == 2 and stripped.endswith(":"):
+        checkpoint = stripped[:-1]
+        current_checkpoint = checkpoint if checkpoint in data["checkpoints"] else ""
+        continue
+      if indent == 4 and current_checkpoint and ":" in stripped:
+        key, value = stripped.split(":", 1)
+        data["checkpoints"][current_checkpoint][key.strip()] = _parse_scalar(value)
       continue
 
     if section == "agents":
