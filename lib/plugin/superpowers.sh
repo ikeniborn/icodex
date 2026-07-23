@@ -12,8 +12,23 @@ _superpowers_pinned_cache_dir() {
   [[ "$(wc -l < "$pin" | tr -d ' ')" == 1 ]] || { log_error "superpowers pin malformed: expected one line"; return 1; }
   IFS= read -r rel < "$pin"
   [[ "$rel" =~ ^[A-Za-z0-9._-]+/superpowers/[A-Za-z0-9._-]+$ ]] || { log_error "superpowers pin malformed: $rel"; return 1; }
+  local marketplace _plugin generation
+  IFS=/ read -r marketplace _plugin generation <<< "$rel"
+  [[ "$marketplace" != "." && "$marketplace" != ".." && "$generation" != "." && "$generation" != ".." ]] || {
+    log_error "superpowers pin malformed: traversal segment"
+    return 1
+  }
   cache="$ICODEX_SHARED_DIR/plugins/cache/$rel"
   [[ -d "$cache" && -f "$cache/.codex-plugin/plugin.json" ]] || { log_error "superpowers pinned cache missing: $cache"; return 1; }
+  python3 - "$cache/.codex-plugin/plugin.json" <<'PY' || { log_error "superpowers plugin manifest invalid"; return 1; }
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    manifest = json.load(handle)
+if not isinstance(manifest, dict) or manifest.get("name") != "superpowers":
+    raise SystemExit(1)
+PY
   printf '%s\n' "$cache"
 }
 
@@ -131,8 +146,26 @@ _rewrite_marketplace_source() { # <config> <mkt> <abs>
 
 _superpowers_config_has_identity() { # <config> <marketplace>
   local config="$1" mkt="$2"
-  grep -qFx "[marketplaces.$mkt]" "$config" &&
-    grep -qFx "[plugins.\"superpowers@$mkt\"]" "$config"
+  python3 - "$config" "$mkt" <<'PY' 2>/dev/null
+import sys
+import tomllib
+
+try:
+    with open(sys.argv[1], "rb") as handle:
+        config = tomllib.load(handle)
+except (OSError, tomllib.TOMLDecodeError):
+    raise SystemExit(1)
+
+marketplace = sys.argv[2]
+marketplaces = config.get("marketplaces")
+plugins = config.get("plugins")
+if not isinstance(marketplaces, dict) or not isinstance(marketplaces.get(marketplace), dict):
+    raise SystemExit(1)
+if not isinstance(plugins, dict) or not isinstance(plugins.get(f"superpowers@{marketplace}"), dict):
+    raise SystemExit(1)
+if [key for key in plugins if key.startswith("superpowers@")] != [f"superpowers@{marketplace}"]:
+    raise SystemExit(1)
+PY
 }
 
 # Orchestrate: fix the source path in the committed base config.
