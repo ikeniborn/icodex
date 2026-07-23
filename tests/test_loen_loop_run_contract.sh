@@ -45,6 +45,16 @@ PY
 plan_hash_code="$?"
 assert_eq "plan hash helper computes" "0" "$plan_hash_code"
 plan_hash="$plan_hash_output"
+assert_eq "artifact hash length" "16" "${#plan_hash}"
+assert_exit "artifact hash format" 0 bash -c '[[ "$1" =~ ^[0-9a-f]{16}$ ]]' _ "$plan_hash"
+artifact_plan_hash="$(PYTHONPATH="$hook_root" python3 - "$topic_dir/3_plan.md" 2>/dev/null <<'PY'
+import sys
+from pathlib import Path
+from loen_artifacts import artifact_body_hash
+print(artifact_body_hash(Path(sys.argv[1])))
+PY
+)"
+assert_eq "plan hash compatibility alias" "$artifact_plan_hash" "$plan_hash"
 
 cat > "$topic_dir/loop.yaml" <<YAML
 topic: sample-runner
@@ -318,13 +328,15 @@ PY
 )"
 assert_eq "duplicate checkpoint hash fails closed" "OK" "$duplicate_hash_output"
 
-checkpoint_matrix_output="$(PYTHONPATH="$hook_root" python3 - "$tmp/checkpoint-matrix" 2>&1 <<'PY'
+fixture_driver="$tmp/run-contract-fixture.py"
+cat > "$fixture_driver" <<'PY'
 import sys
 from pathlib import Path
 
 from loen_artifacts import artifact_body_hash, validate_run_contract
 
 root = Path(sys.argv[1])
+scenario = sys.argv[2]
 
 
 def contract_text(hashes, *, mode="governance", subtype="report-only", overrides=None):
@@ -390,7 +402,7 @@ release_policy:
 """
 
 
-def fixture(name, *, mode="governance", subtype="report-only", overrides=None, legacy=False):
+def fixture(name, *, mode="governance", subtype="report-only", overrides=None):
   base = root / name
   base.mkdir(parents=True)
   (base / "1_goal.md").write_text("# Goal\n\nShip safely.\n", encoding="utf-8")
@@ -402,78 +414,129 @@ def fixture(name, *, mode="governance", subtype="report-only", overrides=None, l
     "context": artifact_body_hash(base / "2_context.md"),
     "plan": artifact_body_hash(base / "3_plan.md"),
   }
-  if legacy:
-    text = contract_text(hashes).split("checkpoints:", 1)[0] + f"""run:
-  mode: governance
-  subtype: report-only
-  plan_approved: true
-  plan_hash: {hashes['plan']}
-"""
-  else:
-    text = contract_text(hashes, mode=mode, subtype=subtype, overrides=overrides)
+  text = contract_text(hashes, mode=mode, subtype=subtype, overrides=overrides)
   (base / "loop.yaml").write_text(text, encoding="utf-8")
   return base
 
 
-def rejected(name, reason, **kwargs):
-  base = fixture(name, **kwargs)
-  result = validate_run_contract(base)
-  assert result == {"ok": False, "reason": reason}, (name, result)
-  assert (base / "4_act.md").read_text(encoding="utf-8") == "", name
-
-
-def rejected_policy(name, reason, old, new, **kwargs):
-  base = fixture(name, **kwargs)
+def replace(base, old, new):
   loop_path = base / "loop.yaml"
   loop_path.write_text(loop_path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
-  result = validate_run_contract(base)
-  assert result == {"ok": False, "reason": reason}, (name, result)
-  assert (base / "4_act.md").read_text(encoding="utf-8") == "", name
 
 
-rejected("legacy", "legacy checkpoint contract", legacy=True)
-rejected("goal-unconfirmed", "goal/context confirmation missing", overrides={"goal_confirmed": "false"})
-rejected("goal-stale", "goal hash mismatch", overrides={"goal_hash": "stale"})
-rejected("context-stale", "context hash mismatch", overrides={"context_hash": "stale"})
-rejected("mode-unconfirmed", "mode selection missing", overrides={"mode_confirmed": "false"})
-rejected("delivery-subtype", "invalid delivery subtype", mode="delivery", subtype="auto-fix")
-rejected("governance-subtype", "invalid governance subtype", subtype="invalid")
-rejected("plan-unconfirmed", "plan approval missing", overrides={"plan_confirmed": "false"})
-rejected("plan-stale", "plan hash mismatch", overrides={"plan_hash": "stale"})
-rejected("launch-unconfirmed", "launch confirmation missing", overrides={"launch_confirmed": "false"})
-rejected("launch-goal-stale", "launch goal hash mismatch", overrides={"launch_goal_hash": "stale"})
-rejected("launch-context-stale", "launch context hash mismatch", overrides={"launch_context_hash": "stale"})
-rejected("launch-plan-stale", "launch plan hash mismatch", overrides={"launch_plan_hash": "stale"})
-rejected_policy("scope-missing", "missing mutable scope", "  - plugins/loen/**", "  - none")
-rejected_policy("verifier-missing", "missing verifier command", "  command: bash tests/test_loen_loop_run_contract.sh", '  command: ""')
-rejected_policy("budget-missing", "missing budget max_iterations", "  max_iterations: 1", "  max_iterations: 0")
-rejected_policy("rollback-missing", "missing rollback policy", "rollback_policy: Stop and write handoff", 'rollback_policy: ""')
-rejected_policy(
-  "auto-fix-disabled",
-  "auto-fix requires governance auto_fix",
-  "  auto_fix: true",
-  "  auto_fix: false",
-  subtype="auto-fix",
-)
-rejected_policy(
-  "merge-policy-incomplete",
-  "merge-release policy incomplete",
-  "  scope_limit: Configured mutable scope only",
-  '  scope_limit: ""',
-  subtype="merge-release",
-)
+options = {}
+require_launch = True
+if scenario == "legacy":
+  base = fixture(scenario)
+  (base / "loop.yaml").write_text("""topic: legacy
+run:
+  mode: governance
+  subtype: report-only
+  plan_approved: true
+  plan_hash: legacy
+""", encoding="utf-8")
+elif scenario == "goal-unconfirmed":
+  base = fixture(scenario, overrides={"goal_confirmed": "false"})
+elif scenario == "goal-stale":
+  base = fixture(scenario, overrides={"goal_hash": "stale"})
+elif scenario == "context-stale":
+  base = fixture(scenario, overrides={"context_hash": "stale"})
+elif scenario == "mode-unconfirmed":
+  base = fixture(scenario, overrides={"mode_confirmed": "false"})
+elif scenario == "delivery-subtype":
+  base = fixture(scenario, mode="delivery", subtype="auto-fix")
+elif scenario == "governance-subtype":
+  base = fixture(scenario, subtype="invalid")
+elif scenario == "plan-unconfirmed":
+  base = fixture(scenario, overrides={"plan_confirmed": "false"})
+elif scenario == "plan-stale":
+  base = fixture(scenario, overrides={"plan_hash": "stale"})
+elif scenario == "launch-unconfirmed":
+  base = fixture(scenario, overrides={"launch_confirmed": "false"})
+elif scenario == "launch-goal-stale":
+  base = fixture(scenario, overrides={"launch_goal_hash": "stale"})
+elif scenario == "launch-context-stale":
+  base = fixture(scenario, overrides={"launch_context_hash": "stale"})
+elif scenario == "launch-plan-stale":
+  base = fixture(scenario, overrides={"launch_plan_hash": "stale"})
+elif scenario == "missing-goal":
+  base = fixture(scenario)
+  (base / "1_goal.md").unlink()
+elif scenario == "missing-context":
+  base = fixture(scenario)
+  (base / "2_context.md").unlink()
+elif scenario == "missing-plan":
+  base = fixture(scenario)
+  (base / "3_plan.md").unlink()
+elif scenario == "scope-missing":
+  base = fixture(scenario)
+  replace(base, "  - plugins/loen/**", "  - none")
+elif scenario == "verifier-missing":
+  base = fixture(scenario)
+  replace(base, "  command: bash tests/test_loen_loop_run_contract.sh", '  command: ""')
+elif scenario == "budget-missing":
+  base = fixture(scenario)
+  replace(base, "  max_iterations: 1", "  max_iterations: 0")
+elif scenario == "rollback-missing":
+  base = fixture(scenario)
+  replace(base, "rollback_policy: Stop and write handoff", 'rollback_policy: ""')
+elif scenario == "auto-fix-disabled":
+  base = fixture(scenario, subtype="auto-fix")
+  replace(base, "  auto_fix: true", "  auto_fix: false")
+elif scenario == "merge-policy-incomplete":
+  base = fixture(scenario, subtype="merge-release")
+  replace(base, "  scope_limit: Configured mutable scope only", '  scope_limit: ""')
+elif scenario == "merge-release":
+  base = fixture(scenario, subtype="merge-release")
+elif scenario == "prelaunch":
+  base = fixture(scenario, overrides={"launch_confirmed": "false"})
+  require_launch = False
+else:
+  base = fixture(scenario)
 
-current = fixture("current")
-assert validate_run_contract(current) == {"ok": True, "reason": "approved run contract"}
-prelaunch = fixture("prelaunch", overrides={"launch_confirmed": "false"})
-assert validate_run_contract(prelaunch, require_launch=False) == {"ok": True, "reason": "approved run contract"}
-print("OK")
+result = validate_run_contract(base, require_launch=require_launch)
+action = "EMPTY" if (base / "4_act.md").read_text(encoding="utf-8") == "" else "CHANGED"
+print(f"{result['reason']}|{action}")
 PY
-)"
-checkpoint_matrix_code="$?"
-assert_eq "checkpoint matrix helper runs" "0" "$checkpoint_matrix_code"
-assert_eq "ordered checkpoint contracts validate" "OK" "$checkpoint_matrix_output"
 
+run_contract_case() {
+  local label="$1"
+  local scenario="$2"
+  local expected="$3"
+  local output code
+  output="$(PYTHONPATH="$hook_root" python3 "$fixture_driver" "$tmp/independent-fixtures" "$scenario" 2>&1)"
+  code="$?"
+  assert_eq "$label helper runs" "0" "$code"
+  assert_eq "$label" "$expected|EMPTY" "$output"
+}
+
+run_contract_case "legacy contract rejected" "legacy" "legacy checkpoint contract"
+run_contract_case "goal/context confirmation required" "goal-unconfirmed" "goal/context confirmation missing"
+run_contract_case "stale goal rejected" "goal-stale" "goal hash mismatch"
+run_contract_case "stale context rejected" "context-stale" "context hash mismatch"
+run_contract_case "mode selection required" "mode-unconfirmed" "mode selection missing"
+run_contract_case "delivery subtype rejected precisely" "delivery-subtype" "invalid delivery subtype"
+run_contract_case "governance subtype rejected precisely" "governance-subtype" "invalid governance subtype"
+run_contract_case "plan approval required" "plan-unconfirmed" "plan approval missing"
+run_contract_case "stale plan rejected" "plan-stale" "plan hash mismatch"
+run_contract_case "launch confirmation required" "launch-unconfirmed" "launch confirmation missing"
+run_contract_case "stale launch goal rejected" "launch-goal-stale" "launch goal hash mismatch"
+run_contract_case "stale launch context rejected" "launch-context-stale" "launch context hash mismatch"
+run_contract_case "stale launch plan rejected" "launch-plan-stale" "launch plan hash mismatch"
+run_contract_case "missing goal artifact rejected" "missing-goal" "goal hash mismatch"
+run_contract_case "missing context artifact rejected" "missing-context" "context hash mismatch"
+run_contract_case "missing plan artifact rejected" "missing-plan" "plan hash mismatch"
+run_contract_case "report-only contract validates" "current" "approved run contract"
+run_contract_case "full merge-release contract validates" "merge-release" "approved run contract"
+run_contract_case "prelaunch contract validates" "prelaunch" "approved run contract"
+run_contract_case "missing verifier rejected" "verifier-missing" "missing verifier command"
+run_contract_case "zero budget rejected" "budget-missing" "missing budget max_iterations"
+run_contract_case "placeholder mutable scope rejected" "scope-missing" "missing mutable scope"
+run_contract_case "missing rollback rejected" "rollback-missing" "missing rollback policy"
+run_contract_case "disabled auto-fix rejected" "auto-fix-disabled" "auto-fix requires governance auto_fix"
+run_contract_case "incomplete merge-release policy rejected" "merge-policy-incomplete" "merge-release policy incomplete"
+
+sed -i '0,/subtype: merge-release/s//subtype: report-only/' "$topic_dir/loop.yaml"
 printf '# Check\n\n## Result\n\nPASS\n' > "$topic_dir/5_check.md"
 printf '# Result\n\n## Outcome\n\nDone\n' > "$topic_dir/7_result.md"
 printf '{"status":"pass"}\n' > "$topic_dir/evidence/latest-test.json"
@@ -485,7 +548,7 @@ base = Path(sys.argv[1])
 text = render_audit(base, "sample-runner")
 checks = [
     "Runner" in text,
-    "merge-release" in text,
+    "report-only" in text,
     "plan_approved: true" in text,
     "Final verdict:</strong> Done" in text,
 ]
