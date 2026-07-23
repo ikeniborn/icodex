@@ -224,6 +224,18 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
     stripped = line.strip()
     item = stripped.startswith("- ")
     mapping = _mapping_key(stripped[2:].strip() if item else stripped)
+    if indent > 0 and indent % 2 and section in RUNTIME_AUTHORITY_SECTIONS:
+      duplicates.append(f"{section}.<malformed-indentation>")
+      runtime_list = ""
+      tool_list = ""
+      governance_list = ""
+      permission_list = ""
+      ignored_parent_indent = None
+      canonical_list_active = False
+      execution_mount = -1
+      quality_item = -1
+      nested_parent_indent = None
+      continue
     if section in CANONICAL_LIST_SECTIONS and indent > 0:
       if item and (indent != 2 or not canonical_list_active):
         duplicates.append(f"{section}.<malformed-list-item>")
@@ -515,6 +527,20 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       list_target = None
       current_list_item = None
       current_mount = None
+      canonical_nested_parent_indent = None
+      quality_nested_parent_indent = None
+      continue
+
+    if indent > 0 and indent % 2 and section in RUNTIME_AUTHORITY_SECTIONS:
+      if section == "checkpoints" and current_checkpoint:
+        data["checkpoints"][current_checkpoint] = dict(CHECKPOINT_DEFAULTS[current_checkpoint])
+        current_checkpoint = ""
+        current_checkpoint_fields = set()
+      list_target = None
+      current_list_item = None
+      current_mount = None
+      current_agent = ""
+      subsection = ""
       canonical_nested_parent_indent = None
       quality_nested_parent_indent = None
       continue

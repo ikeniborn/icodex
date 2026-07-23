@@ -635,6 +635,30 @@ PY
 )"
 assert_eq "malformed non-mapping sibling clears every canonical list target" "OK" "$malformed_list_sibling_output"
 
+odd_indent_authority_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml, parse_loop_yaml_checked
+
+cases = {
+    "top_list": ("mutable_scope:\n  - src/**\n   metadata:\n  - outside/**\n", lambda d: d["mutable_scope"] == ["src/**"]),
+    "agents": ("agents:\n  worker:\n    tools:\n      - read\n     metadata:\n      - edit\n", lambda d: d["agents"]["worker"]["tools"] == ["read"]),
+    "stages": ("stages:\n  act:\n    roles:\n      - worker\n     metadata:\n      - verifier\n", lambda d: d["stages"]["act"]["roles"] == ["worker"]),
+    "tools": ("tools:\n  allowed:\n    - read\n   metadata:\n    - write\n", lambda d: d["tools"]["allowed"] == ["read"]),
+    "permissions": ("permissions:\n  filesystem:\n    mutable_scope:\n      - src/**\n     metadata:\n      - outside/**\n", lambda d: d["permissions"]["filesystem"]["mutable_scope"] == ["src/**"]),
+    "governance": ("governance:\n  alert_on:\n    - verifier_failure\n   metadata:\n    - auto_merge\n", lambda d: d["governance"]["alert_on"] == ["verifier_failure"]),
+    "execution": ("execution:\n  mounts:\n    - path: .\n       metadata:\n      mode: write\n", lambda d: d["execution"]["mounts"] == [{"path": "."}]),
+    "quality_gates": ("quality_gates:\n  - command: test\n   metadata:\n    evidence: injected.json\n", lambda d: d["quality_gates"] == [{"command": "test"}]),
+}
+failed = []
+for name, (text, valid) in cases.items():
+    data = parse_loop_yaml(text)
+    _, diagnostics = parse_loop_yaml_checked(text)
+    if not valid(data) or not diagnostics:
+        failed.append({"name": name, "data": data, "diagnostics": diagnostics})
+print("OK" if not failed else failed)
+PY
+)"
+assert_eq "odd-indent unknown mappings fail closed across canonical authorities" "OK" "$odd_indent_authority_output"
+
 duplicate_checkpoint_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
 from loen_common import parse_loop_yaml
 
