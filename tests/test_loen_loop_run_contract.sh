@@ -331,6 +331,83 @@ PY
 )"
 assert_eq "parser reads known structured checkpoints" "OK" "$parser_fixture_output"
 
+nested_canonical_parser_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml
+
+nested_only = parse_loop_yaml("""verifier:
+  metadata:
+    type: nested
+    command: nested
+budget:
+  metadata:
+    max_iterations: 99
+governance:
+  metadata:
+    owner: nested
+    auto_fix: true
+release_policy:
+  metadata:
+    target_branch: nested
+    verifier_required: true
+quality_gates:
+  - metadata:
+      command: nested
+      evidence: nested
+""")
+if nested_only["verifier"] != {}:
+    raise SystemExit({"nested verifier": nested_only["verifier"]})
+if nested_only["budget"] != {}:
+    raise SystemExit({"nested budget": nested_only["budget"]})
+if nested_only["governance"]["owner"] != "" or nested_only["governance"]["auto_fix"] is not False:
+    raise SystemExit({"nested governance": nested_only["governance"]})
+if nested_only["release_policy"]["target_branch"] != "" or nested_only["release_policy"]["verifier_required"] is not False:
+    raise SystemExit({"nested release": nested_only["release_policy"]})
+if nested_only["quality_gates"] != [{}]:
+    raise SystemExit({"nested quality gate": nested_only["quality_gates"]})
+
+after_valid = parse_loop_yaml("""verifier:
+  type: test
+  command: canonical
+  metadata:
+    type: nested
+    command: nested
+budget:
+  max_iterations: 3
+  metadata:
+    max_iterations: 99
+governance:
+  owner: canonical
+  auto_fix: false
+  metadata:
+    owner: nested
+    auto_fix: true
+release_policy:
+  target_branch: main
+  verifier_required: false
+  metadata:
+    target_branch: nested
+    verifier_required: true
+quality_gates:
+  - command: canonical
+    evidence: canonical.json
+    metadata:
+      command: nested
+      evidence: nested.json
+""")
+expected = (
+    after_valid["verifier"] == {"type": "test", "command": "canonical"}
+    and after_valid["budget"] == {"max_iterations": "3"}
+    and after_valid["governance"]["owner"] == "canonical"
+    and after_valid["governance"]["auto_fix"] is False
+    and after_valid["release_policy"]["target_branch"] == "main"
+    and after_valid["release_policy"]["verifier_required"] is False
+    and after_valid["quality_gates"] == [{"command": "canonical", "evidence": "canonical.json"}]
+)
+print("OK" if expected else after_valid)
+PY
+)"
+assert_eq "parser ignores canonical leaves below unknown nested parents" "OK" "$nested_canonical_parser_output"
+
 duplicate_checkpoint_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
 from loen_common import parse_loop_yaml
 

@@ -323,6 +323,8 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
   current_agent = ""
   current_list_item: dict[str, Any] | None = None
   list_target: list[Any] | None = None
+  canonical_nested_parent_indent: int | None = None
+  quality_nested_parent_indent: int | None = None
 
   for raw_line in text.splitlines():
     line = _strip_yaml_comment(raw_line)
@@ -347,6 +349,8 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       current_agent = ""
       current_list_item = None
       list_target = None
+      canonical_nested_parent_indent = None
+      quality_nested_parent_indent = None
       if stripped.endswith(":") and stripped[:-1] != "rollback_policy":
         section = stripped[:-1]
         if section in {"mutable_scope", "protected_scope", "stop_conditions", "handoff_conditions"}:
@@ -377,19 +381,40 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       if stripped.startswith("- "):
         current_list_item = {}
         data["quality_gates"].append(current_list_item)
+        quality_nested_parent_indent = None
         item = stripped[2:].strip()
-        if ":" in item:
-          key, value = item.split(":", 1)
-          current_list_item[key.strip()] = _parse_scalar(value)
-      elif current_list_item is not None and ":" in stripped:
-        key, value = stripped.split(":", 1)
-        current_list_item[key.strip()] = _parse_scalar(value)
+        mapping = _mapping_key(item)
+        if mapping is not None:
+          key, value = mapping
+          if key in QUALITY_GATE_MEMBERS:
+            current_list_item[key] = _parse_scalar(value)
+          elif value == "":
+            quality_nested_parent_indent = indent
+      elif current_list_item is not None:
+        mapping = _mapping_key(stripped)
+        if mapping is None:
+          continue
+        key, value = mapping
+        if quality_nested_parent_indent is not None and indent > quality_nested_parent_indent:
+          continue
+        if indent == 4 and key in QUALITY_GATE_MEMBERS:
+          quality_nested_parent_indent = None
+          current_list_item[key] = _parse_scalar(value)
+        elif indent == 4 and value == "":
+          quality_nested_parent_indent = indent
       continue
 
     if section in {"verifier", "budget"}:
-      if ":" in stripped:
-        key, value = stripped.split(":", 1)
-        data[section][key.strip()] = _parse_scalar(value)
+      mapping = _mapping_key(stripped)
+      if mapping is not None:
+        key, value = mapping
+        if canonical_nested_parent_indent is not None and indent > canonical_nested_parent_indent:
+          continue
+        if indent == 2 and key in CANONICAL_MEMBERS[section]:
+          canonical_nested_parent_indent = None
+          data[section][key] = _parse_scalar(value)
+        elif indent == 2 and value == "":
+          canonical_nested_parent_indent = indent
       continue
 
     if section == "checkpoints":
@@ -479,9 +504,17 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
 
     if section in {"governance", "run", "release_policy"}:
       target = data[section]
-      if ":" in stripped:
-        key, value = stripped.split(":", 1)
-        key = key.strip()
+      mapping = _mapping_key(stripped)
+      if mapping is not None:
+        key, value = mapping
+        if section in CANONICAL_MAPPINGS:
+          if canonical_nested_parent_indent is not None and indent > canonical_nested_parent_indent:
+            continue
+          if indent != 2 or key not in CANONICAL_MEMBERS[section]:
+            canonical_nested_parent_indent = indent if indent == 2 and value == "" else canonical_nested_parent_indent
+            list_target = None
+            continue
+          canonical_nested_parent_indent = None
         parsed = _parse_inline_list(value)
         if parsed or value.strip() == "[]":
           target[key] = parsed
