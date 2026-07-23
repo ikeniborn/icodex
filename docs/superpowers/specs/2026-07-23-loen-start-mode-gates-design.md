@@ -1,6 +1,6 @@
 ---
 review:
-  spec_hash: db66165851345baa
+  spec_hash: f3b80e4973914acf
   last_run: 2026-07-23
   phases:
     structure: { status: passed }
