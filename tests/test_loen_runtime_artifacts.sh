@@ -232,13 +232,17 @@ if returned != expected:
 if attempts_path.read_text(encoding="utf-8").splitlines()[0] != json.dumps(expected[0], sort_keys=True):
     raise SystemExit("checkpoint event JSON is not key-sorted")
 
-line_count = len(records)
+attempts_before_invalid = attempts_path.read_text(encoding="utf-8")
 for kwargs in (
     {"checkpoint": "unknown", "decision": "confirmed", "hashes": {}},
     {"checkpoint": "plan", "decision": "ignored", "hashes": {}},
     {"checkpoint": "plan", "decision": "confirmed", "hashes": []},
     {"checkpoint": "plan", "decision": "confirmed", "hashes": {1: "value"}},
     {"checkpoint": "plan", "decision": "confirmed", "hashes": {"plan_hash": 7}},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": {}, "mode": 7},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": {}, "subtype": 7},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": {}, "outcome": 7},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": {}, "created_at": 7},
 ):
     try:
         append_checkpoint_event(base=base, **kwargs)
@@ -246,8 +250,9 @@ for kwargs in (
         pass
     else:
         raise SystemExit(f"accepted invalid checkpoint event: {kwargs}")
-if len(attempts_path.read_text(encoding="utf-8").splitlines()) != line_count:
-    raise SystemExit("invalid checkpoint event appended a line")
+attempts_after_invalid = attempts_path.read_text(encoding="utf-8")
+if attempts_after_invalid != attempts_before_invalid:
+    raise SystemExit("invalid checkpoint event changed attempts JSONL")
 print("OK")
 PY
 )"

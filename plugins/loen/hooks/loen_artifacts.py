@@ -665,6 +665,8 @@ def append_checkpoint_event(
     for key, value in hashes.items()
   ):
     raise ValueError("checkpoint hashes must be a dictionary of strings")
+  if not all(isinstance(value, str) for value in (mode, subtype, outcome, created_at)):
+    raise ValueError("checkpoint mode, subtype, outcome, and created_at must be strings")
   record: dict[str, object] = {
     "event": "checkpoint",
     "checkpoint": checkpoint,
