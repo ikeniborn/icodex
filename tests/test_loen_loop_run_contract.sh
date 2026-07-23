@@ -601,8 +601,16 @@ legacy plain attempt
 {"status":"pass","summary":"legacy JSON survives"}
 {"automation":true,"created_at":"2026-07-23T09:00:00Z","effective_status":"pass","run_type":"governance","summary":"mixed automation survives"}
 not-json {
-{"checkpoint":"goal_context","context_hash":"historical-context","created_at":"2026-07-23T10:00:00Z","decision":"reset","event":"checkpoint","goal_hash":"historical-goal","mode":"delivery","plan_hash":"historical-plan","subtype":""}
-{"checkpoint":"launch","context_hash":"context-hash","created_at":"2026-07-23T11:00:00Z","decision":"confirmed","event":"checkpoint","goal_hash":"goal-hash","mode":"governance","plan_hash":"PLAN_HASH","subtype":"report-only"}
+{"checkpoint":"goal_context","created_at":"2026-07-23T10:00:00Z","decision":"reset","event":"checkpoint","hashes":{"context_hash":"historical-context","goal_hash":"historical-goal","plan_hash":"historical-plan"},"mode":"<script>alert(1)</script>","outcome":"<img src=x onerror=alert(1)>","subtype":""}
+{"checkpoint":"launch","created_at":"2026-07-23T11:00:00Z","decision":"confirmed","event":"checkpoint","hashes":{"context_hash":"context-hash","goal_hash":"goal-hash","plan_hash":"PLAN_HASH"},"mode":"governance","outcome":"confirmed","subtype":"report-only"}
+{"checkpoint":"unknown","created_at":"2026-07-23T12:00:00Z","decision":"confirmed","event":"checkpoint","hashes":{},"mode":"delivery","outcome":"confirmed","subtype":""}
+{"checkpoint":"plan","created_at":"2026-07-23T12:01:00Z","decision":"ignored","event":"checkpoint","hashes":{},"mode":"delivery","outcome":"ignored","subtype":""}
+{"checkpoint":"plan","created_at":"2026-07-23T12:02:00Z","decision":"confirmed","event":"checkpoint","hashes":[],"mode":"delivery","outcome":"confirmed","subtype":""}
+{"checkpoint":"plan","created_at":"2026-07-23T12:03:00Z","decision":"confirmed","event":"checkpoint","hashes":{"plan_hash":7},"mode":"delivery","outcome":"confirmed","subtype":""}
+{"checkpoint":"plan","created_at":7,"decision":"confirmed","event":"checkpoint","hashes":{"plan_hash":"valid"},"mode":"delivery","outcome":"confirmed","subtype":""}
+{"checkpoint":"plan","created_at":"2026-07-23T12:04:00Z","decision":"confirmed","event":"checkpoint","hashes":{"plan_hash":"valid"},"mode":7,"outcome":"confirmed","subtype":""}
+{"checkpoint":"plan","created_at":"2026-07-23T12:05:00Z","decision":"confirmed","event":"checkpoint","hashes":{"plan_hash":"valid"},"mode":"delivery","outcome":"confirmed","subtype":7}
+{"checkpoint":"plan","created_at":"2026-07-23T12:06:00Z","decision":"confirmed","event":"checkpoint","hashes":{"plan_hash":"valid"},"mode":"delivery","outcome":7,"subtype":""}
 JSONL
 sed -i "s/PLAN_HASH/$plan_hash/" "$topic_dir/attempts.jsonl"
 audit_status_output="$(PYTHONPATH="$hook_root" python3 - "$topic_dir" "$plan_hash" 2>/dev/null <<'PY'
@@ -635,6 +643,13 @@ checks = {
     "checkpoint history count": "2 checkpoint event(s)" in history_section,
     "checkpoint reset event rendered": "goal_context reset" in history_section and "historical-goal" in history_section,
     "checkpoint confirmed event rendered": "launch confirmed" in history_section,
+    "hostile checkpoint values escaped": (
+        "&lt;script&gt;alert(1)&lt;/script&gt;" in history_section
+        and "&lt;img src=x onerror=alert(1)&gt;" in history_section
+        and "<script>" not in history_section
+        and "<img " not in history_section
+    ),
+    "invalid semantic events excluded": "unknown confirmed" not in history_section and "plan ignored" not in history_section,
     "legacy JSON excluded from checkpoint history": "legacy JSON survives" not in history_section,
     "automation excluded from checkpoint history": "mixed automation survives" not in history_section,
     "final verdict retained": "Final verdict:</strong> Done" in text,

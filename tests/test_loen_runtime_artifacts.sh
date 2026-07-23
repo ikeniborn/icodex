@@ -179,49 +179,66 @@ from loen_artifacts import append_checkpoint_event
 
 base = Path(sys.argv[1])
 inputs = [
-    ("goal_context", "confirmed"),
-    ("mode", "reset"),
-    ("plan", "refused"),
-    ("launch", "confirmed"),
+    ("goal_context", "confirmed", "accepted"),
+    ("mode", "reset", ""),
+    ("plan", "refused", ""),
+    ("launch", "confirmed", ""),
 ]
-for checkpoint, decision in inputs:
-    append_checkpoint_event(
+returned = []
+for checkpoint, decision, outcome in inputs:
+    hashes = {
+        "goal_hash": "goal-123",
+        "context_hash": "context-456",
+        "plan_hash": "plan-789",
+    }
+    record = append_checkpoint_event(
         base=base,
         checkpoint=checkpoint,
         decision=decision,
-        goal_hash="goal-123",
-        context_hash="context-456",
-        plan_hash="plan-789",
+        hashes=hashes,
         mode="governance",
         subtype="report-only",
+        outcome=outcome,
         created_at="2026-07-23T12:34:56Z",
     )
+    hashes["goal_hash"] = "mutated-after-append"
+    if record["hashes"]["goal_hash"] != "goal-123":
+        raise SystemExit("returned checkpoint event retained caller hash alias")
+    returned.append(record)
 
 attempts_path = base / "attempts.jsonl"
 records = [json.loads(line) for line in attempts_path.read_text(encoding="utf-8").splitlines()]
 expected = [
     {
         "checkpoint": checkpoint,
-        "context_hash": "context-456",
         "created_at": "2026-07-23T12:34:56Z",
         "decision": decision,
         "event": "checkpoint",
-        "goal_hash": "goal-123",
+        "hashes": {
+            "context_hash": "context-456",
+            "goal_hash": "goal-123",
+            "plan_hash": "plan-789",
+        },
         "mode": "governance",
-        "plan_hash": "plan-789",
+        "outcome": outcome or decision,
         "subtype": "report-only",
     }
-    for checkpoint, decision in inputs
+    for checkpoint, decision, outcome in inputs
 ]
 if records != expected:
     raise SystemExit({"records": records, "expected": expected})
+if returned != expected:
+    raise SystemExit({"returned": returned, "expected": expected})
 if attempts_path.read_text(encoding="utf-8").splitlines()[0] != json.dumps(expected[0], sort_keys=True):
     raise SystemExit("checkpoint event JSON is not key-sorted")
 
 line_count = len(records)
 for kwargs in (
-    {"checkpoint": "unknown", "decision": "confirmed"},
-    {"checkpoint": "plan", "decision": "ignored"},
+    {"checkpoint": "unknown", "decision": "confirmed", "hashes": {}},
+    {"checkpoint": "plan", "decision": "ignored", "hashes": {}},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": []},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": {1: "value"}},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": {"plan_hash": 7}},
 ):
     try:
         append_checkpoint_event(base=base, **kwargs)

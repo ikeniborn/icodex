@@ -587,9 +587,23 @@ def _checkpoint_events(base: Path) -> list[dict[str, object]]:
       data = json.loads(line)
     except json.JSONDecodeError:
       continue
-    if isinstance(data, dict) and data.get("event") == "checkpoint":
+    if _is_checkpoint_event(data):
       events.append(data)
   return events
+
+
+def _is_checkpoint_event(data: object) -> bool:
+  if not isinstance(data, dict) or data.get("event") != "checkpoint":
+    return False
+  if data.get("checkpoint") not in CHECKPOINT_NAMES or data.get("decision") not in CHECKPOINT_DECISIONS:
+    return False
+  hashes = data.get("hashes")
+  if not isinstance(hashes, dict) or not all(
+    isinstance(key, str) and isinstance(value, str)
+    for key, value in hashes.items()
+  ):
+    return False
+  return all(isinstance(data.get(key), str) for key in ("mode", "subtype", "outcome", "created_at"))
 
 
 def _governance_summary(base: Path, loop_text: str) -> GovernanceSummary:
@@ -636,26 +650,29 @@ def append_checkpoint_event(
   base: Path,
   checkpoint: str,
   decision: str,
-  goal_hash: str = "",
-  context_hash: str = "",
-  plan_hash: str = "",
+  hashes: dict[str, str],
   mode: str = "",
   subtype: str = "",
+  outcome: str = "",
   created_at: str = "",
 ) -> dict[str, object]:
   if checkpoint not in CHECKPOINT_NAMES:
     raise ValueError(f"invalid checkpoint: {checkpoint}")
   if decision not in CHECKPOINT_DECISIONS:
     raise ValueError(f"invalid checkpoint decision: {decision}")
+  if not isinstance(hashes, dict) or not all(
+    isinstance(key, str) and isinstance(value, str)
+    for key, value in hashes.items()
+  ):
+    raise ValueError("checkpoint hashes must be a dictionary of strings")
   record: dict[str, object] = {
     "event": "checkpoint",
     "checkpoint": checkpoint,
     "decision": decision,
-    "goal_hash": goal_hash,
-    "context_hash": context_hash,
-    "plan_hash": plan_hash,
+    "hashes": dict(hashes),
     "mode": mode,
     "subtype": subtype,
+    "outcome": outcome or decision,
     "created_at": created_at,
   }
   attempts_path = base / "attempts.jsonl"
@@ -782,15 +799,18 @@ def render_audit(base: Path, topic: str) -> str:
   )
   checkpoint_event_html = "\n".join(
     "<li>"
-    f"{html.escape(str(item.get('created_at', '')))} "
-    f"{html.escape(str(item.get('checkpoint', '')))} "
-    f"{html.escape(str(item.get('decision', '')))}"
-    f"; goal_hash: {html.escape(str(item.get('goal_hash', '')))}"
-    f"; context_hash: {html.escape(str(item.get('context_hash', '')))}"
-    f"; plan_hash: {html.escape(str(item.get('plan_hash', '')))}"
-    f"; mode: {html.escape(str(item.get('mode', '')))}"
-    f"; subtype: {html.escape(str(item.get('subtype', '')))}"
-    "</li>"
+    + f"{html.escape(str(item.get('created_at', '')))} "
+    + f"{html.escape(str(item.get('checkpoint', '')))} "
+    + f"{html.escape(str(item.get('decision', '')))}"
+    + "; hashes: "
+    + ", ".join(
+      f"{html.escape(key)}: {html.escape(value)}"
+      for key, value in sorted(item["hashes"].items())
+    )
+    + f"; mode: {html.escape(str(item.get('mode', '')))}"
+    + f"; subtype: {html.escape(str(item.get('subtype', '')))}"
+    + f"; outcome: {html.escape(str(item.get('outcome', '')))}"
+    + "</li>"
     for item in checkpoint_events
   ) or "<li>No checkpoint events recorded.</li>"
 
