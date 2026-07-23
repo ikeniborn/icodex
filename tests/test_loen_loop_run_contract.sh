@@ -592,11 +592,13 @@ run_contract_case "disabled auto-fix rejected" "auto-fix-disabled" "auto-fix req
 run_contract_case "incomplete merge-release policy rejected" "merge-policy-incomplete" "merge-release policy incomplete"
 
 sed -i '0,/subtype: merge-release/s//subtype: report-only/' "$topic_dir/loop.yaml"
+sed -i '/^  launch:/,/^governance:/ s/^    confirmed: true$/    confirmed: false/' "$topic_dir/loop.yaml"
 printf '# Check\n\n## Result\n\nPASS\n' > "$topic_dir/5_check.md"
 printf '# Result\n\n## Outcome\n\nDone\n' > "$topic_dir/7_result.md"
 printf '{"status":"pass"}\n' > "$topic_dir/evidence/latest-test.json"
 cat > "$topic_dir/attempts.jsonl" <<'JSONL'
 legacy plain attempt
+{"status":"pass","summary":"legacy JSON survives"}
 {"automation":true,"created_at":"2026-07-23T09:00:00Z","effective_status":"pass","run_type":"governance","summary":"mixed automation survives"}
 not-json {
 {"checkpoint":"goal_context","context_hash":"historical-context","created_at":"2026-07-23T10:00:00Z","decision":"reset","event":"checkpoint","goal_hash":"historical-goal","mode":"delivery","plan_hash":"historical-plan","subtype":""}
@@ -610,27 +612,35 @@ from loen_artifacts import render_audit
 base = Path(sys.argv[1])
 text = render_audit(base, "sample-runner")
 checkpoint_section = text.split("<h2>Checkpoints</h2>", 1)[1].split("</section>", 1)[0]
-checks = [
-    "Runner" in text,
-    "Governance" in text,
-    "mixed automation survives" in text,
-    "report-only" in text,
-    "plan_approved: true" in text,
-    "Checkpoints" in text,
-    all(name in text for name in ("goal_context", "mode", "plan", "launch")),
-    "confirmed: true" in text,
-    "goal-hash" in text,
-    "context-hash" in text,
-    sys.argv[2] in text,
-    "historical-goal" not in checkpoint_section,
-    "reset" not in checkpoint_section,
-    "2 checkpoint event(s)" in text,
-    "Checkpoint History" in text,
-    "historical-goal" in text,
-    "reset" in text,
-    "Final verdict:</strong> Done" in text,
-]
-print("OK" if all(checks) else text)
+history_section = text.split("<h2>Checkpoint History</h2>", 1)[1].split("</section>", 1)[0]
+checks = {
+    "runner section retained": "Runner" in text and "report-only" in text and "plan_approved: true" in text,
+    "governance section retained": "Governance" in text and "mixed automation survives" in text,
+    "goal_context current authority": (
+        "<strong>goal_context</strong>: confirmed: true, goal_hash: goal-hash, context_hash: context-hash"
+        in checkpoint_section
+    ),
+    "mode current authority": (
+        "<strong>mode</strong>: confirmed: true, mode: governance, subtype: merge-release"
+        in checkpoint_section
+    ),
+    "plan current authority": (
+        f"<strong>plan</strong>: confirmed: true, plan_hash: {sys.argv[2]}" in checkpoint_section
+    ),
+    "launch current authority": (
+        f"<strong>launch</strong>: confirmed: false, goal_hash: goal-hash, context_hash: context-hash, plan_hash: {sys.argv[2]}"
+        in checkpoint_section
+    ),
+    "history excluded from current authority": "historical-goal" not in checkpoint_section and "reset" not in checkpoint_section,
+    "checkpoint history count": "2 checkpoint event(s)" in history_section,
+    "checkpoint reset event rendered": "goal_context reset" in history_section and "historical-goal" in history_section,
+    "checkpoint confirmed event rendered": "launch confirmed" in history_section,
+    "legacy JSON excluded from checkpoint history": "legacy JSON survives" not in history_section,
+    "automation excluded from checkpoint history": "mixed automation survives" not in history_section,
+    "final verdict retained": "Final verdict:</strong> Done" in text,
+}
+failures = [label for label, passed in checks.items() if not passed]
+print("OK" if not failures else "FAILED: " + "; ".join(failures))
 PY
 )"
 audit_status_code="$?"
