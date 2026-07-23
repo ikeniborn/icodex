@@ -41,8 +41,8 @@ scaffold_topic(
     objective="Ship durable LoEn runtime artifacts",
     mutable_scope=["plugins/loen/**", "tests/test_loen_runtime_artifacts.sh", "docs/loen/**"],
     protected_scope=["secrets/**", ".codex-isolated/auth/**"],
-    verifier_command="bash tests/test_loen_runtime_artifacts.sh",
-    quality_gate_command="bash tests/test_loen_runtime_artifacts.sh",
+    verifier_command="bash tests/test_loen_runtime_artifacts.sh --verify",
+    quality_gate_command="bash tests/test_loen_runtime_artifacts.sh --quality",
     created_date="2026-07-02",
 )
 PY
@@ -74,6 +74,7 @@ assert_eq "attempts log starts empty" "" "$(cat "$topic_dir/attempts.jsonl" 2>/d
 
 loop_text="$(cat "$topic_dir/loop.yaml" 2>/dev/null || true)"
 context_text="$(cat "$topic_dir/2_context.md" 2>/dev/null || true)"
+plan_text="$(cat "$topic_dir/3_plan.md" 2>/dev/null || true)"
 audit_text="$(cat "$topic_dir/audit.html" 2>/dev/null || true)"
 
 assert_contains "loop topic field" "$loop_text" "topic: $topic"
@@ -82,10 +83,10 @@ assert_contains "loop objective field" "$loop_text" 'objective: "Ship durable Lo
 assert_contains "loop current stage field" "$loop_text" "current_stage: goal"
 assert_contains "loop mutable scope" "$loop_text" "plugins/loen/**"
 assert_contains "loop protected scope" "$loop_text" ".codex-isolated/auth/**"
-assert_contains "loop quality gate command" "$loop_text" "command: bash tests/test_loen_runtime_artifacts.sh"
+assert_contains "loop quality gate command" "$loop_text" "command: bash tests/test_loen_runtime_artifacts.sh --quality"
 assert_contains "loop quality gate evidence" "$loop_text" "evidence: evidence/latest-test.json"
 assert_contains "loop verifier type" "$loop_text" "type: test"
-assert_contains "loop verifier command" "$loop_text" "command: bash tests/test_loen_runtime_artifacts.sh"
+assert_contains "loop verifier command" "$loop_text" "command: bash tests/test_loen_runtime_artifacts.sh --verify"
 assert_contains "loop budget" "$loop_text" "max_iterations: 3"
 assert_contains "loop stop condition" "$loop_text" "quality gates pass"
 assert_contains "loop handoff condition" "$loop_text" "schema change required"
@@ -93,7 +94,10 @@ assert_contains "loop rollback policy" "$loop_text" 'rollback_policy: "Revert un
 assert_contains "context renders mutable scope" "$context_text" "plugins/loen/**"
 assert_contains "context renders second mutable scope" "$context_text" "tests/test_loen_runtime_artifacts.sh"
 assert_contains "context renders protected scope" "$context_text" ".codex-isolated/auth/**"
-assert_contains "context renders verifier command" "$context_text" "bash tests/test_loen_runtime_artifacts.sh"
+assert_contains "context renders verifier command" "$context_text" "bash tests/test_loen_runtime_artifacts.sh --verify"
+assert_eq "context excludes quality gate command" "0" "$(grep -cF -- 'bash tests/test_loen_runtime_artifacts.sh --quality' <<<"$context_text" || true)"
+assert_contains "plan renders quality gate command" "$plan_text" "bash tests/test_loen_runtime_artifacts.sh --quality"
+assert_eq "plan excludes verifier command" "0" "$(grep -cF -- 'bash tests/test_loen_runtime_artifacts.sh --verify' <<<"$plan_text" || true)"
 assert_contains "context renders iteration budget" "$context_text" "Maximum iterations: 3"
 assert_contains "context renders pass budget" "$context_text" "Maximum passes: 3"
 assert_contains "loop checkpoints block" "$loop_text" "checkpoints:"
@@ -154,10 +158,10 @@ checks = [
     data.get("stage") == "goal",
     "plugins/loen/**" in data.get("mutable_scope", []),
     ".codex-isolated/auth/**" in data.get("protected_scope", []),
-    data.get("quality_gates", [{}])[0].get("command") == "bash tests/test_loen_runtime_artifacts.sh",
+    data.get("quality_gates", [{}])[0].get("command") == "bash tests/test_loen_runtime_artifacts.sh --quality",
     data.get("quality_gates", [{}])[0].get("evidence") == "evidence/latest-test.json",
     data.get("verifier", {}).get("type") == "test",
-    data.get("verifier", {}).get("command") == "bash tests/test_loen_runtime_artifacts.sh",
+    data.get("verifier", {}).get("command") == "bash tests/test_loen_runtime_artifacts.sh --verify",
     data.get("budget", {}).get("max_iterations") == "3",
     "quality gates pass" in data.get("stop_conditions", []),
     "schema change required" in data.get("handoff_conditions", []),
