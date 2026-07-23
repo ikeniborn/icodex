@@ -91,6 +91,58 @@ PY
 )"
 assert_eq "policy hash uses canonical UTF-8 JSON" "OK" "$unicode_policy_status"
 
+semantic_null_status="$(PYTHONPATH="$hook_root" python3 - <<'PY'
+import hashlib
+import json
+
+from loen_artifacts import run_policy_hash
+from loen_common import parse_loop_yaml
+
+for spelling in ("null", "Null", "NULL", "~", ""):
+    parsed = parse_loop_yaml(f"""checkpoints:
+  mode:
+    confirmed: true
+    mode: delivery
+    subtype: {spelling}
+rollback_policy: null
+""")
+    if parsed["checkpoints"]["mode"]["subtype"] is not None:
+        raise SystemExit(f"non-semantic null: {spelling!r}")
+    if parsed["rollback_policy"] is not None:
+        raise SystemExit(f"top-level null stayed textual: {spelling!r}")
+
+quoted = parse_loop_yaml('''checkpoints:
+  mode:
+    confirmed: true
+    mode: delivery
+    subtype: "null"
+rollback_policy: "null"
+''')
+if quoted["checkpoints"]["mode"]["subtype"] != "null" or quoted["rollback_policy"] != "null":
+    raise SystemExit("quoted null lost string semantics")
+
+parsed = {
+    "mutable_scope": ["plugins/loen/**"],
+    "protected_scope": [],
+    "quality_gates": [{"command": "bash tests/test_loen_loop_run_contract.sh", "evidence": None}],
+    "verifier": {"command": "bash tests/test_loen_loop_run_contract.sh"},
+    "budget": {"max_iterations": "1"},
+    "stop_conditions": [],
+    "handoff_conditions": [],
+    "rollback_policy": None,
+    "governance": {"owner": None},
+    "release_policy": {"target_branch": None},
+}
+payload = {"mode": "delivery", "subtype": "", **parsed}
+literal = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+expected = hashlib.sha256(literal.encode("utf-8")).hexdigest()[:16]
+if run_policy_hash(parsed, "delivery", None) != expected:
+    raise SystemExit("independent null JSON vector mismatch")
+print("OK")
+PY
+)"
+assert_eq "semantic nulls and independent null JSON vector" "OK" "$semantic_null_status"
+
 cat > "$topic_dir/loop.yaml" <<YAML
 topic: sample-runner
 mode: governance
@@ -567,6 +619,62 @@ elif scenario in {"duplicate-checkpoints-comment", "duplicate-checkpoints-spaces
   goal_context:""",
   )
   loop_path.write_text(text, encoding="utf-8")
+elif scenario.startswith("duplicate-authority-"):
+  base = fixture(scenario)
+  authority = scenario.removeprefix("duplicate-authority-")
+  duplicate_lines = {
+    "mutable_scope": ("mutable_scope:\n", "mutable_scope:\n  - split/**\nmutable_scope:\n"),
+    "protected_scope": ("verifier:\n", "protected_scope:\n  - first/**\nprotected_scope:\n  - second/**\nverifier:\n"),
+    "quality_gates": ("verifier:\n", "quality_gates:\n  - command: first\nquality_gates:\n  - command: second\nverifier:\n"),
+    "verifier": ("verifier:\n", "verifier:\n  command: split\nverifier:\n"),
+    "budget": ("budget:\n", "budget:\n  max_iterations: 7\nbudget:\n"),
+    "stop_conditions": ("rollback_policy:", "stop_conditions:\n  - first\nstop_conditions:\n  - second\nrollback_policy:"),
+    "handoff_conditions": ("rollback_policy:", "handoff_conditions:\n  - first\nhandoff_conditions:\n  - second\nrollback_policy:"),
+    "rollback_policy": ("rollback_policy: Stop and write handoff", "rollback_policy: split\nrollback_policy: Stop and write handoff"),
+    "governance": ("governance:\n", "governance:\n  owner: split\ngovernance:\n"),
+    "release_policy": ("release_policy:\n", "release_policy:\n  target_branch: split\nrelease_policy:\n"),
+    "verifier.command": ("  command: bash tests/test_loen_loop_run_contract.sh", "  command: split\n  command: bash tests/test_loen_loop_run_contract.sh"),
+    "budget.max_iterations": ("  max_iterations: 1", "  max_iterations: 7\n  max_iterations: 1"),
+    "governance.auto_fix": ("  auto_fix: true", "  auto_fix: false\n  auto_fix: true"),
+    "governance.auto_merge": ("  auto_merge: false", "  auto_merge: true\n  auto_merge: false"),
+    "release_policy.target_branch": ("  target_branch: master", "  target_branch: split\n  target_branch: master"),
+    "release_policy.merge_strategy": ("  merge_strategy: pr", "  merge_strategy: split\n  merge_strategy: pr"),
+    "release_policy.verifier_required": ("  verifier_required: true", "  verifier_required: false\n  verifier_required: true"),
+    "release_policy.evidence_required": ("  evidence_required: true", "  evidence_required: false\n  evidence_required: true"),
+    "release_policy.scope_limit": ("  scope_limit: Configured mutable scope only", "  scope_limit: split\n  scope_limit: Configured mutable scope only"),
+    "release_policy.recovery_policy": ("  recovery_policy: Stop and write handoff", "  recovery_policy: split\n  recovery_policy: Stop and write handoff"),
+    "quality_gates.command": ("mutable_scope:\n", "quality_gates:\n  - command: first\n    command: second\nmutable_scope:\n"),
+    "quality_gates.evidence": ("mutable_scope:\n", "quality_gates:\n  - evidence: first\n    evidence: second\nmutable_scope:\n"),
+    "checkpoint.goal_context": ("  goal_context:\n", "  goal_context:\n    confirmed: false\n  goal_context:\n"),
+    "checkpoint.mode": ("  mode:\n", "  mode:\n    confirmed: false\n  mode:\n"),
+    "checkpoint.plan": ("  plan:\n", "  plan:\n    confirmed: false\n  plan:\n"),
+    "checkpoint.launch": ("  launch:\n", "  launch:\n    confirmed: false\n  launch:\n"),
+    "goal_context.confirmed": ("    confirmed: true\n    goal_hash:", "    confirmed: false\n    confirmed: true\n    goal_hash:"),
+    "goal_context.goal_hash": ("    goal_hash: ", "    goal_hash: split\n    goal_hash: "),
+    "goal_context.context_hash": ("    context_hash: ", "    context_hash: split\n    context_hash: "),
+    "mode.confirmed": ("  mode:\n    confirmed: true", "  mode:\n    confirmed: false\n    confirmed: true"),
+    "mode.mode": ("    mode: governance", "    mode: delivery\n    mode: governance"),
+    "mode.subtype": ("    subtype: report-only", "    subtype: split\n    subtype: report-only"),
+    "plan.confirmed": ("  plan:\n    confirmed: true", "  plan:\n    confirmed: false\n    confirmed: true"),
+    "plan.plan_hash": ("    plan_hash: ", "    plan_hash: split\n    plan_hash: "),
+    "plan.policy_hash": ("    policy_hash: ", "    policy_hash: split\n    policy_hash: "),
+    "launch.confirmed": ("  launch:\n    confirmed: true", "  launch:\n    confirmed: false\n    confirmed: true"),
+    "launch.goal_hash": ("    goal_hash: ", "    goal_hash: split\n    goal_hash: "),
+    "launch.context_hash": ("    context_hash: ", "    context_hash: split\n    context_hash: "),
+    "launch.plan_hash": ("    plan_hash: ", "    plan_hash: split\n    plan_hash: "),
+    "launch.policy_hash": ("    policy_hash: ", "    policy_hash: split\n    policy_hash: "),
+  }
+  old, new = duplicate_lines[authority]
+  replace(base, old, new)
+elif scenario == "authority-controls":
+  base = fixture(scenario)
+  replace(base, "rollback_policy: Stop and write handoff", 'rollback_policy: "keep # checkpoints: and verifier: literal" # checkpoints:')
+  replace(base, "governance:\n", "unrelated:\n  owner: first\n  owner: second\ngovernance:\n")
+  loop_path = base / "loop.yaml"
+  text = loop_path.read_text(encoding="utf-8")
+  current_hash = run_policy_hash(parse_loop_yaml(text), "governance", "report-only")
+  old_hash = parse_loop_yaml(text)["checkpoints"]["plan"]["policy_hash"]
+  loop_path.write_text(text.replace(str(old_hash), current_hash), encoding="utf-8")
 elif scenario == "unreadable-goal":
   base = fixture(scenario)
   (base / "1_goal.md").write_bytes(b"\xff\xfe")
@@ -635,9 +743,13 @@ run_contract_case "stale launch plan rejected" "launch-plan-stale" "launch plan 
 run_contract_case "missing goal artifact rejected" "missing-goal" "goal hash mismatch"
 run_contract_case "missing context artifact rejected" "missing-context" "context hash mismatch"
 run_contract_case "missing plan artifact rejected" "missing-plan" "plan hash mismatch"
-run_contract_case "duplicate checkpoint contract rejected" "duplicate-checkpoints" "invalid checkpoint contract"
-run_contract_case "commented duplicate checkpoint contract rejected" "duplicate-checkpoints-comment" "invalid checkpoint contract"
-run_contract_case "spaced duplicate checkpoint contract rejected" "duplicate-checkpoints-spaces" "invalid checkpoint contract"
+run_contract_case "duplicate checkpoint contract rejected" "duplicate-checkpoints" "invalid canonical authority"
+run_contract_case "commented duplicate checkpoint contract rejected" "duplicate-checkpoints-comment" "invalid canonical authority"
+run_contract_case "spaced duplicate checkpoint contract rejected" "duplicate-checkpoints-spaces" "invalid canonical authority"
+for authority in mutable_scope protected_scope quality_gates verifier budget stop_conditions handoff_conditions rollback_policy governance release_policy verifier.command budget.max_iterations governance.auto_fix governance.auto_merge release_policy.target_branch release_policy.merge_strategy release_policy.verifier_required release_policy.evidence_required release_policy.scope_limit release_policy.recovery_policy quality_gates.command quality_gates.evidence checkpoint.goal_context checkpoint.mode checkpoint.plan checkpoint.launch goal_context.confirmed goal_context.goal_hash goal_context.context_hash mode.confirmed mode.mode mode.subtype plan.confirmed plan.plan_hash plan.policy_hash launch.confirmed launch.goal_hash launch.context_hash launch.plan_hash launch.policy_hash; do
+  run_contract_case "duplicate canonical authority $authority rejected" "duplicate-authority-$authority" "invalid canonical authority"
+done
+run_contract_case "quoted comments and unrelated duplicates stay valid" "authority-controls" "approved run contract"
 run_contract_case "unreadable goal artifact rejected" "unreadable-goal" "unreadable goal artifact"
 run_contract_case "unreadable context artifact rejected" "unreadable-context" "unreadable context artifact"
 run_contract_case "unreadable plan artifact rejected" "unreadable-plan" "unreadable plan artifact"

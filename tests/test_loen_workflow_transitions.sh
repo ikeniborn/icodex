@@ -36,6 +36,12 @@ states = ["scaffold"]
 scaffold_artifacts = {name: (base / name).read_text(encoding="utf-8") for name in ("1_goal.md", "2_context.md", "3_plan.md")}
 scaffold_action = (base / "4_act.md").read_text(encoding="utf-8")
 hashes = {name: artifact_body_hash(base / filename) for name, filename in (("goal_hash", "1_goal.md"), ("context_hash", "2_context.md"), ("plan_hash", "3_plan.md"))}
+event_index = 0
+
+def append_event(**kwargs):
+    global event_index
+    event_index += 1
+    append_checkpoint_event(created_at=f"2026-07-23T12:00:{event_index:02d}Z", **kwargs)
 
 def set_checkpoint(name, body):
     path = base / "loop.yaml"
@@ -46,26 +52,26 @@ def set_checkpoint(name, body):
     path.write_text(updated, encoding="utf-8")
 
 set_checkpoint("goal_context", f"    confirmed: true\n    goal_hash: {hashes['goal_hash']}\n    context_hash: {hashes['context_hash']}\n")
-append_checkpoint_event(base=base, checkpoint="goal_context", decision="confirmed", hashes={"goal_hash": hashes["goal_hash"], "context_hash": hashes["context_hash"]})
+append_event(base=base, checkpoint="goal_context", decision="confirmed", hashes={"goal_hash": hashes["goal_hash"], "context_hash": hashes["context_hash"]})
 states.append("goal-context-confirmed")
 set_checkpoint("mode", "    confirmed: true\n    mode: delivery\n    subtype: \"\"\n")
-append_checkpoint_event(base=base, checkpoint="mode", decision="confirmed", hashes={}, mode="delivery")
+append_event(base=base, checkpoint="mode", decision="confirmed", hashes={}, mode="delivery")
 states.append("mode-confirmed")
 policy = run_policy_hash(parse_loop_yaml((base / "loop.yaml").read_text(encoding="utf-8")), "delivery", "")
 set_checkpoint("plan", f"    confirmed: true\n    plan_hash: {hashes['plan_hash']}\n    policy_hash: {policy}\n")
-append_checkpoint_event(base=base, checkpoint="plan", decision="confirmed", hashes={"plan_hash": hashes["plan_hash"], "policy_hash": policy}, mode="delivery")
+append_event(base=base, checkpoint="plan", decision="confirmed", hashes={"plan_hash": hashes["plan_hash"], "policy_hash": policy}, mode="delivery")
 states.append("plan-confirmed")
 if validate_run_contract(base, require_launch=False)["ok"] is not True:
     raise SystemExit("prelaunch rejected")
 states.append("prelaunch")
 if (base / "4_act.md").read_text(encoding="utf-8") != scaffold_action:
     raise SystemExit("invocation acted")
-append_checkpoint_event(base=base, checkpoint="launch", decision="refused", hashes={})
+append_event(base=base, checkpoint="launch", decision="refused", hashes={})
 states.append("refused")
 if (base / "4_act.md").read_text(encoding="utf-8") != scaffold_action:
     raise SystemExit("refusal acted")
 set_checkpoint("launch", f"    confirmed: true\n    goal_hash: {hashes['goal_hash']}\n    context_hash: {hashes['context_hash']}\n    plan_hash: {hashes['plan_hash']}\n    policy_hash: {policy}\n")
-append_checkpoint_event(base=base, checkpoint="launch", decision="confirmed", hashes=hashes | {"policy_hash": policy})
+append_event(base=base, checkpoint="launch", decision="confirmed", hashes=hashes | {"policy_hash": policy})
 if validate_run_contract(base)["ok"] is not True:
     raise SystemExit("launch rejected")
 if any((base / name).read_text(encoding="utf-8") != text for name, text in scaffold_artifacts.items()):
@@ -74,7 +80,7 @@ states.append("launched")
 original = (base / "loop.yaml").read_text(encoding="utf-8")
 mutations = {
     "mode": lambda value: value.replace("    mode: delivery\n    subtype: \"\"", "    mode: governance\n    subtype: report-only"),
-    "subtype": lambda value: value.replace('    subtype: ""', "    subtype: none", 1),
+    "subtype": lambda value: value.replace('    subtype: ""', '    subtype: "null"', 1),
     "mutable-scope": lambda value: value.replace("  - plugins/loen/**", "  - tests/**", 1),
     "protected-scope": lambda value: value.replace("  - README.md", "  - docs/**", 1),
     "quality-gates": lambda value: value.replace("evidence/latest-test.json", "evidence/other.json"),
@@ -96,7 +102,8 @@ if set(mutations) != expected_canonical_inputs:
     raise SystemExit(f"incomplete canonical mutation matrix: missing={missing} extra={extra}")
 for label, mutate in mutations.items():
     (base / "loop.yaml").write_text(mutate(original), encoding="utf-8")
-    if validate_run_contract(base)["reason"] != "plan policy hash mismatch":
+    expected_reason = "invalid delivery subtype" if label == "subtype" else "plan policy hash mismatch"
+    if validate_run_contract(base)["reason"] != expected_reason:
         raise SystemExit(f"{label} mutation accepted")
     if (base / "4_act.md").read_text(encoding="utf-8") != scaffold_action:
         raise SystemExit(f"{label} mutation acted")
@@ -107,10 +114,10 @@ mutated = re.sub(r"(  plan:\n(?:    .*\n)*?    policy_hash: )[^\n]+", rf"\g<1>{c
 (base / "loop.yaml").write_text(mutated, encoding="utf-8")
 if validate_run_contract(base)["reason"] != "launch policy hash mismatch":
     raise SystemExit("stale launch policy accepted")
-append_checkpoint_event(base=base, checkpoint="plan", decision="confirmed", hashes={"plan_hash": hashes["plan_hash"], "policy_hash": current_policy})
+append_event(base=base, checkpoint="plan", decision="confirmed", hashes={"plan_hash": hashes["plan_hash"], "policy_hash": current_policy})
 mutated = re.sub(r"(  launch:\n(?:    .*\n)*?    policy_hash: )[^\n]+", rf"\g<1>{current_policy}", mutated)
 (base / "loop.yaml").write_text(mutated, encoding="utf-8")
-append_checkpoint_event(base=base, checkpoint="launch", decision="confirmed", hashes=hashes | {"policy_hash": current_policy})
+append_event(base=base, checkpoint="launch", decision="confirmed", hashes=hashes | {"policy_hash": current_policy})
 if validate_run_contract(base)["ok"] is not True:
     raise SystemExit("reconfirmed current policy rejected")
 states.append("reconfirmed")

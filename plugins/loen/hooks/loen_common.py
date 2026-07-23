@@ -84,13 +84,121 @@ def read_loop_artifact(topic_value: str | None = None) -> str:
 
 
 def _parse_scalar(value: str) -> Any:
-  value = value.strip().strip('"').strip("'")
+  value = value.strip()
+  if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+    return value[1:-1]
   lowered = value.lower()
+  if lowered in {"null", "~"} or value == "":
+    return None
   if lowered == "true":
     return True
   if lowered == "false":
     return False
   return value
+
+
+def _strip_yaml_comment(line: str) -> str:
+  quote = ""
+  escaped = False
+  for index, char in enumerate(line):
+    if escaped:
+      escaped = False
+      continue
+    if char == "\\" and quote == '"':
+      escaped = True
+      continue
+    if char in {'"', "'"}:
+      if not quote:
+        quote = char
+      elif quote == char:
+        quote = ""
+      continue
+    if char == "#" and not quote:
+      return line[:index].rstrip()
+  return line.rstrip()
+
+
+def _mapping_key(text: str) -> tuple[str, str] | None:
+  quote = ""
+  escaped = False
+  for index, char in enumerate(text):
+    if escaped:
+      escaped = False
+      continue
+    if char == "\\" and quote == '"':
+      escaped = True
+      continue
+    if char in {'"', "'"}:
+      if not quote:
+        quote = char
+      elif quote == char:
+        quote = ""
+      continue
+    if char == ":" and not quote:
+      return text[:index].strip(), text[index + 1:].strip()
+  return None
+
+
+CANONICAL_TOP_LEVEL = {
+  "mutable_scope", "protected_scope", "quality_gates", "verifier", "budget",
+  "stop_conditions", "handoff_conditions", "rollback_policy", "governance",
+  "release_policy", "checkpoints",
+}
+CANONICAL_MAPPINGS = {"verifier", "budget", "governance", "release_policy"}
+
+
+def _canonical_authority_diagnostics(text: str) -> list[str]:
+  seen: set[str] = set()
+  duplicates: list[str] = []
+  section = ""
+  checkpoint = ""
+  quality_item = -1
+
+  def register(path: str) -> None:
+    if path in seen and path not in duplicates:
+      duplicates.append(path)
+    seen.add(path)
+
+  for raw_line in text.splitlines():
+    line = _strip_yaml_comment(raw_line)
+    if not line.strip() or "\t" in line[:len(line) - len(line.lstrip())]:
+      continue
+    indent = len(line) - len(line.lstrip(" "))
+    stripped = line.strip()
+    item = stripped.startswith("- ")
+    mapping = _mapping_key(stripped[2:].strip() if item else stripped)
+    if mapping is None:
+      continue
+    key, _ = mapping
+    if indent == 0:
+      section = key
+      checkpoint = ""
+      quality_item = -1
+      if key in CANONICAL_TOP_LEVEL:
+        register(key)
+      continue
+    if section == "quality_gates":
+      if indent == 2 and item:
+        quality_item += 1
+      if quality_item >= 0 and ((indent == 2 and item) or (indent == 4 and not item)):
+        register(f"quality_gates[{quality_item}].{key}")
+      continue
+    if section in CANONICAL_MAPPINGS and indent == 2:
+      register(f"{section}.{key}")
+      continue
+    if section == "checkpoints":
+      if indent == 2 and not item:
+        checkpoint = key if key in CHECKPOINT_DEFAULTS else ""
+        if checkpoint:
+          register(f"checkpoints.{checkpoint}")
+        continue
+      if indent == 4 and checkpoint and key in CHECKPOINT_DEFAULTS[checkpoint]:
+        register(f"checkpoints.{checkpoint}.{key}")
+  return duplicates
+
+
+def parse_loop_yaml_checked(text: str) -> tuple[dict[str, Any], list[str]]:
+  return parse_loop_yaml(text), _canonical_authority_diagnostics(text)
 
 
 def _parse_governance_scalar(key: str, value: str) -> Any:
@@ -176,7 +284,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
   list_target: list[Any] | None = None
 
   for raw_line in text.splitlines():
-    line = raw_line.split("#", 1)[0].rstrip()
+    line = _strip_yaml_comment(raw_line)
     if not line.strip():
       continue
     indent = len(line) - len(line.lstrip(" "))
@@ -198,14 +306,14 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       current_agent = ""
       current_list_item = None
       list_target = None
-      if stripped.endswith(":"):
+      if stripped.endswith(":") and stripped[:-1] != "rollback_policy":
         section = stripped[:-1]
         if section in {"mutable_scope", "protected_scope", "stop_conditions", "handoff_conditions"}:
           list_target = data[section]
         continue
-      if ":" in stripped:
-        key, value = stripped.split(":", 1)
-        key = key.strip()
+      mapping = _mapping_key(stripped)
+      if mapping is not None:
+        key, value = mapping
         if key in {"mutable_scope", "protected_scope", "stop_conditions", "handoff_conditions"}:
           parsed_list = _parse_inline_list(value)
           if parsed_list or value.strip() == "[]":

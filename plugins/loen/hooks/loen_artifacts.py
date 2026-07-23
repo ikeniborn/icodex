@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 import hashlib
 import html
 import json
 import re
 from pathlib import Path
 
-from loen_common import parse_loop_yaml
+from loen_common import parse_loop_yaml, parse_loop_yaml_checked
 
 
 STAGE_FILES = (
@@ -332,10 +332,11 @@ def run_contract(loop_text: str) -> dict[str, object]:
   return dict(value) if isinstance(value, dict) else {}
 
 
-def run_policy_hash(parsed: dict[str, object], run_mode: str, subtype: str) -> str:
+def run_policy_hash(parsed: dict[str, object], run_mode: str, subtype: object) -> str:
+  canonical_subtype = "" if run_mode == "delivery" and subtype is None else subtype
   policy = {
     "mode": run_mode,
-    "subtype": subtype,
+    "subtype": canonical_subtype,
     "mutable_scope": parsed.get("mutable_scope", []),
     "protected_scope": parsed.get("protected_scope", []),
     "quality_gates": parsed.get("quality_gates", []),
@@ -421,10 +422,11 @@ def _validate_checkpoints(
   if mode_checkpoint.get("confirmed") is not True:
     return {"ok": False, "reason": "mode selection missing"}, "", ""
   run_mode = str(mode_checkpoint.get("mode", "")).strip()
-  subtype = str(mode_checkpoint.get("subtype", "")).strip()
+  subtype_value = mode_checkpoint.get("subtype", "")
+  subtype = "" if run_mode == "delivery" and subtype_value is None else str(subtype_value).strip()
   if run_mode not in {"delivery", "governance"}:
     return {"ok": False, "reason": "invalid run mode"}, "", ""
-  if run_mode == "delivery" and subtype.lower() not in {"", "none", "null"}:
+  if run_mode == "delivery" and subtype != "":
     return {"ok": False, "reason": "invalid delivery subtype"}, "", ""
   if run_mode == "governance" and subtype not in {"report-only", "auto-fix", "merge-release"}:
     return {"ok": False, "reason": "invalid governance subtype"}, "", ""
@@ -519,7 +521,9 @@ def _validate_run_policy(parsed: dict[str, object], run_mode: str, subtype: str)
 
 def validate_run_contract(base: Path, *, require_launch: bool = True) -> dict[str, object]:
   loop_text = _read(base / "loop.yaml")
-  parsed = parse_loop_yaml(loop_text)
+  parsed, diagnostics = parse_loop_yaml_checked(loop_text)
+  if diagnostics:
+    return {"ok": False, "reason": "invalid canonical authority"}
   checkpoint_error, run_mode, subtype = _validate_checkpoints(
     base,
     loop_text,
@@ -684,7 +688,23 @@ def _is_checkpoint_event(data: object) -> bool:
   allowed = CHECKPOINT_HASH_KEYS[checkpoint]
   if not keys <= allowed or (data["decision"] == "confirmed" and keys != allowed):
     return False
-  return all(isinstance(data.get(key), str) for key in ("mode", "subtype", "outcome", "created_at"))
+  return (
+    all(isinstance(data.get(key), str) for key in ("mode", "subtype", "outcome", "created_at"))
+    and _is_rfc3339_utc(str(data["created_at"]))
+  )
+
+
+RFC3339_UTC_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z$")
+
+
+def _is_rfc3339_utc(value: str) -> bool:
+  if not RFC3339_UTC_RE.fullmatch(value):
+    return False
+  try:
+    datetime.fromisoformat(value[:-1] + "+00:00")
+  except ValueError:
+    return False
+  return True
 
 
 def _governance_summary(base: Path, loop_text: str) -> GovernanceSummary:
@@ -762,6 +782,8 @@ def append_checkpoint_event(
     raise ValueError(f"invalid {checkpoint} checkpoint hashes")
   if not all(isinstance(value, str) for value in (mode, subtype, outcome, created_at)):
     raise ValueError("checkpoint mode, subtype, outcome, and created_at must be strings")
+  if not _is_rfc3339_utc(created_at):
+    raise ValueError("checkpoint created_at must be RFC3339 UTC")
   record: dict[str, object] = {
     "event": "checkpoint",
     "checkpoint": checkpoint,

@@ -168,7 +168,7 @@ checks = [
     data.get("rollback_policy") == "Revert unsafe changes",
     data.get("checkpoints") == {
         "goal_context": {"confirmed": False, "goal_hash": "", "context_hash": ""},
-        "mode": {"confirmed": False, "mode": "", "subtype": "null"},
+        "mode": {"confirmed": False, "mode": "", "subtype": None},
         "plan": {"confirmed": False, "plan_hash": "", "policy_hash": ""},
         "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": "", "policy_hash": ""},
     },
@@ -305,7 +305,7 @@ valid = (
     ("launch", {"goal_hash": "g", "context_hash": "c", "plan_hash": "p", "policy_hash": "q"}),
 )
 for checkpoint, hashes in valid:
-    append_checkpoint_event(base=base, checkpoint=checkpoint, decision="confirmed", hashes=hashes)
+    append_checkpoint_event(base=base, checkpoint=checkpoint, decision="confirmed", hashes=hashes, created_at="2026-07-23T12:34:56Z")
 before = (base / "attempts.jsonl").read_text(encoding="utf-8")
 invalid = (
     ("goal_context", {"goal_hash": "g"}),
@@ -330,6 +330,40 @@ print("OK")
 PY
 )"
 assert_eq "confirmed checkpoint events enforce exact hash schema" "OK" "$checkpoint_hash_schema_status"
+
+timestamp_schema_status="$(PYTHONPATH="$plugin_root/hooks" python3 - "$workdir/timestamp-schema" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+from loen_artifacts import _checkpoint_events, append_checkpoint_event
+
+base = Path(sys.argv[1])
+base.mkdir(parents=True)
+for timestamp in ("2026-07-23T12:34:56Z", "2026-07-23T12:34:56.123456Z"):
+    append_checkpoint_event(base=base, checkpoint="mode", decision="confirmed", hashes={}, created_at=timestamp)
+path = base / "attempts.jsonl"
+before = path.read_bytes()
+invalid = ("", "2026-07-23T12:34:56+00:00", "2026-07-23t12:34:56z", "2026-07-23", "2026-02-30T12:34:56Z", "2026-07-23T24:00:00Z")
+for timestamp in invalid:
+    try:
+        append_checkpoint_event(base=base, checkpoint="mode", decision="confirmed", hashes={}, created_at=timestamp)
+    except ValueError:
+        pass
+    else:
+        raise SystemExit(f"accepted invalid timestamp: {timestamp!r}")
+    if path.read_bytes() != before:
+        raise SystemExit(f"invalid timestamp wrote data: {timestamp!r}")
+with path.open("a", encoding="utf-8") as handle:
+    for timestamp in invalid:
+        handle.write(json.dumps({"event":"checkpoint","checkpoint":"mode","decision":"confirmed","hashes":{},"mode":"","subtype":"","outcome":"confirmed","created_at":timestamp}) + "\n")
+events = _checkpoint_events(base)
+if [event["created_at"] for event in events] != ["2026-07-23T12:34:56Z", "2026-07-23T12:34:56.123456Z"]:
+    raise SystemExit("reader retained malformed timestamp history")
+print("OK")
+PY
+)"
+assert_eq "checkpoint timestamps require strict RFC3339 Z without partial writes" "OK" "$timestamp_schema_status"
 
 printf '{"status":"pass","command":"bash tests/test_loen_runtime_artifacts.sh"}\n' > "$topic_dir/evidence/latest-test.json"
 printf '# Check\n\n## Result\n\nBYPASS\n' > "$topic_dir/5_check.md"
