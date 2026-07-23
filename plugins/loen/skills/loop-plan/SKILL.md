@@ -5,7 +5,7 @@ description: Use when an existing LoEn topic needs its bounded plan replaced.
 
 # LoEn Loop Plan
 
-This skill is for existing topic replan only. All topic-scoped loop state remains under docs/loen/<topic>/. New topics must use `loen:loop-start`.
+This skill is for existing topic replan only. All topic-scoped loop state remains under `docs/loen/<topic>/`. New topics must use `loen:loop-start`.
 
 ## Procedure
 
