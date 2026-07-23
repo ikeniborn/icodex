@@ -102,7 +102,7 @@ sequenceDiagram
     Start->>Files: write integrated 3_plan.md
     Start->>User: approve 3_plan.md
     Start->>Files: record plan checkpoint and event
-    Start-->>User: loen:loop-run topic
+    Start-->>User: loen:loop-run &lt;topic&gt;
     User->>Run: invoke continuation command
     Run->>Files: prelaunch validation
     Run->>User: present final contract summary and request launch

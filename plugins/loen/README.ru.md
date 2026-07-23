@@ -103,7 +103,7 @@ sequenceDiagram
     Start->>Files: записать встроенный 3_plan.md
     Start->>User: одобрить 3_plan.md
     Start->>Files: записать checkpoint plan и event
-    Start-->>User: loen:loop-run topic
+    Start-->>User: loen:loop-run &lt;topic&gt;
     User->>Run: вызвать команду продолжения
     Run->>Files: выполнить prelaunch-проверку
     Run->>User: показать итоговый контракт и запросить launch
