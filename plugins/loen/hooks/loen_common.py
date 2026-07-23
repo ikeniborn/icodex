@@ -18,8 +18,8 @@ TOPIC_RE = re.compile(r"[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,78}[a-z0-9]?")
 CHECKPOINT_DEFAULTS: dict[str, dict[str, Any]] = {
   "goal_context": {"confirmed": False, "goal_hash": "", "context_hash": ""},
   "mode": {"confirmed": False, "mode": "", "subtype": ""},
-  "plan": {"confirmed": False, "plan_hash": ""},
-  "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": ""},
+  "plan": {"confirmed": False, "plan_hash": "", "policy_hash": ""},
+  "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": "", "policy_hash": ""},
 }
 
 

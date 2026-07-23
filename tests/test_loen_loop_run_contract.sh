@@ -107,11 +107,13 @@ checkpoints:
   plan:
     confirmed: true
     plan_hash: "$plan_hash"
+    policy_hash: "POLICY_HASH"
   launch:
     confirmed: true
     goal_hash: "goal-hash"
     context_hash: "context-hash"
     plan_hash: "$plan_hash"
+    policy_hash: "POLICY_HASH"
 governance:
   automation_type: release-governance
   owner: maintainer
@@ -130,6 +132,17 @@ release_policy:
   scope_limit: "Configured mutable scope only"
   recovery_policy: "Stop, record handoff, and leave branch inspectable."
 YAML
+
+policy_hash="$(PYTHONPATH="$hook_root" python3 - "$topic_dir/loop.yaml" <<'PY'
+import sys
+from pathlib import Path
+from loen_artifacts import run_policy_hash
+from loen_common import parse_loop_yaml
+parsed = parse_loop_yaml(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(run_policy_hash(parsed, "governance", "merge-release"))
+PY
+)"
+sed -i "s/POLICY_HASH/$policy_hash/g" "$topic_dir/loop.yaml"
 
 touch "$topic_dir/1_goal.md" "$topic_dir/2_context.md" "$topic_dir/4_act.md" \
   "$topic_dir/5_check.md" "$topic_dir/6_reflect.md" "$topic_dir/7_result.md" \
@@ -168,12 +181,13 @@ checks = [
     checkpoints == {
         "goal_context": {"confirmed": True, "goal_hash": "goal-hash", "context_hash": "context-hash"},
         "mode": {"confirmed": True, "mode": "governance", "subtype": "merge-release"},
-        "plan": {"confirmed": True, "plan_hash": run.get("plan_hash")},
+        "plan": {"confirmed": True, "plan_hash": run.get("plan_hash"), "policy_hash": checkpoints.get("plan", {}).get("policy_hash")},
         "launch": {
             "confirmed": True,
             "goal_hash": "goal-hash",
             "context_hash": "context-hash",
             "plan_hash": run.get("plan_hash"),
+            "policy_hash": checkpoints.get("plan", {}).get("policy_hash"),
         },
     },
     release.get("target_branch") == "master",
@@ -182,7 +196,8 @@ checks = [
     release.get("evidence_required") is True,
     release.get("scope_limit") == "Configured mutable scope only",
 ]
-print("OK" if all(checks) else {"run": run, "release": release})
+checks.append(checkpoints["plan"]["policy_hash"] == checkpoints["launch"]["policy_hash"] and len(checkpoints["plan"]["policy_hash"]) == 16)
+print("OK" if all(checks) else {"run": run, "release": release, "checkpoints": checkpoints})
 PY
 )"
 parse_status_code="$?"
@@ -205,11 +220,13 @@ data = parse_loop_yaml("""checkpoints:
   plan:
     confirmed: false
     plan_hash: plan-789
+    policy_hash: policy-000
   launch:
     confirmed: true
     goal_hash: goal-123
     context_hash: context-456
     plan_hash: plan-789
+    policy_hash: policy-000
   unknown:
     confirmed: true
     injected: authority
@@ -217,12 +234,13 @@ data = parse_loop_yaml("""checkpoints:
 expected = {
     "goal_context": {"confirmed": False, "goal_hash": "goal-123", "context_hash": "context-456"},
     "mode": {"confirmed": True, "mode": "governance", "subtype": "report-only"},
-    "plan": {"confirmed": False, "plan_hash": "plan-789"},
+    "plan": {"confirmed": False, "plan_hash": "plan-789", "policy_hash": "policy-000"},
     "launch": {
         "confirmed": True,
         "goal_hash": "goal-123",
         "context_hash": "context-456",
         "plan_hash": "plan-789",
+        "policy_hash": "policy-000",
     },
 }
 print("OK" if data.get("checkpoints") == expected else data.get("checkpoints"))
@@ -337,7 +355,8 @@ cat > "$fixture_driver" <<'PY'
 import sys
 from pathlib import Path
 
-from loen_artifacts import artifact_body_hash, validate_run_contract
+from loen_artifacts import artifact_body_hash, run_policy_hash, validate_run_contract
+from loen_common import parse_loop_yaml
 
 root = Path(sys.argv[1])
 scenario = sys.argv[2]
@@ -353,10 +372,12 @@ def contract_text(hashes, *, mode="governance", subtype="report-only", overrides
     "subtype": subtype,
     "plan_confirmed": "true",
     "plan_hash": hashes["plan"],
+    "plan_policy_hash": "POLICY_HASH",
     "launch_confirmed": "true",
     "launch_goal_hash": hashes["goal"],
     "launch_context_hash": hashes["context"],
     "launch_plan_hash": hashes["plan"],
+    "launch_policy_hash": "POLICY_HASH",
   }
   values.update(overrides or {})
   auto_merge = "true" if subtype == "merge-release" else "false"
@@ -388,11 +409,13 @@ checkpoints:
   plan:
     confirmed: {values['plan_confirmed']}
     plan_hash: {values['plan_hash']}
+    policy_hash: {values['plan_policy_hash']}
   launch:
     confirmed: {values['launch_confirmed']}
     goal_hash: {values['launch_goal_hash']}
     context_hash: {values['launch_context_hash']}
     plan_hash: {values['launch_plan_hash']}
+    policy_hash: {values['launch_policy_hash']}
 governance:
   auto_fix: true
   auto_merge: {auto_merge}
@@ -419,6 +442,8 @@ def fixture(name, *, mode="governance", subtype="report-only", overrides=None):
     "plan": artifact_body_hash(base / "3_plan.md"),
   }
   text = contract_text(hashes, mode=mode, subtype=subtype, overrides=overrides)
+  policy_hash = run_policy_hash(parse_loop_yaml(text), mode, subtype)
+  text = text.replace("POLICY_HASH", policy_hash)
   (base / "loop.yaml").write_text(text, encoding="utf-8")
   return base
 
@@ -588,12 +613,12 @@ run_contract_case "unreadable plan artifact rejected" "unreadable-plan" "unreada
 run_contract_case "report-only contract validates" "current" "approved run contract"
 run_contract_case "full merge-release contract validates" "merge-release" "approved run contract"
 run_contract_case "prelaunch contract validates" "prelaunch" "approved run contract"
-run_contract_case "missing verifier rejected" "verifier-missing" "missing verifier command"
-run_contract_case "zero budget rejected" "budget-missing" "missing budget max_iterations"
-run_contract_case "placeholder mutable scope rejected" "scope-missing" "missing mutable scope"
-run_contract_case "missing rollback rejected" "rollback-missing" "missing rollback policy"
-run_contract_case "disabled auto-fix rejected" "auto-fix-disabled" "auto-fix requires governance auto_fix"
-run_contract_case "incomplete merge-release policy rejected" "merge-policy-incomplete" "merge-release policy incomplete"
+run_contract_case "verifier mutation invalidates approval" "verifier-missing" "plan policy hash mismatch"
+run_contract_case "budget mutation invalidates approval" "budget-missing" "plan policy hash mismatch"
+run_contract_case "mutable scope mutation invalidates approval" "scope-missing" "plan policy hash mismatch"
+run_contract_case "rollback mutation invalidates approval" "rollback-missing" "plan policy hash mismatch"
+run_contract_case "governance mutation invalidates approval" "auto-fix-disabled" "plan policy hash mismatch"
+run_contract_case "release policy mutation invalidates approval" "merge-policy-incomplete" "plan policy hash mismatch"
 
 sed -i '0,/subtype: merge-release/s//subtype: report-only/' "$topic_dir/loop.yaml"
 sed -i '/^  launch:/,/^governance:/ s/^    confirmed: true$/    confirmed: false/' "$topic_dir/loop.yaml"
@@ -605,8 +630,8 @@ legacy plain attempt
 {"status":"pass","summary":"legacy JSON survives"}
 {"automation":true,"created_at":"2026-07-23T09:00:00Z","effective_status":"pass","run_type":"governance","summary":"mixed automation survives"}
 not-json {
-{"checkpoint":"goal_context","created_at":"2026-07-23T10:00:00Z","decision":"reset","event":"checkpoint","hashes":{"context_hash":"historical-context","goal_hash":"historical-goal","plan_hash":"historical-plan"},"mode":"<script>alert(1)</script>","outcome":"<img src=x onerror=alert(1)>","subtype":""}
-{"checkpoint":"launch","created_at":"2026-07-23T11:00:00Z","decision":"confirmed","event":"checkpoint","hashes":{"context_hash":"context-hash","goal_hash":"goal-hash","plan_hash":"PLAN_HASH"},"mode":"governance","outcome":"confirmed","subtype":"report-only"}
+{"checkpoint":"goal_context","created_at":"2026-07-23T10:00:00Z","decision":"reset","event":"checkpoint","hashes":{"context_hash":"historical-context","goal_hash":"historical-goal"},"mode":"<script>alert(1)</script>","outcome":"<img src=x onerror=alert(1)>","subtype":""}
+{"checkpoint":"launch","created_at":"2026-07-23T11:00:00Z","decision":"confirmed","event":"checkpoint","hashes":{"context_hash":"context-hash","goal_hash":"goal-hash","plan_hash":"PLAN_HASH","policy_hash":"POLICY_HASH"},"mode":"governance","outcome":"confirmed","subtype":"report-only"}
 {"checkpoint":"unknown","created_at":"2026-07-23T12:00:00Z","decision":"confirmed","event":"checkpoint","hashes":{},"mode":"delivery","outcome":"confirmed","subtype":""}
 {"checkpoint":"plan","created_at":"2026-07-23T12:01:00Z","decision":"ignored","event":"checkpoint","hashes":{},"mode":"delivery","outcome":"ignored","subtype":""}
 {"checkpoint":"plan","created_at":"2026-07-23T12:02:00Z","decision":"confirmed","event":"checkpoint","hashes":[],"mode":"delivery","outcome":"confirmed","subtype":""}
@@ -617,6 +642,7 @@ not-json {
 {"checkpoint":"plan","created_at":"2026-07-23T12:06:00Z","decision":"confirmed","event":"checkpoint","hashes":{"plan_hash":"valid"},"mode":"delivery","outcome":7,"subtype":""}
 JSONL
 sed -i "s/PLAN_HASH/$plan_hash/" "$topic_dir/attempts.jsonl"
+sed -i "s/POLICY_HASH/$policy_hash/" "$topic_dir/attempts.jsonl"
 audit_status_output="$(PYTHONPATH="$hook_root" python3 - "$topic_dir" "$plan_hash" 2>/dev/null <<'PY'
 import sys
 from pathlib import Path
@@ -626,7 +652,7 @@ text = render_audit(base, "sample-runner")
 checkpoint_section = text.split("<h2>Checkpoints</h2>", 1)[1].split("</section>", 1)[0]
 history_section = text.split("<h2>Checkpoint History</h2>", 1)[1].split("</section>", 1)[0]
 checks = {
-    "runner section retained": "Runner" in text and "report-only" in text and "plan_approved: true" in text,
+    "runner section retained": "Runner" in text and "merge-release" in text and "plan_approved: true" in text and sys.argv[2] in text,
     "governance section retained": "Governance" in text and "mixed automation survives" in text,
     "goal_context current authority": (
         "<strong>goal_context</strong>: confirmed: true, goal_hash: goal-hash, context_hash: context-hash"
@@ -741,7 +767,7 @@ assert_contains "loop-plan separately approves plan" "$loop_plan_text" "Obtain s
 assert_contains "loop-plan exact upstream validation" "$loop_plan_text" 'UPSTREAM VALIDATION: Validate confirmed goal_context hashes against current `1_goal.md` and `2_context.md`, then validate confirmed explicit mode and subtype.'
 assert_contains "loop-plan plan change reset mapping" "$loop_plan_text" 'PLAN INVALIDATION: Before writing changed `3_plan.md`, reset plan and launch and append one reset event for each.'
 assert_contains "loop-plan approval restores only plan" "$loop_plan_text" 'Explicit approval restores plan only; launch remains unconfirmed.'
-assert_contains "loop-plan restoration writes only plan checkpoint" "$loop_plan_text" 'PLAN RESTORATION: After explicit plan approval, write only `checkpoints.plan.confirmed: true` and its current `plan_hash`, then append the confirmed plan event.'
+assert_contains "loop-plan restoration writes plan policy checkpoint" "$loop_plan_text" 'PLAN RESTORATION: After explicit plan approval, write only `checkpoints.plan.confirmed: true`, its current `plan_hash`, and the current `policy_hash` computed with `run_policy_hash`, then append the confirmed plan event with both hashes.'
 assert_contains "loop-plan restoration leaves launch false" "$loop_plan_text" 'Keep `checkpoints.launch.confirmed: false`.'
 assert_ordered_lines "loop-plan preserves replan gate order" "$loop_plan" \
   'UPSTREAM VALIDATION:' \
@@ -788,15 +814,15 @@ for event_skill in "$loop_start" "$loop_plan" "$loop_run"; do
       ;;
     loop-plan)
       expected_checkpoint="plan"
-      expected_decision="reset"
-      expected_hashes='{"plan_hash":"example-plan-hash"}'
-      expected_hash_keys="plan_hash"
+      expected_decision="confirmed"
+      expected_hashes='{"plan_hash":"example-plan-hash","policy_hash":"example-policy-hash"}'
+      expected_hash_keys="plan_hash policy_hash"
       ;;
     loop-run)
       expected_checkpoint="launch"
       expected_decision="confirmed"
-      expected_hashes='{"context_hash":"example-context-hash","goal_hash":"example-goal-hash","plan_hash":"example-plan-hash"}'
-      expected_hash_keys="goal_hash context_hash plan_hash"
+      expected_hashes='{"context_hash":"example-context-hash","goal_hash":"example-goal-hash","plan_hash":"example-plan-hash","policy_hash":"example-policy-hash"}'
+      expected_hash_keys="goal_hash context_hash plan_hash policy_hash"
       ;;
   esac
   assert_contains "$event_skill_name names checkpoint event API call" "$event_skill_text" "$checkpoint_event_contract"
@@ -856,9 +882,9 @@ assert_contains "loop-run separately inspects supplemental fields" "$loop_run_te
 assert_contains "loop-run presents final contract fields" "$loop_run_text" "Present the final contract fields"
 assert_contains "loop-run asks one launch question" "$loop_run_text" "Ask exactly one explicit launch question."
 assert_contains "loop-run records refusal and stops" "$loop_run_text" 'append a `refused` launch event and stop'
-assert_contains "loop-run records approval hashes" "$loop_run_text" "write the current goal, context, and plan hashes into the launch checkpoint"
-assert_contains "loop-run writes explicit launch confirmation before event" "$loop_run_text" 'write `checkpoints.launch.confirmed: true`, `checkpoints.launch.goal_hash`, `checkpoints.launch.context_hash`, and `checkpoints.launch.plan_hash` before appending the confirmed event.'
-for launch_field in goal_hash context_hash plan_hash; do
+assert_contains "loop-run records approval hashes" "$loop_run_text" "write the current goal, context, plan, and policy hashes into the launch checkpoint"
+assert_contains "loop-run writes explicit launch confirmation before event" "$loop_run_text" 'write `checkpoints.launch.confirmed: true`, `checkpoints.launch.goal_hash`, `checkpoints.launch.context_hash`, `checkpoints.launch.plan_hash`, and `checkpoints.launch.policy_hash` before appending the confirmed event.'
+for launch_field in goal_hash context_hash plan_hash policy_hash; do
   launch_key="checkpoints.launch.$launch_field"
   assert_contains "loop-run names launch $launch_field field" "$loop_run_text" "\`$launch_key\`"
 done
@@ -880,6 +906,98 @@ assert_contains "loop-run refuses missing approval" "$loop_run_text" "plan appro
 assert_contains "loop-run supports merge release" "$loop_run_text" "merge-release"
 assert_contains "merge-release requires universal launch checkpoint" "$loop_run_text" "universal launch checkpoint is required"
 assert_contains "merge-release says plan approval is insufficient" "$loop_run_text" "Plan approval alone is insufficient"
+
+policy_transition_status="$(PYTHONPATH="$hook_root" python3 - "$tmp/policy-transition" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+from loen_artifacts import append_checkpoint_event, artifact_body_hash, run_policy_hash, validate_run_contract
+from loen_common import parse_loop_yaml
+
+base = Path(sys.argv[1])
+base.mkdir(parents=True)
+for name, text in (("1_goal.md", "# Goal\n\nGoal.\n"), ("2_context.md", "# Context\n\nContext.\n"), ("3_plan.md", "# Plan\n\nPlan.\n"), ("4_act.md", "")):
+    (base / name).write_text(text, encoding="utf-8")
+hashes = {name: artifact_body_hash(base / filename) for name, filename in (("goal_hash", "1_goal.md"), ("context_hash", "2_context.md"), ("plan_hash", "3_plan.md"))}
+text = f'''topic: transition
+mode: delivery
+mutable_scope:\n  - plugins/loen/**
+protected_scope:\n  - README.md
+quality_gates:\n  - command: bash tests/test_loen_loop_run_contract.sh\n    evidence: evidence/test.json
+verifier:\n  type: test\n  command: bash tests/test_loen_loop_run_contract.sh
+budget:\n  max_iterations: 1
+stop_conditions:\n  - pass
+handoff_conditions:\n  - blocked
+rollback_policy: Stop
+checkpoints:
+  goal_context:\n    confirmed: true\n    goal_hash: {hashes['goal_hash']}\n    context_hash: {hashes['context_hash']}
+  mode:\n    confirmed: true\n    mode: delivery\n    subtype: ""
+  plan:\n    confirmed: true\n    plan_hash: {hashes['plan_hash']}\n    policy_hash: POLICY
+  launch:\n    confirmed: false\n    goal_hash: ""\n    context_hash: ""\n    plan_hash: ""\n    policy_hash: ""
+governance:\n  automation_type: manual\n  auto_fix: false\n  auto_merge: false
+release_policy:\n  target_branch: ""\n  merge_strategy: ""\n  verifier_required: true\n  evidence_required: true\n  scope_limit: ""\n  recovery_policy: ""
+'''
+parsed = parse_loop_yaml(text)
+policy = run_policy_hash(parsed, "delivery", "")
+text = text.replace("POLICY", policy)
+(base / "loop.yaml").write_text(text, encoding="utf-8")
+if validate_run_contract(base, require_launch=False)["ok"] is not True:
+    raise SystemExit("prelaunch rejected")
+if (base / "4_act.md").read_text(encoding="utf-8"):
+    raise SystemExit("invocation acted")
+append_checkpoint_event(base=base, checkpoint="launch", decision="refused", hashes={})
+if (base / "4_act.md").read_text(encoding="utf-8"):
+    raise SystemExit("refusal acted")
+launch = hashes | {"policy_hash": policy}
+text = (base / "loop.yaml").read_text(encoding="utf-8")
+text = text.replace('  launch:\n    confirmed: false\n    goal_hash: ""\n    context_hash: ""\n    plan_hash: ""\n    policy_hash: ""', f'''  launch:\n    confirmed: true\n    goal_hash: {hashes['goal_hash']}\n    context_hash: {hashes['context_hash']}\n    plan_hash: {hashes['plan_hash']}\n    policy_hash: {policy}''')
+(base / "loop.yaml").write_text(text, encoding="utf-8")
+append_checkpoint_event(base=base, checkpoint="launch", decision="confirmed", hashes=launch)
+if validate_run_contract(base)["ok"] is not True:
+    raise SystemExit("launch rejected")
+original = (base / "loop.yaml").read_text(encoding="utf-8")
+mutations = {
+    "delivery-to-governance": lambda value: value.replace("    mode: delivery\n    subtype: \"\"", "    mode: governance\n    subtype: report-only"),
+    "governance-subtype": lambda value: value.replace("    mode: delivery\n    subtype: \"\"", "    mode: governance\n    subtype: auto-fix").replace("  auto_fix: false", "  auto_fix: true"),
+    "mutable-scope": lambda value: value.replace("  - plugins/loen/**", "  - tests/**", 1),
+    "protected-scope": lambda value: value.replace("  - README.md", "  - docs/**", 1),
+    "quality-gates": lambda value: value.replace("evidence/test.json", "evidence/other.json"),
+    "verifier": lambda value: value.replace("  type: test", "  type: review"),
+    "budget": lambda value: value.replace("  max_iterations: 1", "  max_iterations: 2"),
+    "stop": lambda value: value.replace("  - pass", "  - verified", 1),
+    "handoff": lambda value: value.replace("  - blocked", "  - exhausted", 1),
+    "rollback": lambda value: value.replace("rollback_policy: Stop", "rollback_policy: Revert"),
+    "governance": lambda value: value.replace("  automation_type: manual", "  automation_type: scheduled"),
+    "release": lambda value: value.replace('  target_branch: ""', "  target_branch: master"),
+}
+for label, mutate in mutations.items():
+    (base / "loop.yaml").write_text(mutate(original), encoding="utf-8")
+    if validate_run_contract(base)["reason"] != "plan policy hash mismatch":
+        raise SystemExit(f"{label} mutation accepted")
+    if (base / "4_act.md").read_text(encoding="utf-8"):
+        raise SystemExit(f"{label} mutation acted")
+
+mutated = mutations["mutable-scope"](original)
+current_policy = run_policy_hash(parse_loop_yaml(mutated), "delivery", "")
+mutated = re.sub(r"(  plan:\n(?:    .*\n)*?    policy_hash: )[^\n]+", rf"\g<1>{current_policy}", mutated)
+(base / "loop.yaml").write_text(mutated, encoding="utf-8")
+if validate_run_contract(base)["reason"] != "launch policy hash mismatch":
+    raise SystemExit("stale launch policy accepted")
+append_checkpoint_event(base=base, checkpoint="plan", decision="confirmed", hashes={"plan_hash": hashes["plan_hash"], "policy_hash": current_policy})
+mutated = re.sub(r"(  launch:\n(?:    .*\n)*?    policy_hash: )[^\n]+", rf"\g<1>{current_policy}", mutated)
+(base / "loop.yaml").write_text(mutated, encoding="utf-8")
+append_checkpoint_event(base=base, checkpoint="launch", decision="confirmed", hashes=hashes | {"policy_hash": current_policy})
+if validate_run_contract(base)["ok"] is not True:
+    raise SystemExit("reconfirmed current policy rejected")
+(base / "4_act.md").write_text("validated action\n", encoding="utf-8")
+events = [line for line in (base / "attempts.jsonl").read_text(encoding="utf-8").splitlines() if line]
+if len(events) != 4 or '"decision": "refused"' not in events[0] or any('"decision": "confirmed"' not in line for line in events[1:]):
+    raise SystemExit("event order/count mismatch")
+print("OK")
+PY
+)"
+assert_eq "executable launch transition binds action to current policy" "OK" "$policy_transition_status"
 assert_contains "governance skill names subtypes" "$loop_governance_text" "report-only"
 assert_contains "README documents loop-run" "$(cat "$readme")" "loen:loop-run"
 assert_contains "Russian README documents loop-run" "$(cat "$readme_ru")" "loen:loop-run"

@@ -15,7 +15,7 @@ This skill is for existing topic replan only. All topic-scoped loop state remain
 4. PLAN INVALIDATION: Before writing changed `3_plan.md`, reset plan and launch and append one reset event for each. Reset the plan checkpoint and reset the launch checkpoint. Append a reset event for each reset checkpoint. Clear both confirmations and hashes, then write the candidate plan.
 5. Keep one bounded pass with preconditions, steps, success-criterion mapping, exact checks and evidence, risks, rollback or recovery, and terminal condition.
 6. PLAN APPROVAL REQUEST: Present the complete plan. Obtain separate explicit plan approval; refusal or ambiguity leaves plan unconfirmed and stops.
-7. PLAN RESTORATION: After explicit plan approval, write only `checkpoints.plan.confirmed: true` and its current `plan_hash`, then append the confirmed plan event.
+7. PLAN RESTORATION: After explicit plan approval, write only `checkpoints.plan.confirmed: true`, its current `plan_hash`, and the current `policy_hash` computed with `run_policy_hash`, then append the confirmed plan event with both hashes.
 8. Keep `checkpoints.launch.confirmed: false`. Explicit approval restores plan only; launch remains unconfirmed.
 
 `Path` comes from `pathlib`. Call:
@@ -28,11 +28,11 @@ from loen_artifacts import append_checkpoint_event
 append_checkpoint_event(
   base=Path("docs/loen/example-topic"),
   checkpoint="plan",
-  decision="reset",
-  hashes={"plan_hash": "example-plan-hash"},
+  decision="confirmed",
+  hashes={"plan_hash": "example-plan-hash", "policy_hash": "example-policy-hash"},
   mode="delivery",
   subtype="",
-  outcome="reset",
+  outcome="confirmed",
   created_at="2026-07-23T00:00:00Z",
 )
 ```

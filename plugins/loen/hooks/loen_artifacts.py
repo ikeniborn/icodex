@@ -33,6 +33,12 @@ RUNTIME_FILES = STAGE_FILES + (
 SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,78}[a-z0-9]?$")
 CHECKPOINT_NAMES = {"goal_context", "mode", "plan", "launch"}
 CHECKPOINT_DECISIONS = {"confirmed", "reset", "refused"}
+CHECKPOINT_HASH_KEYS = {
+  "goal_context": {"goal_hash", "context_hash"},
+  "mode": set(),
+  "plan": {"plan_hash", "policy_hash"},
+  "launch": {"goal_hash", "context_hash", "plan_hash", "policy_hash"},
+}
 
 
 @dataclass(frozen=True)
@@ -98,9 +104,17 @@ def _render_stage_template(template_dir: Path, filename: str, topic: str, object
   replacements = {
     "{{topic}}": topic,
     "{{user_request}}": objective,
+    "{{objective}}": objective,
+    "{{observable_outcome}}": "The requested loop outcome is recorded with verifier evidence.",
     "{{success_criterion}}": "Loop artifacts exist and audit can be regenerated from repository state.",
     "{{fact}}": "Runtime state lives in this directory, not in chat history.",
     "{{constraint}}": "Do not create a global LoEn audit index.",
+    "{{mutable_scope}}": f"docs/loen/{topic}/**",
+    "{{protected_scope}}": "Files outside the configured mutable scope.",
+    "{{verifier}}": "Run the configured quality gate command.",
+    "{{budget}}": "Maximum 3 iterations.",
+    "{{rollback_or_recovery}}": "Stop and write handoff.md before unsafe changes.",
+    "{{precondition}}": "Goal, context, mode, and policy are confirmed.",
     "{{step}}": "Create or update the current LoEn stage artifact",
     "{{verification}}": "Run the loop quality gate command",
     "{{check_command}}": "bash tests/test_loen_runtime_artifacts.sh",
@@ -114,6 +128,9 @@ def _render_stage_template(template_dir: Path, filename: str, topic: str, object
     "{{next_step}}": "Run the planned action and check stages.",
     "{{outcome}}": "pending",
     "{{evidence_file}}": "evidence/latest-test.json",
+    "{{evidence_path}}": "evidence/latest-test.json",
+    "{{risk}}": "Policy or scope changes invalidate approval.",
+    "{{terminal_condition}}": "Verifier passes with recorded evidence, or handoff is written.",
   }
   for old, new in replacements.items():
     text = text.replace(old, new)
@@ -172,11 +189,13 @@ def loop_yaml_text(
     "  plan:",
     "    confirmed: false",
     '    plan_hash: ""',
+    '    policy_hash: ""',
     "  launch:",
     "    confirmed: false",
     '    goal_hash: ""',
     '    context_hash: ""',
     '    plan_hash: ""',
+    '    policy_hash: ""',
     "governance:",
     "  automation_type: manual",
     '  schedule: ""',
@@ -281,6 +300,25 @@ def run_contract(loop_text: str) -> dict[str, object]:
   return dict(value) if isinstance(value, dict) else {}
 
 
+def run_policy_hash(parsed: dict[str, object], run_mode: str, subtype: str) -> str:
+  policy = {
+    "mode": run_mode,
+    "subtype": subtype,
+    "mutable_scope": parsed.get("mutable_scope", []),
+    "protected_scope": parsed.get("protected_scope", []),
+    "quality_gates": parsed.get("quality_gates", []),
+    "verifier": parsed.get("verifier", {}),
+    "budget": parsed.get("budget", {}),
+    "stop_conditions": parsed.get("stop_conditions", []),
+    "handoff_conditions": parsed.get("handoff_conditions", []),
+    "rollback_policy": parsed.get("rollback_policy", ""),
+    "governance": parsed.get("governance", {}),
+    "release_policy": parsed.get("release_policy", {}),
+  }
+  canonical = json.dumps(policy, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+  return hashlib.sha256(canonical.encode("ascii")).hexdigest()[:16]
+
+
 def release_policy(loop_text: str) -> dict[str, object]:
   value = parse_loop_yaml(loop_text).get("release_policy", {})
   return dict(value) if isinstance(value, dict) else {}
@@ -359,6 +397,8 @@ def _validate_checkpoints(
   if run_mode == "governance" and subtype not in {"report-only", "auto-fix", "merge-release"}:
     return {"ok": False, "reason": "invalid governance subtype"}, "", ""
 
+  policy_hash = run_policy_hash(parsed, run_mode, subtype)
+
   if plan.get("confirmed") is not True:
     return {"ok": False, "reason": "plan approval missing"}, "", ""
   plan_path = base / "3_plan.md"
@@ -370,6 +410,8 @@ def _validate_checkpoints(
     return {"ok": False, "reason": "unreadable plan artifact"}, "", ""
   if plan.get("plan_hash") != plan_hash:
     return {"ok": False, "reason": "plan hash mismatch"}, "", ""
+  if plan.get("policy_hash") != policy_hash:
+    return {"ok": False, "reason": "plan policy hash mismatch"}, "", ""
 
   if require_launch:
     if launch.get("confirmed") is not True:
@@ -380,6 +422,8 @@ def _validate_checkpoints(
       return {"ok": False, "reason": "launch context hash mismatch"}, "", ""
     if launch.get("plan_hash") != plan_hash:
       return {"ok": False, "reason": "launch plan hash mismatch"}, "", ""
+    if launch.get("policy_hash") != policy_hash:
+      return {"ok": False, "reason": "launch policy hash mismatch"}, "", ""
   return None, run_mode, subtype
 
 
@@ -603,6 +647,11 @@ def _is_checkpoint_event(data: object) -> bool:
     for key, value in hashes.items()
   ):
     return False
+  checkpoint = str(data["checkpoint"])
+  keys = set(hashes)
+  allowed = CHECKPOINT_HASH_KEYS[checkpoint]
+  if not keys <= allowed or (data["decision"] == "confirmed" and keys != allowed):
+    return False
   return all(isinstance(data.get(key), str) for key in ("mode", "subtype", "outcome", "created_at"))
 
 
@@ -632,16 +681,26 @@ def _runner_summary(loop_text: str) -> dict[str, object]:
     run = {}
   if not isinstance(policy, dict):
     policy = {}
+  checkpoints = parsed.get("checkpoints", {})
+  if not isinstance(checkpoints, dict):
+    checkpoints = {}
+  mode_checkpoint = checkpoints.get("mode", {})
+  plan_checkpoint = checkpoints.get("plan", {})
+  if not isinstance(mode_checkpoint, dict):
+    mode_checkpoint = {}
+  if not isinstance(plan_checkpoint, dict):
+    plan_checkpoint = {}
   return {
-    "mode": run.get("mode", ""),
-    "subtype": run.get("subtype", ""),
-    "plan_approved": run.get("plan_approved") is True,
-    "plan_hash": run.get("plan_hash", ""),
+    "mode": mode_checkpoint.get("mode", ""),
+    "subtype": mode_checkpoint.get("subtype", ""),
+    "plan_approved": plan_checkpoint.get("confirmed") is True,
+    "plan_hash": plan_checkpoint.get("plan_hash", ""),
+    "policy_hash": plan_checkpoint.get("policy_hash", ""),
     "state": run.get("state", ""),
     "current_pass": run.get("current_pass", ""),
     "max_passes": run.get("max_passes", ""),
     "release_target": policy.get("target_branch", ""),
-    "checkpoints": parsed.get("checkpoints", {}) if isinstance(parsed.get("checkpoints"), dict) else {},
+    "checkpoints": checkpoints,
   }
 
 
@@ -665,6 +724,10 @@ def append_checkpoint_event(
     for key, value in hashes.items()
   ):
     raise ValueError("checkpoint hashes must be a dictionary of strings")
+  keys = set(hashes)
+  allowed = CHECKPOINT_HASH_KEYS[checkpoint]
+  if not keys <= allowed or (decision == "confirmed" and keys != allowed):
+    raise ValueError(f"invalid {checkpoint} checkpoint hashes")
   if not all(isinstance(value, str) for value in (mode, subtype, outcome, created_at)):
     raise ValueError("checkpoint mode, subtype, outcome, and created_at must be strings")
   record: dict[str, object] = {
@@ -857,6 +920,7 @@ def render_audit(base: Path, topic: str) -> str:
     f"      <p><strong>Subtype:</strong> {html.escape(str(runner['subtype']))}</p>",
     f"      <p>plan_approved: {str(runner['plan_approved']).lower()}</p>",
     f"      <p><strong>Plan hash:</strong> {html.escape(str(runner['plan_hash']))}</p>",
+    f"      <p><strong>Policy hash:</strong> {html.escape(str(runner['policy_hash']))}</p>",
     f"      <p><strong>State:</strong> {html.escape(str(runner['state']))}</p>",
     f"      <p><strong>Pass:</strong> {html.escape(str(runner['current_pass']))}/{html.escape(str(runner['max_passes']))}</p>",
     f"      <p><strong>Release target:</strong> {html.escape(str(runner['release_target']))}</p>",

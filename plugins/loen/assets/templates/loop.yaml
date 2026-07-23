@@ -39,11 +39,13 @@ checkpoints:
   plan:
     confirmed: false
     plan_hash: ""
+    policy_hash: ""
   launch:
     confirmed: false
     goal_hash: ""
     context_hash: ""
     plan_hash: ""
+    policy_hash: ""
 governance:
   automation_type: manual
   schedule: ""

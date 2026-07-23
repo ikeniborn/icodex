@@ -158,8 +158,8 @@ checks = [
     data.get("checkpoints") == {
         "goal_context": {"confirmed": False, "goal_hash": "", "context_hash": ""},
         "mode": {"confirmed": False, "mode": "", "subtype": "null"},
-        "plan": {"confirmed": False, "plan_hash": ""},
-        "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": ""},
+        "plan": {"confirmed": False, "plan_hash": "", "policy_hash": ""},
+        "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": "", "policy_hash": ""},
     },
 ]
 print("OK" if all(checks) else "BAD")
@@ -185,12 +185,14 @@ inputs = [
     ("launch", "confirmed", ""),
 ]
 returned = []
+hashes_by_checkpoint = {
+    "goal_context": {"goal_hash": "goal-123", "context_hash": "context-456"},
+    "mode": {},
+    "plan": {"plan_hash": "plan-789"},
+    "launch": {"goal_hash": "goal-123", "context_hash": "context-456", "plan_hash": "plan-789", "policy_hash": "policy-000"},
+}
 for checkpoint, decision, outcome in inputs:
-    hashes = {
-        "goal_hash": "goal-123",
-        "context_hash": "context-456",
-        "plan_hash": "plan-789",
-    }
+    hashes = dict(hashes_by_checkpoint[checkpoint])
     record = append_checkpoint_event(
         base=base,
         checkpoint=checkpoint,
@@ -201,8 +203,8 @@ for checkpoint, decision, outcome in inputs:
         outcome=outcome,
         created_at="2026-07-23T12:34:56Z",
     )
-    hashes["goal_hash"] = "mutated-after-append"
-    if record["hashes"]["goal_hash"] != "goal-123":
+    hashes["mutated"] = "after-append"
+    if "mutated" in record["hashes"]:
         raise SystemExit("returned checkpoint event retained caller hash alias")
     returned.append(record)
 
@@ -214,11 +216,7 @@ expected = [
         "created_at": "2026-07-23T12:34:56Z",
         "decision": decision,
         "event": "checkpoint",
-        "hashes": {
-            "context_hash": "context-456",
-            "goal_hash": "goal-123",
-            "plan_hash": "plan-789",
-        },
+        "hashes": hashes_by_checkpoint[checkpoint],
         "mode": "governance",
         "outcome": outcome or decision,
         "subtype": "report-only",
@@ -257,6 +255,70 @@ print("OK")
 PY
 )"
 assert_eq "checkpoint events append validated sorted JSONL" "OK" "$checkpoint_event_status"
+
+scaffold_contract_status="$(PYTHONPATH="$plugin_root/hooks" python3 - "$topic_dir" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+base = Path(sys.argv[1])
+for name, headings in {
+    "1_goal.md": ("## Objective", "## Observable Outcome"),
+    "2_context.md": ("## Mutable Scope", "## Rollback or Recovery"),
+    "3_plan.md": ("## Preconditions", "## Terminal Condition"),
+}.items():
+    text = (base / name).read_text(encoding="utf-8")
+    if re.search(r"\{\{[^}]+\}\}", text):
+        raise SystemExit(f"unresolved placeholder in {name}")
+    for heading in headings:
+        if heading not in text:
+            raise SystemExit(f"missing {heading} in {name}")
+print("OK")
+PY
+)"
+assert_eq "scaffold resolves every goal context plan placeholder" "OK" "$scaffold_contract_status"
+
+checkpoint_hash_schema_status="$(PYTHONPATH="$plugin_root/hooks" python3 - "$workdir/checkpoint-schema" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+from loen_artifacts import _checkpoint_events, append_checkpoint_event
+
+base = Path(sys.argv[1])
+base.mkdir(parents=True)
+valid = (
+    ("goal_context", {"goal_hash": "g", "context_hash": "c"}),
+    ("mode", {}),
+    ("plan", {"plan_hash": "p", "policy_hash": "q"}),
+    ("launch", {"goal_hash": "g", "context_hash": "c", "plan_hash": "p", "policy_hash": "q"}),
+)
+for checkpoint, hashes in valid:
+    append_checkpoint_event(base=base, checkpoint=checkpoint, decision="confirmed", hashes=hashes)
+before = (base / "attempts.jsonl").read_text(encoding="utf-8")
+invalid = (
+    ("goal_context", {"goal_hash": "g"}),
+    ("plan", {"plan_hash": "p"}),
+    ("launch", {"goal_hash": "g", "context_hash": "c", "plan_hash": "p"}),
+    ("plan", {"plan_hash": "p", "policy_hash": "q", "extra": "x"}),
+)
+for checkpoint, hashes in invalid:
+    try:
+        append_checkpoint_event(base=base, checkpoint=checkpoint, decision="confirmed", hashes=hashes)
+    except ValueError:
+        pass
+    else:
+        raise SystemExit(f"accepted invalid {checkpoint} hashes")
+if (base / "attempts.jsonl").read_text(encoding="utf-8") != before:
+    raise SystemExit("invalid event wrote data")
+with (base / "attempts.jsonl").open("a", encoding="utf-8") as handle:
+    handle.write(json.dumps({"event":"checkpoint","checkpoint":"plan","decision":"confirmed","hashes":{"plan_hash":"p"},"mode":"","subtype":"","outcome":"confirmed","created_at":""}) + "\n")
+if len(_checkpoint_events(base)) != 4:
+    raise SystemExit("reader accepted invalid confirmed event")
+print("OK")
+PY
+)"
+assert_eq "confirmed checkpoint events enforce exact hash schema" "OK" "$checkpoint_hash_schema_status"
 
 printf '{"status":"pass","command":"bash tests/test_loen_runtime_artifacts.sh"}\n' > "$topic_dir/evidence/latest-test.json"
 printf '# Check\n\n## Result\n\nBYPASS\n' > "$topic_dir/5_check.md"
