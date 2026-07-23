@@ -9,6 +9,7 @@ workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 
 transition_status="$(PYTHONPATH="$hook_root" python3 - "$workdir/artifacts" "$plugin_root/assets/templates" <<'PY'
+import json
 import re
 import sys
 from pathlib import Path
@@ -73,15 +74,26 @@ states.append("launched")
 original = (base / "loop.yaml").read_text(encoding="utf-8")
 mutations = {
     "mode": lambda value: value.replace("    mode: delivery\n    subtype: \"\"", "    mode: governance\n    subtype: report-only"),
+    "subtype": lambda value: value.replace('    subtype: ""', "    subtype: none", 1),
     "mutable-scope": lambda value: value.replace("  - plugins/loen/**", "  - tests/**", 1),
     "protected-scope": lambda value: value.replace("  - README.md", "  - docs/**", 1),
     "quality-gates": lambda value: value.replace("evidence/latest-test.json", "evidence/other.json"),
     "verifier": lambda value: value.replace("  type: test", "  type: review"),
     "budget": lambda value: value.replace("  max_iterations: 3", "  max_iterations: 2"),
+    "stop-conditions": lambda value: value.replace("  - quality gates pass", "  - verified", 1),
+    "handoff-conditions": lambda value: value.replace("  - schema change required", "  - exhausted", 1),
     "rollback": lambda value: value.replace('rollback_policy: "Revert unsafe changes"', "rollback_policy: Stop"),
     "governance": lambda value: value.replace("  automation_type: manual", "  automation_type: scheduled"),
     "release": lambda value: value.replace('  target_branch: ""', "  target_branch: master"),
 }
+expected_canonical_inputs = {
+    "mode", "subtype", "mutable-scope", "protected-scope", "quality-gates", "verifier",
+    "budget", "stop-conditions", "handoff-conditions", "rollback", "governance", "release",
+}
+if set(mutations) != expected_canonical_inputs:
+    missing = sorted(expected_canonical_inputs - set(mutations))
+    extra = sorted(set(mutations) - expected_canonical_inputs)
+    raise SystemExit(f"incomplete canonical mutation matrix: missing={missing} extra={extra}")
 for label, mutate in mutations.items():
     (base / "loop.yaml").write_text(mutate(original), encoding="utf-8")
     if validate_run_contract(base)["reason"] != "plan policy hash mismatch":
@@ -104,9 +116,19 @@ if validate_run_contract(base)["ok"] is not True:
 states.append("reconfirmed")
 (base / "4_act.md").write_text("validated action\n", encoding="utf-8")
 states.append("acted")
-events = (base / "attempts.jsonl").read_text(encoding="utf-8").splitlines()
-if len(events) != 7 or '"checkpoint": "goal_context"' not in events[0] or '"checkpoint": "mode"' not in events[1] or '"checkpoint": "plan"' not in events[2] or '"decision": "refused"' not in events[3]:
-    raise SystemExit("event order/count mismatch")
+events = [json.loads(line) for line in (base / "attempts.jsonl").read_text(encoding="utf-8").splitlines()]
+event_sequence = [(event.get("checkpoint"), event.get("decision")) for event in events]
+expected_event_sequence = [
+    ("goal_context", "confirmed"),
+    ("mode", "confirmed"),
+    ("plan", "confirmed"),
+    ("launch", "refused"),
+    ("launch", "confirmed"),
+    ("plan", "confirmed"),
+    ("launch", "confirmed"),
+]
+if event_sequence != expected_event_sequence:
+    raise SystemExit(f"event order mismatch: {event_sequence}")
 expected = ["scaffold", "goal-context-confirmed", "mode-confirmed", "plan-confirmed", "prelaunch", "refused", "launched", "policy-rejected", "reconfirmed", "acted"]
 if states != expected:
     raise SystemExit(f"state order mismatch: {states}")
