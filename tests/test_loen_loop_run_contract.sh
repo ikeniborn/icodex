@@ -454,6 +454,25 @@ PY
 )"
 assert_eq "parser ignores nested canonical list items and preserves quality siblings" "OK" "$nested_list_parser_output"
 
+mixed_permission_scope_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml, parse_loop_yaml_checked
+
+text = """permissions:
+  filesystem:
+    mutable_scope:
+      - tests/**
+      \t- outside/**
+    protected_scope:
+      - migrations/**
+"""
+tolerant = parse_loop_yaml(text)
+_, diagnostics = parse_loop_yaml_checked(text)
+scope = tolerant["permissions"]["filesystem"]["mutable_scope"]
+print("OK" if scope == ["tests/**"] and diagnostics else {"scope": scope, "diagnostics": diagnostics})
+PY
+)"
+assert_eq "mixed-tab permission scope cannot alter canonical state" "OK" "$mixed_permission_scope_output"
+
 duplicate_checkpoint_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
 from loen_common import parse_loop_yaml
 

@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from loen_common import parse_loop_yaml
+from loen_common import parse_loop_yaml_checked
 
 BLOCK = 2
 
@@ -125,7 +125,9 @@ def validate_verifier_execution(role: str, execution: dict[str, Any]) -> str:
 
 def render_capsule(topic_dir: Path, role: str, question: str) -> str:
   loop_text = read_text(topic_dir / "loop.yaml")
-  policy = parse_loop_yaml(loop_text)
+  policy, diagnostics = parse_loop_yaml_checked(loop_text)
+  if diagnostics:
+    raise ValueError("LoEn: invalid canonical authority")
   execution = parse_execution(loop_text)
   rejection = validate_verifier_execution(role, execution)
   if rejection:

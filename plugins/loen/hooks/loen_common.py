@@ -174,6 +174,8 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
   checkpoint = ""
   quality_item = -1
   nested_parent_indent: int | None = None
+  permission_subsection = ""
+  permission_list = ""
 
   def register(path: str) -> None:
     if path in seen and path not in duplicates:
@@ -186,7 +188,7 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
       continue
     leading = line[:len(line) - len(line.lstrip())]
     if "\t" in leading:
-      if section in CANONICAL_MAPPINGS or section in CANONICAL_LIST_SECTIONS or section == "quality_gates":
+      if section in CANONICAL_MAPPINGS or section in CANONICAL_LIST_SECTIONS or section in {"quality_gates", "permissions"}:
         duplicates.append(f"{section}.<malformed-indentation>")
       continue
     indent = len(line) - len(line.lstrip(" "))
@@ -196,6 +198,20 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
     if section in CANONICAL_LIST_SECTIONS and indent > 0:
       if item and indent != 2:
         duplicates.append(f"{section}.<malformed-list-item>")
+      continue
+    if section == "permissions" and indent > 0:
+      if item:
+        if permission_subsection == "filesystem" and permission_list in {"mutable_scope", "protected_scope"} and indent != 6:
+          duplicates.append(f"permissions.filesystem.{permission_list}.<malformed-list-item>")
+        continue
+      if mapping is None:
+        continue
+      key, value = mapping
+      if indent == 2:
+        permission_subsection = key if value == "" else ""
+        permission_list = ""
+      elif indent == 4 and permission_subsection == "filesystem":
+        permission_list = key if key in {"mutable_scope", "protected_scope"} and value == "" else ""
       continue
     if mapping is None:
       continue
@@ -346,6 +362,12 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
     stripped = line.strip()
 
     leading_whitespace = line[:len(line) - len(line.lstrip())]
+    if "\t" in leading_whitespace and (
+      section in CANONICAL_MAPPINGS
+      or section in CANONICAL_LIST_SECTIONS
+      or section in {"quality_gates", "permissions"}
+    ):
+      continue
     if section == "checkpoints" and "\t" in leading_whitespace:
       if current_checkpoint:
         data["checkpoints"][current_checkpoint] = dict(CHECKPOINT_DEFAULTS[current_checkpoint])
@@ -554,9 +576,9 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
         list_target = None
         continue
       target = data["permissions"].setdefault(subsection, {})
-      if ":" in stripped:
-        key, value = stripped.split(":", 1)
-        key = key.strip()
+      mapping = _mapping_key(stripped)
+      if mapping is not None and indent == 4:
+        key, value = mapping
         parsed = _parse_inline_list(value)
         if parsed or value.strip() == "[]":
           target[key] = parsed
@@ -567,7 +589,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
         else:
           target.setdefault(key, [])
           list_target = target[key]
-      elif stripped.startswith("- ") and list_target is not None:
+      elif indent == 6 and stripped.startswith("- ") and list_target is not None:
         list_target.append(stripped[2:].strip())
 
   if isinstance(data["mutable_scope"], list) and data["mutable_scope"] and not data["permissions"]["filesystem"]["mutable_scope"]:
@@ -583,6 +605,10 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
 
 def loop_policy(topic_value: str | None = None) -> dict[str, Any]:
   return parse_loop_yaml(read_loop_artifact(topic_value))
+
+
+def checked_loop_policy(topic_value: str | None = None) -> tuple[dict[str, Any], list[str]]:
+  return parse_loop_yaml_checked(read_loop_artifact(topic_value))
 
 
 def _valid_topic_name(candidate: str) -> bool:
