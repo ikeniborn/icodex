@@ -18,6 +18,8 @@ This skill is for existing topic replan only. New topics must use `loen:loop-sta
 7. PLAN RESTORATION: After explicit plan approval, write only `checkpoints.plan.confirmed: true` and its current `plan_hash`, then append the confirmed plan event.
 8. Keep `checkpoints.launch.confirmed: false`. Explicit approval restores plan only; launch remains unconfirmed.
 
+Call `append_checkpoint_event` with `checkpoint`, `decision`, `created_at`, `hashes: {goal_hash, context_hash, plan_hash}`, `mode`, `subtype`, and `outcome`.
+
 PROHIBITION: MUST NOT write `checkpoints.launch.confirmed: true`.
 
 PROHIBITION: MUST NOT invoke `loen:loop-run`.

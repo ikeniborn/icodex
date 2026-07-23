@@ -707,6 +707,11 @@ assert_contains "loop-start requires empty unresolved assumptions" "$loop_start_
 assert_contains "loop-start hashes confirmed goal and context" "$loop_start_text" 'Hash the current confirmed `1_goal.md` and `2_context.md`'
 assert_contains "loop-start invalidates downstream checkpoints" "$loop_start_text" "deterministic invalidation"
 assert_contains "loop-start appends checkpoint audit events" "$loop_start_text" "append checkpoint reset and confirmation events"
+assert_contains "loop-start writes checkpoint mode key" "$loop_start_text" '`checkpoints.mode.mode`'
+assert_contains "loop-start writes checkpoint subtype key" "$loop_start_text" '`checkpoints.mode.subtype`'
+for legacy_authority in "run.mode" "run.subtype" "run.plan_approved" "run.plan_hash"; do
+  assert_eq "loop-start omits $legacy_authority authority" "0" "$(grep -cF "$legacy_authority" "$loop_start" || true)"
+done
 assert_contains "goal/context changes reset all checkpoints" "$loop_start_text" 'INVALIDATE-GOAL-CONTEXT: Any content change to `1_goal.md` or `2_context.md` resets goal_context, mode, plan, and launch.'
 assert_contains "mode changes reset mode plan launch" "$loop_start_text" 'INVALIDATE-MODE: Any mode or subtype change resets mode, plan, and launch.'
 assert_contains "plan changes reset plan launch" "$loop_start_text" 'INVALIDATE-PLAN: Any content change to `3_plan.md` resets plan and launch.'
@@ -769,16 +774,29 @@ done
 assert_eq "loop-start exact continuation output appears once" "1" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_start")"
 assert_eq "loop-plan has no continuation output" "0" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_plan" || true)"
 
+checkpoint_event_contract='Call `append_checkpoint_event` with `checkpoint`, `decision`, `created_at`, `hashes: {goal_hash, context_hash, plan_hash}`, `mode`, `subtype`, and `outcome`.'
+for event_skill in "$loop_start" "$loop_plan" "$loop_run"; do
+  assert_contains "$(basename "$(dirname "$event_skill")") names checkpoint event API fields" "$(cat "$event_skill")" "$checkpoint_event_contract"
+  assert_eq "$(basename "$(dirname "$event_skill")") does not use timestamp event field" "0" "$(grep -Eic 'checkpoint event[^.]*timestamp|append_checkpoint_event[^.]*timestamp' "$event_skill" || true)"
+done
+
 assert_contains "loop-run invocation is not confirmation" "$loop_run_text" "Invocation is not launch confirmation."
 assert_contains "loop-run validates prelaunch without launch" "$loop_run_text" "require_launch=false"
+assert_contains "loop-run attributes helper checks precisely" "$loop_run_text" '`validate_run_contract(require_launch=false)` checks runtime-enforced checkpoints and mode policy.'
+assert_contains "loop-run separately inspects supplemental fields" "$loop_run_text" 'SUPPLEMENTAL CONTRACT CHECK: Separately require and inspect `protected_scope`, `stop_conditions`, and `handoff_conditions` before summary or action.'
 assert_contains "loop-run presents final contract fields" "$loop_run_text" "Present the final contract fields"
 assert_contains "loop-run asks one launch question" "$loop_run_text" "Ask exactly one explicit launch question."
 assert_contains "loop-run records refusal and stops" "$loop_run_text" 'append a `refused` launch event and stop'
 assert_contains "loop-run records approval hashes" "$loop_run_text" "write the current goal, context, and plan hashes into the launch checkpoint"
+for launch_field in confirmed goal_hash context_hash plan_hash; do
+  launch_key="checkpoints.launch.$launch_field"
+  assert_contains "loop-run names launch $launch_field field" "$loop_run_text" "\`$launch_key\`"
+done
 assert_contains "loop-run repeats full launch preflight" "$loop_run_text" 'Repeat the complete preflight with `require_launch=true`.'
 assert_contains "loop-run resets failed launch" "$loop_run_text" "reset the launch checkpoint, append a reset event, and stop before the state machine"
 assert_ordered_lines "loop-run preserves launch gate order" "$loop_run" \
   'PRELAUNCH VALIDATION:' \
+  'SUPPLEMENTAL CONTRACT CHECK:' \
   'FINAL CONTRACT SUMMARY:' \
   'LAUNCH QUESTION:' \
   'REFUSAL PATH:' \

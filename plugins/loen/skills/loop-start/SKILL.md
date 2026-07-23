@@ -15,11 +15,11 @@ Create and fully plan a new LoEn topic. Never launch it.
 4. Resolve every unresolved assumption adaptively, one question at a time. `Unresolved Assumptions` must be explicitly empty before continuing; record `None.` rather than omitting the heading.
 5. Write and present complete `1_goal.md` and `2_context.md` using the fixed template headings.
 6. Obtain explicit confirmation of the complete goal and context. Ambiguous or negative responses do not confirm them. Hash the current confirmed `1_goal.md` and `2_context.md`, write the goal/context checkpoint, and append its confirmation event.
-7. Ask the user to select `delivery` or `governance`; never infer mode or subtype. For governance, separately ask for `report-only`, `auto-fix`, or `merge-release`. Collect all selected mode policy fields, record the mode checkpoint, and append its confirmation event.
+7. Ask the user to select `delivery` or `governance`; never infer mode or subtype. For governance, separately ask for `report-only`, `auto-fix`, or `merge-release`. Collect all selected mode policy fields, write them only as `checkpoints.mode.mode` and `checkpoints.mode.subtype`, record the mode checkpoint, and append its confirmation event.
 8. Write the integrated plan from the confirmed goal, context, mode, and subtype. Include preconditions, bounded steps, success-criterion mapping, exact checks and evidence paths, risks, rollback or recovery, and terminal condition.
 9. Present the complete `3_plan.md`. Obtain separate explicit approval of the complete plan. Ambiguous or negative responses do not approve it. Hash the approved plan, write the plan checkpoint, and append its confirmation event.
 10. Apply deterministic invalidation after every upstream artifact or decision change: reset every affected downstream checkpoint and hash before asking for confirmation again. For every transition, append checkpoint reset and confirmation events to `attempts.jsonl` with checkpoint, decision, hashes, mode, subtype, outcome, and timestamp.
-11. Write `loop.yaml` with topic metadata, objective, scopes, quality gates, verifier, budget, stop and handoff conditions, rollback policy, run mode/subtype/state/pass limits, all checkpoint fields, and selected governance or release policy. Leave launch unconfirmed with empty hashes.
+11. Write `loop.yaml` with topic metadata, objective, scopes, quality gates, verifier, budget, stop and handoff conditions, rollback policy, all checkpoint fields, and selected governance or release policy. The `run` block owns only progress fields: `state`, `max_passes`, and `current_pass`. Leave launch unconfirmed with empty hashes.
 12. Keep `docs/TODO.md` as the only global registry. Durable topic artifacts, not chat history, are authoritative.
 
 ## Deterministic Invalidation
@@ -30,6 +30,8 @@ Create and fully plan a new LoEn topic. Never launch it.
 - RESTORE-PLAN: Reapproval restores plan only; launch remains unconfirmed.
 - INVALIDATE-FAILED-PREFLIGHT: Failed post-confirmation preflight resets launch only.
 - RESET-AUDIT: Every reset appends one reset event; never infer confirmation or approval.
+
+Call `append_checkpoint_event` with `checkpoint`, `decision`, `created_at`, `hashes: {goal_hash, context_hash, plan_hash}`, `mode`, `subtype`, and `outcome`.
 
 PROHIBITION: MUST NOT write `checkpoints.launch.confirmed: true`.
 
