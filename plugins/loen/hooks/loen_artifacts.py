@@ -265,8 +265,12 @@ def _first_heading_body(text: str) -> str:
   return body if body else "No content recorded."
 
 
+def artifact_body_hash(path: Path) -> str:
+  return hashlib.sha256(_read(path).encode("utf-8")).hexdigest()[:16]
+
+
 def plan_body_hash(plan_path: Path) -> str:
-  return hashlib.sha256(_read(plan_path).encode("utf-8")).hexdigest()[:16]
+  return artifact_body_hash(plan_path)
 
 
 def run_contract(loop_text: str) -> dict[str, object]:
@@ -292,17 +296,71 @@ def write_handoff(base: Path, reason: str, next_action: str) -> None:
   (base / "handoff.md").write_text(text, encoding="utf-8")
 
 
-def validate_run_contract(base: Path) -> dict[str, object]:
-  loop_text = _read(base / "loop.yaml")
-  parsed = parse_loop_yaml(loop_text)
-  run = parsed.get("run", {})
+def _validate_checkpoints(
+  base: Path,
+  loop_text: str,
+  parsed: dict[str, object],
+  *,
+  require_launch: bool,
+) -> tuple[dict[str, object] | None, str, str]:
+  if not any(line == "checkpoints:" for line in loop_text.splitlines()):
+    return {"ok": False, "reason": "legacy checkpoint contract"}, "", ""
+
+  checkpoints = parsed.get("checkpoints", {})
+  if not isinstance(checkpoints, dict):
+    return {"ok": False, "reason": "legacy checkpoint contract"}, "", ""
+
+  goal_context = checkpoints.get("goal_context", {})
+  mode_checkpoint = checkpoints.get("mode", {})
+  plan = checkpoints.get("plan", {})
+  launch = checkpoints.get("launch", {})
+  if not all(isinstance(value, dict) for value in (goal_context, mode_checkpoint, plan, launch)):
+    return {"ok": False, "reason": "legacy checkpoint contract"}, "", ""
+
+  if goal_context.get("confirmed") is not True:
+    return {"ok": False, "reason": "goal/context confirmation missing"}, "", ""
+  goal_path = base / "1_goal.md"
+  context_path = base / "2_context.md"
+  if not goal_path.is_file() or goal_context.get("goal_hash") != artifact_body_hash(goal_path):
+    return {"ok": False, "reason": "goal hash mismatch"}, "", ""
+  if not context_path.is_file() or goal_context.get("context_hash") != artifact_body_hash(context_path):
+    return {"ok": False, "reason": "context hash mismatch"}, "", ""
+
+  if mode_checkpoint.get("confirmed") is not True:
+    return {"ok": False, "reason": "mode selection missing"}, "", ""
+  run_mode = str(mode_checkpoint.get("mode", "")).strip()
+  subtype = str(mode_checkpoint.get("subtype", "")).strip()
+  if run_mode not in {"delivery", "governance"}:
+    return {"ok": False, "reason": "invalid run mode"}, "", ""
+  if run_mode == "delivery" and subtype.lower() not in {"", "none", "null"}:
+    return {"ok": False, "reason": "invalid delivery subtype"}, "", ""
+  if run_mode == "governance" and subtype not in {"report-only", "auto-fix", "merge-release"}:
+    return {"ok": False, "reason": "invalid governance subtype"}, "", ""
+
+  if plan.get("confirmed") is not True:
+    return {"ok": False, "reason": "plan approval missing"}, "", ""
+  plan_path = base / "3_plan.md"
+  if not plan_path.is_file() or plan.get("plan_hash") != artifact_body_hash(plan_path):
+    return {"ok": False, "reason": "plan hash mismatch"}, "", ""
+
+  if require_launch:
+    if launch.get("confirmed") is not True:
+      return {"ok": False, "reason": "launch confirmation missing"}, "", ""
+    if launch.get("goal_hash") != artifact_body_hash(goal_path):
+      return {"ok": False, "reason": "launch goal hash mismatch"}, "", ""
+    if launch.get("context_hash") != artifact_body_hash(context_path):
+      return {"ok": False, "reason": "launch context hash mismatch"}, "", ""
+    if launch.get("plan_hash") != artifact_body_hash(plan_path):
+      return {"ok": False, "reason": "launch plan hash mismatch"}, "", ""
+  return None, run_mode, subtype
+
+
+def _validate_run_policy(parsed: dict[str, object], run_mode: str, subtype: str) -> dict[str, object]:
   governance = parsed.get("governance", {})
   policy = parsed.get("release_policy", {})
   mutable_scope = parsed.get("mutable_scope", [])
   verifier = parsed.get("verifier", {})
   budget = parsed.get("budget", {})
-  if not isinstance(run, dict):
-    run = {}
   if not isinstance(governance, dict):
     governance = {}
   if not isinstance(policy, dict):
@@ -313,23 +371,6 @@ def validate_run_contract(base: Path) -> dict[str, object]:
     verifier = {}
   if not isinstance(budget, dict):
     budget = {}
-
-  if run.get("plan_approved") is not True:
-    return {"ok": False, "reason": "missing plan approval"}
-  plan_path = base / "3_plan.md"
-  if not plan_path.is_file():
-    return {"ok": False, "reason": "missing plan"}
-  if run.get("plan_hash") != plan_body_hash(plan_path):
-    return {"ok": False, "reason": "plan hash mismatch"}
-
-  run_mode = str(run.get("mode", "")).strip()
-  subtype = str(run.get("subtype", "")).strip()
-  if run_mode not in {"delivery", "governance"}:
-    return {"ok": False, "reason": "invalid run mode"}
-  if run_mode == "delivery" and subtype.lower() not in {"", "none", "null"}:
-    return {"ok": False, "reason": "invalid delivery subtype"}
-  if run_mode == "governance" and subtype not in {"report-only", "auto-fix", "merge-release"}:
-    return {"ok": False, "reason": "invalid governance subtype"}
 
   rollback_ready = bool(parsed.get("rollback_policy")) or bool(policy.get("recovery_policy"))
   usable_mutable_scope = [
@@ -370,6 +411,20 @@ def validate_run_contract(base: Path) -> dict[str, object]:
     if not release_ready:
       return {"ok": False, "reason": "merge-release policy incomplete"}
   return {"ok": True, "reason": "approved run contract"}
+
+
+def validate_run_contract(base: Path, *, require_launch: bool = True) -> dict[str, object]:
+  loop_text = _read(base / "loop.yaml")
+  parsed = parse_loop_yaml(loop_text)
+  checkpoint_error, run_mode, subtype = _validate_checkpoints(
+    base,
+    loop_text,
+    parsed,
+    require_launch=require_launch,
+  )
+  if checkpoint_error is not None:
+    return checkpoint_error
+  return _validate_run_policy(parsed, run_mode, subtype)
 
 
 def _attempt_count(base: Path) -> int:

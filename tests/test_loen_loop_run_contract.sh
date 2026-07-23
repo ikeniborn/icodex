@@ -318,314 +318,161 @@ PY
 )"
 assert_eq "duplicate checkpoint hash fails closed" "OK" "$duplicate_hash_output"
 
-validation_status_output="$(PYTHONPATH="$hook_root" python3 - "$topic_dir" 2>/dev/null <<'PY'
+checkpoint_matrix_output="$(PYTHONPATH="$hook_root" python3 - "$tmp/checkpoint-matrix" 2>&1 <<'PY'
 import sys
 from pathlib import Path
-from loen_artifacts import validate_run_contract
 
-result = validate_run_contract(Path(sys.argv[1]))
-print("OK" if result["ok"] else result)
-PY
-)"
-validation_status_code="$?"
-assert_eq "run contract validator helper runs" "0" "$validation_status_code"
-assert_eq "approved merge-release contract validates" "OK" "$validation_status_output"
+from loen_artifacts import artifact_body_hash, validate_run_contract
 
-cat > "$topic_dir/loop.yaml.bad" <<YAML
-topic: sample-runner
-mode: governance
-status: active
-objective: "Run governed merge release safely"
-current_stage: plan
-stage: plan
+root = Path(sys.argv[1])
+
+
+def contract_text(hashes, *, mode="governance", subtype="report-only", overrides=None):
+  values = {
+    "goal_confirmed": "true",
+    "goal_hash": hashes["goal"],
+    "context_hash": hashes["context"],
+    "mode_confirmed": "true",
+    "mode": mode,
+    "subtype": subtype,
+    "plan_confirmed": "true",
+    "plan_hash": hashes["plan"],
+    "launch_confirmed": "true",
+    "launch_goal_hash": hashes["goal"],
+    "launch_context_hash": hashes["context"],
+    "launch_plan_hash": hashes["plan"],
+  }
+  values.update(overrides or {})
+  auto_merge = "true" if subtype == "merge-release" else "false"
+  return f"""topic: checkpoint-fixture
 mutable_scope:
   - plugins/loen/**
-  - tests/**
-protected_scope:
-  - secrets/**
-quality_gates:
-  - command: bash tests/test_loen_loop_run_contract.sh
-    evidence: evidence/latest-test.json
 verifier:
-  type: test
   command: bash tests/test_loen_loop_run_contract.sh
 budget:
-  max_iterations: 2
-stop_conditions:
-  - verifier passes
-handoff_conditions:
-  - policy missing
-rollback_policy: "Stop and write handoff"
+  max_iterations: 1
+rollback_policy: Stop and write handoff
 run:
-  mode: governance
-  subtype: merge-release
+  mode: delivery
+  subtype: stale-legacy-value
   plan_approved: false
-  plan_hash: "$plan_hash"
+  plan_hash: stale-legacy-value
   state: prepare
-  max_passes: 2
+  max_passes: 1
   current_pass: 0
-  approval_source: loop-start
-  approved_at: "2026-07-08T00:00:00Z"
+checkpoints:
+  goal_context:
+    confirmed: {values['goal_confirmed']}
+    goal_hash: {values['goal_hash']}
+    context_hash: {values['context_hash']}
+  mode:
+    confirmed: {values['mode_confirmed']}
+    mode: {values['mode']}
+    subtype: {values['subtype']}
+  plan:
+    confirmed: {values['plan_confirmed']}
+    plan_hash: {values['plan_hash']}
+  launch:
+    confirmed: {values['launch_confirmed']}
+    goal_hash: {values['launch_goal_hash']}
+    context_hash: {values['launch_context_hash']}
+    plan_hash: {values['launch_plan_hash']}
 governance:
-  automation_type: release-governance
-  owner: maintainer
-  schedule: manual
   auto_fix: true
-  auto_merge: true
-  report_only_on_no_findings: false
-  alert_on:
-    - protected_scope_attempt
-    - verifier_failure
+  auto_merge: {auto_merge}
 release_policy:
   target_branch: master
   merge_strategy: pr
   verifier_required: true
   evidence_required: true
-  scope_limit: "Configured mutable scope only"
-  recovery_policy: "Stop, record handoff, and leave branch inspectable."
-YAML
-bad_status_output="$(PYTHONPATH="$hook_root" python3 - "$topic_dir" 2>/dev/null <<'PY'
-import sys
-from pathlib import Path
-from loen_artifacts import validate_run_contract
+  scope_limit: Configured mutable scope only
+  recovery_policy: Stop and write handoff
+"""
 
-base = Path(sys.argv[1])
-(base / "loop.yaml").write_text((base / "loop.yaml.bad").read_text(encoding="utf-8"), encoding="utf-8")
-result = validate_run_contract(base)
-print("OK" if not result["ok"] and "plan approval" in result["reason"] else result)
-PY
-)"
-bad_status_code="$?"
-assert_eq "missing approval validator helper runs" "0" "$bad_status_code"
-assert_eq "runner refuses missing approval" "OK" "$bad_status_output"
 
-cat > "$topic_dir/loop.yaml" <<YAML
-topic: sample-runner
-mode: governance
-mutable_scope:
-  - plugins/loen/**
-verifier:
-  type: test
-  command: bash tests/test_loen_loop_run_contract.sh
-budget:
-  max_iterations: 1
-rollback_policy: "Stop and write handoff"
-run:
+def fixture(name, *, mode="governance", subtype="report-only", overrides=None, legacy=False):
+  base = root / name
+  base.mkdir(parents=True)
+  (base / "1_goal.md").write_text("# Goal\n\nShip safely.\n", encoding="utf-8")
+  (base / "2_context.md").write_text("# Context\n\nRepository state.\n", encoding="utf-8")
+  (base / "3_plan.md").write_text("# Plan\n\n1. Verify contract.\n", encoding="utf-8")
+  (base / "4_act.md").write_text("", encoding="utf-8")
+  hashes = {
+    "goal": artifact_body_hash(base / "1_goal.md"),
+    "context": artifact_body_hash(base / "2_context.md"),
+    "plan": artifact_body_hash(base / "3_plan.md"),
+  }
+  if legacy:
+    text = contract_text(hashes).split("checkpoints:", 1)[0] + f"""run:
   mode: governance
   subtype: report-only
   plan_approved: true
-  plan_hash: "$plan_hash"
-  state: prepare
-  max_passes: 1
-  current_pass: 0
-governance:
-  auto_fix: false
-  auto_merge: false
-release_policy:
-  target_branch: ""
-YAML
-report_status_output="$(PYTHONPATH="$hook_root" python3 - "$topic_dir" 2>/dev/null <<'PY'
-import sys
-from pathlib import Path
-from loen_artifacts import validate_run_contract
-result = validate_run_contract(Path(sys.argv[1]))
-print("OK" if result["ok"] else result)
-PY
-)"
-report_status_code="$?"
-assert_eq "report-only validator helper runs" "0" "$report_status_code"
-assert_eq "report-only contract validates without release policy" "OK" "$report_status_output"
+  plan_hash: {hashes['plan']}
+"""
+  else:
+    text = contract_text(hashes, mode=mode, subtype=subtype, overrides=overrides)
+  (base / "loop.yaml").write_text(text, encoding="utf-8")
+  return base
 
-negative_dir="$tmp/docs/loen/missing-verifier"
-mkdir -p "$negative_dir"
-cp "$topic_dir/3_plan.md" "$negative_dir/3_plan.md"
-negative_plan_hash="$(PYTHONPATH="$hook_root" python3 - "$negative_dir/3_plan.md" 2>/dev/null <<'PY'
-import sys
-from pathlib import Path
-from loen_artifacts import plan_body_hash
-print(plan_body_hash(Path(sys.argv[1])))
-PY
-)"
 
-cat > "$negative_dir/loop.yaml" <<YAML
-topic: missing-verifier
-mode: governance
-mutable_scope:
-  - plugins/loen/**
-budget:
-  max_iterations: 1
-rollback_policy: "Stop and write handoff"
-run:
-  mode: governance
-  subtype: report-only
-  plan_approved: true
-  plan_hash: "$negative_plan_hash"
-  state: prepare
-  max_passes: 1
-  current_pass: 0
-governance:
-  auto_fix: false
-  auto_merge: false
-release_policy:
-  target_branch: ""
-YAML
-missing_verifier_output="$(PYTHONPATH="$hook_root" python3 - "$negative_dir" 2>/dev/null <<'PY'
-import sys
-from pathlib import Path
-from loen_artifacts import validate_run_contract
-result = validate_run_contract(Path(sys.argv[1]))
-print("OK" if not result["ok"] and "verifier" in result["reason"] else result)
-PY
-)"
-missing_verifier_code="$?"
-assert_eq "missing verifier validator helper runs" "0" "$missing_verifier_code"
-assert_eq "report-only refuses missing verifier" "OK" "$missing_verifier_output"
+def rejected(name, reason, **kwargs):
+  base = fixture(name, **kwargs)
+  result = validate_run_contract(base)
+  assert result == {"ok": False, "reason": reason}, (name, result)
+  assert (base / "4_act.md").read_text(encoding="utf-8") == "", name
 
-zero_budget_dir="$tmp/docs/loen/zero-budget"
-mkdir -p "$zero_budget_dir"
-cp "$topic_dir/3_plan.md" "$zero_budget_dir/3_plan.md"
-zero_budget_plan_hash="$(PYTHONPATH="$hook_root" python3 - "$zero_budget_dir/3_plan.md" 2>/dev/null <<'PY'
-import sys
-from pathlib import Path
-from loen_artifacts import plan_body_hash
-print(plan_body_hash(Path(sys.argv[1])))
-PY
-)"
 
-cat > "$zero_budget_dir/loop.yaml" <<YAML
-topic: zero-budget
-mode: governance
-mutable_scope:
-  - plugins/loen/**
-verifier:
-  type: test
-  command: bash tests/test_loen_loop_run_contract.sh
-budget:
-  max_iterations: 0
-rollback_policy: "Stop and write handoff"
-run:
-  mode: governance
-  subtype: report-only
-  plan_approved: true
-  plan_hash: "$zero_budget_plan_hash"
-  state: prepare
-  max_passes: 1
-  current_pass: 0
-governance:
-  auto_fix: false
-  auto_merge: false
-release_policy:
-  target_branch: ""
-YAML
-zero_budget_output="$(PYTHONPATH="$hook_root" python3 - "$zero_budget_dir" 2>/dev/null <<'PY'
-import sys
-from pathlib import Path
-from loen_artifacts import validate_run_contract
-result = validate_run_contract(Path(sys.argv[1]))
-print("OK" if not result["ok"] and "budget" in result["reason"] else result)
-PY
-)"
-zero_budget_code="$?"
-assert_eq "zero budget validator helper runs" "0" "$zero_budget_code"
-assert_eq "report-only refuses zero budget" "OK" "$zero_budget_output"
+def rejected_policy(name, reason, old, new, **kwargs):
+  base = fixture(name, **kwargs)
+  loop_path = base / "loop.yaml"
+  loop_path.write_text(loop_path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
+  result = validate_run_contract(base)
+  assert result == {"ok": False, "reason": reason}, (name, result)
+  assert (base / "4_act.md").read_text(encoding="utf-8") == "", name
 
-none_scope_dir="$tmp/docs/loen/none-scope"
-mkdir -p "$none_scope_dir"
-cp "$topic_dir/3_plan.md" "$none_scope_dir/3_plan.md"
-none_scope_plan_hash="$(PYTHONPATH="$hook_root" python3 - "$none_scope_dir/3_plan.md" 2>/dev/null <<'PY'
-import sys
-from pathlib import Path
-from loen_artifacts import plan_body_hash
-print(plan_body_hash(Path(sys.argv[1])))
-PY
-)"
 
-cat > "$none_scope_dir/loop.yaml" <<YAML
-topic: none-scope
-mode: governance
-mutable_scope:
-  - none
-verifier:
-  type: test
-  command: bash tests/test_loen_loop_run_contract.sh
-budget:
-  max_iterations: 1
-rollback_policy: "Stop and write handoff"
-run:
-  mode: governance
-  subtype: report-only
-  plan_approved: true
-  plan_hash: "$none_scope_plan_hash"
-  state: prepare
-  max_passes: 1
-  current_pass: 0
-governance:
-  auto_fix: false
-  auto_merge: false
-YAML
-none_scope_output="$(PYTHONPATH="$hook_root" python3 - "$none_scope_dir" 2>/dev/null <<'PY'
-import sys
-from pathlib import Path
-from loen_artifacts import validate_run_contract
-result = validate_run_contract(Path(sys.argv[1]))
-print("OK" if not result["ok"] and "mutable scope" in result["reason"] else result)
-PY
-)"
-none_scope_code="$?"
-assert_eq "none scope validator helper runs" "0" "$none_scope_code"
-assert_eq "runner refuses placeholder mutable scope" "OK" "$none_scope_output"
+rejected("legacy", "legacy checkpoint contract", legacy=True)
+rejected("goal-unconfirmed", "goal/context confirmation missing", overrides={"goal_confirmed": "false"})
+rejected("goal-stale", "goal hash mismatch", overrides={"goal_hash": "stale"})
+rejected("context-stale", "context hash mismatch", overrides={"context_hash": "stale"})
+rejected("mode-unconfirmed", "mode selection missing", overrides={"mode_confirmed": "false"})
+rejected("delivery-subtype", "invalid delivery subtype", mode="delivery", subtype="auto-fix")
+rejected("governance-subtype", "invalid governance subtype", subtype="invalid")
+rejected("plan-unconfirmed", "plan approval missing", overrides={"plan_confirmed": "false"})
+rejected("plan-stale", "plan hash mismatch", overrides={"plan_hash": "stale"})
+rejected("launch-unconfirmed", "launch confirmation missing", overrides={"launch_confirmed": "false"})
+rejected("launch-goal-stale", "launch goal hash mismatch", overrides={"launch_goal_hash": "stale"})
+rejected("launch-context-stale", "launch context hash mismatch", overrides={"launch_context_hash": "stale"})
+rejected("launch-plan-stale", "launch plan hash mismatch", overrides={"launch_plan_hash": "stale"})
+rejected_policy("scope-missing", "missing mutable scope", "  - plugins/loen/**", "  - none")
+rejected_policy("verifier-missing", "missing verifier command", "  command: bash tests/test_loen_loop_run_contract.sh", '  command: ""')
+rejected_policy("budget-missing", "missing budget max_iterations", "  max_iterations: 1", "  max_iterations: 0")
+rejected_policy("rollback-missing", "missing rollback policy", "rollback_policy: Stop and write handoff", 'rollback_policy: ""')
+rejected_policy(
+  "auto-fix-disabled",
+  "auto-fix requires governance auto_fix",
+  "  auto_fix: true",
+  "  auto_fix: false",
+  subtype="auto-fix",
+)
+rejected_policy(
+  "merge-policy-incomplete",
+  "merge-release policy incomplete",
+  "  scope_limit: Configured mutable scope only",
+  '  scope_limit: ""',
+  subtype="merge-release",
+)
 
-missing_scope_limit_dir="$tmp/docs/loen/missing-scope-limit"
-mkdir -p "$missing_scope_limit_dir"
-cp "$topic_dir/3_plan.md" "$missing_scope_limit_dir/3_plan.md"
-missing_scope_limit_plan_hash="$(PYTHONPATH="$hook_root" python3 - "$missing_scope_limit_dir/3_plan.md" 2>/dev/null <<'PY'
-import sys
-from pathlib import Path
-from loen_artifacts import plan_body_hash
-print(plan_body_hash(Path(sys.argv[1])))
+current = fixture("current")
+assert validate_run_contract(current) == {"ok": True, "reason": "approved run contract"}
+prelaunch = fixture("prelaunch", overrides={"launch_confirmed": "false"})
+assert validate_run_contract(prelaunch, require_launch=False) == {"ok": True, "reason": "approved run contract"}
+print("OK")
 PY
 )"
-
-cat > "$missing_scope_limit_dir/loop.yaml" <<YAML
-topic: missing-scope-limit
-mode: governance
-mutable_scope:
-  - plugins/loen/**
-verifier:
-  type: test
-  command: bash tests/test_loen_loop_run_contract.sh
-budget:
-  max_iterations: 1
-rollback_policy: "Stop and write handoff"
-run:
-  mode: governance
-  subtype: merge-release
-  plan_approved: true
-  plan_hash: "$missing_scope_limit_plan_hash"
-  state: prepare
-  max_passes: 1
-  current_pass: 0
-governance:
-  auto_fix: false
-  auto_merge: true
-release_policy:
-  target_branch: master
-  merge_strategy: pr
-  verifier_required: true
-  evidence_required: true
-  recovery_policy: "Stop and write handoff"
-YAML
-missing_scope_limit_output="$(PYTHONPATH="$hook_root" python3 - "$missing_scope_limit_dir" 2>/dev/null <<'PY'
-import sys
-from pathlib import Path
-from loen_artifacts import validate_run_contract
-result = validate_run_contract(Path(sys.argv[1]))
-print("OK" if not result["ok"] and "merge-release policy" in result["reason"] else result)
-PY
-)"
-missing_scope_limit_code="$?"
-assert_eq "missing scope limit validator helper runs" "0" "$missing_scope_limit_code"
-assert_eq "merge-release refuses missing scope limit" "OK" "$missing_scope_limit_output"
+checkpoint_matrix_code="$?"
+assert_eq "checkpoint matrix helper runs" "0" "$checkpoint_matrix_code"
+assert_eq "ordered checkpoint contracts validate" "OK" "$checkpoint_matrix_output"
 
 printf '# Check\n\n## Result\n\nPASS\n' > "$topic_dir/5_check.md"
 printf '# Result\n\n## Outcome\n\nDone\n' > "$topic_dir/7_result.md"
@@ -638,7 +485,7 @@ base = Path(sys.argv[1])
 text = render_audit(base, "sample-runner")
 checks = [
     "Runner" in text,
-    "report-only" in text,
+    "merge-release" in text,
     "plan_approved: true" in text,
     "Final verdict:</strong> Done" in text,
 ]
