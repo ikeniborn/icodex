@@ -18,6 +18,7 @@ mkdir -p "$CACHE/.codex-plugin" "$CACHE/skills/brainstorming" "$CACHE/skills/wri
 mkdir -p "$(dirname "$PIN")"
 printf 'openai-curated/superpowers/11c74d6b\n' > "$PIN"
 printf '{"name":"superpowers"}' > "$CACHE/.codex-plugin/plugin.json"
+printf '{"status":"legacy-unverified-cache-generation","cache_generation":"11c74d6b","source_ref":null}\n' > "$CACHE/.icodex-vendor-provenance.json"
 printf -- '---\nname: brainstorming\ndescription: test\n---\n' > "$CACHE/skills/brainstorming/SKILL.md"
 printf -- '---\nname: writing-plans\ndescription: test\n---\n' > "$CACHE/skills/writing-plans/SKILL.md"
 cat > "$ICODEX_HOME_DIR/config.toml" <<'EOF'
@@ -111,6 +112,14 @@ ensure_superpowers_wiring
 assert_eq "stale source corrected" "1" \
   "$(grep -cFx "source = \"$MARKETPLACE\"" "$cfg")"
 
+# 5b. quoted-only equivalent marketplace table uses the same identity semantics.
+sed -i 's/^\[marketplaces.openai-curated\]$/[marketplaces."openai-curated"]/' "$cfg"
+sed -i 's#^source = .*#source = "/quoted/wrong/path"#' "$cfg"
+ensure_superpowers_wiring
+assert_eq "quoted marketplace source rewritten" "1" \
+  "$(grep -cFx "source = \"$MARKETPLACE\"" "$cfg")"
+assert_exit "plugin wiring has no tomllib dependency" 1 grep -qF "tomllib" "$ROOT/lib/plugin/superpowers.sh"
+
 # 6. other marketplace sections are untouched
 printf '\n[marketplaces.other]\nsource = "/keep/me"\n' >> "$cfg"
 ensure_superpowers_wiring
@@ -152,6 +161,14 @@ printf 'openai-curated/superpowers/11c74d6b\n' > "$PIN"
 mv "$CACHE" "$CACHE.saved"
 assert_preflight_failure "renamed pinned target" "pinned cache missing"
 mv "$CACHE.saved" "$CACHE"
+mv "$CACHE/.icodex-vendor-provenance.json" "$CACHE/.icodex-vendor-provenance.saved"
+assert_preflight_failure "missing generation provenance" "provenance invalid"
+mv "$CACHE/.icodex-vendor-provenance.saved" "$CACHE/.icodex-vendor-provenance.json"
+printf '{broken' > "$CACHE/.icodex-vendor-provenance.json"
+assert_preflight_failure "malformed generation provenance" "provenance invalid"
+printf '{"status":"verified-immutable-source-ref","source_ref":"not-a-sha"}' > "$CACHE/.icodex-vendor-provenance.json"
+assert_preflight_failure "nonimmutable generation provenance" "provenance invalid"
+printf '{"status":"legacy-unverified-cache-generation","cache_generation":"11c74d6b","source_ref":null}\n' > "$CACHE/.icodex-vendor-provenance.json"
 printf '{broken' > "$CACHE/.codex-plugin/plugin.json"
 assert_preflight_failure "malformed plugin json" "plugin manifest invalid"
 printf '{"name":"wrong"}' > "$CACHE/.codex-plugin/plugin.json"

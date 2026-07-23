@@ -35,10 +35,10 @@ _vendor_validate_overlay() { # <stage>
     grep -qF 'offer execution choice' "$writing"
 }
 
-_vendor_publish() { # <source-cache-root> <dest-cache-root> <pin> <patch-dir> <source-ref-file> <source-ref>
-  local source_root="$1" dest_root="$2" pin="$3" patch_dir="$4" source_ref_file="$5" source_ref="$6"
+_vendor_publish() { # <source-cache-root> <dest-cache-root> <pin> <patch-dir> <source-ref>
+  local source_root="$1" dest_root="$2" pin="$3" patch_dir="$4" source_ref="$5"
   local -a sources overlays
-  local source rel destination parent stage pin_stage source_ref_stage overlay
+  local source rel destination parent stage pin_stage overlay
 
   [[ "$source_ref" =~ ^[0-9a-f]{7,64}$ ]] || { log_error "source ref must be an immutable hexadecimal revision"; return 1; }
 
@@ -59,8 +59,7 @@ _vendor_publish() { # <source-cache-root> <dest-cache-root> <pin> <patch-dir> <s
   mkdir -p "$parent" "$(dirname "$pin")"
   stage="$(mktemp -d "$parent/.stage.XXXXXX")"
   pin_stage="$(mktemp "$(dirname "$pin")/.pin.XXXXXX")"
-  source_ref_stage="$(mktemp "$(dirname "$source_ref_file")/.source-ref.XXXXXX")"
-  trap 'rm -rf "$stage"; rm -f "$pin_stage" "$source_ref_stage"' RETURN
+  trap 'rm -rf "$stage"; rm -f "$pin_stage"' RETURN
 
   rsync -a --delete "$source/" "$stage/"
   rm -rf "$stage/.git"
@@ -77,7 +76,7 @@ _vendor_publish() { # <source-cache-root> <dest-cache-root> <pin> <patch-dir> <s
     return 1
   }
   printf '%s\n' "$rel" > "$pin_stage"
-  printf '%s\n' "$source_ref" > "$source_ref_stage"
+  printf '{"status":"verified-immutable-source-ref","source_ref":"%s"}\n' "$source_ref" > "$stage/.icodex-vendor-provenance.json"
 
   if [[ -e "$destination" ]]; then
     diff -qr "$stage" "$destination" >/dev/null || { log_error "immutable generation conflict: $destination"; return 1; }
@@ -85,7 +84,6 @@ _vendor_publish() { # <source-cache-root> <dest-cache-root> <pin> <patch-dir> <s
   else
     mv "$stage" "$destination"
   fi
-  mv "$source_ref_stage" "$source_ref_file"
   mv "$pin_stage" "$pin"
   trap - RETURN
 }
@@ -93,6 +91,7 @@ _vendor_publish() { # <source-cache-root> <dest-cache-root> <pin> <patch-dir> <s
 # Network wrapper — only runs when executed directly, never when sourced by tests.
 _vendor_main() (
   local sha="${1:?usage: vendor-superpowers.sh <immutable-sha>}"
+  [[ "$sha" =~ ^[0-9a-f]{7,64}$ ]] || { log_error "source ref must be an immutable hexadecimal revision"; return 1; }
   local bin="$VENDOR_ROOT/.codex-isolated/bin/codex"
   [[ -x "$bin" ]] || { log_error "codex binary missing — run ./icodex.sh --install"; return 1; }
   local scratch; scratch="$(mktemp -d)"
@@ -104,8 +103,7 @@ _vendor_main() (
   [[ -n "$mkt" ]] || { log_error "could not determine marketplace name from $scratch/config.toml"; return 1; }
   CODEX_HOME="$scratch" "$bin" plugin add "superpowers@$mkt" >&2
   _vendor_publish "$scratch/plugins/cache" "$VENDOR_ROOT/.codex-isolated/plugins/cache" \
-    "$VENDOR_ROOT/vendor/superpowers/pin" "$VENDOR_ROOT/vendor/superpowers/patches" \
-    "$VENDOR_ROOT/vendor/superpowers/source-ref" "$sha"
+    "$VENDOR_ROOT/vendor/superpowers/pin" "$VENDOR_ROOT/vendor/superpowers/patches" "$sha"
   log_info "vendored pinned Superpowers cache with ordered zero-fuzz overlays"
 )
 

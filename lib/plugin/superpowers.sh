@@ -6,6 +6,39 @@
 # validates the source on every launch, so this runs on the default (launch) path.
 
 # Resolve only vendor/superpowers/pin; this function is shared by runtime and tests.
+_superpowers_validate_generation() { # <cache> <generation>
+  python3 - "$1/.codex-plugin/plugin.json" "$1/.icodex-vendor-provenance.json" "$2" <<'PY' 2>/dev/null
+import json
+import re
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        manifest = json.load(handle)
+except (OSError, ValueError):
+    raise SystemExit(2)
+try:
+    with open(sys.argv[2], encoding="utf-8") as handle:
+        provenance = json.load(handle)
+except (OSError, ValueError):
+    raise SystemExit(1)
+
+if not isinstance(manifest, dict) or manifest.get("name") != "superpowers":
+    raise SystemExit(2)
+if not isinstance(provenance, dict):
+    raise SystemExit(1)
+status = provenance.get("status")
+if status == "legacy-unverified-cache-generation":
+    valid = provenance.get("cache_generation") == sys.argv[3] and provenance.get("source_ref") is None
+elif status == "verified-immutable-source-ref":
+    valid = bool(re.fullmatch(r"[0-9a-f]{7,64}", provenance.get("source_ref", "")))
+else:
+    valid = False
+if not valid:
+    raise SystemExit(1)
+PY
+}
+
 _superpowers_pinned_cache_dir() {
   local pin="$ICODEX_ROOT/vendor/superpowers/pin" rel cache
   [[ -f "$pin" ]] || { log_error "superpowers pin missing: $pin"; return 1; }
@@ -20,15 +53,15 @@ _superpowers_pinned_cache_dir() {
   }
   cache="$ICODEX_SHARED_DIR/plugins/cache/$rel"
   [[ -d "$cache" && -f "$cache/.codex-plugin/plugin.json" ]] || { log_error "superpowers pinned cache missing: $cache"; return 1; }
-  python3 - "$cache/.codex-plugin/plugin.json" <<'PY' || { log_error "superpowers plugin manifest invalid"; return 1; }
-import json
-import sys
-
-with open(sys.argv[1], encoding="utf-8") as handle:
-    manifest = json.load(handle)
-if not isinstance(manifest, dict) or manifest.get("name") != "superpowers":
-    raise SystemExit(1)
-PY
+  local validation_code=0
+  _superpowers_validate_generation "$cache" "$generation" || validation_code=$?
+  if [[ "$validation_code" -eq 2 ]]; then
+    log_error "superpowers plugin manifest invalid"
+    return 1
+  elif [[ "$validation_code" -ne 0 ]]; then
+    log_error "superpowers generation provenance invalid"
+    return 1
+  fi
   printf '%s\n' "$cache"
 }
 
@@ -131,41 +164,104 @@ _ensure_superpowers_skill_links() { # <cache_dir>
   done
 }
 
-# Idempotently rewrite the `source` line inside [marketplaces.<mkt>] to <abs>.
+_superpowers_config_tool() { # <validate|rewrite> <config> <marketplace> [source]
+  python3 - "$@" <<'PY' 2>/dev/null
+import json
+import re
+import sys
+
+mode, path, marketplace = sys.argv[1:4]
+source = sys.argv[4] if mode == "rewrite" else None
+with open(path, encoding="utf-8") as handle:
+    lines = handle.readlines()
+
+
+def parse_header(line):
+    match = re.match(r"^\s*\[(.*)\]\s*(?:#.*)?$", line.rstrip("\r\n"))
+    if not match:
+        return None
+    body = match.group(1)
+    keys = []
+    token = ""
+    quote = None
+    escaped = False
+    for char in body:
+        if quote:
+            token += char
+            if quote == '"' and escaped:
+                escaped = False
+            elif quote == '"' and char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+        elif char in "\"'":
+            quote = char
+            token += char
+        elif char == ".":
+            keys.append(token.strip())
+            token = ""
+        else:
+            token += char
+    if quote:
+        return None
+    keys.append(token.strip())
+    decoded = []
+    for key in keys:
+        if re.match(r"^[A-Za-z0-9_-]+$", key):
+            decoded.append(key)
+        elif len(key) >= 2 and key[0] == key[-1] == '"':
+            try:
+                decoded.append(json.loads(key))
+            except (TypeError, ValueError):
+                return None
+        elif len(key) >= 2 and key[0] == key[-1] == "'":
+            decoded.append(key[1:-1])
+        else:
+            return None
+    return tuple(decoded)
+
+target_marketplace = ("marketplaces", marketplace)
+target_plugin = ("plugins", "superpowers@" + marketplace)
+marketplace_headers = []
+plugin_headers = []
+source_lines = []
+current = None
+for index, line in enumerate(lines):
+    header = parse_header(line)
+    if header is not None:
+        current = header
+        if header == target_marketplace:
+            marketplace_headers.append(index)
+        if len(header) == 2 and header[0] == "plugins" and header[1].startswith("superpowers@"):
+            plugin_headers.append(header)
+        continue
+    if current == target_marketplace and re.match(r"^\s*source\s*=", line):
+        source_lines.append(index)
+
+if len(marketplace_headers) != 1 or plugin_headers != [target_plugin] or len(source_lines) != 1:
+    raise SystemExit(1)
+
+if mode == "validate":
+    raise SystemExit(0)
+if mode != "rewrite" or source is None:
+    raise SystemExit(1)
+ending = "\r\n" if lines[source_lines[0]].endswith("\r\n") else "\n"
+lines[source_lines[0]] = "source = " + json.dumps(source) + ending
+sys.stdout.write("".join(lines))
+PY
+}
+
+# Idempotently rewrite source in the uniquely validated marketplace table.
 _rewrite_marketplace_source() { # <config> <mkt> <abs>
   local config="$1" mkt="$2" abs="$3" tmp
   tmp="$(mktemp)"
-  awk -v mkt="$mkt" -v abs="$abs" '
-    /^\[/ { insec = ($0 == "[marketplaces." mkt "]") }
-    insec && /^[[:space:]]*source[[:space:]]*=/ { print "source = \"" abs "\""; next }
-    { print }
-  ' "$config" > "$tmp"
-  cmp -s "$tmp" "$config" || cat "$tmp" > "$config"  # overwrite in place (preserve inode/perms) only when changed
+  _superpowers_config_tool rewrite "$config" "$mkt" "$abs" > "$tmp" || { rm -f "$tmp"; return 1; }
+  cmp -s "$tmp" "$config" || cat "$tmp" > "$config"
   rm -f "$tmp"
 }
 
 _superpowers_config_has_identity() { # <config> <marketplace>
-  local config="$1" mkt="$2"
-  python3 - "$config" "$mkt" <<'PY' 2>/dev/null
-import sys
-import tomllib
-
-try:
-    with open(sys.argv[1], "rb") as handle:
-        config = tomllib.load(handle)
-except (OSError, tomllib.TOMLDecodeError):
-    raise SystemExit(1)
-
-marketplace = sys.argv[2]
-marketplaces = config.get("marketplaces")
-plugins = config.get("plugins")
-if not isinstance(marketplaces, dict) or not isinstance(marketplaces.get(marketplace), dict):
-    raise SystemExit(1)
-if not isinstance(plugins, dict) or not isinstance(plugins.get(f"superpowers@{marketplace}"), dict):
-    raise SystemExit(1)
-if [key for key in plugins if key.startswith("superpowers@")] != [f"superpowers@{marketplace}"]:
-    raise SystemExit(1)
-PY
+  _superpowers_config_tool validate "$1" "$2"
 }
 
 # Orchestrate: fix the source path in the committed base config.

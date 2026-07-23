@@ -42,8 +42,8 @@ web_search = "cached"
 # - ssh-on-request: outbound network + read-only ~/.ssh for SSH-based work.
 
 # `vendor/superpowers/pin` selects an immutable committed cache generation.
-# Refresh only with scripts/vendor-superpowers.sh: source-ref plus pristine
-# upstream snapshots reproduce ordered zero-fuzz overlays, and pin changes last.
+# Reconstructed baseline snapshots reproduce the legacy overlay. Future vendor
+# runs store verified source ref inside generation metadata, then change pin last.
 [marketplaces.openai-curated]
 source_type = "local"
 source = "/home/ikeniborn/Documents/Project/icodex/.codex-isolated/tmp/marketplaces/openai-curated"
