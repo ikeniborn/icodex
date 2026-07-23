@@ -254,6 +254,54 @@ PY
 )"
 assert_eq "malformed checkpoint sibling fails closed" "OK" "$malformed_checkpoint_output"
 
+invalid_indent_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml
+
+data = parse_loop_yaml("""checkpoints:
+  goal_context:
+    confirmed: true
+    goal_hash: stale-goal
+   malformed: indentation
+    context_hash: stitched-context
+""")
+expected = {"confirmed": False, "goal_hash": "", "context_hash": ""}
+print("OK" if data["checkpoints"]["goal_context"] == expected else data["checkpoints"]["goal_context"])
+PY
+)"
+assert_eq "invalid checkpoint indentation fails closed" "OK" "$invalid_indent_output"
+
+duplicate_confirmed_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml
+
+data = parse_loop_yaml("""checkpoints:
+  goal_context:
+    confirmed: true
+    confirmed: false
+    goal_hash: stitched-goal
+    context_hash: stitched-context
+""")
+expected = {"confirmed": False, "goal_hash": "", "context_hash": ""}
+print("OK" if data["checkpoints"]["goal_context"] == expected else data["checkpoints"]["goal_context"])
+PY
+)"
+assert_eq "duplicate confirmed field fails closed" "OK" "$duplicate_confirmed_output"
+
+duplicate_hash_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml
+
+data = parse_loop_yaml("""checkpoints:
+  goal_context:
+    confirmed: true
+    goal_hash: first-goal
+    goal_hash: second-goal
+    context_hash: stitched-context
+""")
+expected = {"confirmed": False, "goal_hash": "", "context_hash": ""}
+print("OK" if data["checkpoints"]["goal_context"] == expected else data["checkpoints"]["goal_context"])
+PY
+)"
+assert_eq "duplicate checkpoint hash fails closed" "OK" "$duplicate_hash_output"
+
 validation_status_output="$(PYTHONPATH="$hook_root" python3 - "$topic_dir" 2>/dev/null <<'PY'
 import sys
 from pathlib import Path

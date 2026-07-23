@@ -169,6 +169,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
   section = ""
   subsection = ""
   current_checkpoint = ""
+  current_checkpoint_fields: set[str] = set()
   seen_checkpoints: set[str] = set()
   current_agent = ""
   current_list_item: dict[str, Any] | None = None
@@ -185,6 +186,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       section = ""
       subsection = ""
       current_checkpoint = ""
+      current_checkpoint_fields = set()
       current_agent = ""
       current_list_item = None
       list_target = None
@@ -239,22 +241,42 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
           if current_checkpoint:
             data["checkpoints"][current_checkpoint] = dict(CHECKPOINT_DEFAULTS[current_checkpoint])
           current_checkpoint = ""
+          current_checkpoint_fields = set()
           continue
         checkpoint = stripped[:-1]
         if checkpoint not in CHECKPOINT_DEFAULTS:
           current_checkpoint = ""
+          current_checkpoint_fields = set()
         elif checkpoint in seen_checkpoints:
           data["checkpoints"][checkpoint] = dict(CHECKPOINT_DEFAULTS[checkpoint])
           current_checkpoint = ""
+          current_checkpoint_fields = set()
         else:
           seen_checkpoints.add(checkpoint)
           current_checkpoint = checkpoint
+          current_checkpoint_fields = set()
+        continue
+      if indent not in {2, 4}:
+        if current_checkpoint:
+          data["checkpoints"][current_checkpoint] = dict(CHECKPOINT_DEFAULTS[current_checkpoint])
+        current_checkpoint = ""
+        current_checkpoint_fields = set()
         continue
       if indent == 4 and current_checkpoint and ":" in stripped:
         key, value = stripped.split(":", 1)
         key = key.strip()
         if key in CHECKPOINT_DEFAULTS[current_checkpoint]:
-          data["checkpoints"][current_checkpoint][key] = _parse_scalar(value)
+          if key in current_checkpoint_fields:
+            data["checkpoints"][current_checkpoint] = dict(CHECKPOINT_DEFAULTS[current_checkpoint])
+            current_checkpoint = ""
+            current_checkpoint_fields = set()
+          else:
+            current_checkpoint_fields.add(key)
+            data["checkpoints"][current_checkpoint][key] = _parse_scalar(value)
+      elif indent == 4 and current_checkpoint:
+        data["checkpoints"][current_checkpoint] = dict(CHECKPOINT_DEFAULTS[current_checkpoint])
+        current_checkpoint = ""
+        current_checkpoint_fields = set()
       continue
 
     if section == "agents":
