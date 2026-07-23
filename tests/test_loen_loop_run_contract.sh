@@ -774,30 +774,78 @@ done
 assert_eq "loop-start exact continuation output appears once" "1" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_start")"
 assert_eq "loop-plan has no continuation output" "0" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_plan" || true)"
 
-checkpoint_event_contract='append_checkpoint_event(
-  base=Path("docs/loen/<topic>"),
-  checkpoint="<checkpoint>",
-  decision="<decision>",
-  hashes={"goal_hash": goal_hash, "context_hash": context_hash, "plan_hash": plan_hash},
-  mode=mode,
-  subtype=subtype,
-  outcome="<outcome>",
-  created_at=created_at,
-)'
+checkpoint_event_contract='append_checkpoint_event('
 for event_skill in "$loop_start" "$loop_plan" "$loop_run"; do
   event_skill_name="$(basename "$(dirname "$event_skill")")"
   event_skill_text="$(cat "$event_skill")"
-  assert_exit "$event_skill_name names complete checkpoint event API signature" 0 bash -c '[[ "$1" == *"$2"* ]]' _ "$event_skill_text" "$checkpoint_event_contract"
-  for event_key in base checkpoint decision hashes goal_hash context_hash plan_hash mode subtype outcome created_at; do
+  case "$event_skill_name" in
+    loop-start)
+      expected_checkpoint="goal_context"
+      expected_decision="confirmed"
+      expected_hashes='{"context_hash":"example-context-hash","goal_hash":"example-goal-hash"}'
+      expected_hash_keys="goal_hash context_hash"
+      ;;
+    loop-plan)
+      expected_checkpoint="plan"
+      expected_decision="reset"
+      expected_hashes='{"plan_hash":"example-plan-hash"}'
+      expected_hash_keys="plan_hash"
+      ;;
+    loop-run)
+      expected_checkpoint="launch"
+      expected_decision="confirmed"
+      expected_hashes='{"context_hash":"example-context-hash","goal_hash":"example-goal-hash","plan_hash":"example-plan-hash"}'
+      expected_hash_keys="goal_hash context_hash plan_hash"
+      ;;
+  esac
+  assert_contains "$event_skill_name names checkpoint event API call" "$event_skill_text" "$checkpoint_event_contract"
+  for event_key in base checkpoint decision hashes mode subtype outcome created_at; do
     assert_contains "$event_skill_name checkpoint event instruction has $event_key" "$event_skill_text" "$event_key"
   done
+  for event_hash_key in $expected_hash_keys; do
+    assert_contains "$event_skill_name checkpoint event has relevant $event_hash_key" "$event_skill_text" "\"$event_hash_key\":"
+  done
   assert_contains "$event_skill_name imports Path source" "$event_skill_text" '`Path` comes from `pathlib`.'
-  assert_contains "$event_skill_name checkpoint event uses Path base" "$event_skill_text" 'base=Path("docs/loen/<topic>")'
-  assert_contains "$event_skill_name checkpoint event uses hash mapping" "$event_skill_text" 'hashes={"goal_hash": goal_hash, "context_hash": context_hash, "plan_hash": plan_hash}'
+  assert_contains "$event_skill_name imports pathlib Path" "$event_skill_text" 'from pathlib import Path'
+  assert_contains "$event_skill_name imports checkpoint event helper" "$event_skill_text" 'from loen_artifacts import append_checkpoint_event'
+  assert_contains "$event_skill_name checkpoint event uses concrete Path base" "$event_skill_text" 'base=Path("docs/loen/example-topic")'
+  assert_contains "$event_skill_name checkpoint event uses concrete checkpoint" "$event_skill_text" "checkpoint=\"$expected_checkpoint\""
+  assert_contains "$event_skill_name checkpoint event uses concrete decision" "$event_skill_text" "decision=\"$expected_decision\""
+  assert_contains "$event_skill_name checkpoint event uses literal hash mapping" "$event_skill_text" 'hashes={'
+  assert_contains "$event_skill_name replaces example values instruction" "$event_skill_text" 'Replace the example values with the current topic and artifact values.'
   assert_contains "$event_skill_name allows relevant hash subset mapping" "$event_skill_text" 'For an event with fewer relevant hashes, pass a dictionary containing only the relevant exact key/value pairs; never pass a set.'
   assert_eq "$event_skill_name rejects bare base example" "0" "$(grep -cF 'base=docs/loen/<topic>' "$event_skill" || true)"
   assert_eq "$event_skill_name rejects set-like hashes example" "0" "$(grep -cF 'hashes={goal_hash' "$event_skill" || true)"
   assert_eq "$event_skill_name has no standalone timestamp field" "0" "$(printf '%s\n' "$event_skill_text" | grep -Eic '(^|[^[:alnum:]_])timestamp([^[:alnum:]_]|$)' || true)"
+
+  event_example_dir="$tmp/checkpoint-event-$event_skill_name"
+  mkdir -p "$event_example_dir"
+  event_example="$(awk '/^```python$/ { capture=1; next } capture && /^```$/ { exit } capture { print }' "$event_skill")"
+  event_output="$(cd "$event_example_dir" && PYTHONPATH="$hook_root" python3 - <<<"$event_example" 2>&1)"
+  event_code="$?"
+  assert_eq "$event_skill_name checkpoint event example runs" "0" "$event_code"
+  event_path="$event_example_dir/docs/loen/example-topic/attempts.jsonl"
+  assert_exit "$event_skill_name checkpoint event example appends one valid event" 0 python3 - "$event_path" "$expected_checkpoint" "$expected_decision" "$expected_hashes" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+record = json.loads(lines[0]) if len(lines) == 1 else {}
+expected_hashes = json.loads(sys.argv[4])
+valid = record == {
+    "event": "checkpoint",
+    "checkpoint": sys.argv[2],
+    "decision": sys.argv[3],
+    "hashes": expected_hashes,
+    "mode": "delivery",
+    "subtype": "",
+    "outcome": sys.argv[3],
+    "created_at": "2026-07-23T00:00:00Z",
+}
+raise SystemExit(0 if valid else 1)
+PY
 done
 
 assert_contains "loop-run invocation is not confirmation" "$loop_run_text" "Invocation is not launch confirmation."

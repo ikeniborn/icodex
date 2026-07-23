@@ -34,19 +34,23 @@ Create and fully plan a new LoEn topic. Never launch it.
 `Path` comes from `pathlib`. Call:
 
 ```python
+from pathlib import Path
+
+from loen_artifacts import append_checkpoint_event
+
 append_checkpoint_event(
-  base=Path("docs/loen/<topic>"),
-  checkpoint="<checkpoint>",
-  decision="<decision>",
-  hashes={"goal_hash": goal_hash, "context_hash": context_hash, "plan_hash": plan_hash},
-  mode=mode,
-  subtype=subtype,
-  outcome="<outcome>",
-  created_at=created_at,
+  base=Path("docs/loen/example-topic"),
+  checkpoint="goal_context",
+  decision="confirmed",
+  hashes={"goal_hash": "example-goal-hash", "context_hash": "example-context-hash"},
+  mode="delivery",
+  subtype="",
+  outcome="confirmed",
+  created_at="2026-07-23T00:00:00Z",
 )
 ```
 
-For an event with fewer relevant hashes, pass a dictionary containing only the relevant exact key/value pairs; never pass a set.
+Replace the example values with the current topic and artifact values. For an event with fewer relevant hashes, pass a dictionary containing only the relevant exact key/value pairs; never pass a set.
 
 PROHIBITION: MUST NOT write `checkpoints.launch.confirmed: true`.
 
