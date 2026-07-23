@@ -73,6 +73,7 @@ assert_exit "evidence directory exists" 0 test -d "$topic_dir/evidence"
 assert_eq "attempts log starts empty" "" "$(cat "$topic_dir/attempts.jsonl" 2>/dev/null)"
 
 loop_text="$(cat "$topic_dir/loop.yaml" 2>/dev/null || true)"
+context_text="$(cat "$topic_dir/2_context.md" 2>/dev/null || true)"
 audit_text="$(cat "$topic_dir/audit.html" 2>/dev/null || true)"
 
 assert_contains "loop topic field" "$loop_text" "topic: $topic"
@@ -89,6 +90,12 @@ assert_contains "loop budget" "$loop_text" "max_iterations: 3"
 assert_contains "loop stop condition" "$loop_text" "quality gates pass"
 assert_contains "loop handoff condition" "$loop_text" "schema change required"
 assert_contains "loop rollback policy" "$loop_text" 'rollback_policy: "Revert unsafe changes"'
+assert_contains "context renders mutable scope" "$context_text" "plugins/loen/**"
+assert_contains "context renders second mutable scope" "$context_text" "tests/test_loen_runtime_artifacts.sh"
+assert_contains "context renders protected scope" "$context_text" ".codex-isolated/auth/**"
+assert_contains "context renders verifier command" "$context_text" "bash tests/test_loen_runtime_artifacts.sh"
+assert_contains "context renders iteration budget" "$context_text" "Maximum iterations: 3"
+assert_contains "context renders pass budget" "$context_text" "Maximum passes: 3"
 assert_contains "loop checkpoints block" "$loop_text" "checkpoints:"
 for checkpoint in goal_context mode plan launch; do
   assert_contains "loop $checkpoint checkpoint" "$loop_text" "  $checkpoint:"

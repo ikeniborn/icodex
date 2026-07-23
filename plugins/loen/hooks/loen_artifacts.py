@@ -98,7 +98,18 @@ def _template(path: Path, fallback: str) -> str:
     return fallback
 
 
-def _render_stage_template(template_dir: Path, filename: str, topic: str, objective: str) -> str:
+def _render_stage_template(
+  template_dir: Path,
+  filename: str,
+  topic: str,
+  objective: str,
+  *,
+  mutable_scope: list[str],
+  protected_scope: list[str],
+  verifier_command: str,
+  max_iterations: int = 3,
+  max_passes: int = 3,
+) -> str:
   fallback = f"# {filename}\n\nTopic: `{{{{topic}}}}`\n"
   text = _template(template_dir / filename, fallback)
   replacements = {
@@ -109,10 +120,10 @@ def _render_stage_template(template_dir: Path, filename: str, topic: str, object
     "{{success_criterion}}": "Loop artifacts exist and audit can be regenerated from repository state.",
     "{{fact}}": "Runtime state lives in this directory, not in chat history.",
     "{{constraint}}": "Do not create a global LoEn audit index.",
-    "{{mutable_scope}}": f"docs/loen/{topic}/**",
-    "{{protected_scope}}": "Files outside the configured mutable scope.",
-    "{{verifier}}": "Run the configured quality gate command.",
-    "{{budget}}": "Maximum 3 iterations.",
+    "{{mutable_scope}}": "\n- ".join(mutable_scope) if mutable_scope else "none",
+    "{{protected_scope}}": "\n- ".join(protected_scope) if protected_scope else "none",
+    "{{verifier}}": verifier_command,
+    "{{budget}}": f"Maximum iterations: {max_iterations}\n\nMaximum passes: {max_passes}",
     "{{rollback_or_recovery}}": "Stop and write handoff.md before unsafe changes.",
     "{{precondition}}": "Goal, context, mode, and policy are confirmed.",
     "{{step}}": "Create or update the current LoEn stage artifact",
@@ -146,6 +157,8 @@ def loop_yaml_text(
   verifier_command: str,
   quality_gate_command: str,
   created_date: str,
+  max_iterations: int = 3,
+  max_passes: int = 3,
 ) -> str:
   return "\n".join([
     f"topic: {topic}",
@@ -167,7 +180,7 @@ def loop_yaml_text(
     "  type: test",
     f"  command: {verifier_command}",
     "budget:",
-    "  max_iterations: 3",
+    f"  max_iterations: {max_iterations}",
     "stop_conditions:",
     "  - quality gates pass",
     "handoff_conditions:",
@@ -175,7 +188,7 @@ def loop_yaml_text(
     'rollback_policy: "Revert unsafe changes"',
     "run:",
     "  state: prepare",
-    "  max_passes: 3",
+    f"  max_passes: {max_passes}",
     "  current_pass: 0",
     "checkpoints:",
     "  goal_context:",
@@ -234,6 +247,8 @@ def scaffold_topic(
   created_date: str,
 ) -> Path:
   topic_name = validate_topic_slug(topic)
+  max_iterations = 3
+  max_passes = 3
   base = artifact_root / topic_name
   base.mkdir(parents=True, exist_ok=True)
   (base / "evidence").mkdir(parents=True, exist_ok=True)
@@ -241,7 +256,20 @@ def scaffold_topic(
   for filename in STAGE_FILES:
     path = base / filename
     if not path.exists():
-      path.write_text(_render_stage_template(template_dir, filename, topic_name, objective), encoding="utf-8")
+      path.write_text(
+        _render_stage_template(
+          template_dir,
+          filename,
+          topic_name,
+          objective,
+          mutable_scope=mutable_scope,
+          protected_scope=protected_scope,
+          verifier_command=verifier_command,
+          max_iterations=max_iterations,
+          max_passes=max_passes,
+        ),
+        encoding="utf-8",
+      )
 
   handoff = base / "handoff.md"
   if not handoff.exists():
@@ -266,6 +294,8 @@ def scaffold_topic(
         verifier_command=verifier_command,
         quality_gate_command=quality_gate_command,
         created_date=created_date,
+        max_iterations=max_iterations,
+        max_passes=max_passes,
       ),
       encoding="utf-8",
     )
@@ -315,8 +345,8 @@ def run_policy_hash(parsed: dict[str, object], run_mode: str, subtype: str) -> s
     "governance": parsed.get("governance", {}),
     "release_policy": parsed.get("release_policy", {}),
   }
-  canonical = json.dumps(policy, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-  return hashlib.sha256(canonical.encode("ascii")).hexdigest()[:16]
+  canonical = json.dumps(policy, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+  return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
 
 def release_policy(loop_text: str) -> dict[str, object]:

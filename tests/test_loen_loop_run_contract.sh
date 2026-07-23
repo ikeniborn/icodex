@@ -60,6 +60,37 @@ PY
 )"
 assert_eq "plan hash compatibility alias" "$artifact_plan_hash" "$plan_hash"
 
+unicode_policy_status="$(PYTHONPATH="$hook_root" python3 - <<'PY'
+import hashlib
+import json
+
+from loen_artifacts import run_policy_hash
+
+parsed = {
+    "mutable_scope": ["данные/**"],
+    "protected_scope": ["секреты/**"],
+    "quality_gates": [{"command": "проверить"}],
+    "verifier": {"command": "тест"},
+    "budget": {"max_iterations": 1},
+    "stop_conditions": ["готово"],
+    "handoff_conditions": ["нужен человек"],
+    "rollback_policy": "откатить",
+    "governance": {"owner": "Ирина"},
+    "release_policy": {"target_branch": "основная"},
+}
+payload = {
+    "mode": "delivery",
+    "subtype": "",
+    **parsed,
+}
+canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+expected = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+actual = run_policy_hash(parsed, "delivery", "")
+print("OK" if actual == expected else f"expected={expected} actual={actual}")
+PY
+)"
+assert_eq "policy hash uses canonical UTF-8 JSON" "OK" "$unicode_policy_status"
+
 cat > "$topic_dir/loop.yaml" <<YAML
 topic: sample-runner
 mode: governance
@@ -932,48 +963,46 @@ required = {"1_goal.md", "2_context.md", "3_plan.md", "4_act.md", "5_check.md", 
 if not required <= {path.name for path in base.iterdir()}:
     raise SystemExit("production scaffold incomplete")
 states = ["scaffold"]
-for name, text in (("1_goal.md", "# Goal\n\nGoal.\n"), ("2_context.md", "# Context\n\nContext.\n"), ("3_plan.md", "# Plan\n\nPlan.\n")):
-    (base / name).write_text(text, encoding="utf-8")
-(base / "4_act.md").write_text("", encoding="utf-8")
+scaffold_artifacts = {name: (base / name).read_text(encoding="utf-8") for name in ("1_goal.md", "2_context.md", "3_plan.md")}
+scaffold_action = (base / "4_act.md").read_text(encoding="utf-8")
 hashes = {name: artifact_body_hash(base / filename) for name, filename in (("goal_hash", "1_goal.md"), ("context_hash", "2_context.md"), ("plan_hash", "3_plan.md"))}
-text = f'''topic: transition
-mode: delivery
-mutable_scope:\n  - plugins/loen/**
-protected_scope:\n  - README.md
-quality_gates:\n  - command: bash tests/test_loen_loop_run_contract.sh\n    evidence: evidence/test.json
-verifier:\n  type: test\n  command: bash tests/test_loen_loop_run_contract.sh
-budget:\n  max_iterations: 1
-stop_conditions:\n  - pass
-handoff_conditions:\n  - blocked
-rollback_policy: Stop
-checkpoints:
-  goal_context:\n    confirmed: true\n    goal_hash: {hashes['goal_hash']}\n    context_hash: {hashes['context_hash']}
-  mode:\n    confirmed: true\n    mode: delivery\n    subtype: ""
-  plan:\n    confirmed: true\n    plan_hash: {hashes['plan_hash']}\n    policy_hash: POLICY
-  launch:\n    confirmed: false\n    goal_hash: ""\n    context_hash: ""\n    plan_hash: ""\n    policy_hash: ""
-governance:\n  automation_type: manual\n  auto_fix: false\n  auto_merge: false
-release_policy:\n  target_branch: ""\n  merge_strategy: ""\n  verifier_required: true\n  evidence_required: true\n  scope_limit: ""\n  recovery_policy: ""
-'''
-parsed = parse_loop_yaml(text)
+
+def set_checkpoint(name, body):
+    path = base / "loop.yaml"
+    text = path.read_text(encoding="utf-8")
+    pattern = rf"(  {name}:\n)(?:    .*\n)+"
+    updated, count = re.subn(pattern, rf"\g<1>{body}", text, count=1)
+    if count != 1:
+        raise SystemExit(f"checkpoint not found: {name}")
+    path.write_text(updated, encoding="utf-8")
+
+set_checkpoint("goal_context", f"    confirmed: true\n    goal_hash: {hashes['goal_hash']}\n    context_hash: {hashes['context_hash']}\n")
+append_checkpoint_event(base=base, checkpoint="goal_context", decision="confirmed", hashes={"goal_hash": hashes["goal_hash"], "context_hash": hashes["context_hash"]})
+states.append("goal-context-confirmed")
+set_checkpoint("mode", "    confirmed: true\n    mode: delivery\n    subtype: \"\"\n")
+append_checkpoint_event(base=base, checkpoint="mode", decision="confirmed", hashes={}, mode="delivery")
+states.append("mode-confirmed")
+parsed = parse_loop_yaml((base / "loop.yaml").read_text(encoding="utf-8"))
 policy = run_policy_hash(parsed, "delivery", "")
-text = text.replace("POLICY", policy)
-(base / "loop.yaml").write_text(text, encoding="utf-8")
+set_checkpoint("plan", f"    confirmed: true\n    plan_hash: {hashes['plan_hash']}\n    policy_hash: {policy}\n")
+append_checkpoint_event(base=base, checkpoint="plan", decision="confirmed", hashes={"plan_hash": hashes["plan_hash"], "policy_hash": policy}, mode="delivery")
+states.append("plan-confirmed")
 if validate_run_contract(base, require_launch=False)["ok"] is not True:
     raise SystemExit("prelaunch rejected")
 states.append("prelaunch")
-if (base / "4_act.md").read_text(encoding="utf-8"):
+if (base / "4_act.md").read_text(encoding="utf-8") != scaffold_action:
     raise SystemExit("invocation acted")
 append_checkpoint_event(base=base, checkpoint="launch", decision="refused", hashes={})
 states.append("refused")
-if (base / "4_act.md").read_text(encoding="utf-8"):
+if (base / "4_act.md").read_text(encoding="utf-8") != scaffold_action:
     raise SystemExit("refusal acted")
 launch = hashes | {"policy_hash": policy}
-text = (base / "loop.yaml").read_text(encoding="utf-8")
-text = text.replace('  launch:\n    confirmed: false\n    goal_hash: ""\n    context_hash: ""\n    plan_hash: ""\n    policy_hash: ""', f'''  launch:\n    confirmed: true\n    goal_hash: {hashes['goal_hash']}\n    context_hash: {hashes['context_hash']}\n    plan_hash: {hashes['plan_hash']}\n    policy_hash: {policy}''')
-(base / "loop.yaml").write_text(text, encoding="utf-8")
+set_checkpoint("launch", f"    confirmed: true\n    goal_hash: {hashes['goal_hash']}\n    context_hash: {hashes['context_hash']}\n    plan_hash: {hashes['plan_hash']}\n    policy_hash: {policy}\n")
 append_checkpoint_event(base=base, checkpoint="launch", decision="confirmed", hashes=launch)
 if validate_run_contract(base)["ok"] is not True:
     raise SystemExit("launch rejected")
+if any((base / name).read_text(encoding="utf-8") != text for name, text in scaffold_artifacts.items()):
+    raise SystemExit("transition rewrote scaffold stage artifacts")
 states.append("launched")
 original = (base / "loop.yaml").read_text(encoding="utf-8")
 mutations = {
@@ -981,12 +1010,12 @@ mutations = {
     "governance-subtype": lambda value: value.replace("    mode: delivery\n    subtype: \"\"", "    mode: governance\n    subtype: auto-fix").replace("  auto_fix: false", "  auto_fix: true"),
     "mutable-scope": lambda value: value.replace("  - plugins/loen/**", "  - tests/**", 1),
     "protected-scope": lambda value: value.replace("  - README.md", "  - docs/**", 1),
-    "quality-gates": lambda value: value.replace("evidence/test.json", "evidence/other.json"),
+    "quality-gates": lambda value: value.replace("evidence/latest-test.json", "evidence/other.json"),
     "verifier": lambda value: value.replace("  type: test", "  type: review"),
-    "budget": lambda value: value.replace("  max_iterations: 1", "  max_iterations: 2"),
-    "stop": lambda value: value.replace("  - pass", "  - verified", 1),
-    "handoff": lambda value: value.replace("  - blocked", "  - exhausted", 1),
-    "rollback": lambda value: value.replace("rollback_policy: Stop", "rollback_policy: Revert"),
+    "budget": lambda value: value.replace("  max_iterations: 3", "  max_iterations: 2"),
+    "stop": lambda value: value.replace("  - quality gates pass", "  - verified", 1),
+    "handoff": lambda value: value.replace("  - schema change required", "  - exhausted", 1),
+    "rollback": lambda value: value.replace('rollback_policy: "Revert unsafe changes"', "rollback_policy: Stop"),
     "governance": lambda value: value.replace("  automation_type: manual", "  automation_type: scheduled"),
     "release": lambda value: value.replace('  target_branch: ""', "  target_branch: master"),
 }
@@ -994,7 +1023,7 @@ for label, mutate in mutations.items():
     (base / "loop.yaml").write_text(mutate(original), encoding="utf-8")
     if validate_run_contract(base)["reason"] != "plan policy hash mismatch":
         raise SystemExit(f"{label} mutation accepted")
-    if (base / "4_act.md").read_text(encoding="utf-8"):
+    if (base / "4_act.md").read_text(encoding="utf-8") != scaffold_action:
         raise SystemExit(f"{label} mutation acted")
 states.append("policy-rejected")
 
@@ -1014,9 +1043,9 @@ states.append("reconfirmed")
 (base / "4_act.md").write_text("validated action\n", encoding="utf-8")
 states.append("acted")
 events = [line for line in (base / "attempts.jsonl").read_text(encoding="utf-8").splitlines() if line]
-if len(events) != 4 or '"decision": "refused"' not in events[0] or any('"decision": "confirmed"' not in line for line in events[1:]):
+if len(events) != 7 or '"checkpoint": "goal_context"' not in events[0] or '"checkpoint": "mode"' not in events[1] or '"checkpoint": "plan"' not in events[2] or '"decision": "refused"' not in events[3] or any('"decision": "confirmed"' not in line for line in events[4:]):
     raise SystemExit("event order/count mismatch")
-if states != ["scaffold", "prelaunch", "refused", "launched", "policy-rejected", "reconfirmed", "acted"]:
+if states != ["scaffold", "goal-context-confirmed", "mode-confirmed", "plan-confirmed", "prelaunch", "refused", "launched", "policy-rejected", "reconfirmed", "acted"]:
     raise SystemExit(f"state order mismatch: {states}")
 print("OK")
 PY
