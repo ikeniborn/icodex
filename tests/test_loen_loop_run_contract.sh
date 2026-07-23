@@ -701,6 +701,31 @@ elif scenario.startswith("quoted-authority-"):
     "quality_gates": ("mutable_scope:\n", 'quality_gates:\n  - "command": first\n    command: second\nmutable_scope:\n'),
   }
   replace(base, *insertions[section])
+elif scenario.startswith("mixed-indent-"):
+  base = fixture(scenario)
+  section = scenario.removeprefix("mixed-indent-")
+  insertions = {
+    "verifier": ("  command: bash tests/test_loen_loop_run_contract.sh", " \tcommand: split\n  command: bash tests/test_loen_loop_run_contract.sh"),
+    "governance": ("  auto_fix: true", " \tauto_fix: false\n  auto_fix: true"),
+    "release_policy": ("  target_branch: master", " \ttarget_branch: split\n  target_branch: master"),
+    "budget": ("  max_iterations: 1", " \tmax_iterations: 7\n  max_iterations: 1"),
+    "quality_gates": ("mutable_scope:\n", "quality_gates:\n  - command: first\n \tcommand: second\nmutable_scope:\n"),
+  }
+  replace(base, *insertions[section])
+elif scenario.startswith("unrelated-nested-"):
+  base = fixture(scenario)
+  section = scenario.removeprefix("unrelated-nested-")
+  insertions = {
+    "verifier": ("verifier:\n", "verifier:\n  primary:\n    command: first\n  secondary:\n    command: second\n"),
+    "governance": ("governance:\n", "governance:\n  primary:\n    owner: first\n  secondary:\n    owner: second\n"),
+    "quality_gates": ("mutable_scope:\n", "quality_gates:\n  - command: gate\n    primary:\n      evidence: first\n    secondary:\n      evidence: second\nmutable_scope:\n"),
+  }
+  replace(base, *insertions[section])
+  loop_path = base / "loop.yaml"
+  text = loop_path.read_text(encoding="utf-8")
+  current_hash = run_policy_hash(parse_loop_yaml(text), "governance", "report-only")
+  old_hash = parse_loop_yaml(text)["checkpoints"]["plan"]["policy_hash"]
+  loop_path.write_text(text.replace(str(old_hash), current_hash), encoding="utf-8")
 elif scenario == "unreadable-goal":
   base = fixture(scenario)
   (base / "1_goal.md").write_bytes(b"\xff\xfe")
@@ -779,6 +804,12 @@ run_contract_case "quoted comments and unrelated duplicates stay valid" "authori
 for section in verifier governance quality_gates; do
   run_contract_case "malformed indentation cannot bypass $section duplicate detection" "malformed-indent-$section" "invalid canonical authority"
   run_contract_case "quoted canonical key cannot bypass $section duplicate detection" "quoted-authority-$section" "invalid canonical authority"
+done
+for section in verifier governance release_policy budget quality_gates; do
+  run_contract_case "mixed tab indentation cannot bypass $section authority diagnostics" "mixed-indent-$section" "invalid canonical authority"
+done
+for section in verifier governance quality_gates; do
+  run_contract_case "distinct unrelated nested $section parents do not collide" "unrelated-nested-$section" "approved run contract"
 done
 run_contract_case "unreadable goal artifact rejected" "unreadable-goal" "unreadable goal artifact"
 run_contract_case "unreadable context artifact rejected" "unreadable-context" "unreadable context artifact"

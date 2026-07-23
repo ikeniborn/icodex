@@ -148,6 +148,20 @@ CANONICAL_TOP_LEVEL = {
   "release_policy", "checkpoints",
 }
 CANONICAL_MAPPINGS = {"verifier", "budget", "governance", "release_policy"}
+CANONICAL_MEMBERS = {
+  "verifier": {"type", "command"},
+  "budget": {"max_iterations"},
+  "governance": {
+    "automation_type", "schedule", "owner", "first_runs_require_human_review",
+    "reviewed_runs", "auto_fix", "auto_merge", "report_only_on_no_findings",
+    "alert_on",
+  },
+  "release_policy": {
+    "target_branch", "merge_strategy", "verifier_required", "evidence_required",
+    "scope_limit", "recovery_policy",
+  },
+}
+QUALITY_GATE_MEMBERS = {"command", "evidence"}
 
 
 def _canonical_authority_diagnostics(text: str) -> list[str]:
@@ -156,6 +170,7 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
   section = ""
   checkpoint = ""
   quality_item = -1
+  nested_parent_indent: int | None = None
 
   def register(path: str) -> None:
     if path in seen and path not in duplicates:
@@ -164,7 +179,12 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
 
   for raw_line in text.splitlines():
     line = _strip_yaml_comment(raw_line)
-    if not line.strip() or "\t" in line[:len(line) - len(line.lstrip())]:
+    if not line.strip():
+      continue
+    leading = line[:len(line) - len(line.lstrip())]
+    if "\t" in leading:
+      if section in CANONICAL_MAPPINGS or section == "quality_gates":
+        duplicates.append(f"{section}.<malformed-indentation>")
       continue
     indent = len(line) - len(line.lstrip(" "))
     stripped = line.strip()
@@ -177,17 +197,35 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
       section = key
       checkpoint = ""
       quality_item = -1
+      nested_parent_indent = None
       if key in CANONICAL_TOP_LEVEL:
         register(key)
       continue
     if section == "quality_gates":
       if indent > 0 and item:
         quality_item += 1
-      if quality_item >= 0 and indent > 0:
-        register(f"quality_gates[{quality_item}].{key}")
+        nested_parent_indent = None
+      if quality_item < 0 or indent <= 0:
+        continue
+      if item:
+        if key in QUALITY_GATE_MEMBERS:
+          register(f"quality_gates[{quality_item}].{key}")
+        continue
+      if indent == 4:
+        nested_parent_indent = indent if key not in QUALITY_GATE_MEMBERS else None
+        if key in QUALITY_GATE_MEMBERS:
+          register(f"quality_gates[{quality_item}].{key}")
+      elif nested_parent_indent is None and key in QUALITY_GATE_MEMBERS:
+        duplicates.append(f"quality_gates[{quality_item}].<malformed-indentation>")
       continue
     if section in CANONICAL_MAPPINGS and indent > 0:
-      register(f"{section}.{key}")
+      members = CANONICAL_MEMBERS[section]
+      if indent == 2:
+        nested_parent_indent = indent if key not in members else None
+        if key in members:
+          register(f"{section}.{key}")
+      elif nested_parent_indent is None and key in members:
+        duplicates.append(f"{section}.<malformed-indentation>")
       continue
     if section == "checkpoints":
       if indent == 2 and not item:
