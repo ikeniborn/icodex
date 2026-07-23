@@ -408,6 +408,52 @@ PY
 )"
 assert_eq "parser ignores canonical leaves below unknown nested parents" "OK" "$nested_canonical_parser_output"
 
+nested_list_parser_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml
+
+parsed = parse_loop_yaml("""mutable_scope:
+  - canonical/**
+    - nested/**
+protected_scope:
+  - protected/**
+    - nested-protected/**
+stop_conditions:
+  - canonical stop
+    - nested stop
+handoff_conditions:
+  - canonical handoff
+    - nested handoff
+quality_gates:
+  - metadata:
+      - command: nested-command
+        evidence: nested.json
+  - metadata:
+      command: ignored
+      evidence: ignored.json
+    command: canonical-command
+    evidence: canonical.json
+  - metadata:
+      evidence: ignored-first.json
+      command: ignored-first
+    evidence: sibling-first.json
+    command: sibling-command
+""")
+expected = (
+    parsed["mutable_scope"] == ["canonical/**"]
+    and parsed["protected_scope"] == ["protected/**"]
+    and parsed["stop_conditions"] == ["canonical stop"]
+    and parsed["handoff_conditions"] == ["canonical handoff"]
+    and parsed["quality_gates"] == [
+        {},
+        {"command": "canonical-command", "evidence": "canonical.json"},
+        {"evidence": "sibling-first.json", "command": "sibling-command"},
+    ]
+)
+print("OK" if expected else parsed)
+PY
+)"
+assert_eq "parser ignores nested canonical list items and preserves quality siblings" "OK" "$nested_list_parser_output"
+
 duplicate_checkpoint_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
 from loen_common import parse_loop_yaml
 
@@ -803,6 +849,17 @@ elif scenario.startswith("unrelated-nested-"):
   current_hash = run_policy_hash(parse_loop_yaml(text), "governance", "report-only")
   old_hash = parse_loop_yaml(text)["checkpoints"]["plan"]["policy_hash"]
   loop_path.write_text(text.replace(str(old_hash), current_hash), encoding="utf-8")
+elif scenario.startswith("nested-list-"):
+  base = fixture(scenario)
+  section = scenario.removeprefix("nested-list-")
+  insertions = {
+    "mutable_scope": ("  - plugins/loen/**", "  - plugins/loen/**\n    - nested/**"),
+    "protected_scope": ("verifier:\n", "protected_scope:\n  - protected/**\n    - nested/**\nverifier:\n"),
+    "stop_conditions": ("rollback_policy:", "stop_conditions:\n  - stop\n    - nested stop\nrollback_policy:"),
+    "handoff_conditions": ("rollback_policy:", "handoff_conditions:\n  - handoff\n    - nested handoff\nrollback_policy:"),
+    "quality_gates": ("mutable_scope:\n", "quality_gates:\n  - metadata:\n      - command: nested\n        evidence: nested.json\nmutable_scope:\n"),
+  }
+  replace(base, *insertions[section])
 elif scenario == "unreadable-goal":
   base = fixture(scenario)
   (base / "1_goal.md").write_bytes(b"\xff\xfe")
@@ -887,6 +944,9 @@ for section in verifier governance release_policy budget quality_gates; do
 done
 for section in verifier governance quality_gates; do
   run_contract_case "distinct unrelated nested $section parents do not collide" "unrelated-nested-$section" "approved run contract"
+done
+for section in mutable_scope protected_scope stop_conditions handoff_conditions quality_gates; do
+  run_contract_case "nested list cannot become canonical $section authority" "nested-list-$section" "invalid canonical authority"
 done
 run_contract_case "unreadable goal artifact rejected" "unreadable-goal" "unreadable goal artifact"
 run_contract_case "unreadable context artifact rejected" "unreadable-context" "unreadable context artifact"

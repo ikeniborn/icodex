@@ -148,6 +148,9 @@ CANONICAL_TOP_LEVEL = {
   "release_policy", "checkpoints",
 }
 CANONICAL_MAPPINGS = {"verifier", "budget", "governance", "release_policy"}
+CANONICAL_LIST_SECTIONS = {
+  "mutable_scope", "protected_scope", "stop_conditions", "handoff_conditions",
+}
 CANONICAL_MEMBERS = {
   "verifier": {"type", "command"},
   "budget": {"max_iterations"},
@@ -183,13 +186,17 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
       continue
     leading = line[:len(line) - len(line.lstrip())]
     if "\t" in leading:
-      if section in CANONICAL_MAPPINGS or section == "quality_gates":
+      if section in CANONICAL_MAPPINGS or section in CANONICAL_LIST_SECTIONS or section == "quality_gates":
         duplicates.append(f"{section}.<malformed-indentation>")
       continue
     indent = len(line) - len(line.lstrip(" "))
     stripped = line.strip()
     item = stripped.startswith("- ")
     mapping = _mapping_key(stripped[2:].strip() if item else stripped)
+    if section in CANONICAL_LIST_SECTIONS and indent > 0:
+      if item and indent != 2:
+        duplicates.append(f"{section}.<malformed-list-item>")
+      continue
     if mapping is None:
       continue
     key, _ = mapping
@@ -202,7 +209,10 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
         register(key)
       continue
     if section == "quality_gates":
-      if indent > 0 and item:
+      if item and indent != 2:
+        duplicates.append("quality_gates.<malformed-list-item>")
+        continue
+      if indent == 2 and item:
         quality_item += 1
         nested_parent_indent = None
       if quality_item < 0 or indent <= 0:
@@ -210,6 +220,8 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
       if item:
         if key in QUALITY_GATE_MEMBERS:
           register(f"quality_gates[{quality_item}].{key}")
+        elif key not in QUALITY_GATE_MEMBERS:
+          nested_parent_indent = 4
         continue
       if indent == 4:
         nested_parent_indent = indent if key not in QUALITY_GATE_MEMBERS else None
@@ -373,12 +385,14 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       continue
 
     if section in {"mutable_scope", "protected_scope", "stop_conditions", "handoff_conditions"}:
-      if stripped.startswith("- "):
+      if indent == 2 and stripped.startswith("- "):
         data[section].append(stripped[2:].strip())
       continue
 
     if section == "quality_gates":
       if stripped.startswith("- "):
+        if indent != 2:
+          continue
         current_list_item = {}
         data["quality_gates"].append(current_list_item)
         quality_nested_parent_indent = None
@@ -389,7 +403,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
           if key in QUALITY_GATE_MEMBERS:
             current_list_item[key] = _parse_scalar(value)
           elif value == "":
-            quality_nested_parent_indent = indent
+            quality_nested_parent_indent = 4
       elif current_list_item is not None:
         mapping = _mapping_key(stripped)
         if mapping is None:
