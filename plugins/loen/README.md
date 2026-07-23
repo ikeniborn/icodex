@@ -257,6 +257,11 @@ checkpoints:
 key-sorted JSON containing `mode`, `subtype`, `mutable_scope`,
 `protected_scope`, `quality_gates`, `verifier`, `budget`, `stop_conditions`,
 `handoff_conditions`, `rollback_policy`, `governance`, and `release_policy`.
+Bare YAML null spellings remain semantic null values; quoted `"null"` remains a
+string. Delivery normalizes a null subtype to its empty runtime subtype before
+hashing. Preflight rejects duplicate canonical authority keys, including nested
+verifier, budget, governance, release-policy, quality-gate, and checkpoint keys,
+instead of accepting first- or last-value wins.
 
 Checkpoints are ordered: `goal_context`, `mode`, `plan`, then `launch`. Mode is
 an explicit `delivery` or `governance` choice; governance also requires an
@@ -284,6 +289,10 @@ Confirmed checkpoint audit events carry the hashes that authorize their
 decision: goal/context for `goal_context`, plan/policy for `plan`, and
 goal/context/plan/policy for `launch`. These events remain history; Runner
 authority comes from checkpoints and progress comes from `run:`.
+Every checkpoint event also requires a real UTC RFC3339 timestamp in canonical
+`YYYY-MM-DDTHH:MM:SS[.fraction]Z` form. Invalid writes are rejected before
+`attempts.jsonl` changes, and malformed historical checkpoint events are omitted
+from rendered checkpoint history.
 
 `loop-run` refuses to continue when a checkpoint is missing, stale,
 contradictory, or out of order; mutable scope or verifier is missing; budget is

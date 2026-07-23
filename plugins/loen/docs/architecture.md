@@ -260,6 +260,14 @@ key-sorted JSON of `mode`, `subtype`, `mutable_scope`, `protected_scope`,
 `quality_gates`, `verifier`, `budget`, `stop_conditions`, `handoff_conditions`,
 `rollback_policy`, `governance`, and `release_policy`.
 
+The parser preserves bare YAML null as semantic null and keeps quoted `"null"`
+as text. Enforcement uses quote-aware diagnostics in addition to the tolerant
+parser API and fails closed on duplicate canonical authority paths, including
+malformed indentation that would otherwise produce last-value-wins behavior.
+Checkpoint event writes require a validated UTC RFC3339 `Z` timestamp; writer
+and reader share the same validator, so invalid writes do not change JSONL and
+malformed historical events cannot enter rendered checkpoint history.
+
 | Deterministic change | Invalidated checkpoints |
 |---|---|
 | `1_goal.md` or `2_context.md` content changes | `goal_context`, `mode`, `plan`, `launch` |

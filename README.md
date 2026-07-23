@@ -206,6 +206,17 @@ offline once the binary is present:
   `.system/`) and its plugin cache (`.codex-isolated/plugins/cache/*/superpowers/…`). A clone
   has the full skills framework with **no plugin install** — only the binary is fetched on
   `--install`.
+- **Superpowers overlay source** — `vendor/superpowers/pin` selects one immutable
+  materialized cache generation, while ordered zero-fuzz patches under
+  `vendor/superpowers/patches/` carry icodex's validation-first workflow changes.
+  The reviewed legacy inputs under `vendor/superpowers/reconstructed-baseline/` are
+  explicitly marked as reconstructed rather than claimed as verified upstream
+  provenance. Future vendor runs store the supplied immutable source revision inside
+  the generated cache before publication. `scripts/vendor-superpowers.sh` validates
+  required skill markers and plugin identity, publishes the complete immutable
+  generation, then updates the pin atomically last. Patch drift, malformed manifests,
+  ambiguous cache state, or pin traversal aborts before the active cache or per-project
+  runtime wiring changes.
 - **Git-ignored** — the downloaded binary (`.codex-isolated/bin/`), secrets
   (`.codex-isolated/auth.json`, `.codex_config`), and all per-project runtime state under
   `.codex-homes/` (sessions, logs, `*.sqlite`).
