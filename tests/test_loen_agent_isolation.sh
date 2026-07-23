@@ -194,6 +194,22 @@ python3 "$capsule_script" "$topic_dir" verifier "Run malformed authority." >/dev
 assert_eq "capsule rejects malformed canonical authority" "1" "$([[ "$capsule_code" -ne 0 ]] && echo 1 || echo 0)"
 assert_contains "capsule explains malformed canonical authority" "$(cat "$capsule_stderr")" "invalid canonical authority"
 mv "$topic_dir/loop.yaml.valid" "$topic_dir/loop.yaml"
+
+cp "$topic_dir/loop.yaml" "$topic_dir/loop.yaml.valid"
+python3 - "$topic_dir/loop.yaml" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+path.write_text(text.replace("    mode: read-only", "    mode: read-only\n    metadata:\n      mode: write", 1), encoding="utf-8")
+PY
+capsule_stderr="$tmp/capsule-nested-execution.stderr"
+capsule_code=0
+python3 "$capsule_script" "$topic_dir" verifier "Run nested execution authority." >/dev/null 2>"$capsule_stderr" || capsule_code=$?
+assert_eq "capsule rejects nested execution mount overwrite" "1" "$([[ "$capsule_code" -ne 0 ]] && echo 1 || echo 0)"
+assert_contains "capsule diagnoses nested execution mount overwrite" "$(cat "$capsule_stderr")" "invalid canonical authority"
+mv "$topic_dir/loop.yaml.valid" "$topic_dir/loop.yaml"
 assert_contains "capsule includes protected scope" "$capsule" ".codex-isolated/**"
 assert_contains "capsule includes quality gate" "$capsule" "bash tests/test_loen_agent_isolation.sh"
 assert_contains "capsule includes relevant files" "$capsule" "plugins/loen/hooks/loen_capsules.py"

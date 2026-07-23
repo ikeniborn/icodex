@@ -557,22 +557,6 @@ def _has_exact_markdown_value(text: str, expected: str) -> bool:
   return False
 
 
-def _yaml_section_list(loop_text: str, section: str) -> list[str]:
-  values: list[str] = []
-  in_section = False
-  for raw in loop_text.splitlines():
-    if raw == f"{section}:":
-      in_section = True
-      continue
-    if in_section and raw and not raw.startswith(" ") and not raw.startswith("-"):
-      break
-    if in_section:
-      stripped = raw.strip()
-      if stripped.startswith("- "):
-        values.append(stripped[2:].strip().strip('"'))
-  return values
-
-
 def governance_policy(loop_text: str) -> dict[str, object]:
   parsed, diagnostics = parse_loop_yaml_checked(loop_text)
   if diagnostics:
@@ -774,41 +758,25 @@ def append_automation_attempt(
 
 
 def _summary_from_loop(loop_text: str, topic: str) -> LoopSummary:
-  values: dict[str, str] = {}
-  for raw in loop_text.splitlines():
-    if ":" not in raw or raw.startswith(" ") or raw.startswith("-"):
-      continue
-    key, value = raw.split(":", 1)
-    values[key.strip()] = value.strip().strip('"')
-  verifier_command = ""
-  verifier_type = ""
-  budget_value = ""
-  lines = loop_text.splitlines()
-  for index, raw in enumerate(lines):
-    if raw.strip() == "verifier:":
-      for child in lines[index + 1:index + 4]:
-        stripped = child.strip()
-        if stripped.startswith("type:"):
-          verifier_type = stripped.split(":", 1)[1].strip().strip('"')
-        if stripped.startswith("command:"):
-          verifier_command = stripped.split(":", 1)[1].strip().strip('"')
-    if raw.strip() == "budget:":
-      for child in lines[index + 1:index + 3]:
-        stripped = child.strip()
-        if stripped.startswith("max_iterations:"):
-          budget_value = stripped.split(":", 1)[1].strip().strip('"')
+  parsed = parse_loop_yaml(loop_text)
+  verifier = parsed.get("verifier", {})
+  budget = parsed.get("budget", {})
+  if not isinstance(verifier, dict):
+    verifier = {}
+  if not isinstance(budget, dict):
+    budget = {}
   return LoopSummary(
-    topic=values.get("topic", topic),
-    mode=values.get("mode", ""),
-    objective=values.get("objective", ""),
-    current_stage=values.get("current_stage", values.get("stage", "")),
-    verifier_type=verifier_type,
-    verifier_command=verifier_command,
-    max_iterations=budget_value,
-    rollback_policy=values.get("rollback_policy", ""),
-    stop_conditions=_yaml_section_list(loop_text, "stop_conditions"),
-    handoff_conditions=_yaml_section_list(loop_text, "handoff_conditions"),
-    protected_scope=_yaml_section_list(loop_text, "protected_scope"),
+    topic=str(parsed.get("topic", topic)),
+    mode=str(parsed.get("mode", "")),
+    objective=str(parsed.get("objective", "")),
+    current_stage=str(parsed.get("current_stage", parsed.get("stage", ""))),
+    verifier_type=str(verifier.get("type", "")),
+    verifier_command=str(verifier.get("command", "")),
+    max_iterations=str(budget.get("max_iterations", "")),
+    rollback_policy=str(parsed.get("rollback_policy", "")),
+    stop_conditions=list(parsed.get("stop_conditions", [])),
+    handoff_conditions=list(parsed.get("handoff_conditions", [])),
+    protected_scope=list(parsed.get("protected_scope", [])),
   )
 
 

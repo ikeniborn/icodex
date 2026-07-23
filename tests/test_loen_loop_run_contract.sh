@@ -473,6 +473,27 @@ PY
 )"
 assert_eq "mixed-tab permission scope cannot alter canonical state" "OK" "$mixed_permission_scope_output"
 
+runtime_authority_diagnostics_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml_checked
+
+cases = {
+    "status": "status: done\nstatus: active\n",
+    "agents": "agents:\n  worker:\n    tools: [read]\n    tools: [write]\n",
+    "stages": "stages:\n  act:\n    roles: [worker]\n    roles: [verifier]\n",
+    "tools": "tools:\n  allowed: [read]\n  allowed: [write]\n",
+    "permissions": "permissions:\n  filesystem:\n    mutable_scope:\n      - outside/**\n    mutable_scope:\n      - tests/**\n",
+    "execution": "execution:\n  mounts:\n  - path: .\n    mode: read-only\n    metadata:\n      mode: write\n",
+}
+missing = []
+for name, text in cases.items():
+    _, diagnostics = parse_loop_yaml_checked(text)
+    if not diagnostics:
+        missing.append(name)
+print("OK" if not missing else ",".join(missing))
+PY
+)"
+assert_eq "checked parser diagnoses every runtime authority family" "OK" "$runtime_authority_diagnostics_output"
+
 duplicate_checkpoint_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
 from loen_common import parse_loop_yaml
 

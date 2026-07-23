@@ -145,8 +145,10 @@ def _mapping_key(text: str) -> tuple[str, str] | None:
 CANONICAL_TOP_LEVEL = {
   "mutable_scope", "protected_scope", "quality_gates", "verifier", "budget",
   "stop_conditions", "handoff_conditions", "rollback_policy", "governance",
-  "release_policy", "checkpoints",
+  "release_policy", "checkpoints", "agents", "stages", "tools", "permissions",
+  "execution",
 }
+CANONICAL_TOP_SCALARS = {"topic", "mode", "status", "objective", "current_stage", "stage"}
 CANONICAL_MAPPINGS = {"verifier", "budget", "governance", "release_policy"}
 CANONICAL_LIST_SECTIONS = {
   "mutable_scope", "protected_scope", "stop_conditions", "handoff_conditions",
@@ -165,6 +167,16 @@ CANONICAL_MEMBERS = {
   },
 }
 QUALITY_GATE_MEMBERS = {"command", "evidence"}
+AGENT_MEMBERS = {"tools", "sandbox", "must_not_edit", "experiment_scope_required"}
+STAGE_MEMBERS = {"roles"}
+TOOL_MEMBERS = {"allowed", "denied"}
+PERMISSION_MEMBERS = {
+  "filesystem": {"mutable_scope", "protected_scope"},
+  "network": {"mode", "allowlist"},
+  "shell": {"allow", "deny_patterns"},
+}
+EXECUTION_MEMBERS = {"isolation", "executor", "network", "mounts"}
+EXECUTION_MOUNT_MEMBERS = {"path", "mode"}
 
 
 def _canonical_authority_diagnostics(text: str) -> list[str]:
@@ -176,6 +188,8 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
   nested_parent_indent: int | None = None
   permission_subsection = ""
   permission_list = ""
+  runtime_name = ""
+  execution_mount = -1
 
   def register(path: str) -> None:
     if path in seen and path not in duplicates:
@@ -188,7 +202,7 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
       continue
     leading = line[:len(line) - len(line.lstrip())]
     if "\t" in leading:
-      if section in CANONICAL_MAPPINGS or section in CANONICAL_LIST_SECTIONS or section in {"quality_gates", "permissions"}:
+      if section in CANONICAL_MAPPINGS or section in CANONICAL_LIST_SECTIONS or section in {"quality_gates", "agents", "stages", "tools", "permissions", "execution"}:
         duplicates.append(f"{section}.<malformed-indentation>")
       continue
     indent = len(line) - len(line.lstrip(" "))
@@ -199,19 +213,29 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
       if item and indent != 2:
         duplicates.append(f"{section}.<malformed-list-item>")
       continue
+    if section == "tools" and item:
+      if indent != 4:
+        duplicates.append("tools.<malformed-list-item>")
+      continue
     if section == "permissions" and indent > 0:
       if item:
-        if permission_subsection == "filesystem" and permission_list in {"mutable_scope", "protected_scope"} and indent != 6:
-          duplicates.append(f"permissions.filesystem.{permission_list}.<malformed-list-item>")
+        if permission_list and indent != 6:
+          duplicates.append(f"permissions.{permission_subsection}.{permission_list}.<malformed-list-item>")
         continue
       if mapping is None:
         continue
       key, value = mapping
       if indent == 2:
-        permission_subsection = key if value == "" else ""
+        permission_subsection = key if key in PERMISSION_MEMBERS and value == "" else ""
         permission_list = ""
-      elif indent == 4 and permission_subsection == "filesystem":
-        permission_list = key if key in {"mutable_scope", "protected_scope"} and value == "" else ""
+        if permission_subsection:
+          register(f"permissions.{permission_subsection}")
+      elif indent == 4 and permission_subsection:
+        if key in PERMISSION_MEMBERS[permission_subsection]:
+          register(f"permissions.{permission_subsection}.{key}")
+        permission_list = key if key in PERMISSION_MEMBERS[permission_subsection] and key != "mode" and value == "" else ""
+      elif key in PERMISSION_MEMBERS.get(permission_subsection, set()):
+        duplicates.append(f"permissions.{permission_subsection}.<malformed-indentation>")
       continue
     if mapping is None:
       continue
@@ -221,8 +245,47 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
       checkpoint = ""
       quality_item = -1
       nested_parent_indent = None
+      runtime_name = ""
+      execution_mount = -1
       if key in CANONICAL_TOP_LEVEL:
         register(key)
+      if key in CANONICAL_TOP_SCALARS:
+        register(key)
+      continue
+    if section in {"agents", "stages"}:
+      members = AGENT_MEMBERS if section == "agents" else STAGE_MEMBERS
+      if indent == 2 and not item and mapping is not None:
+        runtime_name = key if mapping[1] == "" else ""
+        if runtime_name:
+          register(f"{section}.{runtime_name}")
+      elif indent == 4 and runtime_name and key in members:
+        register(f"{section}.{runtime_name}.{key}")
+      elif runtime_name and key in members:
+        duplicates.append(f"{section}.{runtime_name}.<malformed-indentation>")
+      continue
+    if section == "tools":
+      if indent == 2 and key in TOOL_MEMBERS:
+        register(f"tools.{key}")
+      elif key in TOOL_MEMBERS:
+        duplicates.append("tools.<malformed-indentation>")
+      continue
+    if section == "execution":
+      if item:
+        if indent != 4:
+          duplicates.append("execution.mounts.<malformed-list-item>")
+          continue
+        execution_mount += 1
+        if key in EXECUTION_MOUNT_MEMBERS:
+          register(f"execution.mounts[{execution_mount}].{key}")
+        continue
+      if indent == 2 and key in EXECUTION_MEMBERS:
+        register(f"execution.{key}")
+      elif indent == 6 and execution_mount >= 0 and key in EXECUTION_MOUNT_MEMBERS:
+        register(f"execution.mounts[{execution_mount}].{key}")
+      elif execution_mount >= 0 and key in EXECUTION_MOUNT_MEMBERS:
+        duplicates.append(f"execution.mounts[{execution_mount}].<malformed-indentation>")
+      elif key in EXECUTION_MEMBERS:
+        duplicates.append("execution.<malformed-indentation>")
       continue
     if section == "quality_gates":
       if item and indent != 2:
@@ -304,6 +367,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       "network": {"mode": "off", "allowlist": []},
       "shell": {"allow": [], "deny_patterns": []},
     },
+    "execution": {"isolation": "", "executor": "", "network": "off", "mounts": []},
     "mutable_scope": [],
     "protected_scope": [],
     "quality_gates": [],
@@ -358,6 +422,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
   list_target: list[Any] | None = None
   canonical_nested_parent_indent: int | None = None
   quality_nested_parent_indent: int | None = None
+  current_mount: dict[str, Any] | None = None
 
   for raw_line in text.splitlines():
     line = _strip_yaml_comment(raw_line)
@@ -370,7 +435,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
     if "\t" in leading_whitespace and (
       section in CANONICAL_MAPPINGS
       or section in CANONICAL_LIST_SECTIONS
-      or section in {"quality_gates", "permissions"}
+      or section in {"quality_gates", "agents", "stages", "tools", "permissions", "execution"}
     ):
       continue
     if section == "checkpoints" and "\t" in leading_whitespace:
@@ -390,6 +455,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       list_target = None
       canonical_nested_parent_indent = None
       quality_nested_parent_indent = None
+      current_mount = None
       if stripped.endswith(":") and stripped[:-1] != "rollback_policy":
         section = stripped[:-1]
         if section in {"mutable_scope", "protected_scope", "stop_conditions", "handoff_conditions"}:
@@ -503,44 +569,57 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       continue
 
     if section == "agents":
-      if indent == 2 and stripped.endswith(":"):
-        current_agent = stripped[:-1]
+      mapping = _mapping_key(stripped)
+      if indent == 2 and mapping is not None and mapping[1] == "":
+        current_agent = mapping[0]
         data["agents"].setdefault(current_agent, {})
         list_target = None
         continue
-      if current_agent and ":" in stripped:
-        key, value = stripped.split(":", 1)
-        key = key.strip()
-        value = value.strip()
+      if indent == 4 and current_agent and mapping is not None and mapping[0] in AGENT_MEMBERS:
+        key, value = mapping
         data["agents"][current_agent][key] = _parse_inline_list(value) or _parse_scalar(value)
       continue
 
     if section == "stages":
-      if indent == 2 and stripped.endswith(":"):
-        current_agent = stripped[:-1]
+      mapping = _mapping_key(stripped)
+      if indent == 2 and mapping is not None and mapping[1] == "":
+        current_agent = mapping[0]
         data["stages"].setdefault(current_agent, {})
         list_target = None
         continue
-      if current_agent and ":" in stripped:
-        key, value = stripped.split(":", 1)
-        key = key.strip()
-        value = value.strip()
+      if indent == 4 and current_agent and mapping is not None and mapping[0] in STAGE_MEMBERS:
+        key, value = mapping
         data["stages"][current_agent][key] = _parse_inline_list(value) or _parse_scalar(value)
       continue
 
     if section == "tools":
-      if ":" in stripped:
-        key, value = stripped.split(":", 1)
-        key = key.strip()
+      mapping = _mapping_key(stripped)
+      if indent == 2 and mapping is not None and mapping[0] in TOOL_MEMBERS:
+        key, value = mapping
         parsed = _parse_inline_list(value)
-        data["tools"].setdefault(key, [])
         if parsed or value.strip() == "[]":
           data["tools"][key] = parsed
           list_target = None
         else:
           list_target = data["tools"][key]
-      elif stripped.startswith("- ") and list_target is not None:
+      elif indent == 4 and stripped.startswith("- ") and list_target is not None:
         list_target.append(stripped[2:].strip())
+      continue
+
+    if section == "execution":
+      mapping = _mapping_key(stripped[2:].strip() if stripped.startswith("- ") else stripped)
+      if indent == 2 and mapping is not None and mapping[0] in {"isolation", "executor", "network"}:
+        data["execution"][mapping[0]] = _parse_scalar(mapping[1])
+        current_mount = None
+      elif indent == 2 and mapping == ("mounts", ""):
+        current_mount = None
+      elif indent == 4 and stripped.startswith("- "):
+        current_mount = {}
+        data["execution"]["mounts"].append(current_mount)
+        if mapping is not None and mapping[0] in EXECUTION_MOUNT_MEMBERS:
+          current_mount[mapping[0]] = _parse_scalar(mapping[1])
+      elif indent == 6 and current_mount is not None and mapping is not None and mapping[0] in EXECUTION_MOUNT_MEMBERS:
+        current_mount[mapping[0]] = _parse_scalar(mapping[1])
       continue
 
     if section in {"governance", "run", "release_policy"}:
@@ -576,13 +655,13 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       continue
 
     if section == "permissions":
-      if indent == 2 and stripped.endswith(":"):
-        subsection = stripped[:-1]
+      mapping = _mapping_key(stripped)
+      if indent == 2 and mapping is not None and mapping[0] in PERMISSION_MEMBERS and mapping[1] == "":
+        subsection = mapping[0]
         list_target = None
         continue
-      target = data["permissions"].setdefault(subsection, {})
-      mapping = _mapping_key(stripped)
-      if mapping is not None and indent == 4:
+      target = data["permissions"].get(subsection)
+      if isinstance(target, dict) and mapping is not None and indent == 4 and mapping[0] in PERMISSION_MEMBERS[subsection]:
         key, value = mapping
         parsed = _parse_inline_list(value)
         if parsed or value.strip() == "[]":
@@ -629,7 +708,9 @@ def current_topic() -> str:
     loop_text = loop_file.read_text(encoding="utf-8")
   except (OSError, UnicodeDecodeError):
     return ""
-  policy = parse_loop_yaml(loop_text)
+  policy, diagnostics = parse_loop_yaml_checked(loop_text)
+  if diagnostics:
+    return ""
   if str(policy.get("status", "")).strip() != "active":
     return ""
 

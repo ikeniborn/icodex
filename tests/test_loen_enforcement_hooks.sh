@@ -237,6 +237,31 @@ assert_hook_stderr_contains "permission-guard rejects malformed canonical author
 assert_hook_stderr_contains "tool-guard rejects malformed canonical authority" 2 "tool-guard.py" "strict" "$topic" "$verifier_read" "invalid canonical authority"
 mv "$topic_dir/loop.yaml.valid" "$topic_dir/loop.yaml"
 
+assert_malformed_runtime_authority() {
+  local name="$1"
+  local hook="$2"
+  local mode="$3"
+  local payload="$4"
+  local old="$5"
+  local new="$6"
+  cp "$topic_dir/loop.yaml" "$topic_dir/loop.yaml.valid"
+  python3 - "$topic_dir/loop.yaml" "$old" "$new" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+path.write_text(text.replace(sys.argv[2], sys.argv[3], 1), encoding="utf-8")
+PY
+  assert_hook_stderr_contains "$name" 2 "$hook" "$mode" "$topic" "$payload" "invalid canonical authority"
+  mv "$topic_dir/loop.yaml.valid" "$topic_dir/loop.yaml"
+}
+
+assert_malformed_runtime_authority "loop-gate rejects duplicate status" "loop-gate.py" "enforce" "$edit_payload" "status: active" $'status: done\nstatus: active'
+assert_malformed_runtime_authority "tool-guard rejects duplicate tools allowed" "tool-guard.py" "strict" "$verifier_read" "  allowed:" $'  allowed: [read]\n  allowed:'
+assert_malformed_runtime_authority "tool-guard rejects mixed-indent tools authority" "tool-guard.py" "strict" "$verifier_read" "  allowed:" $' \tallowed: [read]\n  allowed:'
+assert_malformed_runtime_authority "scope-guard rejects duplicate permission scope expansion" "scope-guard.py" "enforce" "$outside_edit" $'    mutable_scope:\n      - src/**\n      - tests/**' $'    mutable_scope:\n      - outside/**\n    mutable_scope:\n      - src/**\n      - tests/**'
+
 assert_hook_exit "permission-guard allows configured shell command" 0 "permission-guard.py" "strict" "$topic" "$shell_allow"
 assert_hook_exit "permission-guard blocks destructive git" 2 "permission-guard.py" "strict" "$topic" "$shell_deny"
 assert_hook_exit "permission-guard blocks configured deny pattern" 2 "permission-guard.py" "strict" "$topic" "$shell_deny_pattern"

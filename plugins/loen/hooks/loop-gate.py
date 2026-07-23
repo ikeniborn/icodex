@@ -2,7 +2,7 @@
 """LoEn loop-state gate; reads LOEN_ARTIFACT_ROOT through loen_common."""
 from __future__ import annotations
 
-from loen_common import block_or_nudge, event_topic, extract_paths, is_edit_event, is_off, parse_loop_yaml, read_event, read_loop_artifact, tool_input, topic_dir
+from loen_common import block_or_nudge, event_topic, extract_paths, is_edit_event, is_off, parse_loop_yaml_checked, read_event, read_loop_artifact, tool_input, topic_dir
 
 SCRIPT_NAME = "loop-gate"
 STAGE_NUMBERS = {
@@ -69,7 +69,10 @@ def main() -> int:
   if is_edit_event(event) and not loop_text:
     return block_or_nudge("LoEn: code edits require an active loop in enforce/strict mode")
   if is_edit_event(event) and loop_text:
-    status = str(parse_loop_yaml(loop_text).get("status", "")).strip()
+    policy, diagnostics = parse_loop_yaml_checked(loop_text)
+    if diagnostics:
+      return block_or_nudge("LoEn: invalid canonical authority")
+    status = str(policy.get("status", "")).strip()
     if status != "active":
       current = status or "missing"
       return block_or_nudge(f"LoEn: code edits require an active loop; current status is {current}")
