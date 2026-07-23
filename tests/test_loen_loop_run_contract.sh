@@ -735,7 +735,8 @@ assert_contains "loop-plan separately approves plan" "$loop_plan_text" "Obtain s
 assert_contains "loop-plan exact upstream validation" "$loop_plan_text" 'UPSTREAM VALIDATION: Validate confirmed goal_context hashes against current `1_goal.md` and `2_context.md`, then validate confirmed explicit mode and subtype.'
 assert_contains "loop-plan plan change reset mapping" "$loop_plan_text" 'PLAN INVALIDATION: Before writing changed `3_plan.md`, reset plan and launch and append one reset event for each.'
 assert_contains "loop-plan approval restores only plan" "$loop_plan_text" 'Explicit approval restores plan only; launch remains unconfirmed.'
-assert_contains "loop-plan restoration writes only plan checkpoint" "$loop_plan_text" 'PLAN RESTORATION: After explicit plan approval, write only `checkpoints.plan.confirmed: true` and its current `plan_hash`, append the confirmed plan event, and leave `checkpoints.launch.confirmed: false`.'
+assert_contains "loop-plan restoration writes only plan checkpoint" "$loop_plan_text" 'PLAN RESTORATION: After explicit plan approval, write only `checkpoints.plan.confirmed: true` and its current `plan_hash`, then append the confirmed plan event.'
+assert_contains "loop-plan restoration leaves launch false" "$loop_plan_text" 'Keep `checkpoints.launch.confirmed: false`.'
 assert_ordered_lines "loop-plan preserves replan gate order" "$loop_plan" \
   'UPSTREAM VALIDATION:' \
   'PLAN REGENERATION:' \
@@ -748,9 +749,13 @@ assert_contains "loop-plan must not invoke runner" "$loop_plan_text" 'PROHIBITIO
 
 loop_start_filtered="$(grep -vF 'MUST NOT' "$loop_start" | grep -vF 'To continue, run `loen:loop-run <topic>`.' || true)"
 loop_plan_filtered="$(grep -vF 'MUST NOT' "$loop_plan" || true)"
-runner_action_pattern='(^|[^[:alnum:]_])(start|invoke|execute)[[:space:]]+(`?loen:loop-run`?|the[[:space:]]+runner|runner)([^[:alnum:]_]|$)'
-launch_true_pattern='(^|[^[:alnum:]_])(write|set|confirm)[^.]*((launch[^.]*true)|(launch[[:space:]_-]+confirmation))'
-launch_offer_pattern='(^|[^[:alnum:]_])(offer|authorize|allow|approve)[^.]*((immediate[^.]*launch)|(launch[^.]*immediate)|(loop-run)|(runner))'
+runner_action_pattern='((^|[^[:alnum:]_])(run|launch|call|start|invoke|execute)([^[:alnum:]_]|$).*(loen:loop-run|loop-run|runner))|((loen:loop-run|loop-run|runner).*(^|[^[:alnum:]_])(run|launch|call|start|invoke|execute)([^[:alnum:]_]|$))'
+launch_confirmed_true_pattern='launch.*confirmed[[:space:]:]*true'
+launch_write_true_pattern='((write|set|mark|confirm).*launch.*true)|((write|set|mark|confirm).*true.*launch)|(launch.*(write|set|mark|confirm).*true)|(launch.*true.*(write|set|mark|confirm))|(true.*(write|set|mark|confirm).*launch)|(true.*launch.*(write|set|mark|confirm))'
+assert_eq "runner guard detects direct run" "1" "$(printf '%s\n' 'Run loen:loop-run <topic> now.' | grep -Eic "$runner_action_pattern" || true)"
+assert_eq "runner guard detects immediate call" "1" "$(printf '%s\n' 'Call the runner immediately.' | grep -Eic "$runner_action_pattern" || true)"
+assert_eq "launch guard detects dotted checkpoint write" "1" "$(printf '%s\n' 'Write checkpoints.launch.confirmed: true.' | grep -Eic "$launch_write_true_pattern" || true)"
+assert_eq "launch guard detects confirmed true set" "1" "$(printf '%s\n' 'Set launch to confirmed true.' | grep -Eic "$launch_confirmed_true_pattern" || true)"
 for skill_name in loop-start loop-plan; do
   if [[ "$skill_name" == "loop-start" ]]; then
     filtered_text="$loop_start_filtered"
@@ -758,8 +763,8 @@ for skill_name in loop-start loop-plan; do
     filtered_text="$loop_plan_filtered"
   fi
   assert_eq "$skill_name has no runner action path outside prohibition" "0" "$(printf '%s\n' "$filtered_text" | grep -Eic "$runner_action_pattern" || true)"
-  assert_eq "$skill_name has no launch true path outside prohibition" "0" "$(printf '%s\n' "$filtered_text" | grep -Eic "$launch_true_pattern" || true)"
-  assert_eq "$skill_name has no launch offer path outside prohibition" "0" "$(printf '%s\n' "$filtered_text" | grep -Eic "$launch_offer_pattern" || true)"
+  assert_eq "$skill_name has no launch confirmed true path outside prohibition" "0" "$(printf '%s\n' "$filtered_text" | grep -Eic "$launch_confirmed_true_pattern" || true)"
+  assert_eq "$skill_name has no launch write true path outside prohibition" "0" "$(printf '%s\n' "$filtered_text" | grep -Eic "$launch_write_true_pattern" || true)"
 done
 assert_eq "loop-start exact continuation output appears once" "1" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_start")"
 assert_eq "loop-plan has no continuation output" "0" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_plan" || true)"
