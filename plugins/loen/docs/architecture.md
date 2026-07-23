@@ -171,7 +171,8 @@ flowchart TD
     RunPreflight -- "fail" --> Handoff
     RunPreflight -- "pass" --> Summary["final contract summary"]
     Summary --> LaunchApproval{"explicit human launch?"}
-    LaunchApproval -- "no" --> Handoff
+    LaunchApproval -- "no" --> RefusedEvent["append refused checkpoint event"]
+    RefusedEvent --> StopWithoutRun["stop without execution or handoff"]
     LaunchApproval -- "yes" --> LaunchCheckpoint["launch checkpoint bound to three hashes"]
     LaunchCheckpoint --> RepeatPreflight{"repeat full preflight"}
     RepeatPreflight -- "fail" --> Handoff
@@ -210,7 +211,7 @@ flowchart TD
     classDef governance fill:#94e2d5,color:#1e1e2e,stroke:#179299
     classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
     class Goal,Context,Plan,Act,Check,Reflect,Result,Attempts,Evidence,GovernanceEvidence,Handoff artifact
-    class LoopYaml,GovernancePolicy,HumanReview,Approval,RunContract,LaunchCheckpoint contract
+    class LoopYaml,GovernancePolicy,HumanReview,Approval,RunContract,LaunchCheckpoint,RefusedEvent contract
     class LoopStart,LoopRun,DeliveryState governance
     class GovernanceRun,ReportOnly,AutoFix,MergeRelease governance
     class GoalContextGate,StartModeChoice,StartSubtypeSelect,ModeChoice,SubtypeChoice,RunPreflight,LaunchApproval,RepeatPreflight decision

@@ -102,13 +102,13 @@ sequenceDiagram
     Start->>Files: write integrated 3_plan.md
     Start->>User: approve 3_plan.md
     Start->>Files: record plan checkpoint and event
-    Start-->>User: loen:loop-run &lt;topic&gt;
+    Start-->>User: loen:loop-run #60;topic#62;
     User->>Run: invoke continuation command
     Run->>Files: prelaunch validation
     Run->>User: present final contract summary and request launch
     User->>Run: explicitly confirm launch
     Run->>Files: record launch hashes and event
-    Run->>Files: repeat full preflight; execute or refuse
+    Run->>Files: repeat full preflight, execute or refuse
     Run->>Files: write attempts, evidence, 4_act.md, 5_check.md, 6_reflect.md
     Run->>Files: write 7_result.md or handoff.md
     User->>Status: inspect current state
@@ -127,35 +127,81 @@ to the objective with enough evidence to keep it?
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 flowchart TD
-    Start["loen:loop-start"] --> Develop["Adaptive goal and context development"]
-    Develop --> GoalGate{"Confirm goal/context?"}
-    GoalGate -- "yes" --> ModeGate{"Explicit mode and subtype?"}
-    ModeGate -- "yes" --> Plan["Generate integrated 3_plan.md"]
-    Plan --> PlanGate{"Approve plan separately?"}
-    PlanGate -- "yes" --> Stop["Stop: loen:loop-run &lt;topic&gt;"]
-    Stop --> Invoke["User invokes loop-run"]
-    Invoke --> Prelaunch{"Prelaunch contract valid?"}
-    Prelaunch -- "no" --> Refuse["Refuse with recovery command"]
-    Prelaunch -- "yes" --> Summary["Present final contract summary"]
-    Summary --> LaunchGate{"Explicit human launch?"}
-    LaunchGate -- "no" --> Refuse
-    LaunchGate -- "yes" --> Launch["Record launch hashes and event"]
-    Launch --> Preflight{"Repeat full preflight"}
-    Preflight -- "fail" --> Refuse
-    Preflight -- "delivery" --> Delivery["prepare -> act -> check -> reflect"]
-    Preflight -- "governance" --> Governance["report-only, auto-fix, or merge-release"]
-    Delivery --> Outcome["7_result.md or handoff.md"]
-    Governance --> Outcome
-    Replan["Standalone loop-plan: existing topic replan"] -.-> Plan
+    StartTopic["loen:loop-start creates docs/loen/&lt;topic&gt;/"] --> SharedArtifacts["Shared setup: loop.yaml, stage files, attempts.jsonl, evidence/, audit.html"]
+    SharedArtifacts --> Develop["Adaptively develop and confirm goal/context"]
+    Develop --> Branch{"Explicit mode?"}
+    Branch -- "delivery" --> PlanApproval["Write and separately approve integrated 3_plan.md"]
+    Branch -- "governance" --> StartSubtype{"Select governance subtype"}
+    StartSubtype -- "report-only" --> PlanApproval
+    StartSubtype -- "auto-fix" --> PlanApproval
+    StartSubtype -- "merge-release" --> PlanApproval
+    PlanApproval --> Stop["Stop: loen:loop-run &lt;topic&gt;"]
+    Stop --> Prelaunch{"Prelaunch contract valid?"}
+    Prelaunch -- "no" --> HandoffStep["handoff.md records preflight failure"]
+    Prelaunch -- "yes" --> LaunchGate{"Final summary and explicit human launch?"}
+    LaunchGate -- "no" --> Refused["Append refused event and stop"]
+    LaunchGate -- "yes" --> Launch["Record launch hashes"]
+    Launch --> RunPreflight{"Repeated full preflight passes?"}
+    RunPreflight -- "no" --> HandoffStep
+
+    subgraph delivery["Delivery pass"]
+        PrepareStep["loop-run prepare state"]
+        ActStep["loop-run act state writes 4_act.md"]
+        CheckStep["loop-run check state writes 5_check.md and evidence/*"]
+        ReflectStep{"loop-run reflect outcome"}
+        ResultStep["7_result.md plus topic audit.html"]
+        FixStep["Fix needs another bounded pass"]
+    end
+
+    subgraph governance["Governance pass"]
+        GovStep["loop-run governance state"]
+        GovSubtype{"Confirmed checkpoint subtype?"}
+        ReportOnly["report-only records findings"]
+        AutoFix["auto-fix changes usable mutable scope"]
+        MergeRelease["merge-release checks universal launch and release_policy"]
+        GovPolicy["Adds or updates loop.yaml governance owner, schedule, review rules"]
+        GovAttempt["Required for run: attempts.jsonl automation record"]
+        GovEvidence["Required for run: evidence/* verifier output"]
+        GovAudit["Required for run: docs/loen/&lt;topic&gt;/audit.html"]
+        GovReview{"Human review required?"}
+        GovWait["Wait for owner review"]
+    end
+
+    RunPreflight -- "delivery" --> PrepareStep
+    PrepareStep --> ActStep
+    ActStep --> CheckStep
+    CheckStep --> ReflectStep
+    ReflectStep -- "keep and objective met" --> ResultStep
+    ReflectStep -- "fix" --> FixStep
+    FixStep --> PrepareStep
+    ReflectStep -- "handoff" --> HandoffStep
+
+    RunPreflight -- "governance" --> GovStep
+    GovStep --> GovSubtype
+    GovSubtype -- "report-only" --> ReportOnly
+    GovSubtype -- "auto-fix" --> AutoFix
+    GovSubtype -- "merge-release" --> MergeRelease
+    ReportOnly --> GovPolicy
+    AutoFix --> GovPolicy
+    MergeRelease --> GovPolicy
+    GovPolicy --> GovAttempt
+    GovAttempt --> GovEvidence
+    GovEvidence --> GovAudit
+    GovAudit --> GovReview
+    GovReview -- "yes" --> GovWait
+    GovReview -- "no" --> ReflectStep
+
+    Replan["Standalone loop-plan replans an existing topic"] -.-> PlanApproval
+    ManualSkills["Manual loop-act, loop-check, and loop-reflect remain supported"] -.-> PrepareStep
 
     classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
     classDef deliveryClass fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec
     classDef governanceClass fill:#94e2d5,color:#1e1e2e,stroke:#179299
     classDef artifactClass fill:#a6e3a1,color:#1e1e2e,stroke:#40a02b
-    class GoalGate,ModeGate,PlanGate,Prelaunch,LaunchGate,Preflight decision
-    class Start,Develop,Plan,Replan,Delivery deliveryClass
-    class Governance governanceClass
-    class Stop,Summary,Launch,Refuse,Outcome artifactClass
+    class Branch,StartSubtype,Prelaunch,LaunchGate,RunPreflight,ReflectStep,GovSubtype,GovReview decision
+    class Develop,PrepareStep,ActStep,CheckStep,FixStep,HandoffStep,Replan,ManualSkills deliveryClass
+    class GovStep,ReportOnly,AutoFix,MergeRelease,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
+    class StartTopic,SharedArtifacts,PlanApproval,Stop,Refused,Launch,ResultStep artifactClass
 ```
 
 1. Initial planning is integrated into `loop-start`. Standalone `loop-plan`
@@ -196,7 +242,7 @@ checkpoints:
     mode: delivery
     subtype: null
   plan:
-    approved: true
+    confirmed: true
     plan_hash: "<hash of 3_plan.md>"
   launch:
     confirmed: false
@@ -310,7 +356,8 @@ Governance topics still write ordinary LoEn artifacts under
 verifier output under `evidence/`, and regenerate
 `docs/loen/<topic>/audit.html`.
 
-`loop-governance` adds or updates the `governance:` section inside `loop.yaml`,
+It is no longer true that `loop-governance` can run immediately after
+`loop-start`. It adds or updates the `governance:` section inside `loop.yaml`,
 but governance execution still requires the universal `loop-run` launch
 checkpoint. Plan approval or runner invocation alone never authorizes a
 governance run. Each governance run requires these artifacts before it can be
