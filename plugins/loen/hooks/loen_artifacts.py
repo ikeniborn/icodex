@@ -266,7 +266,8 @@ def _first_heading_body(text: str) -> str:
 
 
 def artifact_body_hash(path: Path) -> str:
-  return hashlib.sha256(_read(path).encode("utf-8")).hexdigest()[:16]
+  text = path.read_text(encoding="utf-8")
+  return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
 def plan_body_hash(plan_path: Path) -> str:
@@ -303,8 +304,11 @@ def _validate_checkpoints(
   *,
   require_launch: bool,
 ) -> tuple[dict[str, object] | None, str, str]:
-  if not any(line == "checkpoints:" for line in loop_text.splitlines()):
+  checkpoint_sections = sum(line == "checkpoints:" for line in loop_text.splitlines())
+  if checkpoint_sections == 0:
     return {"ok": False, "reason": "legacy checkpoint contract"}, "", ""
+  if checkpoint_sections != 1:
+    return {"ok": False, "reason": "invalid checkpoint contract"}, "", ""
 
   checkpoints = parsed.get("checkpoints", {})
   if not isinstance(checkpoints, dict):
@@ -321,9 +325,21 @@ def _validate_checkpoints(
     return {"ok": False, "reason": "goal/context confirmation missing"}, "", ""
   goal_path = base / "1_goal.md"
   context_path = base / "2_context.md"
-  if not goal_path.is_file() or goal_context.get("goal_hash") != artifact_body_hash(goal_path):
+  if not goal_path.is_file():
     return {"ok": False, "reason": "goal hash mismatch"}, "", ""
-  if not context_path.is_file() or goal_context.get("context_hash") != artifact_body_hash(context_path):
+  try:
+    goal_hash = artifact_body_hash(goal_path)
+  except (OSError, UnicodeDecodeError):
+    return {"ok": False, "reason": "unreadable goal artifact"}, "", ""
+  if goal_context.get("goal_hash") != goal_hash:
+    return {"ok": False, "reason": "goal hash mismatch"}, "", ""
+  if not context_path.is_file():
+    return {"ok": False, "reason": "context hash mismatch"}, "", ""
+  try:
+    context_hash = artifact_body_hash(context_path)
+  except (OSError, UnicodeDecodeError):
+    return {"ok": False, "reason": "unreadable context artifact"}, "", ""
+  if goal_context.get("context_hash") != context_hash:
     return {"ok": False, "reason": "context hash mismatch"}, "", ""
 
   if mode_checkpoint.get("confirmed") is not True:
@@ -340,17 +356,23 @@ def _validate_checkpoints(
   if plan.get("confirmed") is not True:
     return {"ok": False, "reason": "plan approval missing"}, "", ""
   plan_path = base / "3_plan.md"
-  if not plan_path.is_file() or plan.get("plan_hash") != artifact_body_hash(plan_path):
+  if not plan_path.is_file():
+    return {"ok": False, "reason": "plan hash mismatch"}, "", ""
+  try:
+    plan_hash = artifact_body_hash(plan_path)
+  except (OSError, UnicodeDecodeError):
+    return {"ok": False, "reason": "unreadable plan artifact"}, "", ""
+  if plan.get("plan_hash") != plan_hash:
     return {"ok": False, "reason": "plan hash mismatch"}, "", ""
 
   if require_launch:
     if launch.get("confirmed") is not True:
       return {"ok": False, "reason": "launch confirmation missing"}, "", ""
-    if launch.get("goal_hash") != artifact_body_hash(goal_path):
+    if launch.get("goal_hash") != goal_hash:
       return {"ok": False, "reason": "launch goal hash mismatch"}, "", ""
-    if launch.get("context_hash") != artifact_body_hash(context_path):
+    if launch.get("context_hash") != context_hash:
       return {"ok": False, "reason": "launch context hash mismatch"}, "", ""
-    if launch.get("plan_hash") != artifact_body_hash(plan_path):
+    if launch.get("plan_hash") != plan_hash:
       return {"ok": False, "reason": "launch plan hash mismatch"}, "", ""
   return None, run_mode, subtype
 

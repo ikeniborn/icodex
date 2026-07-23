@@ -468,6 +468,30 @@ elif scenario == "missing-context":
 elif scenario == "missing-plan":
   base = fixture(scenario)
   (base / "3_plan.md").unlink()
+elif scenario == "duplicate-checkpoints":
+  base = fixture(scenario)
+  loop_path = base / "loop.yaml"
+  text = loop_path.read_text(encoding="utf-8")
+  text = text.replace(
+    "checkpoints:\n  goal_context:",
+    """checkpoints:
+  goal_context:
+    confirmed: true
+    goal_hash: split-authority
+    context_hash: split-authority
+checkpoints:
+  goal_context:""",
+  )
+  loop_path.write_text(text, encoding="utf-8")
+elif scenario == "unreadable-goal":
+  base = fixture(scenario)
+  (base / "1_goal.md").write_bytes(b"\xff\xfe")
+elif scenario == "unreadable-context":
+  base = fixture(scenario)
+  (base / "2_context.md").write_bytes(b"\xff\xfe")
+elif scenario == "unreadable-plan":
+  base = fixture(scenario)
+  (base / "3_plan.md").write_bytes(b"\xff\xfe")
 elif scenario == "scope-missing":
   base = fixture(scenario)
   replace(base, "  - plugins/loen/**", "  - none")
@@ -526,6 +550,10 @@ run_contract_case "stale launch plan rejected" "launch-plan-stale" "launch plan 
 run_contract_case "missing goal artifact rejected" "missing-goal" "goal hash mismatch"
 run_contract_case "missing context artifact rejected" "missing-context" "context hash mismatch"
 run_contract_case "missing plan artifact rejected" "missing-plan" "plan hash mismatch"
+run_contract_case "duplicate checkpoint contract rejected" "duplicate-checkpoints" "invalid checkpoint contract"
+run_contract_case "unreadable goal artifact rejected" "unreadable-goal" "unreadable goal artifact"
+run_contract_case "unreadable context artifact rejected" "unreadable-context" "unreadable context artifact"
+run_contract_case "unreadable plan artifact rejected" "unreadable-plan" "unreadable plan artifact"
 run_contract_case "report-only contract validates" "current" "approved run contract"
 run_contract_case "full merge-release contract validates" "merge-release" "approved run contract"
 run_contract_case "prelaunch contract validates" "prelaunch" "approved run contract"
