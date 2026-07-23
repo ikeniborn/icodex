@@ -223,13 +223,55 @@ def parse_header(line):
             return None
     return tuple(decoded), is_array
 
+
+def closes_multiline(line, delimiter):
+    start = 0
+    while True:
+        index = line.find(delimiter, start)
+        if index < 0:
+            return False
+        backslashes = len(line[:index]) - len(line[:index].rstrip("\\"))
+        if delimiter == "'''" or backslashes % 2 == 0:
+            return True
+        start = index + 1
+
+
+def starts_multiline(line):
+    quote = None
+    escaped = False
+    index = 0
+    while index < len(line):
+        if quote:
+            if quote == '"' and escaped:
+                escaped = False
+            elif quote == '"' and line[index] == "\\":
+                escaped = True
+            elif line[index] == quote:
+                quote = None
+        elif line.startswith('"""', index) or line.startswith("'''", index):
+            delimiter = line[index:index + 3]
+            remainder = line[index + 3:]
+            return None if closes_multiline(remainder, delimiter) else delimiter
+        elif line[index] in "\"'":
+            quote = line[index]
+        elif line[index] == "#":
+            return None
+        index += 1
+    return None
+
 target_marketplace = ("marketplaces", marketplace)
 target_plugin = ("plugins", "superpowers@" + marketplace)
 marketplace_headers = []
 plugin_headers = []
 source_lines = []
 current = None
+multiline = None
+invalid_header = False
 for index, line in enumerate(lines):
+    if multiline is not None:
+        if closes_multiline(line, multiline):
+            multiline = None
+        continue
     parsed_header = parse_header(line)
     if parsed_header is not None:
         header, is_array = parsed_header
@@ -239,10 +281,17 @@ for index, line in enumerate(lines):
         if not is_array and len(header) == 2 and header[0] == "plugins" and header[1].startswith("superpowers@"):
             plugin_headers.append(header)
         continue
+    if line.lstrip().startswith("["):
+        current = None
+        invalid_header = True
+        continue
+    multiline = starts_multiline(line)
+    if multiline is not None:
+        continue
     if current == target_marketplace and re.match(r"^\s*source\s*=", line):
         source_lines.append(index)
 
-if len(marketplace_headers) != 1 or plugin_headers != [target_plugin] or len(source_lines) != 1:
+if invalid_header or multiline is not None or len(marketplace_headers) != 1 or plugin_headers != [target_plugin] or len(source_lines) != 1:
     raise SystemExit(1)
 
 if mode == "validate":

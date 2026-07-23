@@ -168,6 +168,38 @@ sed -i '/^\[marketplaces\."openai-curated"\]$/,/^\[/ { /^source = /d; }' "$cfg"
 assert_preflight_failure "nested array-table source without direct source" "marketplace mismatch"
 mv "$cfg.before-array-table" "$cfg"
 
+cp "$cfg" "$cfg.before-scanner-regressions"
+cat > "$cfg" <<'EOF'
+[marketplaces."openai-curated"]
+source_type = "local"
+[malformed
+source = "/must/not/count"
+
+[plugins."superpowers@openai-curated"]
+enabled = true
+EOF
+assert_preflight_failure "malformed header clears marketplace context" "marketplace mismatch"
+
+cat > "$cfg" <<'EOF'
+[marketplaces."openai-curated"]
+source_type = "local"
+description = """
+source = "/inside/multiline/string"
+"""
+
+[plugins."superpowers@openai-curated"]
+enabled = true
+EOF
+assert_preflight_failure "multiline string source without direct source" "marketplace mismatch"
+
+sed -i '/^source_type = "local"$/a source = "/direct/wrong/path"' "$cfg"
+ensure_superpowers_wiring
+assert_eq "direct source rewritten beside multiline string" "1" \
+  "$(grep -cFx "source = \"$MARKETPLACE\"" "$cfg")"
+assert_eq "multiline string source unchanged" "1" \
+  "$(grep -cFx 'source = "/inside/multiline/string"' "$cfg")"
+mv "$cfg.before-scanner-regressions" "$cfg"
+
 rm -f "$PIN"
 assert_preflight_failure "missing pin" "pin missing"
 printf '../escape\n' > "$PIN"
