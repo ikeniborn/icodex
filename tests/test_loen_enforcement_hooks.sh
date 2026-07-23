@@ -317,6 +317,8 @@ mv "$topic_dir/loop.yaml.valid" "$topic_dir/loop.yaml"
 
 assert_malformed_runtime_authority "tool-guard rejects odd-indent unknown mapping" "tool-guard.py" "strict" "$test_edit" $'    - search\n    - apply_patch' $'    - search\n   metadata:\n    - edit'
 assert_malformed_runtime_authority "scope-guard rejects odd-indent unknown mapping" "scope-guard.py" "enforce" "$outside_edit" $'      - src/**\n      - tests/**' $'      - src/**\n     metadata:\n      - outside/**'
+assert_malformed_runtime_authority "tool-guard rejects wrong-even unknown mapping" "tool-guard.py" "strict" "$test_edit" $'    - search\n    - apply_patch' $'    - search\n    metadata:\n    - edit'
+assert_malformed_runtime_authority "scope-guard rejects wrong-even unknown mapping" "scope-guard.py" "enforce" "$outside_edit" $'      - src/**\n      - tests/**' $'      - src/**\n      metadata:\n      - outside/**'
 
 assert_hook_exit "permission-guard allows configured shell command" 0 "permission-guard.py" "strict" "$topic" "$shell_allow"
 assert_hook_exit "permission-guard blocks destructive git" 2 "permission-guard.py" "strict" "$topic" "$shell_deny"

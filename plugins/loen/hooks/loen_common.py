@@ -177,7 +177,28 @@ PERMISSION_MEMBERS = {
 }
 EXECUTION_MEMBERS = {"isolation", "executor", "network", "mounts"}
 EXECUTION_MOUNT_MEMBERS = {"path", "mode"}
+RUN_MEMBERS = {"mode", "subtype", "plan_approved", "plan_hash", "state", "max_passes", "current_pass", "approval_source", "approved_at"}
 RUNTIME_AUTHORITY_SECTIONS = CANONICAL_TOP_LEVEL | CANONICAL_TOP_SCALARS | {"run"}
+
+
+def _authority_depth_allowed(section: str, indent: int, item: bool) -> bool:
+  if section in CANONICAL_LIST_SECTIONS:
+    return indent == 2
+  if section in {"agents", "stages", "permissions"}:
+    return indent == 6 if item else indent in {2, 4}
+  if section == "tools":
+    return indent == 4 if item else indent == 2
+  if section == "execution":
+    return indent == 4 if item else indent in {2, 6}
+  if section == "quality_gates":
+    return indent == 2 if item else indent == 4
+  if section == "governance":
+    return indent == 4 if item else indent == 2
+  if section in CANONICAL_MAPPINGS or section == "run":
+    return not item and indent == 2
+  if section == "checkpoints":
+    return not item and indent in {2, 4}
+  return False
 
 
 def _canonical_authority_diagnostics(text: str) -> list[str]:
@@ -224,7 +245,13 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
     stripped = line.strip()
     item = stripped.startswith("- ")
     mapping = _mapping_key(stripped[2:].strip() if item else stripped)
-    if indent > 0 and indent % 2 and section in RUNTIME_AUTHORITY_SECTIONS:
+    ignored_indent = ignored_parent_indent if ignored_parent_indent is not None else nested_parent_indent
+    if ignored_indent is not None and indent > ignored_indent and not item:
+      continue
+    if ignored_indent is not None and indent <= ignored_indent:
+      ignored_parent_indent = None
+      nested_parent_indent = None
+    if indent > 0 and section in RUNTIME_AUTHORITY_SECTIONS and not _authority_depth_allowed(section, indent, item):
       duplicates.append(f"{section}.<malformed-indentation>")
       runtime_list = ""
       tool_list = ""
@@ -360,12 +387,23 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
         continue
       if indent == 2 and key in EXECUTION_MEMBERS:
         register(f"execution.{key}")
+        ignored_parent_indent = None
       elif indent == 6 and execution_mount >= 0 and key in EXECUTION_MOUNT_MEMBERS:
         register(f"execution.mounts[{execution_mount}].{key}")
+        ignored_parent_indent = None
       elif execution_mount >= 0 and key in EXECUTION_MOUNT_MEMBERS:
         duplicates.append(f"execution.mounts[{execution_mount}].<malformed-indentation>")
       elif key in EXECUTION_MEMBERS:
         duplicates.append("execution.<malformed-indentation>")
+      elif indent in {2, 6}:
+        ignored_parent_indent = indent if value == "" else None
+      continue
+    if section == "run":
+      if indent == 2 and key in RUN_MEMBERS:
+        register(f"run.{key}")
+        ignored_parent_indent = None
+      elif indent == 2:
+        ignored_parent_indent = indent if value == "" else None
       continue
     if section == "quality_gates":
       if item and indent != 2:
@@ -509,6 +547,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
   canonical_nested_parent_indent: int | None = None
   quality_nested_parent_indent: int | None = None
   current_mount: dict[str, Any] | None = None
+  ignored_runtime_parent_indent: int | None = None
 
   for raw_line in text.splitlines():
     line = _strip_yaml_comment(raw_line)
@@ -529,9 +568,25 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       current_mount = None
       canonical_nested_parent_indent = None
       quality_nested_parent_indent = None
+      ignored_runtime_parent_indent = None
       continue
 
-    if indent > 0 and indent % 2 and section in RUNTIME_AUTHORITY_SECTIONS:
+    ignored_indent = ignored_runtime_parent_indent
+    if section == "quality_gates" and quality_nested_parent_indent is not None:
+      ignored_indent = quality_nested_parent_indent
+    elif section in CANONICAL_MAPPINGS | {"run"} and canonical_nested_parent_indent is not None:
+      ignored_indent = canonical_nested_parent_indent
+    if ignored_indent is not None and indent > ignored_indent and not stripped.startswith("- "):
+      continue
+    if ignored_indent is not None and indent <= ignored_indent:
+      ignored_runtime_parent_indent = None
+      if section == "quality_gates":
+        quality_nested_parent_indent = None
+      elif section in CANONICAL_MAPPINGS | {"run"}:
+        canonical_nested_parent_indent = None
+
+    item = stripped.startswith("- ")
+    if indent > 0 and section in RUNTIME_AUTHORITY_SECTIONS and not _authority_depth_allowed(section, indent, item):
       if section == "checkpoints" and current_checkpoint:
         data["checkpoints"][current_checkpoint] = dict(CHECKPOINT_DEFAULTS[current_checkpoint])
         current_checkpoint = ""
@@ -543,6 +598,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       subsection = ""
       canonical_nested_parent_indent = None
       quality_nested_parent_indent = None
+      ignored_runtime_parent_indent = None
       continue
 
     if indent == 0:
@@ -556,6 +612,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       canonical_nested_parent_indent = None
       quality_nested_parent_indent = None
       current_mount = None
+      ignored_runtime_parent_indent = None
       if stripped.endswith(":") and stripped[:-1] != "rollback_policy":
         section = stripped[:-1]
         if section in {"mutable_scope", "protected_scope", "stop_conditions", "handoff_conditions"}:
@@ -695,6 +752,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
           list_target = data["agents"][current_agent][key]
       elif indent == 4 and mapping is not None:
         list_target = None
+        ignored_runtime_parent_indent = indent if mapping[1] == "" else None
       elif indent == 6 and stripped.startswith("- ") and list_target is not None:
         list_target.append(stripped[2:].strip())
       elif mapping is None and not stripped.startswith("- "):
@@ -722,6 +780,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
           list_target = data["stages"][current_agent][key]
       elif indent == 4 and mapping is not None:
         list_target = None
+        ignored_runtime_parent_indent = indent if mapping[1] == "" else None
       elif indent == 6 and stripped.startswith("- ") and list_target is not None:
         list_target.append(stripped[2:].strip())
       elif mapping is None and not stripped.startswith("- "):
@@ -741,6 +800,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
           list_target = data["tools"][key]
       elif indent == 2 and mapping is not None:
         list_target = None
+        ignored_runtime_parent_indent = indent if mapping[1] == "" else None
       elif indent == 4 and stripped.startswith("- ") and list_target is not None:
         list_target.append(stripped[2:].strip())
       elif mapping is None and not stripped.startswith("- "):
@@ -761,6 +821,8 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
           current_mount[mapping[0]] = _parse_scalar(mapping[1])
       elif indent == 6 and current_mount is not None and mapping is not None and mapping[0] in EXECUTION_MOUNT_MEMBERS:
         current_mount[mapping[0]] = _parse_scalar(mapping[1])
+      elif mapping is not None and indent in {2, 6}:
+        ignored_runtime_parent_indent = indent if mapping[1] == "" else None
       elif mapping is None:
         current_mount = None
       continue
@@ -770,6 +832,10 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       mapping = _mapping_key(stripped)
       if mapping is not None:
         key, value = mapping
+        if section == "run" and (indent != 2 or key not in RUN_MEMBERS):
+          canonical_nested_parent_indent = indent if indent == 2 and value == "" else canonical_nested_parent_indent
+          list_target = None
+          continue
         if section in CANONICAL_MAPPINGS:
           if canonical_nested_parent_indent is not None and indent > canonical_nested_parent_indent:
             continue
@@ -820,6 +886,7 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
           list_target = target[key]
       elif indent == 4 and mapping is not None:
         list_target = None
+        ignored_runtime_parent_indent = indent if mapping[1] == "" else None
       elif indent == 6 and stripped.startswith("- ") and list_target is not None:
         list_target.append(stripped[2:].strip())
       elif mapping is None and not stripped.startswith("- "):
