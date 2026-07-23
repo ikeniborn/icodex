@@ -573,75 +573,12 @@ def _yaml_section_list(loop_text: str, section: str) -> list[str]:
   return values
 
 
-def _parse_bool(value: str, default: bool) -> bool:
-  lowered = value.strip().strip('"').strip("'").lower()
-  if lowered == "true":
-    return True
-  if lowered == "false":
-    return False
-  return default
-
-
-def _parse_int(value: str, default: int) -> int:
-  try:
-    return int(value.strip().strip('"').strip("'"))
-  except ValueError:
-    return default
-
-
 def governance_policy(loop_text: str) -> dict[str, object]:
-  policy: dict[str, object] = {
-    "automation_type": "",
-    "schedule": "",
-    "owner": "",
-    "first_runs_require_human_review": 0,
-    "reviewed_runs": 0,
-    "auto_fix": False,
-    "auto_merge": False,
-    "report_only_on_no_findings": True,
-    "alert_on": [
-      "protected_scope_attempt",
-      "verifier_failure",
-      "budget_exhausted",
-      "metric_regression",
-    ],
-  }
-  in_governance = False
-  list_key = ""
-  for raw in loop_text.splitlines():
-    if raw == "governance:":
-      in_governance = True
-      list_key = ""
-      continue
-    if in_governance and raw and not raw.startswith(" "):
-      break
-    if not in_governance:
-      continue
-    stripped = raw.strip()
-    if not stripped:
-      continue
-    if stripped.startswith("- ") and list_key:
-      values = policy.setdefault(list_key, [])
-      if isinstance(values, list):
-        values.append(stripped[2:].strip().strip('"'))
-      continue
-    if ":" not in stripped:
-      continue
-    key, value = stripped.split(":", 1)
-    key = key.strip()
-    value = value.strip()
-    if not value:
-      policy.setdefault(key, [])
-      list_key = key
-      continue
-    list_key = ""
-    if key in {"auto_fix", "auto_merge", "report_only_on_no_findings"}:
-      policy[key] = _parse_bool(value, bool(policy[key]))
-    elif key in {"first_runs_require_human_review", "reviewed_runs"}:
-      policy[key] = _parse_int(value, int(policy[key]))
-    else:
-      policy[key] = value.strip('"').strip("'")
-  return policy
+  parsed, diagnostics = parse_loop_yaml_checked(loop_text)
+  if diagnostics:
+    raise ValueError("invalid canonical authority")
+  policy = parsed.get("governance", {})
+  return dict(policy) if isinstance(policy, dict) else {}
 
 
 def _automation_attempts(base: Path) -> list[dict[str, object]]:

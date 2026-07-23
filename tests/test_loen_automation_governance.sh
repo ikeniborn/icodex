@@ -170,6 +170,75 @@ PY
 )"
 assert_eq "first automated runs require human review" "OK" "$attempt_status"
 
+governance_bypass_status="$(PYTHONPATH="$hook_root" python3 - "$tmp/governance-bypass" <<'PY'
+import sys
+from pathlib import Path
+
+from loen_artifacts import append_automation_attempt, governance_policy
+
+root = Path(sys.argv[1])
+root.mkdir(parents=True)
+
+def write_case(name, governance):
+    base = root / name
+    base.mkdir()
+    (base / "loop.yaml").write_text(f"""topic: {name}
+governance:
+{governance}
+""", encoding="utf-8")
+    (base / "attempts.jsonl").write_text("seed\n", encoding="utf-8")
+    return base
+
+nested = write_case("nested", """  first_runs_require_human_review: 2
+  reviewed_runs: 0
+  metadata:
+    first_runs_require_human_review: 0""")
+nested_record = append_automation_attempt(
+    base=nested,
+    run_type="audit",
+    status="pass",
+    summary="nested metadata ignored",
+    created_at="2026-07-23T12:00:00Z",
+)
+if nested_record["review_required"] is not True or nested_record["effective_status"] != "review_required":
+    raise SystemExit({"nested_record": nested_record, "policy": governance_policy((nested / "loop.yaml").read_text())})
+
+malformed = {
+    "duplicate": """  first_runs_require_human_review: 2
+  first_runs_require_human_review: 0""",
+    "mixed": """  first_runs_require_human_review: 2
+ \tfirst_runs_require_human_review: 0""",
+}
+for name, body in malformed.items():
+    base = write_case(name, body)
+    attempts = base / "attempts.jsonl"
+    before = attempts.read_bytes()
+    try:
+        append_automation_attempt(
+            base=base,
+            run_type="audit",
+            status="pass",
+            summary=name,
+            created_at="2026-07-23T12:00:00Z",
+        )
+    except ValueError as exc:
+        if "invalid canonical authority" not in str(exc):
+            raise
+    else:
+        raise SystemExit(f"accepted malformed governance: {name}")
+    if attempts.read_bytes() != before:
+        raise SystemExit(f"malformed governance wrote attempt: {name}")
+    try:
+        governance_policy((base / "loop.yaml").read_text(encoding="utf-8"))
+    except ValueError:
+        pass
+    else:
+        raise SystemExit(f"governance_policy accepted malformed authority: {name}")
+print("OK")
+PY
+)"
+assert_eq "automation governance uses checked canonical authority" "OK" "$governance_bypass_status"
+
 printf '{"status":"pass","command":"bash tests/test_loen_automation_governance.sh"}\n' > "$topic_dir/evidence/governance-check.json"
 assert_exit "audit writer runs for governance topic" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$tmp/TODO.md" python3 "$audit_writer"
 audit_text="$(cat "$topic_dir/audit.html" 2>/dev/null || true)"

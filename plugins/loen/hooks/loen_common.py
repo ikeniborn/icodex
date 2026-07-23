@@ -321,7 +321,12 @@ def parse_loop_yaml(text: str) -> dict[str, Any]:
       "auto_fix": False,
       "auto_merge": False,
       "report_only_on_no_findings": True,
-      "alert_on": [],
+      "alert_on": [
+        "protected_scope_attempt",
+        "verifier_failure",
+        "budget_exhausted",
+        "metric_regression",
+      ],
     },
     "run": {
       "mode": "",
