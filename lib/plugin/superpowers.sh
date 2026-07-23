@@ -177,10 +177,13 @@ with open(path, encoding="utf-8") as handle:
 
 
 def parse_header(line):
-    match = re.match(r"^\s*\[(.*)\]\s*(?:#.*)?$", line.rstrip("\r\n"))
+    match = re.match(r"^\s*(\[\[|\[)(.*?)(\]\]|\])\s*(?:#.*)?$", line.rstrip("\r\n"))
     if not match:
         return None
-    body = match.group(1)
+    opener, body, closer = match.groups()
+    is_array = opener == "[["
+    if (opener, closer) not in (("[", "]"), ("[[", "]]")):
+        return None
     keys = []
     token = ""
     quote = None
@@ -218,7 +221,7 @@ def parse_header(line):
             decoded.append(key[1:-1])
         else:
             return None
-    return tuple(decoded)
+    return tuple(decoded), is_array
 
 target_marketplace = ("marketplaces", marketplace)
 target_plugin = ("plugins", "superpowers@" + marketplace)
@@ -227,12 +230,13 @@ plugin_headers = []
 source_lines = []
 current = None
 for index, line in enumerate(lines):
-    header = parse_header(line)
-    if header is not None:
+    parsed_header = parse_header(line)
+    if parsed_header is not None:
+        header, is_array = parsed_header
         current = header
-        if header == target_marketplace:
+        if not is_array and header == target_marketplace:
             marketplace_headers.append(index)
-        if len(header) == 2 and header[0] == "plugins" and header[1].startswith("superpowers@"):
+        if not is_array and len(header) == 2 and header[0] == "plugins" and header[1].startswith("superpowers@"):
             plugin_headers.append(header)
         continue
     if current == target_marketplace and re.match(r"^\s*source\s*=", line):

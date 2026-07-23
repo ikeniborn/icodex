@@ -147,6 +147,27 @@ assert_preflight_failure() { # <description> <expected-message>
 }
 
 # 8. all invalid state fails before config, marketplace, or skill-link mutations.
+cp "$cfg" "$cfg.before-array-table"
+cat > "$cfg" <<'EOF'
+[marketplaces."openai-curated"]
+source_type = "local"
+source = "/direct/wrong/path"
+
+[[marketplaces."openai-curated".mirrors]]
+source = "/keep/nested"
+
+[plugins."superpowers@openai-curated"]
+enabled = true
+EOF
+ensure_superpowers_wiring
+assert_eq "direct marketplace source rewritten with nested array table" "1" \
+  "$(grep -cFx "source = \"$MARKETPLACE\"" "$cfg")"
+assert_eq "nested array-table source unchanged" "1" \
+  "$(grep -cFx 'source = "/keep/nested"' "$cfg")"
+sed -i '/^\[marketplaces\."openai-curated"\]$/,/^\[/ { /^source = /d; }' "$cfg"
+assert_preflight_failure "nested array-table source without direct source" "marketplace mismatch"
+mv "$cfg.before-array-table" "$cfg"
+
 rm -f "$PIN"
 assert_preflight_failure "missing pin" "pin missing"
 printf '../escape\n' > "$PIN"
