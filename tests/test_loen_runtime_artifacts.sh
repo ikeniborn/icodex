@@ -253,6 +253,7 @@ for kwargs in (
     {"checkpoint": "plan", "decision": "confirmed", "hashes": {}, "outcome": 7},
     {"checkpoint": "plan", "decision": "confirmed", "hashes": {}, "created_at": 7},
 ):
+    kwargs.setdefault("created_at", "2026-07-23T12:34:56Z")
     try:
         append_checkpoint_event(base=base, **kwargs)
     except ValueError:
@@ -296,6 +297,12 @@ from pathlib import Path
 
 from loen_artifacts import _checkpoint_events, append_checkpoint_event
 
+import inspect
+
+created_at = inspect.signature(append_checkpoint_event).parameters["created_at"]
+if created_at.default is not inspect.Parameter.empty:
+    raise SystemExit("created_at remains optional")
+
 base = Path(sys.argv[1])
 base.mkdir(parents=True)
 valid = (
@@ -315,7 +322,7 @@ invalid = (
 )
 for checkpoint, hashes in invalid:
     try:
-        append_checkpoint_event(base=base, checkpoint=checkpoint, decision="confirmed", hashes=hashes)
+        append_checkpoint_event(base=base, checkpoint=checkpoint, decision="confirmed", hashes=hashes, created_at="2026-07-23T12:34:56Z")
     except ValueError:
         pass
     else:

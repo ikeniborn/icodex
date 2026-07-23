@@ -135,7 +135,10 @@ def _mapping_key(text: str) -> tuple[str, str] | None:
         quote = ""
       continue
     if char == ":" and not quote:
-      return text[:index].strip(), text[index + 1:].strip()
+      key = text[:index].strip()
+      if len(key) >= 2 and key[0] == key[-1] and key[0] in {'"', "'"}:
+        key = key[1:-1]
+      return key, text[index + 1:].strip()
   return None
 
 
@@ -178,12 +181,12 @@ def _canonical_authority_diagnostics(text: str) -> list[str]:
         register(key)
       continue
     if section == "quality_gates":
-      if indent == 2 and item:
+      if indent > 0 and item:
         quality_item += 1
-      if quality_item >= 0 and ((indent == 2 and item) or (indent == 4 and not item)):
+      if quality_item >= 0 and indent > 0:
         register(f"quality_gates[{quality_item}].{key}")
       continue
-    if section in CANONICAL_MAPPINGS and indent == 2:
+    if section in CANONICAL_MAPPINGS and indent > 0:
       register(f"{section}.{key}")
       continue
     if section == "checkpoints":

@@ -762,10 +762,10 @@ def append_checkpoint_event(
   checkpoint: str,
   decision: str,
   hashes: dict[str, str],
+  created_at: str,
   mode: str = "",
   subtype: str = "",
   outcome: str = "",
-  created_at: str = "",
 ) -> dict[str, object]:
   if checkpoint not in CHECKPOINT_NAMES:
     raise ValueError(f"invalid checkpoint: {checkpoint}")

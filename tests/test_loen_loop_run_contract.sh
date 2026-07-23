@@ -634,9 +634,17 @@ elif scenario.startswith("duplicate-authority-"):
     "governance": ("governance:\n", "governance:\n  owner: split\ngovernance:\n"),
     "release_policy": ("release_policy:\n", "release_policy:\n  target_branch: split\nrelease_policy:\n"),
     "verifier.command": ("  command: bash tests/test_loen_loop_run_contract.sh", "  command: split\n  command: bash tests/test_loen_loop_run_contract.sh"),
+    "verifier.type": ("verifier:\n", "verifier:\n  type: first\n  type: second\n"),
     "budget.max_iterations": ("  max_iterations: 1", "  max_iterations: 7\n  max_iterations: 1"),
+    "governance.automation_type": ("governance:\n", "governance:\n  automation_type: first\n  automation_type: second\n"),
+    "governance.schedule": ("governance:\n", "governance:\n  schedule: first\n  schedule: second\n"),
+    "governance.owner": ("governance:\n", "governance:\n  owner: first\n  owner: second\n"),
+    "governance.first_runs_require_human_review": ("governance:\n", "governance:\n  first_runs_require_human_review: 1\n  first_runs_require_human_review: 2\n"),
+    "governance.reviewed_runs": ("governance:\n", "governance:\n  reviewed_runs: 1\n  reviewed_runs: 2\n"),
     "governance.auto_fix": ("  auto_fix: true", "  auto_fix: false\n  auto_fix: true"),
     "governance.auto_merge": ("  auto_merge: false", "  auto_merge: true\n  auto_merge: false"),
+    "governance.report_only_on_no_findings": ("governance:\n", "governance:\n  report_only_on_no_findings: true\n  report_only_on_no_findings: false\n"),
+    "governance.alert_on": ("governance:\n", "governance:\n  alert_on: []\n  alert_on: []\n"),
     "release_policy.target_branch": ("  target_branch: master", "  target_branch: split\n  target_branch: master"),
     "release_policy.merge_strategy": ("  merge_strategy: pr", "  merge_strategy: split\n  merge_strategy: pr"),
     "release_policy.verifier_required": ("  verifier_required: true", "  verifier_required: false\n  verifier_required: true"),
@@ -675,6 +683,24 @@ elif scenario == "authority-controls":
   current_hash = run_policy_hash(parse_loop_yaml(text), "governance", "report-only")
   old_hash = parse_loop_yaml(text)["checkpoints"]["plan"]["policy_hash"]
   loop_path.write_text(text.replace(str(old_hash), current_hash), encoding="utf-8")
+elif scenario.startswith("malformed-indent-"):
+  base = fixture(scenario)
+  section = scenario.removeprefix("malformed-indent-")
+  insertions = {
+    "verifier": ("  command: bash tests/test_loen_loop_run_contract.sh", "   command: split\n  command: bash tests/test_loen_loop_run_contract.sh"),
+    "governance": ("  auto_fix: true", "   auto_fix: false\n  auto_fix: true"),
+    "quality_gates": ("mutable_scope:\n", "quality_gates:\n  - command: first\n     command: second\nmutable_scope:\n"),
+  }
+  replace(base, *insertions[section])
+elif scenario.startswith("quoted-authority-"):
+  base = fixture(scenario)
+  section = scenario.removeprefix("quoted-authority-")
+  insertions = {
+    "verifier": ("  command: bash tests/test_loen_loop_run_contract.sh", '  "command": split\n  command: bash tests/test_loen_loop_run_contract.sh'),
+    "governance": ("  auto_fix: true", "  'auto_fix': false\n  auto_fix: true"),
+    "quality_gates": ("mutable_scope:\n", 'quality_gates:\n  - "command": first\n    command: second\nmutable_scope:\n'),
+  }
+  replace(base, *insertions[section])
 elif scenario == "unreadable-goal":
   base = fixture(scenario)
   (base / "1_goal.md").write_bytes(b"\xff\xfe")
@@ -746,10 +772,14 @@ run_contract_case "missing plan artifact rejected" "missing-plan" "plan hash mis
 run_contract_case "duplicate checkpoint contract rejected" "duplicate-checkpoints" "invalid canonical authority"
 run_contract_case "commented duplicate checkpoint contract rejected" "duplicate-checkpoints-comment" "invalid canonical authority"
 run_contract_case "spaced duplicate checkpoint contract rejected" "duplicate-checkpoints-spaces" "invalid canonical authority"
-for authority in mutable_scope protected_scope quality_gates verifier budget stop_conditions handoff_conditions rollback_policy governance release_policy verifier.command budget.max_iterations governance.auto_fix governance.auto_merge release_policy.target_branch release_policy.merge_strategy release_policy.verifier_required release_policy.evidence_required release_policy.scope_limit release_policy.recovery_policy quality_gates.command quality_gates.evidence checkpoint.goal_context checkpoint.mode checkpoint.plan checkpoint.launch goal_context.confirmed goal_context.goal_hash goal_context.context_hash mode.confirmed mode.mode mode.subtype plan.confirmed plan.plan_hash plan.policy_hash launch.confirmed launch.goal_hash launch.context_hash launch.plan_hash launch.policy_hash; do
+for authority in mutable_scope protected_scope quality_gates verifier budget stop_conditions handoff_conditions rollback_policy governance release_policy verifier.type verifier.command budget.max_iterations governance.automation_type governance.schedule governance.owner governance.first_runs_require_human_review governance.reviewed_runs governance.auto_fix governance.auto_merge governance.report_only_on_no_findings governance.alert_on release_policy.target_branch release_policy.merge_strategy release_policy.verifier_required release_policy.evidence_required release_policy.scope_limit release_policy.recovery_policy quality_gates.command quality_gates.evidence checkpoint.goal_context checkpoint.mode checkpoint.plan checkpoint.launch goal_context.confirmed goal_context.goal_hash goal_context.context_hash mode.confirmed mode.mode mode.subtype plan.confirmed plan.plan_hash plan.policy_hash launch.confirmed launch.goal_hash launch.context_hash launch.plan_hash launch.policy_hash; do
   run_contract_case "duplicate canonical authority $authority rejected" "duplicate-authority-$authority" "invalid canonical authority"
 done
 run_contract_case "quoted comments and unrelated duplicates stay valid" "authority-controls" "approved run contract"
+for section in verifier governance quality_gates; do
+  run_contract_case "malformed indentation cannot bypass $section duplicate detection" "malformed-indent-$section" "invalid canonical authority"
+  run_contract_case "quoted canonical key cannot bypass $section duplicate detection" "quoted-authority-$section" "invalid canonical authority"
+done
 run_contract_case "unreadable goal artifact rejected" "unreadable-goal" "unreadable goal artifact"
 run_contract_case "unreadable context artifact rejected" "unreadable-context" "unreadable context artifact"
 run_contract_case "unreadable plan artifact rejected" "unreadable-plan" "unreadable plan artifact"
