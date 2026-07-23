@@ -9,6 +9,12 @@ review:
     verifiability: { status: passed }
     consistency: { status: passed }
   findings: []
+result_check:
+  verdict: OK
+  plan_hash: 8ccbfcc2f31e6f74
+  last_run: 2026-07-24
+  reviewed: true
+  docs_checked: true
 chain:
   intent: docs/superpowers/intents/2026-07-23-loen-start-mode-gates-intent.md
   spec: docs/superpowers/specs/2026-07-23-loen-start-mode-gates-design.md
