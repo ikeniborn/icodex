@@ -20,7 +20,7 @@ chain:
 
 **Goal:** Enforce four ordered LoEn checkpoints so topic planning is deliberate and runner execution requires a separate, current human launch confirmation.
 
-**Architecture:** `loop.yaml` stores structured current checkpoint authority while `attempts.jsonl` stores append-only checkpoint events. Shared Python helpers parse and validate hashes and policy; `loop-start`, standalone `loop-plan`, and `loop-run` own distinct human checkpoints. Existing safety checks remain downstream of checkpoint validation.
+**Architecture:** `loop.yaml` stores structured current checkpoint authority while `attempts.jsonl` stores append-only checkpoint events. Shared Python helpers parse artifacts, compute a canonical authority-policy hash, and validate ordered freshness; `loop-start`, standalone `loop-plan`, and `loop-run` own distinct human checkpoints. Existing safety checks remain downstream of checkpoint validation.
 
 **Tech Stack:** Bash contract tests, Python 3 standard library LoEn hook helpers, Markdown skill instructions and templates, YAML-like deterministic parser, iwiki MCP documentation.
 
@@ -29,7 +29,7 @@ chain:
 ## File Map
 
 - Modify `plugins/loen/hooks/loen_common.py`: parse structured `checkpoints` from `loop.yaml`.
-- Modify `plugins/loen/hooks/loen_artifacts.py`: hash artifacts, validate checkpoint order/freshness, append checkpoint events, and render checkpoint audit state.
+- Modify `plugins/loen/hooks/loen_artifacts.py`: hash artifacts and canonical policy, validate checkpoint order/freshness, append checkpoint events, and render checkpoint audit state.
 - Modify `plugins/loen/assets/templates/loop.yaml`: replace legacy execution authority with unconfirmed structured checkpoints.
 - Modify `plugins/loen/assets/templates/1_goal.md`: require objective, observable outcome, and success criteria.
 - Modify `plugins/loen/assets/templates/2_context.md`: require constraints, scopes, verifier, budget, rollback, and unresolved assumptions.
@@ -87,11 +87,13 @@ checkpoints:
   plan:
     confirmed: true
     plan_hash: "plan-hash"
+    policy_hash: "policy-hash"
   launch:
     confirmed: false
     goal_hash: null
     context_hash: null
     plan_hash: null
+    policy_hash: null
 ```
 
 Assert `parse_loop_yaml()` returns a `checkpoints` map containing all four nested maps and typed booleans.
@@ -113,8 +115,8 @@ Initialize checkpoint state in `parse_loop_yaml()`:
 "checkpoints": {
   "goal_context": {"confirmed": False, "goal_hash": "", "context_hash": ""},
   "mode": {"confirmed": False, "mode": "", "subtype": ""},
-  "plan": {"confirmed": False, "plan_hash": ""},
-  "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": ""},
+  "plan": {"confirmed": False, "plan_hash": "", "policy_hash": ""},
+  "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": "", "policy_hash": ""},
 },
 ```
 
@@ -137,11 +139,13 @@ checkpoints:
   plan:
     confirmed: false
     plan_hash: ""
+    policy_hash: ""
   launch:
     confirmed: false
     goal_hash: ""
     context_hash: ""
     plan_hash: ""
+    policy_hash: ""
 run:
   state: prepare
   max_passes: 3
@@ -157,7 +161,7 @@ bash tests/test_loen_loop_run_contract.sh
 bash tests/test_loen_runtime_artifacts.sh
 ```
 
-Expected: new parser/default assertions pass; old validator fixture failures are allowed until Task 2 only if assertions label them as expected legacy refusal.
+Expected: new parser/default assertions pass, including `policy_hash` defaults on plan and launch; old validator fixture failures are allowed until Task 2 only if assertions label them as expected legacy refusal.
 
 - [ ] **Step 7: Commit parser and template schema**
 
@@ -189,6 +193,8 @@ plan.confirmed false -> plan approval missing
 plan hash mismatch -> plan hash mismatch
 launch.confirmed false with require_launch=True -> launch confirmation missing
 launch hashes stale -> launch goal/context/plan hash mismatch
+plan policy hash stale with current plan hash -> plan policy hash mismatch
+launch policy hash stale with current artifact hashes -> launch policy hash mismatch
 same contract with require_launch=False -> prelaunch contract valid
 ```
 
@@ -215,7 +221,7 @@ def plan_body_hash(path: Path) -> str:
   return artifact_body_hash(path)
 ```
 
-Use `artifact_body_hash()` for `1_goal.md`, `2_context.md`, and `3_plan.md` checks.
+Use `artifact_body_hash()` for `1_goal.md`, `2_context.md`, and `3_plan.md` checks. Add `policy_hash(contract)` as SHA-256 first 16 over UTF-8 canonical JSON (`sort_keys=True`, `separators=(",", ":")`) containing exactly `mode`, `subtype`, `mutable_scope`, `protected_scope`, `quality_gates`, `verifier`, `budget`, `stop_conditions`, `handoff_conditions`, `rollback_policy`, `governance`, and `release_policy` from parsed contract values.
 
 - [ ] **Step 4: Refactor validation into ordered prelaunch and launch phases**
 
@@ -232,7 +238,9 @@ def validate_run_contract(base: Path, *, require_launch: bool = True) -> dict[st
   return {"ok": True, "reason": "approved run contract"}
 ```
 
-`_validate_checkpoints()` must check in this exact order: contract shape, goal/context confirmation and hashes, mode confirmation and subtype, plan confirmation and hash, then launch confirmation and all three hashes. `_validate_run_policy()` retains mutable scope, verifier, budget, rollback, auto-fix, and merge-release checks.
+`_validate_checkpoints()` must check in this exact order: contract shape, goal/context confirmation and hashes, mode confirmation and subtype, plan confirmation, plan hash, plan policy hash, then launch confirmation, all three artifact hashes, and launch policy hash. Policy comparisons recompute the current canonical hash. Exact mismatch reasons are `plan policy hash mismatch` and `launch policy hash mismatch`. `_validate_run_policy()` retains mutable scope, verifier, budget, rollback, auto-fix, and merge-release checks.
+
+Add table-driven mutations for mode, subtype, mutable/protected scope, quality gates, verifier, budget, stop/handoff conditions, rollback policy, governance, and release policy. Keep `3_plan.md` and artifact hashes unchanged. Assert plan validation rejects each mutation until reapproval updates plan+policy hashes; then assert launch validation rejects a mutation after launch confirmation until a new launch decision updates all four launch hashes.
 
 - [ ] **Step 5: Run focused contract tests**
 
@@ -240,7 +248,7 @@ def validate_run_contract(base: Path, *, require_launch: bool = True) -> dict[st
 bash tests/test_loen_loop_run_contract.sh
 ```
 
-Expected: all positive, stale-state, ordering, policy, and legacy assertions pass with `FAIL=0`.
+Expected: all positive, stale-state, ordering, canonical-policy mutation, exact-reason, and legacy assertions pass with `FAIL=0`; no action artifact changes in any rejection case.
 
 - [ ] **Step 6: Commit checkpoint enforcement**
 
@@ -274,11 +282,11 @@ append_checkpoint_event(
 )
 ```
 
-Assert records contain `event: checkpoint`, checkpoint name, `decision` in `confirmed|reset|refused`, hashes, mode/subtype, and timestamp. Assert malformed checkpoint or decision values raise `ValueError` without appending a line.
+Assert records contain `event: checkpoint`, checkpoint name, `decision` in `confirmed|reset|refused`, hashes, mode/subtype, and timestamp. Confirmed hash requirements are exact: `goal_context` has goal+context, `plan` has plan+policy, and `launch` has goal+context+plan+policy. Assert a confirmed event with missing or extra required hashes, malformed checkpoint, or malformed decision raises `ValueError` without appending a line.
 
 - [ ] **Step 2: Add a failing audit renderer assertion**
 
-Require `audit.html` to show all four checkpoint names, current confirmed state, hashes, and the latest checkpoint decision count while retaining existing runner/governance sections.
+Require `audit.html` and runner summary to show all four checkpoint names, current confirmed state, hashes including policy hashes, and latest checkpoint decision count while retaining existing runner/governance sections. Seed contradictory removed `run.mode`, `run.subtype`, `run.plan_approved`, and `run.plan_hash` fixture values and assert summaries render checkpoint authority only.
 
 - [ ] **Step 3: Run focused tests and verify failures**
 
@@ -305,6 +313,13 @@ def append_checkpoint_event(*, base: Path, checkpoint: str, decision: str,
     raise ValueError("invalid checkpoint name")
   if decision not in CHECKPOINT_DECISIONS:
     raise ValueError("invalid checkpoint decision")
+  required_confirmed_hashes = {
+    "goal_context": {"goal_hash", "context_hash"},
+    "plan": {"plan_hash", "policy_hash"},
+    "launch": {"goal_hash", "context_hash", "plan_hash", "policy_hash"},
+  }
+  if decision == "confirmed" and set(hashes) != required_confirmed_hashes.get(checkpoint, set()):
+    raise ValueError("invalid confirmed checkpoint hashes")
   record = {
     "event": "checkpoint",
     "checkpoint": checkpoint,
@@ -321,7 +336,7 @@ def append_checkpoint_event(*, base: Path, checkpoint: str, decision: str,
 
 - [ ] **Step 5: Extend runner summary and audit rendering**
 
-Render current `checkpoints` separately from historical events. Do not infer authority from attempts. Preserve the existing attempt count and governance event rendering for mixed JSONL records.
+Render current `checkpoints` separately from historical events. Runner summary and audit rendering must read mode, subtype, approvals, and hashes from `checkpoints`, never removed `run.*` authority fields or attempts. Preserve the existing attempt count and governance event rendering for mixed JSONL records.
 
 - [ ] **Step 6: Run focused tests**
 
@@ -330,7 +345,7 @@ bash tests/test_loen_loop_run_contract.sh
 bash tests/test_loen_runtime_artifacts.sh
 ```
 
-Expected: checkpoint events and audit assertions pass; existing automation-attempt assertions remain green.
+Expected: checkpoint hash-shape events and checkpoint-authority summary/audit assertions pass; contradictory removed `run.*` fixture values are ignored; existing automation-attempt assertions remain green.
 
 - [ ] **Step 7: Commit audit support**
 
@@ -371,6 +386,8 @@ assert_contains "loop-plan is replan only" "$loop_plan_text" "existing topic"
 ```
 
 Add template assertions for `Observable Outcome`, `Unresolved Assumptions`, mutable/protected scope, verifier, budget, rollback/recovery, risks, evidence, and success-criterion mapping.
+
+Scaffold a real topic and scan generated `1_goal.md`, `2_context.md`, and `3_plan.md` with `rg -n '\{\{[^}]+\}\}'`. The assertion must fail if any unresolved placeholder remains; generated artifacts must contain concrete safe defaults or collected values.
 
 - [ ] **Step 2: Run the contract test and verify skill/template assertions fail**
 
@@ -435,11 +452,11 @@ Before state-machine execution, require:
 
 ```text
 1. Validate with require_launch=false.
-2. Present mode, subtype, scopes, verifier, budget, rollback/recovery, and three hashes.
+2. Present mode, subtype, scopes, verifier, budget, rollback/recovery, and goal/context/plan/policy hashes.
 3. State that invocation is not launch confirmation.
 4. Ask one explicit launch question.
 5. On refusal or ambiguity, append a refused event and stop.
-6. On approval, write launch.confirmed=true with all three hashes and append a confirmed event.
+6. On approval, write launch.confirmed=true with goal/context/plan/policy hashes and append a confirmed event with exactly those four hashes.
 7. Repeat the complete preflight with require_launch=true.
 8. On failure, reset launch, append a reset event, and stop before prepare/act/check/reflect.
 ```
@@ -453,7 +470,7 @@ bash tests/test_loen_loop_run_contract.sh
 bash tests/test_loen_runtime_artifacts.sh
 ```
 
-Expected: all gate-order, exact-command, topic-quality, replan, launch, contract, and audit assertions pass with `FAIL=0`.
+Expected: all gate-order, exact-command, topic-quality, placeholder-completeness, replan, launch, contract, and audit assertions pass with `FAIL=0`.
 
 - [ ] **Step 8: Commit skills and planning templates**
 
@@ -469,6 +486,7 @@ git commit -m "feat(loen): gate start planning and runner launch"
 **Files:**
 - Modify: `tests/test_loen_loop_run_contract.sh`
 - Modify: `tests/test_loen_runtime_artifacts.sh`
+- Add or modify: `tests/test_loen_workflow_transitions.sh`
 - Modify only if a regression is found: `plugins/loen/hooks/loen_common.py`
 - Modify only if a regression is found: `plugins/loen/hooks/loen_artifacts.py`
 
@@ -480,7 +498,24 @@ python3 -m py_compile plugins/loen/hooks/loen_common.py plugins/loen/hooks/loen_
 
 Expected: exit 0 and no output.
 
-- [ ] **Step 2: Run all focused LoEn tests**
+- [ ] **Step 2: Add deterministic executable workflow-transition coverage**
+
+Use real scaffolded `1_goal.md`, `2_context.md`, `3_plan.md`, `loop.yaml`, the production validator, and persisted checkpoint events. Drive this exact sequence in one isolated temporary topic:
+
+```text
+current goal/context + mode + plan/policy -> prelaunch valid
+loop-run invocation -> no action
+explicit refusal -> refusal event + no action
+explicit confirmation -> launch event with goal/context/plan/policy hashes
+repeated require_launch=true preflight -> valid
+mode or canonical policy mutation -> exact policy-hash rejection + no action
+renew current plan/policy and launch authority -> repeated full validation valid
+runner action -> occurs only now
+```
+
+Assert event order and contents, exact `plan policy hash mismatch` / `launch policy hash mismatch` reasons at their respective gates, unchanged action evidence for every invocation/refusal/rejection step, and one action only after current full validation.
+
+- [ ] **Step 3: Run all focused LoEn tests**
 
 ```bash
 for t in tests/test_loen_*.sh; do bash "$t" || exit 1; done
@@ -488,7 +523,7 @@ for t in tests/test_loen_*.sh; do bash "$t" || exit 1; done
 
 Expected: every LoEn test exits 0; no `FAIL` count is nonzero.
 
-- [ ] **Step 3: Run the full Bash suite**
+- [ ] **Step 4: Run the full Bash suite**
 
 ```bash
 for t in tests/test_*.sh; do bash "$t" || exit 1; done
@@ -496,14 +531,14 @@ for t in tests/test_*.sh; do bash "$t" || exit 1; done
 
 Expected: every test exits 0. Any unrelated pre-existing failure must be reproduced on `origin/master` and recorded before proceeding.
 
-- [ ] **Step 4: Fix only confirmed checkpoint regressions and rerun their smallest failing test**
+- [ ] **Step 5: Fix only confirmed checkpoint regressions and rerun their smallest failing test**
 
-Use the failure message to make the smallest source or fixture correction. Do not weaken missing/stale/legacy rejection. Rerun the exact failing test, then Steps 1-3.
+Use the failure message to make the smallest source or fixture correction. Do not weaken missing/stale/legacy rejection. Rerun the exact failing test, then Steps 1-4.
 
-- [ ] **Step 5: Commit any stabilization changes**
+- [ ] **Step 6: Commit any stabilization changes**
 
 ```bash
-git add plugins/loen/hooks/loen_common.py plugins/loen/hooks/loen_artifacts.py tests/test_loen_loop_run_contract.sh tests/test_loen_runtime_artifacts.sh
+git add plugins/loen/hooks/loen_common.py plugins/loen/hooks/loen_artifacts.py tests/test_loen_loop_run_contract.sh tests/test_loen_runtime_artifacts.sh tests/test_loen_workflow_transitions.sh
 git diff --cached --quiet || git commit -m "test(loen): cover checkpoint state transitions"
 ```
 
@@ -590,7 +625,7 @@ python3 -m py_compile plugins/loen/hooks/loen_common.py plugins/loen/hooks/loen_
 for t in tests/test_loen_*.sh; do bash "$t" || exit 1; done
 ```
 
-Expected: exit 0; all LoEn tests pass.
+Expected: exit 0; all LoEn tests pass, including executable transition coverage proving no action before current goal/context/plan/policy launch authority and repeated full validation.
 
 - [ ] **Step 2: Run final full suite**
 
@@ -606,9 +641,10 @@ Expected: exit 0 for every test.
 git diff --check origin/master...HEAD
 git diff --stat origin/master...HEAD
 rg -n "run\.plan_approved|run\.plan_hash|run\.mode|run\.subtype" plugins/loen tests
+rg -n '\{\{[^}]+\}\}' docs/loen/*/1_goal.md docs/loen/*/2_context.md docs/loen/*/3_plan.md
 ```
 
-Expected: clean diff; changed paths map to Tasks 1-6; remaining legacy-key matches exist only in explicit rejection tests or migration documentation.
+Expected: clean diff; changed paths map to Tasks 1-6; remaining legacy-key matches exist only in explicit rejection/summary-authority tests or migration documentation; generated planning artifacts contain no unresolved placeholders. Evidence explicitly maps review corrections to `loen_artifacts.py`, `loop.yaml`, the three planning templates, `test_loen_loop_run_contract.sh`, `test_loen_runtime_artifacts.sh`, and `test_loen_workflow_transitions.sh`, with passing exact-reason, event-hash, summary-authority, scaffold-completeness, and action-timing assertions.
 
 - [ ] **Step 4: Validate chain result and close TODO**
 

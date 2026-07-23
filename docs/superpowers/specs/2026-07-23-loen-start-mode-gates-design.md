@@ -71,12 +71,12 @@ Acceptance criteria:
 
 Initial planning is part of `loop-start`; users do not invoke `loop-plan` during the primary start flow. Planning consumes only confirmed goal/context and mode state. The generated plan must map actions to success criteria, scope, verifier evidence, budget, risks, and rollback or recovery behavior.
 
-Plan approval is a separate checkpoint bound to the current `3_plan.md` hash. It does not authorize execution.
+Plan approval is a separate checkpoint bound to the current `3_plan.md` hash and the current authority-relevant policy hash. It does not authorize execution.
 
 Acceptance criteria:
 
 - `loop-start` generates a plan only after R1 and R2 pass.
-- Plan approval records the current plan hash.
+- Plan approval records the current plan and policy hashes.
 - Approval output does not imply or trigger launch authorization.
 
 ### R4: Explicit Handoff From Start to Run
@@ -96,9 +96,9 @@ Acceptance criteria:
 
 ### R5: Launch Confirmation in `loop-run`
 
-Invoking `loen:loop-run <topic>` is not launch confirmation. Before execution, `loop-run` must validate the first three checkpoints, present a final contract summary, and request an explicit human launch decision. The summary includes mode, subtype, mutable and protected scope, verifier, budget, rollback or recovery policy, and current goal, context, and plan hashes.
+Invoking `loen:loop-run <topic>` is not launch confirmation. Before execution, `loop-run` must validate the first three checkpoints, present a final contract summary, and request an explicit human launch decision. The summary includes mode, subtype, mutable and protected scope, verifier, budget, rollback or recovery policy, and current goal, context, plan, and policy hashes.
 
-On explicit approval, `loop-run` writes the `launch` checkpoint and an audit event, then repeats the complete preflight. Execution begins only if the repeated preflight succeeds. A refusal or ambiguous response leaves execution blocked. A failed repeated preflight invalidates launch confirmation and records the failure.
+On explicit approval, `loop-run` writes the `launch` checkpoint and an audit event, then repeats the complete preflight. Launch confirmation is bound to the current goal, context, plan, and policy hashes. Execution begins only if the repeated preflight succeeds. A refusal or ambiguous response leaves execution blocked. A failed repeated preflight invalidates launch confirmation and records the failure.
 
 Acceptance criteria:
 
@@ -125,20 +125,25 @@ checkpoints:
   plan:
     approved: true
     plan_hash: "<hash of 3_plan.md>"
+    policy_hash: "<hash of canonical authority policy>"
   launch:
     confirmed: false
     goal_hash: null
     context_hash: null
     plan_hash: null
+    policy_hash: null
 ```
 
-Each audit event records timestamp, checkpoint name, decision type, relevant hashes, mode/subtype when applicable, and outcome. Existing audit artifact conventions determine the physical event file and rendering; this change must not create a second audit system.
+`policy_hash` is the first 16 lowercase hexadecimal characters of SHA-256 over UTF-8 canonical JSON containing exactly these keys: `mode`, `subtype`, `mutable_scope`, `protected_scope`, `quality_gates`, `verifier`, `budget`, `stop_conditions`, `handoff_conditions`, `rollback_policy`, `governance`, and `release_policy`. Canonical JSON uses sorted keys, compact separators (`,` and `:`), JSON booleans/null, and the parsed contract values without display-time normalization. The same helper and field set must be used when confirming and validating both plan and launch checkpoints.
+
+Each audit event records timestamp, checkpoint name, decision type, relevant hashes, mode/subtype when applicable, and outcome. A `confirmed` event for `goal_context` contains `goal_hash` and `context_hash`; one for `plan` contains `plan_hash` and `policy_hash`; one for `launch` contains `goal_hash`, `context_hash`, `plan_hash`, and `policy_hash`. Existing audit artifact conventions determine the physical event file and rendering; this change must not create a second audit system.
 
 Acceptance criteria:
 
 - Current authority is readable from `checkpoints` without replaying audit history.
 - Audit history shows every confirmation, invalidation, and refusal.
 - Audit events cannot substitute for missing or stale checkpoint state.
+- Runner and audit summaries read current mode, subtype, approvals, and hashes from `checkpoints`; removed `run.*` authority fields are never rendered as current authority.
 
 ### R7: Deterministic Invalidation
 
@@ -148,9 +153,12 @@ Checkpoint invalidation follows downstream dependency order:
 |---|---|
 | `1_goal.md` or `2_context.md` content changes | `goal_context`, `mode`, `plan`, `launch` |
 | mode or subtype changes | `mode`, `plan`, `launch` |
+| authority-relevant policy or scope changes | `plan`, `launch` |
 | `3_plan.md` content changes | `plan`, `launch` |
 | plan is re-approved | restores `plan` only |
 | post-confirmation preflight fails | `launch` |
+
+At the plan gate, validation recomputes the current policy hash and compares it with `checkpoints.plan.policy_hash`; mismatch blocks with the exact reason `plan policy hash mismatch`. At the launch gate, validation independently compares the current policy hash with `checkpoints.launch.policy_hash`; mismatch blocks with the exact reason `launch policy hash mismatch`. Therefore a mode/subtype mutation or any mutation to the canonical policy/scope fields invalidates plan and launch technically even when `3_plan.md` and the three artifact hashes are unchanged. Mode/subtype checkpoint validation still reports its earlier ordered error when the stored mode checkpoint itself contradicts current policy.
 
 Any hash mismatch, missing checkpoint, contradictory value, or out-of-order state blocks execution. Legacy contracts without `checkpoints` are invalid and must direct the user back to `loop-start` for explicit renewal.
 
@@ -162,7 +170,7 @@ Acceptance criteria:
 
 ### R8: Standalone Replanning
 
-`loen:loop-plan` remains available for replanning an existing topic. It first validates current goal/context and mode checkpoints, regenerates or revises `3_plan.md`, invalidates plan and launch authority, and requests separate plan approval. It cannot confirm launch or execute the runner.
+`loen:loop-plan` remains available for replanning an existing topic. It first validates current goal/context and mode checkpoints, regenerates or revises `3_plan.md`, invalidates plan and launch authority, and requests separate plan approval bound to the current plan and policy hashes. It cannot confirm launch or execute the runner.
 
 Acceptance criteria:
 
@@ -206,7 +214,7 @@ The shared LoEn contract parser and preflight validator own checkpoint shape, ha
 
 ### Templates and Audit Rendering
 
-Templates expose the new checkpoint shape with unconfirmed defaults. Audit rendering displays checkpoint decisions and invalidations using existing topic audit artifacts.
+Templates expose the new checkpoint shape with unconfirmed defaults. Generated `1_goal.md`, `2_context.md`, and `3_plan.md` must be complete runtime artifacts with no unresolved `{{...}}` placeholder tokens. Audit rendering displays checkpoint decisions and invalidations using existing topic audit artifacts and reads current authority from `checkpoints`, not removed `run.*` fields.
 
 ## Data Flow
 
@@ -215,11 +223,11 @@ Templates expose the new checkpoint shape with unconfirmed defaults. Audit rende
 3. The user confirms the goal/context summary; hashes are stored and audited.
 4. The user selects mode and subtype; selection is stored and audited.
 5. Integrated planning creates `3_plan.md` from current confirmed inputs.
-6. The user approves the plan; its hash is stored and audited.
+6. The user approves the plan; its plan and policy hashes are stored and audited.
 7. `loop-start` stops with the exact `loen:loop-run <topic>` continuation instruction.
 8. `loop-run` validates goal/context, mode, and plan checkpoints.
 9. `loop-run` presents the final contract and asks for launch confirmation.
-10. Explicit approval writes the launch checkpoint bound to all three artifact hashes and appends an audit event.
+10. Explicit approval writes the launch checkpoint bound to all three artifact hashes and the policy hash, then appends an audit event containing all four hashes.
 11. `loop-run` repeats full preflight. Success enters runner execution; failure resets launch and records refusal evidence.
 12. Any later upstream mutation applies the R7 invalidation table before another run.
 
@@ -232,6 +240,8 @@ Refusals must name the failed checkpoint, explain the mismatch, and give one con
 | Goal/context missing, stale, or ambiguous | Resume `loop-start` and reconfirm goal/context. |
 | Mode/subtype missing or contradictory | Resume `loop-start` and select mode/subtype. |
 | Plan missing or stale | Resume `loop-start`, or use standalone `loop-plan` for replan. |
+| Plan policy hash mismatch | Resume `loop-start`, or use standalone `loop-plan`, then approve the plan under the current policy. |
+| Launch policy hash mismatch | Repeat `loop-run`, review the current contract, and provide a new launch decision. |
 | Legacy contract | Resume `loop-start`; no automatic migration. |
 | Launch declined or ambiguous | Leave launch unconfirmed and exit without execution. |
 | Post-confirmation preflight failure | Reset launch, record failure, and report the failed prerequisite. |
@@ -252,14 +262,19 @@ Focused contract tests must verify behavior and state transitions rather than ke
 - each checkpoint missing independently blocks execution;
 - out-of-order checkpoints block execution;
 - goal, context, mode, subtype, and plan mutations invalidate the required downstream checkpoints;
+- policy-hash fixtures prove mode/subtype and every canonical policy/scope field mutation fails with `plan policy hash mismatch` at the plan gate or `launch policy hash mismatch` at the launch gate, while unchanged plan and artifact hashes remain current;
 - legacy contracts are refused with the `loop-start` recovery route;
 - ambiguous and negative launch responses do not execute;
 - launch confirmation is persisted before, and validated by, the repeated preflight;
 - repeated-preflight failure resets launch and does not execute;
 - standalone `loop-plan` invalidates and renews plan state correctly;
 - confirm, reset, and refusal decisions appear in audit evidence;
+- confirmed audit events contain exactly the required checkpoint hashes: goal/context for `goal_context`, plan/policy for `plan`, and goal/context/plan/policy for `launch`;
 - `loop-start` always emits the exact continuation command and never invokes `loop-run`;
 - required topic fields and unresolved assumptions block planning;
+- scaffolded `1_goal.md`, `2_context.md`, and `3_plan.md` contain no unresolved `{{...}}` placeholders;
+- one deterministic executable workflow-transition test uses real scaffolded artifacts, the validator, and persisted events to prove: valid prelaunch state; invocation performs no action; refusal records an event and performs no action; explicit launch confirmation; repeated preflight; mode/policy mutation rejection; and action only after current full validation;
+- runner/audit summary tests prove current authority comes from `checkpoints` after legacy `run.*` fields are removed;
 - existing LoEn focused tests continue to pass after fixtures adopt the new contract.
 
 Positive tests must include evidence that runner execution begins only after explicit launch confirmation. Negative tests must include evidence that no runner action occurred.
