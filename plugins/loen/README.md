@@ -226,10 +226,10 @@ next action but does not advance the loop.
 
 ## Runner Contract
 
-`loop.yaml` holds current checkpoint authority. `attempts.jsonl` is append-only
+`loop.yaml` checkpoints hold current Runner authority. `attempts.jsonl` is append-only
 history: checkpoint confirmation, invalidation, refusal, and execution events
 remain auditable there, but old events never override current checkpoint state.
-The `run:` block contains progress fields only, such as state and pass counters.
+The `run:` block holds progress only, such as state and pass counters.
 
 ```yaml
 checkpoints:
@@ -244,12 +244,19 @@ checkpoints:
   plan:
     confirmed: true
     plan_hash: "<hash of 3_plan.md>"
+    policy_hash: "<hash of canonical policy>"
   launch:
     confirmed: false
     goal_hash: null
     context_hash: null
     plan_hash: null
+    policy_hash: null
 ```
+
+`policy_hash` is the first 16 hexadecimal characters of SHA-256 over canonical,
+key-sorted JSON containing `mode`, `subtype`, `mutable_scope`,
+`protected_scope`, `quality_gates`, `verifier`, `budget`, `stop_conditions`,
+`handoff_conditions`, `rollback_policy`, `governance`, and `release_policy`.
 
 Checkpoints are ordered: `goal_context`, `mode`, `plan`, then `launch`. Mode is
 an explicit `delivery` or `governance` choice; governance also requires an
@@ -259,16 +266,24 @@ inferred from wording, defaults, prior conversation, or historical events.
 | Change | Invalidated checkpoints |
 |---|---|
 | `1_goal.md` or `2_context.md` content changes | `goal_context`, `mode`, `plan`, `launch` |
-| Confirmed mode or subtype changes | `mode`, `plan`, `launch` |
+| Mode, subtype, or any authority-relevant scope or policy changes | `mode` when applicable, `plan`, `launch` |
 | `3_plan.md` content changes or standalone replan begins | `plan`, `launch` |
 | Any launch-bound hash changes | `launch` |
 
 Invoking `loen:loop-run <topic>` is not launch confirmation. The runner first
 validates all upstream checkpoints and policy, then presents the final contract
-summary. Only a separate explicit human confirmation records `launch.confirmed`
-with current goal, context, and plan hashes. The runner immediately repeats the
-full preflight against those hashes and either executes or refuses. This
+summary, including `policy_hash`. A plan policy mismatch is reported as a plan
+policy hash mismatch and invalidates plan and launch. Only a separate explicit
+human confirmation records `launch.confirmed` with current goal, context, plan,
+and policy hashes. The runner separately refuses a launch policy hash mismatch,
+then immediately repeats the full preflight against all four hashes and either
+executes or refuses. This
 universal launch checkpoint also applies to governance `merge-release`.
+
+Confirmed checkpoint audit events carry the hashes that authorize their
+decision: goal/context for `goal_context`, plan/policy for `plan`, and
+goal/context/plan/policy for `launch`. These events remain history; Runner
+authority comes from checkpoints and progress comes from `run:`.
 
 `loop-run` refuses to continue when a checkpoint is missing, stale,
 contradictory, or out of order; mutable scope or verifier is missing; budget is

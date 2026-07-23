@@ -173,7 +173,7 @@ flowchart TD
     Summary --> LaunchApproval{"explicit human launch?"}
     LaunchApproval -- "no" --> RefusedEvent["append refused checkpoint event"]
     RefusedEvent --> StopWithoutRun["stop without execution or handoff"]
-    LaunchApproval -- "yes" --> LaunchCheckpoint["launch checkpoint bound to three hashes"]
+    LaunchApproval -- "yes" --> LaunchCheckpoint["launch checkpoint bound to goal, context, plan, and policy hashes"]
     LaunchCheckpoint --> RepeatPreflight{"repeat full preflight"}
     RepeatPreflight -- "fail" --> Handoff
     RepeatPreflight -- "pass" --> ModeChoice
@@ -239,9 +239,9 @@ the runner or offers immediate execution; it stops with the exact command
 
 - `checkpoints.goal_context` stores confirmation plus goal and context hashes.
 - `checkpoints.mode` stores explicit mode and subtype confirmation.
-- `checkpoints.plan` stores separate approval plus the plan hash.
+- `checkpoints.plan` stores separate approval plus the plan and policy hashes.
 - `checkpoints.launch` stores separate human launch confirmation bound to the
-  current goal, context, and plan hashes.
+  current goal, context, plan, and policy hashes.
 - `run:` stores progress fields only, including state and pass counters.
 - `release_policy:` stores target branch, merge strategy, verifier requirement,
   evidence requirement, `scope_limit`, and recovery policy for merge-release.
@@ -251,11 +251,19 @@ the runner or offers immediate execution; it stops with the exact command
 `attempts.jsonl` is append-only audit history for checkpoint confirmations,
 invalidations, refusals, and execution attempts. Historical events are never
 current authority and cannot restore a checkpoint invalidated in `loop.yaml`.
+Confirmed events contain goal/context hashes for `goal_context`, plan/policy
+hashes for `plan`, and goal/context/plan/policy hashes for `launch`. Runner
+authority comes from checkpoints; `run:` supplies progress only.
+
+The policy hash is the first 16 SHA-256 hexadecimal characters over canonical,
+key-sorted JSON of `mode`, `subtype`, `mutable_scope`, `protected_scope`,
+`quality_gates`, `verifier`, `budget`, `stop_conditions`, `handoff_conditions`,
+`rollback_policy`, `governance`, and `release_policy`.
 
 | Deterministic change | Invalidated checkpoints |
 |---|---|
 | `1_goal.md` or `2_context.md` content changes | `goal_context`, `mode`, `plan`, `launch` |
-| Confirmed mode or subtype changes | `mode`, `plan`, `launch` |
+| Mode, subtype, or any authority-relevant scope or policy changes | `mode` when applicable, `plan`, `launch` |
 | `3_plan.md` content changes or standalone replan begins | `plan`, `launch` |
 | Any launch-bound hash changes | `launch` |
 
@@ -266,8 +274,11 @@ the primary `loop-start` flow.
 
 Invoking `loen:loop-run <topic>` is not launch confirmation. The runner validates
 the three upstream checkpoints, hashes, scope, verifier, budget, and policy, then
-presents a final contract summary. A separate explicit human decision records
-the launch checkpoint and its three hashes. The runner immediately repeats full
+presents a final contract summary including `policy_hash`. Any mode, subtype,
+scope, or policy mutation that changes authority produces a plan policy hash
+mismatch and invalidates plan and launch. A separate explicit human decision
+records the launch checkpoint and its four hashes. A launch policy mismatch is
+refused separately. The runner immediately repeats full
 preflight and enters `prepare -> act -> check -> reflect` only if it still
 passes; otherwise it refuses and records recovery guidance. It writes
 `7_result.md` only when terminal evidence supports completion.
