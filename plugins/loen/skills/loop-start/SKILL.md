@@ -58,6 +58,6 @@ PROHIBITION: MUST NOT invoke `loen:loop-run`.
 
 ## Output
 
-Report topic, artifact directory, mode/subtype, goal/context confirmation, and plan approval. The continuation command is output only. End with exactly:
+Report topic, artifact directory, mode/subtype, goal/context confirmation, and plan approval. The continuation command is output only. Set `resolved_topic` to the validated topic slug used for `docs/loen/<topic>/`. Replace `{resolved_topic}` with the validated topic slug before emitting the final line. Never emit angle-bracket notation or any unresolved placeholder. The response's last line must be the ready-to-run command below after substitution:
 
-To continue, run `loen:loop-run <topic>`.
+`loen:loop-run {resolved_topic}`

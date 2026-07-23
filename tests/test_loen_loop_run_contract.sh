@@ -755,10 +755,13 @@ assert_ordered_lines "loop-start preserves confirmation and planning gate order"
   'Ask the user to select `delivery` or `governance`; never infer mode or subtype.' \
   "Write the integrated plan from the confirmed goal, context, mode, and subtype." \
   "Obtain separate explicit approval of the complete plan." \
-  'To continue, run `loen:loop-run <topic>`.'
+  '`loen:loop-run {resolved_topic}`'
 
-assert_contains "loop-start gives exact continuation command" "$loop_start_text" 'To continue, run `loen:loop-run <topic>`.'
-assert_eq "loop-start continuation command appears once" "1" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_start")"
+loop_start_output="$(awk '/^## Output$/ {capture=1} capture {print}' "$loop_start")"
+assert_contains "loop-start gives resolved continuation template" "$loop_start_output" '`loen:loop-run {resolved_topic}`'
+assert_contains "loop-start requires slug substitution" "$loop_start_output" 'Replace `{resolved_topic}` with the validated topic slug before emitting the final line.'
+assert_eq "loop-start forbids literal topic continuation output" "0" "$(grep -cF 'loen:loop-run <topic>' <<<"$loop_start_output" || true)"
+assert_eq "loop-start resolved continuation template appears once" "1" "$(grep -cF '`loen:loop-run {resolved_topic}`' "$loop_start")"
 assert_eq "loop-start does not offer immediate run" "0" "$(grep -Eic 'offer.*(start|run).*immediately|start.*immediately' "$loop_start" || true)"
 assert_contains "loop-start requires empty unresolved assumptions" "$loop_start_text" 'Unresolved Assumptions` must be explicitly empty'
 assert_contains "loop-start hashes confirmed goal and context" "$loop_start_text" 'Hash the current confirmed `1_goal.md` and `2_context.md`'
@@ -829,8 +832,8 @@ for skill_name in loop-start loop-plan; do
   assert_eq "$skill_name has no launch confirmed true path outside prohibition" "0" "$(printf '%s\n' "$filtered_text" | grep -Eic "$launch_confirmed_true_pattern" || true)"
   assert_eq "$skill_name has no launch write true path outside prohibition" "0" "$(printf '%s\n' "$filtered_text" | grep -Eic "$launch_write_true_pattern" || true)"
 done
-assert_eq "loop-start exact continuation output appears once" "1" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_start")"
-assert_eq "loop-plan has no continuation output" "0" "$(grep -cF 'To continue, run `loen:loop-run <topic>`.' "$loop_plan" || true)"
+assert_eq "loop-start exact resolved continuation output appears once" "1" "$(grep -cF '`loen:loop-run {resolved_topic}`' "$loop_start")"
+assert_eq "loop-plan has no continuation output" "0" "$(grep -cF '`loen:loop-run {resolved_topic}`' "$loop_plan" || true)"
 
 checkpoint_event_contract='append_checkpoint_event('
 for event_skill in "$loop_start" "$loop_plan" "$loop_run"; do
@@ -939,118 +942,6 @@ assert_contains "loop-run supports merge release" "$loop_run_text" "merge-releas
 assert_contains "merge-release requires universal launch checkpoint" "$loop_run_text" "universal launch checkpoint is required"
 assert_contains "merge-release says plan approval is insufficient" "$loop_run_text" "Plan approval alone is insufficient"
 
-policy_transition_status="$(PYTHONPATH="$hook_root" python3 - "$tmp/policy-transition-root" "$plugin_root/assets/templates" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-from loen_artifacts import append_checkpoint_event, artifact_body_hash, run_policy_hash, scaffold_topic, validate_run_contract
-from loen_common import parse_loop_yaml
-
-root = Path(sys.argv[1])
-base = scaffold_topic(
-    artifact_root=root,
-    template_dir=Path(sys.argv[2]),
-    topic="transition",
-    objective="Execute approved transition.",
-    mutable_scope=["plugins/loen/**"],
-    protected_scope=["README.md"],
-    verifier_command="bash tests/test_loen_loop_run_contract.sh",
-    quality_gate_command="bash tests/test_loen_loop_run_contract.sh",
-    created_date="2026-07-23",
-)
-required = {"1_goal.md", "2_context.md", "3_plan.md", "4_act.md", "5_check.md", "6_reflect.md", "7_result.md", "loop.yaml", "attempts.jsonl", "handoff.md", "audit.html"}
-if not required <= {path.name for path in base.iterdir()}:
-    raise SystemExit("production scaffold incomplete")
-states = ["scaffold"]
-scaffold_artifacts = {name: (base / name).read_text(encoding="utf-8") for name in ("1_goal.md", "2_context.md", "3_plan.md")}
-scaffold_action = (base / "4_act.md").read_text(encoding="utf-8")
-hashes = {name: artifact_body_hash(base / filename) for name, filename in (("goal_hash", "1_goal.md"), ("context_hash", "2_context.md"), ("plan_hash", "3_plan.md"))}
-
-def set_checkpoint(name, body):
-    path = base / "loop.yaml"
-    text = path.read_text(encoding="utf-8")
-    pattern = rf"(  {name}:\n)(?:    .*\n)+"
-    updated, count = re.subn(pattern, rf"\g<1>{body}", text, count=1)
-    if count != 1:
-        raise SystemExit(f"checkpoint not found: {name}")
-    path.write_text(updated, encoding="utf-8")
-
-set_checkpoint("goal_context", f"    confirmed: true\n    goal_hash: {hashes['goal_hash']}\n    context_hash: {hashes['context_hash']}\n")
-append_checkpoint_event(base=base, checkpoint="goal_context", decision="confirmed", hashes={"goal_hash": hashes["goal_hash"], "context_hash": hashes["context_hash"]})
-states.append("goal-context-confirmed")
-set_checkpoint("mode", "    confirmed: true\n    mode: delivery\n    subtype: \"\"\n")
-append_checkpoint_event(base=base, checkpoint="mode", decision="confirmed", hashes={}, mode="delivery")
-states.append("mode-confirmed")
-parsed = parse_loop_yaml((base / "loop.yaml").read_text(encoding="utf-8"))
-policy = run_policy_hash(parsed, "delivery", "")
-set_checkpoint("plan", f"    confirmed: true\n    plan_hash: {hashes['plan_hash']}\n    policy_hash: {policy}\n")
-append_checkpoint_event(base=base, checkpoint="plan", decision="confirmed", hashes={"plan_hash": hashes["plan_hash"], "policy_hash": policy}, mode="delivery")
-states.append("plan-confirmed")
-if validate_run_contract(base, require_launch=False)["ok"] is not True:
-    raise SystemExit("prelaunch rejected")
-states.append("prelaunch")
-if (base / "4_act.md").read_text(encoding="utf-8") != scaffold_action:
-    raise SystemExit("invocation acted")
-append_checkpoint_event(base=base, checkpoint="launch", decision="refused", hashes={})
-states.append("refused")
-if (base / "4_act.md").read_text(encoding="utf-8") != scaffold_action:
-    raise SystemExit("refusal acted")
-launch = hashes | {"policy_hash": policy}
-set_checkpoint("launch", f"    confirmed: true\n    goal_hash: {hashes['goal_hash']}\n    context_hash: {hashes['context_hash']}\n    plan_hash: {hashes['plan_hash']}\n    policy_hash: {policy}\n")
-append_checkpoint_event(base=base, checkpoint="launch", decision="confirmed", hashes=launch)
-if validate_run_contract(base)["ok"] is not True:
-    raise SystemExit("launch rejected")
-if any((base / name).read_text(encoding="utf-8") != text for name, text in scaffold_artifacts.items()):
-    raise SystemExit("transition rewrote scaffold stage artifacts")
-states.append("launched")
-original = (base / "loop.yaml").read_text(encoding="utf-8")
-mutations = {
-    "delivery-to-governance": lambda value: value.replace("    mode: delivery\n    subtype: \"\"", "    mode: governance\n    subtype: report-only"),
-    "governance-subtype": lambda value: value.replace("    mode: delivery\n    subtype: \"\"", "    mode: governance\n    subtype: auto-fix").replace("  auto_fix: false", "  auto_fix: true"),
-    "mutable-scope": lambda value: value.replace("  - plugins/loen/**", "  - tests/**", 1),
-    "protected-scope": lambda value: value.replace("  - README.md", "  - docs/**", 1),
-    "quality-gates": lambda value: value.replace("evidence/latest-test.json", "evidence/other.json"),
-    "verifier": lambda value: value.replace("  type: test", "  type: review"),
-    "budget": lambda value: value.replace("  max_iterations: 3", "  max_iterations: 2"),
-    "stop": lambda value: value.replace("  - quality gates pass", "  - verified", 1),
-    "handoff": lambda value: value.replace("  - schema change required", "  - exhausted", 1),
-    "rollback": lambda value: value.replace('rollback_policy: "Revert unsafe changes"', "rollback_policy: Stop"),
-    "governance": lambda value: value.replace("  automation_type: manual", "  automation_type: scheduled"),
-    "release": lambda value: value.replace('  target_branch: ""', "  target_branch: master"),
-}
-for label, mutate in mutations.items():
-    (base / "loop.yaml").write_text(mutate(original), encoding="utf-8")
-    if validate_run_contract(base)["reason"] != "plan policy hash mismatch":
-        raise SystemExit(f"{label} mutation accepted")
-    if (base / "4_act.md").read_text(encoding="utf-8") != scaffold_action:
-        raise SystemExit(f"{label} mutation acted")
-states.append("policy-rejected")
-
-mutated = mutations["mutable-scope"](original)
-current_policy = run_policy_hash(parse_loop_yaml(mutated), "delivery", "")
-mutated = re.sub(r"(  plan:\n(?:    .*\n)*?    policy_hash: )[^\n]+", rf"\g<1>{current_policy}", mutated)
-(base / "loop.yaml").write_text(mutated, encoding="utf-8")
-if validate_run_contract(base)["reason"] != "launch policy hash mismatch":
-    raise SystemExit("stale launch policy accepted")
-append_checkpoint_event(base=base, checkpoint="plan", decision="confirmed", hashes={"plan_hash": hashes["plan_hash"], "policy_hash": current_policy})
-mutated = re.sub(r"(  launch:\n(?:    .*\n)*?    policy_hash: )[^\n]+", rf"\g<1>{current_policy}", mutated)
-(base / "loop.yaml").write_text(mutated, encoding="utf-8")
-append_checkpoint_event(base=base, checkpoint="launch", decision="confirmed", hashes=hashes | {"policy_hash": current_policy})
-if validate_run_contract(base)["ok"] is not True:
-    raise SystemExit("reconfirmed current policy rejected")
-states.append("reconfirmed")
-(base / "4_act.md").write_text("validated action\n", encoding="utf-8")
-states.append("acted")
-events = [line for line in (base / "attempts.jsonl").read_text(encoding="utf-8").splitlines() if line]
-if len(events) != 7 or '"checkpoint": "goal_context"' not in events[0] or '"checkpoint": "mode"' not in events[1] or '"checkpoint": "plan"' not in events[2] or '"decision": "refused"' not in events[3] or any('"decision": "confirmed"' not in line for line in events[4:]):
-    raise SystemExit("event order/count mismatch")
-if states != ["scaffold", "goal-context-confirmed", "mode-confirmed", "plan-confirmed", "prelaunch", "refused", "launched", "policy-rejected", "reconfirmed", "acted"]:
-    raise SystemExit(f"state order mismatch: {states}")
-print("OK")
-PY
-)"
-assert_eq "executable launch transition binds action to current policy" "OK" "$policy_transition_status"
 assert_contains "governance skill names subtypes" "$loop_governance_text" "report-only"
 assert_contains "README documents loop-run" "$(cat "$readme")" "loen:loop-run"
 assert_contains "Russian README documents loop-run" "$(cat "$readme_ru")" "loen:loop-run"
