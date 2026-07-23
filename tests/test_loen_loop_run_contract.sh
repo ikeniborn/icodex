@@ -581,6 +581,60 @@ PY
 )"
 assert_eq "block list items require exact canonical parent" "OK" "$canonical_list_parent_output"
 
+malformed_list_sibling_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
+from loen_common import parse_loop_yaml, parse_loop_yaml_checked
+
+cases = {
+    "top_scope": ("""mutable_scope:
+  - src/**
+  metadata
+  - outside/**
+""", lambda data: data["mutable_scope"] == ["src/**"]),
+    "agent_tools": ("""agents:
+  worker:
+    tools:
+      - read
+    metadata
+      - edit
+""", lambda data: data["agents"]["worker"]["tools"] == ["read"]),
+    "stage_roles": ("""stages:
+  act:
+    roles:
+      - worker
+    metadata
+      - verifier
+""", lambda data: data["stages"]["act"]["roles"] == ["worker"]),
+    "root_tools": ("""tools:
+  allowed:
+    - read
+  metadata
+    - write
+""", lambda data: data["tools"]["allowed"] == ["read"]),
+    "governance_alerts": ("""governance:
+  alert_on:
+    - verifier_failure
+  metadata
+    - auto_merge
+""", lambda data: data["governance"]["alert_on"] == ["verifier_failure"]),
+    "permission_scope": ("""permissions:
+  filesystem:
+    mutable_scope:
+      - src/**
+    metadata
+      - outside/**
+""", lambda data: data["permissions"]["filesystem"]["mutable_scope"] == ["src/**"]),
+}
+failed = []
+for name, (text, valid) in cases.items():
+    data = parse_loop_yaml(text)
+    _, diagnostics = parse_loop_yaml_checked(text)
+    if not valid(data) or not diagnostics:
+        failed.append({"name": name, "data": data, "diagnostics": diagnostics})
+print("OK" if not failed else failed)
+PY
+)"
+assert_eq "malformed non-mapping sibling clears every canonical list target" "OK" "$malformed_list_sibling_output"
+
 duplicate_checkpoint_output="$(PYTHONPATH="$hook_root" python3 - 2>/dev/null <<'PY'
 from loen_common import parse_loop_yaml
 
