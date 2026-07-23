@@ -1,6 +1,6 @@
 ---
 review:
-  spec_hash: f3b80e4973914acf
+  spec_hash: cc2ac7a44ed97608
   last_run: 2026-07-23
   phases:
     structure: { status: passed }
@@ -81,13 +81,13 @@ Acceptance criteria:
 
 ### R4: Explicit Handoff From Start to Run
 
-`loop-start` must never invoke `loop-run` automatically and must not offer an immediate in-flow launch. After plan approval it must stop and show the exact instruction:
+`loop-start` must never invoke `loop-run` automatically and must not offer an immediate in-flow launch. After plan approval it must stop and emit the ready-to-run command as the response's final line, replacing the placeholder with the validated topic slug:
 
 ```text
-To continue, run loen:loop-run <topic>.
+loen:loop-run {resolved_topic}
 ```
 
-User-facing localization may translate the surrounding sentence, but the command and resolved topic must remain exact.
+The emitted line must contain the resolved topic, not angle-bracket notation or another unresolved placeholder. Surrounding localized text may precede it, but nothing may follow the command.
 
 Acceptance criteria:
 
@@ -123,7 +123,7 @@ checkpoints:
     mode: delivery
     subtype: null
   plan:
-    approved: true
+    confirmed: true
     plan_hash: "<hash of 3_plan.md>"
     policy_hash: "<hash of canonical authority policy>"
   launch:
@@ -224,7 +224,7 @@ Templates expose the new checkpoint shape with unconfirmed defaults. Generated `
 4. The user selects mode and subtype; selection is stored and audited.
 5. Integrated planning creates `3_plan.md` from current confirmed inputs.
 6. The user approves the plan; its plan and policy hashes are stored and audited.
-7. `loop-start` stops with the exact `loen:loop-run <topic>` continuation instruction.
+7. `loop-start` substitutes the validated topic slug and stops with `loen:loop-run {resolved_topic}` as the response's final line.
 8. `loop-run` validates goal/context, mode, and plan checkpoints.
 9. `loop-run` presents the final contract and asks for launch confirmation.
 10. Explicit approval writes the launch checkpoint bound to all three artifact hashes and the policy hash, then appends an audit event containing all four hashes.

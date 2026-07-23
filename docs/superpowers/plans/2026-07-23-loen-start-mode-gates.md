@@ -1,6 +1,6 @@
 ---
 review:
-  plan_hash: 74cb7ddec387a72c
+  plan_hash: 2d399776ded12580
   last_run: 2026-07-23
   phases:
     structure: { status: passed }
@@ -378,7 +378,8 @@ resolve assumptions < confirm goal/context < select mode/subtype < write plan < 
 Also assert:
 
 ```bash
-assert_contains "loop-start exact handoff" "$loop_start_text" 'To continue, run `loen:loop-run <topic>`.'
+assert_contains "loop-start resolves handoff topic" "$loop_start_text" 'Replace `{resolved_topic}` with the validated topic slug before emitting the final line.'
+assert_contains "loop-start emits ready command last" "$loop_start_text" "The response's last line must be the ready-to-run command below after substitution"
 assert_eq "loop-start has no immediate launch" "0" "$(grep -cF 'start immediately' "$loop_start" || true)"
 assert_contains "loop-run invocation is not approval" "$loop_run_text" "Invocation is not launch confirmation"
 assert_contains "loop-run repeats preflight" "$loop_run_text" "Repeat the complete preflight"
@@ -434,11 +435,13 @@ Use fixed headings that make completeness testable:
 
 - [ ] **Step 4: Rewrite `loop-start` as the three-gate planning orchestrator**
 
-Specify adaptive one-question-at-a-time topic development, explicit empty-assumption requirement, confirmation hashes, explicit mode/subtype selection, integrated plan generation, separate plan approval, downstream invalidation, audit events, and unconditional stop after this exact output:
+Specify adaptive one-question-at-a-time topic development, explicit empty-assumption requirement, confirmation hashes, explicit mode/subtype selection, integrated plan generation, separate plan approval, downstream invalidation, audit events, and unconditional stop with this command template after substituting the validated topic slug:
 
 ```text
-To continue, run `loen:loop-run <topic>`.
+loen:loop-run {resolved_topic}
 ```
+
+Require the command as the response's final line and forbid angle-bracket notation or unresolved placeholders in emitted output.
 
 Remove all immediate-run offers and any wording that treats plan approval as execution authority.
 
