@@ -140,12 +140,13 @@ flowchart TD
     end
 
     LoopStart["loen:loop-start"]
-    StartModeChoice{"choose run.mode"}
-    StartSubtypeSelect{"choose run.subtype for governance"}
+    GoalContextGate{"confirm goal_context"}
+    StartModeChoice{"confirm mode"}
+    StartSubtypeSelect{"choose subtype for governance"}
     LoopRun["loen:loop-run"]
-    ModeChoice{"run.mode?"}
-    SubtypeChoice{"approved run.subtype?"}
-    RunPreflight{"approval, plan hash, scope, verifier, budget, policy"}
+    ModeChoice{"confirmed mode?"}
+    SubtypeChoice{"confirmed subtype?"}
+    RunPreflight{"all checkpoints, hashes, scope, verifier, budget, policy"}
     DeliveryState["prepare -> act -> check -> reflect"]
     ReportOnly["report-only"]
     AutoFix["auto-fix"]
@@ -153,20 +154,29 @@ flowchart TD
 
     LoopStart --> Goal
     LoopStart --> Context
-    LoopStart --> StartModeChoice
+    Context --> GoalContextGate
+    GoalContextGate --> StartModeChoice
     StartModeChoice -- "delivery" --> Plan
     StartModeChoice -- "governance" --> StartSubtypeSelect
     StartSubtypeSelect -- "report-only" --> Plan
     StartSubtypeSelect -- "auto-fix" --> Plan
     StartSubtypeSelect -- "merge-release" --> Plan
     LoopStart --> LoopYaml
-    Plan --> Approval["user approves 3_plan.md"]
-    Approval --> RunContract["run.plan_approved, plan_hash, mode, subtype"]
+    Plan --> Approval["user separately approves 3_plan.md"]
+    Approval --> RunContract["goal_context, mode, and plan checkpoints"]
     RunContract --> LoopYaml
-    LoopYaml --> LoopRun
+    LoopYaml --> Stop["stop: loen:loop-run &lt;topic&gt;"]
+    Stop --> LoopRun
     LoopRun --> RunPreflight
     RunPreflight -- "fail" --> Handoff
-    RunPreflight -- "pass" --> ModeChoice
+    RunPreflight -- "pass" --> Summary["final contract summary"]
+    Summary --> LaunchApproval{"explicit human launch?"}
+    LaunchApproval -- "no" --> RefusedEvent["append refused checkpoint event"]
+    RefusedEvent --> StopWithoutRun["stop without execution or handoff"]
+    LaunchApproval -- "yes" --> LaunchCheckpoint["launch checkpoint bound to goal, context, plan, and policy hashes"]
+    LaunchCheckpoint --> RepeatPreflight{"repeat full preflight"}
+    RepeatPreflight -- "fail" --> Handoff
+    RepeatPreflight -- "pass" --> ModeChoice
     ModeChoice -- "delivery" --> DeliveryState
     ModeChoice -- "governance" --> SubtypeChoice
     SubtypeChoice -- "report-only" --> ReportOnly
@@ -201,10 +211,10 @@ flowchart TD
     classDef governance fill:#94e2d5,color:#1e1e2e,stroke:#179299
     classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
     class Goal,Context,Plan,Act,Check,Reflect,Result,Attempts,Evidence,GovernanceEvidence,Handoff artifact
-    class LoopYaml,GovernancePolicy,HumanReview,Approval,RunContract contract
+    class LoopYaml,GovernancePolicy,HumanReview,Approval,RunContract,LaunchCheckpoint,RefusedEvent contract
     class LoopStart,LoopRun,DeliveryState governance
     class GovernanceRun,ReportOnly,AutoFix,MergeRelease governance
-    class StartModeChoice,StartSubtypeSelect,ModeChoice,SubtypeChoice,RunPreflight decision
+    class GoalContextGate,StartModeChoice,StartSubtypeSelect,ModeChoice,SubtypeChoice,RunPreflight,LaunchApproval,RepeatPreflight decision
     class AuditHtml,TodoRow report
 ```
 
@@ -213,30 +223,73 @@ flowchart TD
 The guided runner path is:
 
 ```text
-loop-start -> run contract in loop.yaml -> loop-run state machine -> result/handoff
+loop-start -> goal/context checkpoint -> mode checkpoint -> plan checkpoint -> stop
+loop-run invocation -> prelaunch check -> explicit launch checkpoint -> repeated preflight -> result/handoff
 ```
 
-`loop-start` chooses a safe topic slug, creates the topic artifacts, writes
-`3_plan.md`, and waits for approval. After approval it records the runner
-contract in `loop.yaml`:
+`loop-start` adaptively develops a safe topic and its objective, observable
+outcome, success criteria, constraints, scope, verifier, budget, and recovery
+policy. It first presents goal/context for explicit confirmation, then requires
+an explicit delivery or governance choice and governance subtype. Initial
+planning is integrated into start and has its own approval. Start never invokes
+the runner or offers immediate execution; it stops with the exact command
+`loen:loop-run <topic>`.
 
-- `run:` stores `mode`, `subtype`, `plan_approved`, `plan_hash`, state, pass
-  budget, approval source, and approval time.
+`loop.yaml` stores current structured authority:
+
+- `checkpoints.goal_context` stores confirmation plus goal and context hashes.
+- `checkpoints.mode` stores explicit mode and subtype confirmation.
+- `checkpoints.plan` stores separate approval plus the plan and policy hashes.
+- `checkpoints.launch` stores separate human launch confirmation bound to the
+  current goal, context, plan, and policy hashes.
+- `run:` stores progress fields only, including state and pass counters.
 - `release_policy:` stores target branch, merge strategy, verifier requirement,
   evidence requirement, `scope_limit`, and recovery policy for merge-release.
 - `governance:` stores owner, schedule, alert policy, `auto_fix`, and
   `auto_merge` for governance topics.
 
-`run.subtype` is set only by `loop-start` after the user chooses governance and
-one of `report-only`, `auto-fix`, or `merge-release`. Delivery topics use
-`run.subtype: null`. `loop-run` treats subtype as approved input and refuses to
-act when the subtype is unknown or the matching policy is incomplete.
+`attempts.jsonl` is append-only audit history for checkpoint confirmations,
+invalidations, refusals, and execution attempts. Historical events are never
+current authority and cannot restore a checkpoint invalidated in `loop.yaml`.
+Confirmed events contain goal/context hashes for `goal_context`, plan/policy
+hashes for `plan`, and goal/context/plan/policy hashes for `launch`. Runner
+authority comes from checkpoints; `run:` supplies progress only.
 
-`loen:loop-run <topic>` validates the approved plan hash, mode, subtype, scope,
-verifier, budget, and rollback or recovery policy before entering the
-`prepare -> act -> check -> reflect` state machine. It stops with `handoff.md`
-when approval, policy, verifier, protected scope, budget, or recovery checks fail.
-It writes `7_result.md` only when terminal evidence supports completion.
+The policy hash is the first 16 SHA-256 hexadecimal characters over canonical,
+key-sorted JSON of `mode`, `subtype`, `mutable_scope`, `protected_scope`,
+`quality_gates`, `verifier`, `budget`, `stop_conditions`, `handoff_conditions`,
+`rollback_policy`, `governance`, and `release_policy`.
+
+The parser preserves bare YAML null as semantic null and keeps quoted `"null"`
+as text. Enforcement uses quote-aware diagnostics in addition to the tolerant
+parser API and fails closed on duplicate canonical authority paths, including
+malformed indentation that would otherwise produce last-value-wins behavior.
+Checkpoint event writes require a validated UTC RFC3339 `Z` timestamp; writer
+and reader share the same validator, so invalid writes do not change JSONL and
+malformed historical events cannot enter rendered checkpoint history.
+
+| Deterministic change | Invalidated checkpoints |
+|---|---|
+| `1_goal.md` or `2_context.md` content changes | `goal_context`, `mode`, `plan`, `launch` |
+| Mode, subtype, or any authority-relevant scope or policy changes | `mode` when applicable, `plan`, `launch` |
+| `3_plan.md` content changes or standalone replan begins | `plan`, `launch` |
+| Any launch-bound hash changes | `launch` |
+
+Standalone `loen:loop-plan <topic>` is only for replanning an existing topic. It
+validates confirmed upstream goal/context and mode state, resets plan and launch,
+writes a fresh `3_plan.md`, and requires fresh plan approval. It is not a step in
+the primary `loop-start` flow.
+
+Invoking `loen:loop-run <topic>` is not launch confirmation. The runner validates
+the three upstream checkpoints, hashes, scope, verifier, budget, and policy, then
+presents a final contract summary including `policy_hash`. Any mode, subtype,
+scope, or policy mutation that changes authority produces a plan policy hash
+mismatch and invalidates plan and launch. A separate explicit human decision
+records the launch checkpoint and its four hashes. A launch policy mismatch is
+refused separately. The runner immediately repeats full
+preflight and enters `prepare -> act -> check -> reflect` only if it still
+passes; otherwise it refuses and records recovery guidance. It writes
+`7_result.md` only when terminal evidence supports completion.
 
 Runner preflight treats placeholder scope values as absent. A topic with
 `mutable_scope: [none]`, `mutable_scope: [null]`, or only empty strings does not
@@ -245,7 +298,8 @@ have a usable mutable scope and must hand off before acting.
 Governance subtypes are `report-only`, `auto-fix`, and `merge-release`.
 `report-only` records findings without product-file edits. `auto-fix` can change
 only usable mutable scope when `governance.auto_fix: true`. `merge-release` also
-requires `governance.auto_merge: true` and complete `release_policy:`.
+requires the universal launch checkpoint, repeated preflight,
+`governance.auto_merge: true`, and complete `release_policy:`.
 
 `merge-release` release policy is complete only when it has a target branch,
 merge strategy, verifier requirement, evidence requirement, non-empty
@@ -253,11 +307,16 @@ merge strategy, verifier requirement, evidence requirement, non-empty
 boundary used to constrain merge/release automation; it does not replace
 `mutable_scope`, and both must be usable before the runner may proceed.
 
+Legacy contracts without `checkpoints` are refused as an intentional breaking
+change. There is no migration, inferred approval, compatibility flag, or
+grandfathering. Recovery is explicit renewal through `loen:loop-start`, followed
+by `loen:loop-run <topic>` after plan approval.
+
 Audit visibility stays topic-scoped: runner attempts append `attempts.jsonl`,
 verifier output goes under `evidence/`, and `audit.html` is regenerated for
-`docs/loen/<topic>/`. Manual `loop-plan`, `loop-act`, `loop-check`, and
-`loop-reflect` remain compatible with existing topics and with users who want to
-drive each stage directly.
+`docs/loen/<topic>/`. Manual `loop-act`, `loop-check`, and `loop-reflect` remain
+available to users who want to drive stages directly; standalone `loop-plan`
+retains only the existing-topic replan role described above.
 
 ## Agent Isolation Levels
 

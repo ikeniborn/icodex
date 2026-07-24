@@ -14,13 +14,11 @@ assert_not_contains() { # <desc> <haystack> <needle>
 }
 
 SK=".codex-isolated/skills"
-SP=""
-for candidate in .codex-isolated/plugins/cache/openai-curated/superpowers/*/skills; do
-  if [[ -d "$candidate" ]]; then
-    SP="$candidate"
-    break
-  fi
-done
+export ICODEX_ROOT="$ROOT"
+export ICODEX_SHARED_DIR="$ROOT/.codex-isolated"
+source "$ROOT/lib/core/logging.sh"
+source "$ROOT/lib/plugin/superpowers.sh"
+SP="$(_superpowers_pinned_cache_dir)/skills"
 
 CC="$(cat "$SK/check-chain/SKILL.md")"
 FI="$(cat "$SK/fix-intent/SKILL.md")"
@@ -49,5 +47,9 @@ assert_not_contains "brainstorming does not regenerate spec HTML" "$BR" "regener
 assert_not_contains "brainstorming does not require generated HTML approval" "$BR" "generated HTML report"
 assert_not_contains "writing-plans does not require checked HTML approval" "$WP" "checked HTML report"
 assert_not_contains "writing-plans does not require generated HTML approval" "$WP" "generated HTML report"
+assert_contains "brainstorming keeps intermediate review terminal-only" "$BR" "terminal review summary"
+assert_contains "writing-plans keeps intermediate review terminal-only" "$WP" "terminal review summary"
+assert_not_contains "brainstorming does not offer intermediate HTML" "$BR" "offer to generate the HTML report"
+assert_not_contains "writing-plans does not offer intermediate HTML" "$WP" "offer to generate the HTML report"
 
 finish

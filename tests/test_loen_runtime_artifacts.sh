@@ -41,8 +41,8 @@ scaffold_topic(
     objective="Ship durable LoEn runtime artifacts",
     mutable_scope=["plugins/loen/**", "tests/test_loen_runtime_artifacts.sh", "docs/loen/**"],
     protected_scope=["secrets/**", ".codex-isolated/auth/**"],
-    verifier_command="bash tests/test_loen_runtime_artifacts.sh",
-    quality_gate_command="bash tests/test_loen_runtime_artifacts.sh",
+    verifier_command="bash tests/test_loen_runtime_artifacts.sh --verify",
+    quality_gate_command="bash tests/test_loen_runtime_artifacts.sh --quality",
     created_date="2026-07-02",
 )
 PY
@@ -73,6 +73,8 @@ assert_exit "evidence directory exists" 0 test -d "$topic_dir/evidence"
 assert_eq "attempts log starts empty" "" "$(cat "$topic_dir/attempts.jsonl" 2>/dev/null)"
 
 loop_text="$(cat "$topic_dir/loop.yaml" 2>/dev/null || true)"
+context_text="$(cat "$topic_dir/2_context.md" 2>/dev/null || true)"
+plan_text="$(cat "$topic_dir/3_plan.md" 2>/dev/null || true)"
 audit_text="$(cat "$topic_dir/audit.html" 2>/dev/null || true)"
 
 assert_contains "loop topic field" "$loop_text" "topic: $topic"
@@ -81,14 +83,30 @@ assert_contains "loop objective field" "$loop_text" 'objective: "Ship durable Lo
 assert_contains "loop current stage field" "$loop_text" "current_stage: goal"
 assert_contains "loop mutable scope" "$loop_text" "plugins/loen/**"
 assert_contains "loop protected scope" "$loop_text" ".codex-isolated/auth/**"
-assert_contains "loop quality gate command" "$loop_text" "command: bash tests/test_loen_runtime_artifacts.sh"
+assert_contains "loop quality gate command" "$loop_text" "command: bash tests/test_loen_runtime_artifacts.sh --quality"
 assert_contains "loop quality gate evidence" "$loop_text" "evidence: evidence/latest-test.json"
 assert_contains "loop verifier type" "$loop_text" "type: test"
-assert_contains "loop verifier command" "$loop_text" "command: bash tests/test_loen_runtime_artifacts.sh"
+assert_contains "loop verifier command" "$loop_text" "command: bash tests/test_loen_runtime_artifacts.sh --verify"
 assert_contains "loop budget" "$loop_text" "max_iterations: 3"
 assert_contains "loop stop condition" "$loop_text" "quality gates pass"
 assert_contains "loop handoff condition" "$loop_text" "schema change required"
 assert_contains "loop rollback policy" "$loop_text" 'rollback_policy: "Revert unsafe changes"'
+assert_contains "context renders mutable scope" "$context_text" "plugins/loen/**"
+assert_contains "context renders second mutable scope" "$context_text" "tests/test_loen_runtime_artifacts.sh"
+assert_contains "context renders protected scope" "$context_text" ".codex-isolated/auth/**"
+assert_contains "context renders verifier command" "$context_text" "bash tests/test_loen_runtime_artifacts.sh --verify"
+assert_eq "context excludes quality gate command" "0" "$(grep -cF -- 'bash tests/test_loen_runtime_artifacts.sh --quality' <<<"$context_text" || true)"
+assert_contains "plan renders quality gate command" "$plan_text" "bash tests/test_loen_runtime_artifacts.sh --quality"
+assert_eq "plan excludes verifier command" "0" "$(grep -cF -- 'bash tests/test_loen_runtime_artifacts.sh --verify' <<<"$plan_text" || true)"
+assert_contains "context renders iteration budget" "$context_text" "Maximum iterations: 3"
+assert_contains "context renders pass budget" "$context_text" "Maximum passes: 3"
+assert_contains "loop checkpoints block" "$loop_text" "checkpoints:"
+for checkpoint in goal_context mode plan launch; do
+  assert_contains "loop $checkpoint checkpoint" "$loop_text" "  $checkpoint:"
+done
+assert_eq "loop checkpoints default unconfirmed" "4" "$(grep -cF '    confirmed: false' "$topic_dir/loop.yaml")"
+assert_eq "loop omits legacy plan approval" "0" "$(grep -cF 'plan_approved:' "$topic_dir/loop.yaml" || true)"
+assert_contains "loop mode subtype defaults to textual null" "$loop_text" "    subtype: null"
 
 assert_contains "audit topic" "$audit_text" "LoEn Audit: sample-runtime-topic"
 assert_contains "audit status section" "$audit_text" "Current Status"
@@ -140,14 +158,20 @@ checks = [
     data.get("stage") == "goal",
     "plugins/loen/**" in data.get("mutable_scope", []),
     ".codex-isolated/auth/**" in data.get("protected_scope", []),
-    data.get("quality_gates", [{}])[0].get("command") == "bash tests/test_loen_runtime_artifacts.sh",
+    data.get("quality_gates", [{}])[0].get("command") == "bash tests/test_loen_runtime_artifacts.sh --quality",
     data.get("quality_gates", [{}])[0].get("evidence") == "evidence/latest-test.json",
     data.get("verifier", {}).get("type") == "test",
-    data.get("verifier", {}).get("command") == "bash tests/test_loen_runtime_artifacts.sh",
+    data.get("verifier", {}).get("command") == "bash tests/test_loen_runtime_artifacts.sh --verify",
     data.get("budget", {}).get("max_iterations") == "3",
     "quality gates pass" in data.get("stop_conditions", []),
     "schema change required" in data.get("handoff_conditions", []),
     data.get("rollback_policy") == "Revert unsafe changes",
+    data.get("checkpoints") == {
+        "goal_context": {"confirmed": False, "goal_hash": "", "context_hash": ""},
+        "mode": {"confirmed": False, "mode": "", "subtype": None},
+        "plan": {"confirmed": False, "plan_hash": "", "policy_hash": ""},
+        "launch": {"confirmed": False, "goal_hash": "", "context_hash": "", "plan_hash": "", "policy_hash": ""},
+    },
 ]
 print("OK" if all(checks) else "BAD")
 PY
@@ -156,6 +180,197 @@ else
   parse_status="missing"
 fi
 assert_eq "loop yaml parses into contract" "OK" "$parse_status"
+
+checkpoint_event_status="$(PYTHONPATH="$plugin_root/hooks" python3 - "$workdir/checkpoint-events" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+from loen_artifacts import append_checkpoint_event
+
+base = Path(sys.argv[1])
+inputs = [
+    ("goal_context", "confirmed", "accepted"),
+    ("mode", "reset", ""),
+    ("plan", "refused", ""),
+    ("launch", "confirmed", ""),
+]
+returned = []
+hashes_by_checkpoint = {
+    "goal_context": {"goal_hash": "goal-123", "context_hash": "context-456"},
+    "mode": {},
+    "plan": {"plan_hash": "plan-789"},
+    "launch": {"goal_hash": "goal-123", "context_hash": "context-456", "plan_hash": "plan-789", "policy_hash": "policy-000"},
+}
+for checkpoint, decision, outcome in inputs:
+    hashes = dict(hashes_by_checkpoint[checkpoint])
+    record = append_checkpoint_event(
+        base=base,
+        checkpoint=checkpoint,
+        decision=decision,
+        hashes=hashes,
+        mode="governance",
+        subtype="report-only",
+        outcome=outcome,
+        created_at="2026-07-23T12:34:56Z",
+    )
+    hashes["mutated"] = "after-append"
+    if "mutated" in record["hashes"]:
+        raise SystemExit("returned checkpoint event retained caller hash alias")
+    returned.append(record)
+
+attempts_path = base / "attempts.jsonl"
+records = [json.loads(line) for line in attempts_path.read_text(encoding="utf-8").splitlines()]
+expected = [
+    {
+        "checkpoint": checkpoint,
+        "created_at": "2026-07-23T12:34:56Z",
+        "decision": decision,
+        "event": "checkpoint",
+        "hashes": hashes_by_checkpoint[checkpoint],
+        "mode": "governance",
+        "outcome": outcome or decision,
+        "subtype": "report-only",
+    }
+    for checkpoint, decision, outcome in inputs
+]
+if records != expected:
+    raise SystemExit({"records": records, "expected": expected})
+if returned != expected:
+    raise SystemExit({"returned": returned, "expected": expected})
+if attempts_path.read_text(encoding="utf-8").splitlines()[0] != json.dumps(expected[0], sort_keys=True):
+    raise SystemExit("checkpoint event JSON is not key-sorted")
+
+attempts_before_invalid = attempts_path.read_text(encoding="utf-8")
+for kwargs in (
+    {"checkpoint": "unknown", "decision": "confirmed", "hashes": {}},
+    {"checkpoint": "plan", "decision": "ignored", "hashes": {}},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": []},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": {1: "value"}},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": {"plan_hash": 7}},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": {}, "mode": 7},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": {}, "subtype": 7},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": {}, "outcome": 7},
+    {"checkpoint": "plan", "decision": "confirmed", "hashes": {}, "created_at": 7},
+):
+    kwargs.setdefault("created_at", "2026-07-23T12:34:56Z")
+    try:
+        append_checkpoint_event(base=base, **kwargs)
+    except ValueError:
+        pass
+    else:
+        raise SystemExit(f"accepted invalid checkpoint event: {kwargs}")
+attempts_after_invalid = attempts_path.read_text(encoding="utf-8")
+if attempts_after_invalid != attempts_before_invalid:
+    raise SystemExit("invalid checkpoint event changed attempts JSONL")
+print("OK")
+PY
+)"
+assert_eq "checkpoint events append validated sorted JSONL" "OK" "$checkpoint_event_status"
+
+scaffold_contract_status="$(PYTHONPATH="$plugin_root/hooks" python3 - "$topic_dir" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+base = Path(sys.argv[1])
+for name, headings in {
+    "1_goal.md": ("## Objective", "## Observable Outcome"),
+    "2_context.md": ("## Mutable Scope", "## Rollback or Recovery"),
+    "3_plan.md": ("## Preconditions", "## Terminal Condition"),
+}.items():
+    text = (base / name).read_text(encoding="utf-8")
+    if re.search(r"\{\{[^}]+\}\}", text):
+        raise SystemExit(f"unresolved placeholder in {name}")
+    for heading in headings:
+        if heading not in text:
+            raise SystemExit(f"missing {heading} in {name}")
+print("OK")
+PY
+)"
+assert_eq "scaffold resolves every goal context plan placeholder" "OK" "$scaffold_contract_status"
+
+checkpoint_hash_schema_status="$(PYTHONPATH="$plugin_root/hooks" python3 - "$workdir/checkpoint-schema" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+from loen_artifacts import _checkpoint_events, append_checkpoint_event
+
+import inspect
+
+created_at = inspect.signature(append_checkpoint_event).parameters["created_at"]
+if created_at.default is not inspect.Parameter.empty:
+    raise SystemExit("created_at remains optional")
+
+base = Path(sys.argv[1])
+base.mkdir(parents=True)
+valid = (
+    ("goal_context", {"goal_hash": "g", "context_hash": "c"}),
+    ("mode", {}),
+    ("plan", {"plan_hash": "p", "policy_hash": "q"}),
+    ("launch", {"goal_hash": "g", "context_hash": "c", "plan_hash": "p", "policy_hash": "q"}),
+)
+for checkpoint, hashes in valid:
+    append_checkpoint_event(base=base, checkpoint=checkpoint, decision="confirmed", hashes=hashes, created_at="2026-07-23T12:34:56Z")
+before = (base / "attempts.jsonl").read_text(encoding="utf-8")
+invalid = (
+    ("goal_context", {"goal_hash": "g"}),
+    ("plan", {"plan_hash": "p"}),
+    ("launch", {"goal_hash": "g", "context_hash": "c", "plan_hash": "p"}),
+    ("plan", {"plan_hash": "p", "policy_hash": "q", "extra": "x"}),
+)
+for checkpoint, hashes in invalid:
+    try:
+        append_checkpoint_event(base=base, checkpoint=checkpoint, decision="confirmed", hashes=hashes, created_at="2026-07-23T12:34:56Z")
+    except ValueError:
+        pass
+    else:
+        raise SystemExit(f"accepted invalid {checkpoint} hashes")
+if (base / "attempts.jsonl").read_text(encoding="utf-8") != before:
+    raise SystemExit("invalid event wrote data")
+with (base / "attempts.jsonl").open("a", encoding="utf-8") as handle:
+    handle.write(json.dumps({"event":"checkpoint","checkpoint":"plan","decision":"confirmed","hashes":{"plan_hash":"p"},"mode":"","subtype":"","outcome":"confirmed","created_at":""}) + "\n")
+if len(_checkpoint_events(base)) != 4:
+    raise SystemExit("reader accepted invalid confirmed event")
+print("OK")
+PY
+)"
+assert_eq "confirmed checkpoint events enforce exact hash schema" "OK" "$checkpoint_hash_schema_status"
+
+timestamp_schema_status="$(PYTHONPATH="$plugin_root/hooks" python3 - "$workdir/timestamp-schema" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+from loen_artifacts import _checkpoint_events, append_checkpoint_event
+
+base = Path(sys.argv[1])
+base.mkdir(parents=True)
+for timestamp in ("2026-07-23T12:34:56Z", "2026-07-23T12:34:56.123456Z"):
+    append_checkpoint_event(base=base, checkpoint="mode", decision="confirmed", hashes={}, created_at=timestamp)
+path = base / "attempts.jsonl"
+before = path.read_bytes()
+invalid = ("", "2026-07-23T12:34:56+00:00", "2026-07-23t12:34:56z", "2026-07-23", "2026-02-30T12:34:56Z", "2026-07-23T24:00:00Z")
+for timestamp in invalid:
+    try:
+        append_checkpoint_event(base=base, checkpoint="mode", decision="confirmed", hashes={}, created_at=timestamp)
+    except ValueError:
+        pass
+    else:
+        raise SystemExit(f"accepted invalid timestamp: {timestamp!r}")
+    if path.read_bytes() != before:
+        raise SystemExit(f"invalid timestamp wrote data: {timestamp!r}")
+with path.open("a", encoding="utf-8") as handle:
+    for timestamp in invalid:
+        handle.write(json.dumps({"event":"checkpoint","checkpoint":"mode","decision":"confirmed","hashes":{},"mode":"","subtype":"","outcome":"confirmed","created_at":timestamp}) + "\n")
+events = _checkpoint_events(base)
+if [event["created_at"] for event in events] != ["2026-07-23T12:34:56Z", "2026-07-23T12:34:56.123456Z"]:
+    raise SystemExit("reader retained malformed timestamp history")
+print("OK")
+PY
+)"
+assert_eq "checkpoint timestamps require strict RFC3339 Z without partial writes" "OK" "$timestamp_schema_status"
 
 printf '{"status":"pass","command":"bash tests/test_loen_runtime_artifacts.sh"}\n' > "$topic_dir/evidence/latest-test.json"
 printf '# Check\n\n## Result\n\nBYPASS\n' > "$topic_dir/5_check.md"

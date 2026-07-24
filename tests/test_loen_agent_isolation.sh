@@ -178,6 +178,70 @@ assert_contains "capsule includes objective" "$capsule" "Ship isolated verifier 
 assert_contains "capsule includes loop mode" "$capsule" "delivery"
 assert_contains "capsule includes current stage" "$capsule" "check"
 assert_contains "capsule includes mutable scope" "$capsule" "plugins/loen/**"
+
+cp "$topic_dir/loop.yaml" "$topic_dir/loop.yaml.valid"
+python3 - "$topic_dir/loop.yaml" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+path.write_text(text.replace("  - plugins/loen/**", "  - plugins/loen/**\n  \t- outside/**"), encoding="utf-8")
+PY
+capsule_stderr="$tmp/capsule-malformed.stderr"
+capsule_code=0
+python3 "$capsule_script" "$topic_dir" verifier "Run malformed authority." >/dev/null 2>"$capsule_stderr" || capsule_code=$?
+assert_eq "capsule rejects malformed canonical authority" "1" "$([[ "$capsule_code" -ne 0 ]] && echo 1 || echo 0)"
+assert_contains "capsule explains malformed canonical authority" "$(cat "$capsule_stderr")" "invalid canonical authority"
+mv "$topic_dir/loop.yaml.valid" "$topic_dir/loop.yaml"
+
+cp "$topic_dir/loop.yaml" "$topic_dir/loop.yaml.valid"
+python3 - "$topic_dir/loop.yaml" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+path.write_text(text.replace("    mode: read-only", "    mode: read-only\n    metadata:\n      mode: write", 1), encoding="utf-8")
+PY
+capsule_stderr="$tmp/capsule-nested-execution.stderr"
+capsule_code=0
+python3 "$capsule_script" "$topic_dir" verifier "Run nested execution authority." >/dev/null 2>"$capsule_stderr" || capsule_code=$?
+assert_eq "capsule rejects nested execution mount overwrite" "1" "$([[ "$capsule_code" -ne 0 ]] && echo 1 || echo 0)"
+assert_contains "capsule diagnoses nested execution mount overwrite" "$(cat "$capsule_stderr")" "invalid canonical authority"
+mv "$topic_dir/loop.yaml.valid" "$topic_dir/loop.yaml"
+
+cp "$topic_dir/loop.yaml" "$topic_dir/loop.yaml.valid"
+python3 - "$topic_dir/loop.yaml" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+path.write_text(text.replace("      mode: read-only", "       metadata:\n      mode: write", 1), encoding="utf-8")
+PY
+capsule_stderr="$tmp/capsule-odd-execution.stderr"
+capsule_code=0
+python3 "$capsule_script" "$topic_dir" verifier "Run odd-indent execution authority." >/dev/null 2>"$capsule_stderr" || capsule_code=$?
+assert_eq "capsule rejects odd-indent execution mapping" "1" "$([[ "$capsule_code" -ne 0 ]] && echo 1 || echo 0)"
+assert_contains "capsule diagnoses odd-indent execution mapping" "$(cat "$capsule_stderr")" "invalid canonical authority"
+mv "$topic_dir/loop.yaml.valid" "$topic_dir/loop.yaml"
+
+cp "$topic_dir/loop.yaml" "$topic_dir/loop.yaml.valid"
+python3 - "$topic_dir/loop.yaml" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+path.write_text(text.replace("      mode: read-only", "        metadata:\n      mode: write", 1), encoding="utf-8")
+PY
+capsule_stderr="$tmp/capsule-wrong-even-execution.stderr"
+capsule_code=0
+python3 "$capsule_script" "$topic_dir" verifier "Run wrong-even execution authority." >/dev/null 2>"$capsule_stderr" || capsule_code=$?
+assert_eq "capsule rejects wrong-even execution mapping" "1" "$([[ "$capsule_code" -ne 0 ]] && echo 1 || echo 0)"
+assert_contains "capsule diagnoses wrong-even execution mapping" "$(cat "$capsule_stderr")" "invalid canonical authority"
+mv "$topic_dir/loop.yaml.valid" "$topic_dir/loop.yaml"
 assert_contains "capsule includes protected scope" "$capsule" ".codex-isolated/**"
 assert_contains "capsule includes quality gate" "$capsule" "bash tests/test_loen_agent_isolation.sh"
 assert_contains "capsule includes relevant files" "$capsule" "plugins/loen/hooks/loen_capsules.py"

@@ -41,8 +41,9 @@ web_search = "cached"
 # - dev-safe:       locked down. No network, no SSH material.
 # - ssh-on-request: outbound network + read-only ~/.ssh for SSH-based work.
 
-# The <ver> segment below is illustrative: the launcher rewrites the whole
-# `source` line from the real cache path on each run (see spec §4.1/§4.2) — the whole line is rewritten, the placeholder is never string-substituted.
+# `vendor/superpowers/pin` selects an immutable committed cache generation.
+# Reconstructed baseline snapshots reproduce the legacy overlay. Future vendor
+# runs store verified source ref inside generation metadata, then change pin last.
 [marketplaces.openai-curated]
 source_type = "local"
 source = "/home/ikeniborn/Documents/Project/icodex/.codex-isolated/tmp/marketplaces/openai-curated"

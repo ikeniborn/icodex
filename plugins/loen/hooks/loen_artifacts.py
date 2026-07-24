@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 import hashlib
 import html
 import json
 import re
 from pathlib import Path
 
-from loen_common import parse_loop_yaml
+from loen_common import parse_loop_yaml, parse_loop_yaml_checked
 
 
 STAGE_FILES = (
@@ -31,6 +31,14 @@ RUNTIME_FILES = STAGE_FILES + (
 )
 
 SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,78}[a-z0-9]?$")
+CHECKPOINT_NAMES = {"goal_context", "mode", "plan", "launch"}
+CHECKPOINT_DECISIONS = {"confirmed", "reset", "refused"}
+CHECKPOINT_HASH_KEYS = {
+  "goal_context": {"goal_hash", "context_hash"},
+  "mode": set(),
+  "plan": {"plan_hash", "policy_hash"},
+  "launch": {"goal_hash", "context_hash", "plan_hash", "policy_hash"},
+}
 
 
 @dataclass(frozen=True)
@@ -90,18 +98,38 @@ def _template(path: Path, fallback: str) -> str:
     return fallback
 
 
-def _render_stage_template(template_dir: Path, filename: str, topic: str, objective: str) -> str:
+def _render_stage_template(
+  template_dir: Path,
+  filename: str,
+  topic: str,
+  objective: str,
+  *,
+  mutable_scope: list[str],
+  protected_scope: list[str],
+  verifier_command: str,
+  quality_gate_command: str,
+  max_iterations: int = 3,
+  max_passes: int = 3,
+) -> str:
   fallback = f"# {filename}\n\nTopic: `{{{{topic}}}}`\n"
   text = _template(template_dir / filename, fallback)
   replacements = {
     "{{topic}}": topic,
     "{{user_request}}": objective,
+    "{{objective}}": objective,
+    "{{observable_outcome}}": "The requested loop outcome is recorded with verifier evidence.",
     "{{success_criterion}}": "Loop artifacts exist and audit can be regenerated from repository state.",
     "{{fact}}": "Runtime state lives in this directory, not in chat history.",
     "{{constraint}}": "Do not create a global LoEn audit index.",
+    "{{mutable_scope}}": "\n- ".join(mutable_scope) if mutable_scope else "none",
+    "{{protected_scope}}": "\n- ".join(protected_scope) if protected_scope else "none",
+    "{{verifier}}": verifier_command,
+    "{{budget}}": f"Maximum iterations: {max_iterations}\n\nMaximum passes: {max_passes}",
+    "{{rollback_or_recovery}}": "Stop and write handoff.md before unsafe changes.",
+    "{{precondition}}": "Goal, context, mode, and policy are confirmed.",
     "{{step}}": "Create or update the current LoEn stage artifact",
     "{{verification}}": "Run the loop quality gate command",
-    "{{check_command}}": "bash tests/test_loen_runtime_artifacts.sh",
+    "{{check_command}}": quality_gate_command,
     "{{action_summary}}": "No action recorded yet.",
     "{{path}}": f"docs/loen/{topic}",
     "{{command}}": "bash tests/test_loen_runtime_artifacts.sh",
@@ -112,6 +140,9 @@ def _render_stage_template(template_dir: Path, filename: str, topic: str, object
     "{{next_step}}": "Run the planned action and check stages.",
     "{{outcome}}": "pending",
     "{{evidence_file}}": "evidence/latest-test.json",
+    "{{evidence_path}}": "evidence/latest-test.json",
+    "{{risk}}": "Policy or scope changes invalidate approval.",
+    "{{terminal_condition}}": "Verifier passes with recorded evidence, or handoff is written.",
   }
   for old, new in replacements.items():
     text = text.replace(old, new)
@@ -127,6 +158,8 @@ def loop_yaml_text(
   verifier_command: str,
   quality_gate_command: str,
   created_date: str,
+  max_iterations: int = 3,
+  max_passes: int = 3,
 ) -> str:
   return "\n".join([
     f"topic: {topic}",
@@ -148,22 +181,35 @@ def loop_yaml_text(
     "  type: test",
     f"  command: {verifier_command}",
     "budget:",
-    "  max_iterations: 3",
+    f"  max_iterations: {max_iterations}",
     "stop_conditions:",
     "  - quality gates pass",
     "handoff_conditions:",
     "  - schema change required",
     'rollback_policy: "Revert unsafe changes"',
     "run:",
-    "  mode: delivery",
-    "  subtype: null",
-    "  plan_approved: false",
-    '  plan_hash: ""',
     "  state: prepare",
-    "  max_passes: 3",
+    f"  max_passes: {max_passes}",
     "  current_pass: 0",
-    '  approval_source: ""',
-    '  approved_at: ""',
+    "checkpoints:",
+    "  goal_context:",
+    "    confirmed: false",
+    '    goal_hash: ""',
+    '    context_hash: ""',
+    "  mode:",
+    "    confirmed: false",
+    '    mode: ""',
+    "    subtype: null",
+    "  plan:",
+    "    confirmed: false",
+    '    plan_hash: ""',
+    '    policy_hash: ""',
+    "  launch:",
+    "    confirmed: false",
+    '    goal_hash: ""',
+    '    context_hash: ""',
+    '    plan_hash: ""',
+    '    policy_hash: ""',
     "governance:",
     "  automation_type: manual",
     '  schedule: ""',
@@ -202,6 +248,8 @@ def scaffold_topic(
   created_date: str,
 ) -> Path:
   topic_name = validate_topic_slug(topic)
+  max_iterations = 3
+  max_passes = 3
   base = artifact_root / topic_name
   base.mkdir(parents=True, exist_ok=True)
   (base / "evidence").mkdir(parents=True, exist_ok=True)
@@ -209,7 +257,21 @@ def scaffold_topic(
   for filename in STAGE_FILES:
     path = base / filename
     if not path.exists():
-      path.write_text(_render_stage_template(template_dir, filename, topic_name, objective), encoding="utf-8")
+      path.write_text(
+        _render_stage_template(
+          template_dir,
+          filename,
+          topic_name,
+          objective,
+          mutable_scope=mutable_scope,
+          protected_scope=protected_scope,
+          verifier_command=verifier_command,
+          quality_gate_command=quality_gate_command,
+          max_iterations=max_iterations,
+          max_passes=max_passes,
+        ),
+        encoding="utf-8",
+      )
 
   handoff = base / "handoff.md"
   if not handoff.exists():
@@ -234,6 +296,8 @@ def scaffold_topic(
         verifier_command=verifier_command,
         quality_gate_command=quality_gate_command,
         created_date=created_date,
+        max_iterations=max_iterations,
+        max_passes=max_passes,
       ),
       encoding="utf-8",
     )
@@ -254,13 +318,38 @@ def _first_heading_body(text: str) -> str:
   return body if body else "No content recorded."
 
 
+def artifact_body_hash(path: Path) -> str:
+  text = path.read_text(encoding="utf-8")
+  return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
 def plan_body_hash(plan_path: Path) -> str:
-  return hashlib.sha256(_read(plan_path).encode("utf-8")).hexdigest()[:16]
+  return artifact_body_hash(plan_path)
 
 
 def run_contract(loop_text: str) -> dict[str, object]:
   value = parse_loop_yaml(loop_text).get("run", {})
   return dict(value) if isinstance(value, dict) else {}
+
+
+def run_policy_hash(parsed: dict[str, object], run_mode: str, subtype: object) -> str:
+  canonical_subtype = "" if run_mode == "delivery" and subtype is None else subtype
+  policy = {
+    "mode": run_mode,
+    "subtype": canonical_subtype,
+    "mutable_scope": parsed.get("mutable_scope", []),
+    "protected_scope": parsed.get("protected_scope", []),
+    "quality_gates": parsed.get("quality_gates", []),
+    "verifier": parsed.get("verifier", {}),
+    "budget": parsed.get("budget", {}),
+    "stop_conditions": parsed.get("stop_conditions", []),
+    "handoff_conditions": parsed.get("handoff_conditions", []),
+    "rollback_policy": parsed.get("rollback_policy", ""),
+    "governance": parsed.get("governance", {}),
+    "release_policy": parsed.get("release_policy", {}),
+  }
+  canonical = json.dumps(policy, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+  return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
 
 def release_policy(loop_text: str) -> dict[str, object]:
@@ -281,17 +370,103 @@ def write_handoff(base: Path, reason: str, next_action: str) -> None:
   (base / "handoff.md").write_text(text, encoding="utf-8")
 
 
-def validate_run_contract(base: Path) -> dict[str, object]:
-  loop_text = _read(base / "loop.yaml")
-  parsed = parse_loop_yaml(loop_text)
-  run = parsed.get("run", {})
+def _validate_checkpoints(
+  base: Path,
+  loop_text: str,
+  parsed: dict[str, object],
+  *,
+  require_launch: bool,
+) -> tuple[dict[str, object] | None, str, str]:
+  checkpoint_sections = 0
+  for raw_line in loop_text.splitlines():
+    normalized = raw_line.split("#", 1)[0].rstrip()
+    if normalized == normalized.lstrip() and normalized == "checkpoints:":
+      checkpoint_sections += 1
+  if checkpoint_sections == 0:
+    return {"ok": False, "reason": "legacy checkpoint contract"}, "", ""
+  if checkpoint_sections != 1:
+    return {"ok": False, "reason": "invalid checkpoint contract"}, "", ""
+
+  checkpoints = parsed.get("checkpoints", {})
+  if not isinstance(checkpoints, dict):
+    return {"ok": False, "reason": "legacy checkpoint contract"}, "", ""
+
+  goal_context = checkpoints.get("goal_context", {})
+  mode_checkpoint = checkpoints.get("mode", {})
+  plan = checkpoints.get("plan", {})
+  launch = checkpoints.get("launch", {})
+  if not all(isinstance(value, dict) for value in (goal_context, mode_checkpoint, plan, launch)):
+    return {"ok": False, "reason": "legacy checkpoint contract"}, "", ""
+
+  if goal_context.get("confirmed") is not True:
+    return {"ok": False, "reason": "goal/context confirmation missing"}, "", ""
+  goal_path = base / "1_goal.md"
+  context_path = base / "2_context.md"
+  if not goal_path.is_file():
+    return {"ok": False, "reason": "goal hash mismatch"}, "", ""
+  try:
+    goal_hash = artifact_body_hash(goal_path)
+  except (OSError, UnicodeDecodeError):
+    return {"ok": False, "reason": "unreadable goal artifact"}, "", ""
+  if goal_context.get("goal_hash") != goal_hash:
+    return {"ok": False, "reason": "goal hash mismatch"}, "", ""
+  if not context_path.is_file():
+    return {"ok": False, "reason": "context hash mismatch"}, "", ""
+  try:
+    context_hash = artifact_body_hash(context_path)
+  except (OSError, UnicodeDecodeError):
+    return {"ok": False, "reason": "unreadable context artifact"}, "", ""
+  if goal_context.get("context_hash") != context_hash:
+    return {"ok": False, "reason": "context hash mismatch"}, "", ""
+
+  if mode_checkpoint.get("confirmed") is not True:
+    return {"ok": False, "reason": "mode selection missing"}, "", ""
+  run_mode = str(mode_checkpoint.get("mode", "")).strip()
+  subtype_value = mode_checkpoint.get("subtype", "")
+  subtype = "" if run_mode == "delivery" and subtype_value is None else str(subtype_value).strip()
+  if run_mode not in {"delivery", "governance"}:
+    return {"ok": False, "reason": "invalid run mode"}, "", ""
+  if run_mode == "delivery" and subtype != "":
+    return {"ok": False, "reason": "invalid delivery subtype"}, "", ""
+  if run_mode == "governance" and subtype not in {"report-only", "auto-fix", "merge-release"}:
+    return {"ok": False, "reason": "invalid governance subtype"}, "", ""
+
+  policy_hash = run_policy_hash(parsed, run_mode, subtype)
+
+  if plan.get("confirmed") is not True:
+    return {"ok": False, "reason": "plan approval missing"}, "", ""
+  plan_path = base / "3_plan.md"
+  if not plan_path.is_file():
+    return {"ok": False, "reason": "plan hash mismatch"}, "", ""
+  try:
+    plan_hash = artifact_body_hash(plan_path)
+  except (OSError, UnicodeDecodeError):
+    return {"ok": False, "reason": "unreadable plan artifact"}, "", ""
+  if plan.get("plan_hash") != plan_hash:
+    return {"ok": False, "reason": "plan hash mismatch"}, "", ""
+  if plan.get("policy_hash") != policy_hash:
+    return {"ok": False, "reason": "plan policy hash mismatch"}, "", ""
+
+  if require_launch:
+    if launch.get("confirmed") is not True:
+      return {"ok": False, "reason": "launch confirmation missing"}, "", ""
+    if launch.get("goal_hash") != goal_hash:
+      return {"ok": False, "reason": "launch goal hash mismatch"}, "", ""
+    if launch.get("context_hash") != context_hash:
+      return {"ok": False, "reason": "launch context hash mismatch"}, "", ""
+    if launch.get("plan_hash") != plan_hash:
+      return {"ok": False, "reason": "launch plan hash mismatch"}, "", ""
+    if launch.get("policy_hash") != policy_hash:
+      return {"ok": False, "reason": "launch policy hash mismatch"}, "", ""
+  return None, run_mode, subtype
+
+
+def _validate_run_policy(parsed: dict[str, object], run_mode: str, subtype: str) -> dict[str, object]:
   governance = parsed.get("governance", {})
   policy = parsed.get("release_policy", {})
   mutable_scope = parsed.get("mutable_scope", [])
   verifier = parsed.get("verifier", {})
   budget = parsed.get("budget", {})
-  if not isinstance(run, dict):
-    run = {}
   if not isinstance(governance, dict):
     governance = {}
   if not isinstance(policy, dict):
@@ -302,23 +477,6 @@ def validate_run_contract(base: Path) -> dict[str, object]:
     verifier = {}
   if not isinstance(budget, dict):
     budget = {}
-
-  if run.get("plan_approved") is not True:
-    return {"ok": False, "reason": "missing plan approval"}
-  plan_path = base / "3_plan.md"
-  if not plan_path.is_file():
-    return {"ok": False, "reason": "missing plan"}
-  if run.get("plan_hash") != plan_body_hash(plan_path):
-    return {"ok": False, "reason": "plan hash mismatch"}
-
-  run_mode = str(run.get("mode", "")).strip()
-  subtype = str(run.get("subtype", "")).strip()
-  if run_mode not in {"delivery", "governance"}:
-    return {"ok": False, "reason": "invalid run mode"}
-  if run_mode == "delivery" and subtype.lower() not in {"", "none", "null"}:
-    return {"ok": False, "reason": "invalid delivery subtype"}
-  if run_mode == "governance" and subtype not in {"report-only", "auto-fix", "merge-release"}:
-    return {"ok": False, "reason": "invalid governance subtype"}
 
   rollback_ready = bool(parsed.get("rollback_policy")) or bool(policy.get("recovery_policy"))
   usable_mutable_scope = [
@@ -361,6 +519,22 @@ def validate_run_contract(base: Path) -> dict[str, object]:
   return {"ok": True, "reason": "approved run contract"}
 
 
+def validate_run_contract(base: Path, *, require_launch: bool = True) -> dict[str, object]:
+  loop_text = _read(base / "loop.yaml")
+  parsed, diagnostics = parse_loop_yaml_checked(loop_text)
+  if diagnostics:
+    return {"ok": False, "reason": "invalid canonical authority"}
+  checkpoint_error, run_mode, subtype = _validate_checkpoints(
+    base,
+    loop_text,
+    parsed,
+    require_launch=require_launch,
+  )
+  if checkpoint_error is not None:
+    return checkpoint_error
+  return _validate_run_policy(parsed, run_mode, subtype)
+
+
 def _attempt_count(base: Path) -> int:
   text = _read(base / "attempts.jsonl")
   return len([line for line in text.splitlines() if line.strip()])
@@ -383,91 +557,12 @@ def _has_exact_markdown_value(text: str, expected: str) -> bool:
   return False
 
 
-def _yaml_section_list(loop_text: str, section: str) -> list[str]:
-  values: list[str] = []
-  in_section = False
-  for raw in loop_text.splitlines():
-    if raw == f"{section}:":
-      in_section = True
-      continue
-    if in_section and raw and not raw.startswith(" ") and not raw.startswith("-"):
-      break
-    if in_section:
-      stripped = raw.strip()
-      if stripped.startswith("- "):
-        values.append(stripped[2:].strip().strip('"'))
-  return values
-
-
-def _parse_bool(value: str, default: bool) -> bool:
-  lowered = value.strip().strip('"').strip("'").lower()
-  if lowered == "true":
-    return True
-  if lowered == "false":
-    return False
-  return default
-
-
-def _parse_int(value: str, default: int) -> int:
-  try:
-    return int(value.strip().strip('"').strip("'"))
-  except ValueError:
-    return default
-
-
 def governance_policy(loop_text: str) -> dict[str, object]:
-  policy: dict[str, object] = {
-    "automation_type": "",
-    "schedule": "",
-    "owner": "",
-    "first_runs_require_human_review": 0,
-    "reviewed_runs": 0,
-    "auto_fix": False,
-    "auto_merge": False,
-    "report_only_on_no_findings": True,
-    "alert_on": [
-      "protected_scope_attempt",
-      "verifier_failure",
-      "budget_exhausted",
-      "metric_regression",
-    ],
-  }
-  in_governance = False
-  list_key = ""
-  for raw in loop_text.splitlines():
-    if raw == "governance:":
-      in_governance = True
-      list_key = ""
-      continue
-    if in_governance and raw and not raw.startswith(" "):
-      break
-    if not in_governance:
-      continue
-    stripped = raw.strip()
-    if not stripped:
-      continue
-    if stripped.startswith("- ") and list_key:
-      values = policy.setdefault(list_key, [])
-      if isinstance(values, list):
-        values.append(stripped[2:].strip().strip('"'))
-      continue
-    if ":" not in stripped:
-      continue
-    key, value = stripped.split(":", 1)
-    key = key.strip()
-    value = value.strip()
-    if not value:
-      policy.setdefault(key, [])
-      list_key = key
-      continue
-    list_key = ""
-    if key in {"auto_fix", "auto_merge", "report_only_on_no_findings"}:
-      policy[key] = _parse_bool(value, bool(policy[key]))
-    elif key in {"first_runs_require_human_review", "reviewed_runs"}:
-      policy[key] = _parse_int(value, int(policy[key]))
-    else:
-      policy[key] = value.strip('"').strip("'")
-  return policy
+  parsed, diagnostics = parse_loop_yaml_checked(loop_text)
+  if diagnostics:
+    raise ValueError("invalid canonical authority")
+  policy = parsed.get("governance", {})
+  return dict(policy) if isinstance(policy, dict) else {}
 
 
 def _automation_attempts(base: Path) -> list[dict[str, object]]:
@@ -482,6 +577,55 @@ def _automation_attempts(base: Path) -> list[dict[str, object]]:
     if isinstance(data, dict) and data.get("automation") is True:
       attempts.append(data)
   return attempts
+
+
+def _checkpoint_events(base: Path) -> list[dict[str, object]]:
+  events: list[dict[str, object]] = []
+  for line in _read(base / "attempts.jsonl").splitlines():
+    if not line.strip():
+      continue
+    try:
+      data = json.loads(line)
+    except json.JSONDecodeError:
+      continue
+    if _is_checkpoint_event(data):
+      events.append(data)
+  return events
+
+
+def _is_checkpoint_event(data: object) -> bool:
+  if not isinstance(data, dict) or data.get("event") != "checkpoint":
+    return False
+  if data.get("checkpoint") not in CHECKPOINT_NAMES or data.get("decision") not in CHECKPOINT_DECISIONS:
+    return False
+  hashes = data.get("hashes")
+  if not isinstance(hashes, dict) or not all(
+    isinstance(key, str) and isinstance(value, str)
+    for key, value in hashes.items()
+  ):
+    return False
+  checkpoint = str(data["checkpoint"])
+  keys = set(hashes)
+  allowed = CHECKPOINT_HASH_KEYS[checkpoint]
+  if not keys <= allowed or (data["decision"] == "confirmed" and keys != allowed):
+    return False
+  return (
+    all(isinstance(data.get(key), str) for key in ("mode", "subtype", "outcome", "created_at"))
+    and _is_rfc3339_utc(str(data["created_at"]))
+  )
+
+
+RFC3339_UTC_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z$")
+
+
+def _is_rfc3339_utc(value: str) -> bool:
+  if not RFC3339_UTC_RE.fullmatch(value):
+    return False
+  try:
+    datetime.fromisoformat(value[:-1] + "+00:00")
+  except ValueError:
+    return False
+  return True
 
 
 def _governance_summary(base: Path, loop_text: str) -> GovernanceSummary:
@@ -510,16 +654,72 @@ def _runner_summary(loop_text: str) -> dict[str, object]:
     run = {}
   if not isinstance(policy, dict):
     policy = {}
+  checkpoints = parsed.get("checkpoints", {})
+  if not isinstance(checkpoints, dict):
+    checkpoints = {}
+  mode_checkpoint = checkpoints.get("mode", {})
+  plan_checkpoint = checkpoints.get("plan", {})
+  if not isinstance(mode_checkpoint, dict):
+    mode_checkpoint = {}
+  if not isinstance(plan_checkpoint, dict):
+    plan_checkpoint = {}
   return {
-    "mode": run.get("mode", ""),
-    "subtype": run.get("subtype", ""),
-    "plan_approved": run.get("plan_approved") is True,
-    "plan_hash": run.get("plan_hash", ""),
+    "mode": mode_checkpoint.get("mode", ""),
+    "subtype": mode_checkpoint.get("subtype", ""),
+    "plan_approved": plan_checkpoint.get("confirmed") is True,
+    "plan_hash": plan_checkpoint.get("plan_hash", ""),
+    "policy_hash": plan_checkpoint.get("policy_hash", ""),
     "state": run.get("state", ""),
     "current_pass": run.get("current_pass", ""),
     "max_passes": run.get("max_passes", ""),
     "release_target": policy.get("target_branch", ""),
+    "checkpoints": checkpoints,
   }
+
+
+def append_checkpoint_event(
+  *,
+  base: Path,
+  checkpoint: str,
+  decision: str,
+  hashes: dict[str, str],
+  created_at: str,
+  mode: str = "",
+  subtype: str = "",
+  outcome: str = "",
+) -> dict[str, object]:
+  if checkpoint not in CHECKPOINT_NAMES:
+    raise ValueError(f"invalid checkpoint: {checkpoint}")
+  if decision not in CHECKPOINT_DECISIONS:
+    raise ValueError(f"invalid checkpoint decision: {decision}")
+  if not isinstance(hashes, dict) or not all(
+    isinstance(key, str) and isinstance(value, str)
+    for key, value in hashes.items()
+  ):
+    raise ValueError("checkpoint hashes must be a dictionary of strings")
+  keys = set(hashes)
+  allowed = CHECKPOINT_HASH_KEYS[checkpoint]
+  if not keys <= allowed or (decision == "confirmed" and keys != allowed):
+    raise ValueError(f"invalid {checkpoint} checkpoint hashes")
+  if not all(isinstance(value, str) for value in (mode, subtype, outcome, created_at)):
+    raise ValueError("checkpoint mode, subtype, outcome, and created_at must be strings")
+  if not _is_rfc3339_utc(created_at):
+    raise ValueError("checkpoint created_at must be RFC3339 UTC")
+  record: dict[str, object] = {
+    "event": "checkpoint",
+    "checkpoint": checkpoint,
+    "decision": decision,
+    "hashes": dict(hashes),
+    "mode": mode,
+    "subtype": subtype,
+    "outcome": outcome or decision,
+    "created_at": created_at,
+  }
+  attempts_path = base / "attempts.jsonl"
+  attempts_path.parent.mkdir(parents=True, exist_ok=True)
+  with attempts_path.open("a", encoding="utf-8") as handle:
+    handle.write(json.dumps(record, sort_keys=True) + "\n")
+  return record
 
 
 def append_automation_attempt(
@@ -558,41 +758,25 @@ def append_automation_attempt(
 
 
 def _summary_from_loop(loop_text: str, topic: str) -> LoopSummary:
-  values: dict[str, str] = {}
-  for raw in loop_text.splitlines():
-    if ":" not in raw or raw.startswith(" ") or raw.startswith("-"):
-      continue
-    key, value = raw.split(":", 1)
-    values[key.strip()] = value.strip().strip('"')
-  verifier_command = ""
-  verifier_type = ""
-  budget_value = ""
-  lines = loop_text.splitlines()
-  for index, raw in enumerate(lines):
-    if raw.strip() == "verifier:":
-      for child in lines[index + 1:index + 4]:
-        stripped = child.strip()
-        if stripped.startswith("type:"):
-          verifier_type = stripped.split(":", 1)[1].strip().strip('"')
-        if stripped.startswith("command:"):
-          verifier_command = stripped.split(":", 1)[1].strip().strip('"')
-    if raw.strip() == "budget:":
-      for child in lines[index + 1:index + 3]:
-        stripped = child.strip()
-        if stripped.startswith("max_iterations:"):
-          budget_value = stripped.split(":", 1)[1].strip().strip('"')
+  parsed = parse_loop_yaml(loop_text)
+  verifier = parsed.get("verifier", {})
+  budget = parsed.get("budget", {})
+  if not isinstance(verifier, dict):
+    verifier = {}
+  if not isinstance(budget, dict):
+    budget = {}
   return LoopSummary(
-    topic=values.get("topic", topic),
-    mode=values.get("mode", ""),
-    objective=values.get("objective", ""),
-    current_stage=values.get("current_stage", values.get("stage", "")),
-    verifier_type=verifier_type,
-    verifier_command=verifier_command,
-    max_iterations=budget_value,
-    rollback_policy=values.get("rollback_policy", ""),
-    stop_conditions=_yaml_section_list(loop_text, "stop_conditions"),
-    handoff_conditions=_yaml_section_list(loop_text, "handoff_conditions"),
-    protected_scope=_yaml_section_list(loop_text, "protected_scope"),
+    topic=str(parsed.get("topic", topic)),
+    mode=str(parsed.get("mode", "")),
+    objective=str(parsed.get("objective", "")),
+    current_stage=str(parsed.get("current_stage", parsed.get("stage", ""))),
+    verifier_type=str(verifier.get("type", "")),
+    verifier_command=str(verifier.get("command", "")),
+    max_iterations=str(budget.get("max_iterations", "")),
+    rollback_policy=str(parsed.get("rollback_policy", "")),
+    stop_conditions=list(parsed.get("stop_conditions", [])),
+    handoff_conditions=list(parsed.get("handoff_conditions", [])),
+    protected_scope=list(parsed.get("protected_scope", [])),
   )
 
 
@@ -601,6 +785,7 @@ def render_audit(base: Path, topic: str) -> str:
   summary = _summary_from_loop(loop_text, topic)
   governance = _governance_summary(base, loop_text)
   runner = _runner_summary(loop_text)
+  checkpoint_events = _checkpoint_events(base)
   evidence_files = _evidence_files(base)
   has_result = _has_exact_markdown_value(_read(base / "7_result.md"), "Done")
   has_check = _has_exact_markdown_value(_read(base / "5_check.md"), "PASS")
@@ -625,6 +810,33 @@ def render_audit(base: Path, topic: str) -> str:
     "</li>"
     for item in governance.automated_attempts
   ) or "<li>No automated attempts recorded.</li>"
+  checkpoints = runner["checkpoints"]
+  checkpoint_html = "\n".join(
+    "<li>"
+    f"<strong>{html.escape(name)}</strong>: "
+    + ", ".join(
+      f"{html.escape(str(key))}: {html.escape(str(value).lower() if isinstance(value, bool) else str(value))}"
+      for key, value in (checkpoints.get(name, {}) if isinstance(checkpoints, dict) else {}).items()
+    )
+    + "</li>"
+    for name in ("goal_context", "mode", "plan", "launch")
+  )
+  checkpoint_event_html = "\n".join(
+    "<li>"
+    + f"{html.escape(str(item.get('created_at', '')))} "
+    + f"{html.escape(str(item.get('checkpoint', '')))} "
+    + f"{html.escape(str(item.get('decision', '')))}"
+    + "; hashes: "
+    + ", ".join(
+      f"{html.escape(key)}: {html.escape(value)}"
+      for key, value in sorted(item["hashes"].items())
+    )
+    + f"; mode: {html.escape(str(item.get('mode', '')))}"
+    + f"; subtype: {html.escape(str(item.get('subtype', '')))}"
+    + f"; outcome: {html.escape(str(item.get('outcome', '')))}"
+    + "</li>"
+    for item in checkpoint_events
+  ) or "<li>No checkpoint events recorded.</li>"
 
   sections = [
     ("Goal", _read(base / "1_goal.md")),
@@ -667,9 +879,19 @@ def render_audit(base: Path, topic: str) -> str:
     f"      <p><strong>Subtype:</strong> {html.escape(str(runner['subtype']))}</p>",
     f"      <p>plan_approved: {str(runner['plan_approved']).lower()}</p>",
     f"      <p><strong>Plan hash:</strong> {html.escape(str(runner['plan_hash']))}</p>",
+    f"      <p><strong>Policy hash:</strong> {html.escape(str(runner['policy_hash']))}</p>",
     f"      <p><strong>State:</strong> {html.escape(str(runner['state']))}</p>",
     f"      <p><strong>Pass:</strong> {html.escape(str(runner['current_pass']))}/{html.escape(str(runner['max_passes']))}</p>",
     f"      <p><strong>Release target:</strong> {html.escape(str(runner['release_target']))}</p>",
+    "    </section>",
+    "    <section>",
+    "      <h2>Checkpoints</h2>",
+    f"      <ul>{checkpoint_html}</ul>",
+    "    </section>",
+    "    <section>",
+    "      <h2>Checkpoint History</h2>",
+    f"      <p>{len(checkpoint_events)} checkpoint event(s)</p>",
+    f"      <ul>{checkpoint_event_html}</ul>",
     "    </section>",
     "    <section>",
     "      <h2>Verifier Result</h2>",
