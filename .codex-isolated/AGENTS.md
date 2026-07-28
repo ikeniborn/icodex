@@ -79,10 +79,51 @@ workflow artifacts the agent can control.**
   disagree, stop and normalize them to one `<topic>` before continuing. Do not
   treat an inaccessible UI thread title as a blocking artifact.
 
+## Workflow Route Selection
+
+Classify the workflow before invoking `fix-intent`, `superpowers:brainstorming`, or
+creating chain artifacts. Superpowers skills are selected tools; using an applicable
+scoped skill does not by itself select the full IDD->SDD chain. This rule overrides
+generic Superpowers wording that treats every behavior change as requiring brainstorming.
+
+Recommend **direct** execution when all are true: the requested outcome is explicit,
+the change is bounded to existing behavior, no unresolved design choice remains, the
+verification path is known, and no public contract, schema, migration, security
+boundary, concurrency/transaction rule, or data invariant changes. Typical examples:
+known-cause local fixes, typos, formatting, focused tests for existing behavior, and
+mechanical config or documentation edits.
+
+Recommend the **full chain** when any is true: a new capability or module needs design,
+the public CLI/API or another external contract changes, architecture must be chosen,
+schema/migration/security/concurrency/transaction/data-integrity behavior changes, two
+or more subsystems require coupled design, or the user explicitly requests IDD->SDD.
+An unknown defect cause starts with scoped systematic debugging; recommend the chain
+only if diagnosis exposes one of these triggers.
+
+At task start, state the recommendation and its evidence. Do not invoke `fix-intent` or
+start the full chain until the user accepts that recommendation. A direct recommendation
+does not require confirmation unless another instruction requires proposal-first work;
+proceed after reporting it. An explicit chain request counts as acceptance. If evidence
+is ambiguous, recommend direct discovery first and reassess after evidence is gathered.
+User direction may override the recommendation; record the override and concrete risk
+rather than silently expanding the workflow.
+
+Direct work creates no intent, spec, plan, `check-chain`, or chain TODO artifacts. Do not
+invoke `fix-intent`, brainstorming, writing-plans, or chain execution skills on this
+route. Scoped skills such as systematic debugging, TDD, or verification remain allowed.
+If scope crosses a full-chain trigger, stop, report evidence, and recommend the chain.
+
+```text
+Workflow recommendation: direct | full-chain | loen
+Evidence: <bounded facts or qualifying trigger>
+Intent required: yes | no
+Confirmation required: yes | no
+```
+
 ## Superpowers Chain Order
 
-**For every non-trivial behavior, architecture, CLI/API, or feature change, keep the
-Superpowers workflow gated by `check-chain`, except LoEn loop workspaces:**
+After the user accepts a full-chain recommendation, keep each transition gated by
+`check-chain`, except LoEn loop workspaces:
 
 **LoEn carve-out:** tasks that start, continue, audit, repair, research, review, or
 govern durable LoEn workspaces through `loen:loop-*` skills use the LoEn lifecycle
@@ -130,11 +171,13 @@ The user switches with `/model` and verifies with `/status`.
 
 ### Checkpoints
 
-Reassess after every `$check-chain <stage>` verdict (`intent`, `spec`, `plan`, or
-`result`), after each implementation task review, and before the next work:
+Reassess at direct task start, after `$check-chain` verdicts or task reviews, and before
+work:
 
 | Boundary | Baseline |
 |----------|----------|
+| Direct task start -> execution | Classify task |
+| Direct check/review -> next work | Reclassify if evidence changed |
 | Start -> intent or coordination | Terra Medium |
 | Intent OK -> non-trivial spec | Sol Medium |
 | Spec OK -> direct plan | Sol Medium |
@@ -145,8 +188,12 @@ Reassess after every `$check-chain <stage>` verdict (`intent`, `spec`, `plan`, o
 | Execution -> cross-system or critical result check | Sol High |
 | Result OK -> routine follow-up | Terra Medium |
 
-For `needs_work`, classify remediation in the same stage; do not transition or escalate
-from the verdict alone. Fix the artifact or change strategy, rerun, then reassess.
+For `needs_work`, remain in the stage, change strategy, rerun, and reassess. The verdict
+alone never requires escalation.
+
+Workflow and model routes are independent: direct does not imply Luna; full chain does
+not imply Sol High. For direct work, use `Checkpoint: direct task start` in the Switch
+Handling block; repeat after failed checks, scope changes, or new invariants.
 
 ### Classification
 
@@ -163,8 +210,8 @@ Choose the lowest sufficient route:
    or result reconciliation across coupled invariants.
 4. **Terra Medium** otherwise.
 
-Never inherit a higher route. File count, task length, general uncertainty, one failure,
-or a stage name are not triggers. If evidence is ambiguous, gather it at the lower route.
+Never inherit a higher route. File count, task length, one failure, or a stage name are
+not triggers. Gather ambiguous evidence at the lower route.
 
 ### Exceptional Routes
 
@@ -185,9 +232,8 @@ gate. Never retry without changing strategy.
 
 ### Switch Handling
 
-Same route means `keep`; cheaper means `downgrade`; more capable means `escalate`;
-Sol Ultra means `separate-run`. If current route is unknown, ask the user to check
-`/status`; never guess.
+Use `keep`, `downgrade`, `escalate`, or `separate-run` (Sol Ultra). If current route is
+unknown, ask the user to check `/status`; never guess.
 
 Wait when switching is required. A declined downgrade may continue with the extra cost
 recorded. A declined escalation stops the next work until explicit risk acceptance.

@@ -1,6 +1,6 @@
 ---
 review:
-  intent_hash: 71858e405689301d
+  intent_hash: 00fd397a7b78dab8
   last_run: 2026-07-28
   phases:
     structure: { status: passed }
@@ -19,8 +19,9 @@ review:
 ## Objective
 
 Reduce unnecessary Codex cost without weakening work that has evidenced complexity.
-Add an instruction-only policy to `.codex-isolated/AGENTS.md` that reassesses the model
-and reasoning effort after each `check-chain` verdict and before the next workflow stage.
+Add an instruction-only policy to `.codex-isolated/AGENTS.md` that first recommends
+whether work should run directly or through the full IDD->SDD chain, then reassesses the
+model and reasoning effort before work and after relevant checks.
 
 The policy produces a recommendation only. It must not edit TOML, install profiles,
 change runtime configuration, create model-routing scripts, or claim that the active
@@ -30,6 +31,10 @@ interactive model changed. The user retains control of any switch through `/mode
 
 - Every transition after intent, spec, plan, task review, and result validation has a
   lowest normal model and reasoning baseline.
+- Every task receives an objective workflow recommendation; the full chain starts only
+  after the user accepts it, while bounded direct work creates no chain artifacts.
+- Every direct task still receives a model and reasoning recommendation before execution
+  and is reassessed when checks, scope, or discovered invariants change its evidence.
 - Each recommendation names the completed checkpoint, next stage, current route,
   recommended route, decision, observable evidence, rejected higher mode, and whether
   the user must switch.
@@ -50,6 +55,8 @@ interactive model changed. The user retains control of any switch through `/mode
 
 - The shared AGENTS policy contains deterministic stage baselines, classification rules,
   escalation rules, and one fixed recommendation format.
+- The policy separates workflow routing from model routing, so skipping the full chain
+  never skips model/reasoning analysis.
 - The routing section stays at or below 600 words to limit its prompt overhead.
 - Every expensive recommendation cites an artifact, finding, failure, invariant, or
   concrete risk.
@@ -61,7 +68,8 @@ interactive model changed. The user retains control of any switch through `/mode
 ## Strategic Context
 
 - Interacts with: `.codex-isolated/AGENTS.md`, Superpowers chain boundaries,
-  `check-chain` verdicts, the interactive `/model` control, and user decisions.
+  direct-task boundaries, `check-chain` verdicts, the interactive `/model` control, and
+  user decisions.
 - Priority trade-off: trust > cost > speed.
 
 ## Constraints
@@ -69,6 +77,8 @@ interactive model changed. The user retains control of any switch through `/mode
 ### Steering (behavioral guidance)
 
 - Reassess only the next stage from current evidence.
+- Prefer direct discovery for bounded or ambiguous work; recommend the full chain only
+  from an enumerated trigger and wait for user acceptance before starting it.
 - Treat keep and downgrade as normal outcomes; escalation is exceptional.
 - Start from Luna Medium or Terra Medium when the next task can be completed safely
   there.
@@ -79,6 +89,10 @@ interactive model changed. The user retains control of any switch through `/mode
 
 - Do not add or modify TOML profiles, runtime config mutation, launcher wiring,
   validation scripts, or specialized role files for this task.
+- Do not infer that any behavior change requires `fix-intent` or the full chain. Scoped
+  Superpowers skills may run on direct tasks without creating chain artifacts.
+- Route selection overrides generic brainstorming trigger wording for direct tasks; do
+  not invoke chain-only Superpowers skills after choosing direct execution.
 - Do not silently switch the active model or reasoning effort.
 - Do not use Sol High because a stage is named plan or result, because a diff is large,
   or because one attempt failed.
@@ -102,6 +116,7 @@ interactive model changed. The user retains control of any switch through `/mode
 - Halt before the next stage when a recommended switch requires user action.
 - Refuse escalation without a concrete trigger.
 - Return artifact drift to the earliest affected gate.
-- Done when the AGENTS-only policy covers every chain boundary, rejects unjustified
-  cost increases, makes switching advisory and visible, changes no runtime mechanism,
-  and existing tests pass.
+- Done when the AGENTS-only policy objectively separates direct work from the full chain,
+  covers chain and direct-task model boundaries, rejects unjustified cost increases,
+  makes switching advisory and visible, changes no runtime mechanism, and existing tests
+  pass.
