@@ -24,4 +24,4 @@
 | icodex-iwiki-reranker-config | done | ✓ | ✓ | ✓ | OK | 2026-07-16 | 2026-07-16 | Added newer upstream iwiki `ICODEX_IWIKI_*` config and generated `IWIKI_PROJECT_DIR`; focused iwiki tests pass; full suite has unrelated pre-existing `test_idd_skills` failure |
 | check-chain-plan-review-summary | done | ✓ | ✓ | ✓ | OK | 2026-07-20 | 2026-07-20 | Strengthened `check-chain spec`/`plan` reviews and made result HTML optional by user request |
 | loen-start-mode-gates | done | ✓ | ✓ | ✓ | OK | 2026-07-23 | 2026-07-24 | Strengthen LoEn start trust and close runtime, audit, and durable IDD vendor-gate blockers |
-| codex-model-routing | in-progress | ✓ | n/a | n/a | – | 2026-07-28 |  | User-directed implementation from approved intent without spec or plan |
+| codex-model-routing | done | ✓ | n/a | n/a | OK | 2026-07-28 | 2026-07-28 | AGENTS-only policy; result reconciled directly with intent under user-approved no-spec/no-plan scope |

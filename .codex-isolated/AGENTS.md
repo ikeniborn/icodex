@@ -112,6 +112,108 @@ signals such as reading `skills/<name>/SKILL.md` through `Read` or `Bash`. It is
 transition gate only: validation state still comes from frontmatter written by the
 `check-chain` skill.
 
+## Model and Reasoning Recommendations
+
+This policy only recommends the model and reasoning effort for the next workflow
+stage. It does not edit TOML, select a profile, spawn a replacement session, or claim
+that the active model changed. The user applies an accepted switch through `/model`
+and may verify it with `/status`.
+
+### Checkpoint Rule
+
+After every `$check-chain <stage>` verdict and before starting the next stage:
+
+1. Read the accepted artifact, check findings, current diff or test evidence, and the
+   exact work remaining in the next stage.
+2. Classify only that next stage. Do not inherit High, Max, or Ultra from the stage
+   that just finished.
+3. Start from the lowest sufficient route and raise it only for a matching observable
+   trigger below.
+4. Report the recommendation. If a switch is needed, wait for the user to apply or
+   decline it before starting the next stage.
+5. A `needs_work` verdict alone is not escalation evidence. Fix the artifact or use
+   a materially different strategy, rerun the same check, then reassess.
+
+### Stage Baselines
+
+| Boundary | Lowest normal route for the next stage |
+|----------|-----------------------------------------|
+| Task start -> intent or coordination | Terra / Medium |
+| Intent OK -> non-trivial spec | Sol / Medium |
+| Spec OK -> direct plan from a complete spec | Sol / Medium |
+| Plan OK -> fully determined mechanical task | Luna / Medium |
+| Plan OK -> ordinary implementation task | Terra / Medium |
+| Task check -> local diff or atomic-task review | Terra / Medium |
+| Execution complete -> bounded single-component result check | Terra / Medium |
+| Execution complete -> evidenced cross-system or critical result check | Sol / High |
+| Result OK -> finish or routine follow-up | Terra / Medium |
+
+The table gives baselines, not automatic escalation. A trivial task that legitimately
+skips spec or plan remains Terra Medium, or Luna Medium when every mechanical-task
+condition below is satisfied. Merely entering a stage named `plan`, `review`, or
+`result` does not justify High.
+
+### Objective Classification
+
+Use Luna Medium only when every condition is true:
+
+- the change is completely defined with no unresolved decision;
+- one bounded component owns the behavior;
+- the failure cause, when relevant, is already known;
+- no public contract, schema, migration, concurrency, security boundary, or data risk
+  changes;
+- the verification command and expected result are known before editing.
+
+Use Sol Medium for specification or planning that needs synthesis across accepted
+requirements but has none of the High triggers below.
+
+Use Sol High only when at least one trigger has concrete evidence:
+
+- a reproduced defect still has an unknown cause;
+- code materially contradicts an accepted artifact;
+- a public compatibility contract must change;
+- transactional, concurrent, or distributed invariants must be preserved;
+- migration, security-boundary, or data-integrity risk exists;
+- three or more independently owned subsystems must change together;
+- final reconciliation must retain several coupled invariants across subsystems.
+
+Use Terra Medium for all work between those classes. File count, task length, a failed
+first attempt, or general uncertainty are supporting context, not escalation triggers.
+When evidence is ambiguous, keep the lower route and gather evidence first.
+
+### Exceptional Escalation
+
+Recommend Sol Max only after two materially different Sol High strategies fail,
+reviewers contradict each other about the same invariant, a required test remains
+unexplained after strategy change, or a critical migration has credible data-loss risk.
+State the trigger and how the next strategy differs. Max is never a default stage route.
+
+Recommend Ultra only as a separate run for at least two independent, read-only audit
+directions with no shared writes and a defined consolidation step. Never recommend Ultra
+inside `subagent-driven-development`, an execute subagent, or another active subagent
+orchestration.
+
+Never let an implementer revise accepted intent, spec, or plan decisions. Return drift
+to the earliest affected gate. Never repeat a failed attempt without changing strategy.
+
+### Recommendation Format
+
+Use this compact format in the conversation language:
+
+```text
+Checkpoint: <completed check and verdict>
+Next stage: <stage or task>
+Current: <model> / <effort>
+Decision: keep | downgrade | escalate | separate-run
+Recommended: <model> / <effort>
+Evidence: <artifact, path, finding, failed check, invariant, or risk>
+Higher mode rejected because: <why extra cost is not justified>
+Switch required: yes | no
+```
+
+If the current model or effort is unknown, write `Current: unknown`; do not guess.
+A recommendation is advisory until the user applies it.
+
 ## Project Status Reports
 
 **When the user asks for project status, progress, or "what's the state of X", build the answer from two sources together — never one alone: `docs/TODO.md` (what is being worked on) and the project's iwiki domain (what is documented as true).**

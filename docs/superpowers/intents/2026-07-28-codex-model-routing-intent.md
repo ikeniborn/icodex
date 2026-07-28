@@ -1,6 +1,6 @@
 ---
 review:
-  intent_hash: ac8f4053fb1c3dc3
+  intent_hash: b6645a592ab5876f
   last_run: 2026-07-28
   phases:
     structure: { status: passed }
@@ -18,71 +18,82 @@ review:
 
 ## Objective
 
-Reduce Codex token use and elapsed time across the icodex engineering workflow without weakening architectural decisions, implementation quality, or final integration checks. Replace ad hoc model and reasoning selection with documented profiles, specialized subagent roles, and evidence-based transition recommendations between `intent`, `spec`, `plan`, execution, and result validation.
+Reduce unnecessary Codex cost without weakening work that has evidenced complexity.
+Add an instruction-only policy to `.codex-isolated/AGENTS.md` that reassesses the model
+and reasoning effort after each `check-chain` verdict and before the next workflow stage.
 
-Keep one interactive thread as the primary workflow. A selected TOML profile remains a startup preset, while `AGENTS.md` recommends whether to keep, downgrade, or escalate the active model and reasoning effort after each successful chain gate. The user performs any in-session switch through Codex model controls so the workflow preserves context and does not launch nested Codex processes.
+The policy produces a recommendation only. It must not edit TOML, install profiles,
+change runtime configuration, create model-routing scripts, or claim that the active
+interactive model changed. The user retains control of any switch through `/model`.
 
 ## Desired Outcomes
 
-- Every workflow stage has a documented default model, reasoning effort, and launch profile.
-- After each `check-chain` gate, the user sees a concise next-stage recommendation that names the current and recommended modes, cites observable complexity evidence, and explicitly says whether to keep, downgrade, escalate, or use a separate run.
-- Simple and fully determined work uses Luna or Terra; Sol is reserved for work that needs deeper design, debugging, integration, or risk analysis.
-- High, Max, and Ultra are selected only when their documented entry conditions are met, and higher effort does not carry into the next stage without a fresh assessment.
-- Specialized subagents receive bounded responsibilities, required input artifacts, output contracts, completion criteria, and escalation conditions.
-- A specific subagent launch can override the normal role model or reasoning recommendation without inventing unsupported TOML fields.
-- Ultra never becomes an inherited execute-worker mode and is used only for a separate, independently parallelizable audit.
-- Operators can start any named profile with `--profile`, inspect the effective configuration, and restore the standard icodex configuration through a documented rollback procedure.
+- Every transition after intent, spec, plan, task review, and result validation has a
+  lowest normal model and reasoning baseline.
+- Each recommendation names the completed checkpoint, next stage, current route,
+  recommended route, decision, observable evidence, rejected higher mode, and whether
+  the user must switch.
+- Luna handles only completely determined mechanical work; Terra Medium remains the
+  ordinary engineering default.
+- Sol Medium is limited to non-trivial specification and planning synthesis.
+- Sol High, Sol Max, and Ultra require explicit observable triggers and never carry
+  forward automatically.
+- A failed check or first failed attempt does not by itself increase model or effort.
+- Ultra is recommended only as a separate independent audit, never inside active
+  subagent orchestration.
 
 ## Health Metrics
 
-- Every configured model slug and reasoning effort exists in the bundled model catalog of the pinned Codex release.
-- Every profile parses as TOML and loads from the active per-project `CODEX_HOME` without unknown configuration keys.
-- The full Bash test suite remains green, including focused tests for profile distribution, role contracts, routing policy, and rollback behavior.
-- Routine implementation does not use Sol High, Max, or Ultra unless the transition recommendation records a matching observable trigger.
-- A higher mode selected for one stage is downgraded or retained only after the next checkpoint performs a fresh assessment.
-- Existing sandbox, approval, permission, project-home isolation, plugin, hook, telemetry, and iwiki behavior remains unchanged unless explicitly required to distribute the new profiles.
+- The shared AGENTS policy contains deterministic stage baselines, classification rules,
+  escalation rules, and one fixed recommendation format.
+- Every expensive recommendation cites an artifact, finding, failure, invariant, or
+  concrete risk.
+- The policy explicitly chooses the lower route when evidence is absent or ambiguous.
+- Existing Codex configuration, launcher behavior, profiles, and agent role files remain
+  unchanged.
+- Existing repository tests remain green.
 
 ## Strategic Context
 
-- Interacts with: `.codex-isolated/config.toml`, per-project `CODEX_HOME` provisioning, `.codex-isolated/agents/`, `.codex-isolated/AGENTS.md`, Superpowers skills and `check-chain` gates, the Codex CLI model picker, profile loading, Bash tests, project documentation, and human operators.
+- Interacts with: `.codex-isolated/AGENTS.md`, Superpowers chain boundaries,
+  `check-chain` verdicts, the interactive `/model` control, and user decisions.
 - Priority trade-off: trust > cost > speed.
 
 ## Constraints
 
 ### Steering (behavioral guidance)
 
-- Start every next-stage assessment from the lowest mode that can satisfy the accepted artifacts and observed risks.
-- Treat keeping the current mode and downgrading as first-class recommendations; escalation is not the default outcome of a checkpoint.
-- Base every escalation on paths, artifacts, failed checks, subsystem boundaries, contracts, data risks, or other observable evidence.
-- Reassess complexity after every gate; do not inherit High, Max, or Ultra merely because an earlier stage used it.
-- Change strategy before repeating a failed attempt.
-- Keep recommendations concise enough to avoid duplicating the checked artifact.
+- Reassess only the next stage from current evidence.
+- Treat keep and downgrade as normal outcomes; escalation is exceptional.
+- Start from Luna Medium or Terra Medium when the next task can be completed safely
+  there.
+- Use concise recommendations rather than duplicating the checked artifact.
+- Change strategy before retrying a failed attempt.
 
 ### Hard (architectural enforcement)
 
-- Use the exact supported model slugs `gpt-5.6-luna`, `gpt-5.6-terra`, and `gpt-5.6-sol`.
-- Provide named startup profiles for `default`, `spec`, `plan`, `implement`, `simple`, `complex`, `review`, `final-review`, `escalation`, and `parallel-audit` as `$CODEX_HOME/<profile>.config.toml` layers selected through `--profile`.
-- Keep the interactive workflow in one thread; do not start nested Codex processes to change a stage mode.
-- Do not use Sol for mechanical work without a recorded trigger, Max as a standard mode, or Ultra inside `subagent-driven-development` or another active subagent orchestration.
-- Do not allow an implementer to change approved intent, spec, or plan decisions; detected divergence returns to the earliest affected gate.
-- Do not hide an escalation, repeat the same failed strategy, or execute a critical migration without a separate final integration review.
-- Keep subagent role model and reasoning choices overridable for a specific spawn. Do not pin those fields in a custom-agent file if current Codex precedence would make the pin override explicit spawn parameters.
-- Use only documented Codex configuration keys and model-catalog-supported values.
-- Preserve existing user-owned runtime configuration outside the managed profile and routing surfaces.
+- Do not add or modify TOML profiles, runtime config mutation, launcher wiring,
+  validation scripts, or specialized role files for this task.
+- Do not silently switch the active model or reasoning effort.
+- Do not use Sol High because a stage is named plan or result, because a diff is large,
+  or because one attempt failed.
+- Do not use Max as a default or Ultra inside existing subagent orchestration.
+- Do not let an implementer revise accepted upstream artifacts.
 
 ## Autonomy Zones
 
-- Full autonomy (reversible, low risk): inspect documentation and configuration, classify task complexity from evidence, recommend keeping or downgrading a mode, validate TOML and model-catalog compatibility, and prepare rollback instructions.
-- Guarded (log + confidence threshold): recommend Sol High from documented complexity triggers, route bounded work to a specialized role, and provision managed profile links into a per-project `CODEX_HOME` without overwriting unrelated user files.
-- Proposal-first (needs approval): change approved routing semantics, recommend Sol Max, recommend a separate Ultra audit, or resolve a conflict between deterministic role pinning and per-spawn override behavior.
-- No autonomy (human only): operate the interactive `/model` control, accept a critical migration risk, waive a blocking chain finding, or authorize Ultra inside an existing execute orchestration.
-
-> These zones override subagent-driven-development's continuous-execution default at model-transition and critical-risk checkpoints. The main agent owns the user-visible recommendation and waits when a model change or proposal-first decision is required.
+- Full autonomy: inspect accepted artifacts and checks, recommend keep or downgrade,
+  and choose Luna Medium or Terra Medium from complete evidence.
+- Guarded: recommend Sol Medium or Sol High only with a cited classification trigger.
+- Proposal-first: recommend Sol Max, a separate Ultra audit, or any model switch before
+  the next stage.
+- No autonomy: operate the user's `/model` control or claim a switch occurred.
 
 ## Stop Rules
 
-- Halt if: the pinned Codex catalog does not support a configured model or reasoning effort, a profile contains an unknown key, or project configuration precedence prevents the requested effective mode without a disclosed override.
-- Halt if: role configuration cannot simultaneously preserve the documented spawn precedence and the required per-run override behavior.
-- Halt if: a requested escalation has no observable trigger, Ultra would create nested orchestration, or a critical migration lacks an independent final review path.
-- Escalate if: two materially different Sol High strategies fail, reviewers return contradictory conclusions about the same invariant, an unexplained required test failure remains, or a migration presents a credible data-loss risk.
-- Done when: all ten profiles load through `--profile`, all specialized roles expose complete behavioral contracts, checkpoint recommendations objectively select keep/downgrade/escalate decisions, explicit subagent spawn overrides remain possible, Ultra is isolated from execute orchestration, rollback restores the standard configuration, focused and full tests pass, and current Codex documentation plus the pinned model catalog support every shipped key and value.
+- Halt before the next stage when a recommended switch requires user action.
+- Refuse escalation without a concrete trigger.
+- Return artifact drift to the earliest affected gate.
+- Done when the AGENTS-only policy covers every chain boundary, rejects unjustified
+  cost increases, makes switching advisory and visible, changes no runtime mechanism,
+  and existing tests pass.
