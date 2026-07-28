@@ -74,6 +74,7 @@ assert_contains "html-report allows small inline js" "$hr_text" "small inline Ja
 assert_contains "html-report keeps self-contained report" "$hr_text" "no CDN"
 assert_contains "html-report replaces final report" "$hr_text" 'replacing an existing caller-supplied `mode: chain` final report'
 assert_contains "html-report prohibits English UI copy" "$hr_text" "English visible UI copy is not allowed"
+assert_contains "html-report renders only available chain diagrams" "$hr_text" 'diagrams are required only for plan-backed payloads'
 
 assert_contains "chain-report final blocks" "$cr_text" "Final Report Blocks"
 assert_contains "chain-report mandatory visualizations" "$cr_text" "Mandatory Rich Visualizations"
@@ -93,6 +94,8 @@ assert_contains "chain-report includes plan section" "$cr_text" '<section id="pl
 assert_contains "chain-report includes result section" "$cr_text" '<section id="result">'
 assert_contains "chain-report source fallback" "$cr_text" "source lacks enough structure"
 assert_contains "chain-report no pane preservation" "$cr_text" "no stage-owned tab"
+assert_contains "chain-report records absent stages without invention" "$cr_text" 'do not synthesize their requirements'
+assert_contains "chain-report omits absent stage diagrams" "$cr_text" 'steps, or diagrams'
 
 banned_report_labels=(
   "Step DAG"

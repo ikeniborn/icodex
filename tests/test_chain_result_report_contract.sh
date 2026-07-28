@@ -13,6 +13,18 @@ assert_not_contains() { # <desc> <haystack> <needle>
   fi
 }
 
+assert_before() { # <desc> <haystack> <first> <second>
+  local desc="$1" hay="$2" first="$3" second="$4"
+  local first_line second_line
+  first_line="$(grep -nF -- "$first" <<<"$hay" | head -n1 | cut -d: -f1)"
+  second_line="$(grep -nF -- "$second" <<<"$hay" | head -n1 | cut -d: -f1)"
+  if [[ -n "$first_line" && -n "$second_line" && "$first_line" -lt "$second_line" ]]; then
+    echo "PASS [$desc]"; PASS=$((PASS+1))
+  else
+    echo "FAIL [$desc]: '$first' must appear before '$second'"; FAIL=$((FAIL+1))
+  fi
+}
+
 SK=".codex-isolated/skills"
 export ICODEX_ROOT="$ROOT"
 export ICODEX_SHARED_DIR="$ROOT/.codex-isolated"
@@ -36,8 +48,11 @@ assert_contains "check-chain final report describes concrete changes" "$CC" "con
 assert_contains "check-chain final report records obtained result" "$CC" "what result was obtained"
 assert_contains "check-chain final report requires process diagrams when needed" "$CC" "Add process diagrams when workflow"
 assert_contains "check-chain cached non-result stays markdown-only" "$CC" 'Cached quick-exit runs for `intent`, `spec`, and `plan` do not regenerate HTML'
+assert_before "check-chain writes current result state before report offer" "$CC" 'Write state into the selected source' 'Optional report offer'
 assert_contains "html-report documents result-only chain mode" "$HR" 'In `mode: chain`, the caller is the `result` stage'
+assert_contains "html-report supports intent-backed n/a stages" "$HR" 'intent-backed payload marks spec and plan `n/a`'
 assert_contains "chain-report documents result-only offer" "$CR" 'The HTML report may be offered only at `check-chain result`'
+assert_contains "chain-report supports intent-backed n/a stages" "$CR" 'Intent-backed reports mark spec and plan `n/a`'
 assert_contains "chain-report documents declined report skip" "$CR" 'If the user declines, no HTML report is generated or refreshed'
 assert_contains "chain-report documents concrete change descriptions" "$CR" "concrete Russian description of the specific change made within this task"
 

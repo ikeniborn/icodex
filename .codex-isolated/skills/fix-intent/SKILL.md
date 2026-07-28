@@ -17,8 +17,9 @@ IDD owns WHY / WHAT / Outcomes / Constraints. Brainstorm owns HOW (architecture,
 |---------|--------|
 | New module / new CLI flag / API change / arch decision | Run IDD |
 | Hotfix / typo / formatting change | Skip |
-| Intent doc already exists in `docs/superpowers/intents/` | Skip → go to brainstorm |
-| "It's small" / "I already know what to build" | Run IDD anyway |
+| Intent doc already exists in `docs/superpowers/intents/` | Validate its current review state, then honor or obtain its `execute|full` continuation |
+| Bounded work with no durable intent decision | Use the project workflow classifier; `direct` may skip IDD |
+| A durable intent decision is needed, even when implementation is familiar | Run IDD, then choose `execute|full` from evidence |
 
 ## Process
 
@@ -124,13 +125,41 @@ Fix any failures inline, then present.
    Ask: "Review the checked intent. Approve it or request changes."
 4. On changes requested: edit the markdown source → rerun `$check-chain intent <path>`
    → present the checked summary again → repeat.
-5. On approval: set `Status: approved`, then commit once:
+5. On approval, set `Status: approved`. Recommend `execute` or `full` from the checked
+   intent and repository evidence:
+   - `execute` when implementation and verification are bounded and no unresolved
+     design/planning trigger remains;
+   - `full` only for an evidenced architecture, public-contract, migration, security,
+     concurrency/transaction/data-integrity, or coupled-subsystem design decision.
+6. Ask the user to accept the continuation. An explicit earlier instruction to execute
+   from intent or use continuation `full` counts as acceptance. Then write only
+   frontmatter:
+
+```yaml
+workflow:
+  route: chain
+  continuation: execute | full
+```
+
+This records `workflow.route: chain` and the accepted
+`workflow.continuation: execute|full` without changing the intent body hash.
+
+7. Commit the approved intent and continuation once:
 
 ```bash
 git add docs/superpowers/intents/ && git commit -m "docs(idd): add intent doc for <topic>"
 ```
 
-6. Only after approval, hand off to brainstorm with this message:
+8. For `execute`, hand off directly:
+
+```text
+Intent doc approved at <path> (Status: approved; continuation: execute).
+Do not run brainstorming or writing-plans. Implement only from the approved
+Desired Outcomes, Health Metrics, Hard Constraints, and Stop Rules, using scoped
+implementation skills. Finish with $check-chain result <path>.
+```
+
+9. For `full`, hand off with this message:
 
 ```text
 Intent doc approved at <path> (Status: approved).
@@ -187,9 +216,9 @@ spec review.
   not "implemented / code written"]
 ```
 
-## Outcome Verification (run AFTER superpowers, before merge)
+## Outcome Verification (run before result closure)
 
-**Trigger:** after superpowers:finishing-a-development-branch, before merge.
+**Trigger:** during `$check-chain result` against the selected intent or plan source.
 
 This is the IDD payoff superpowers does not provide: verify the RESULT against intent, not "tests green / code matches spec".
 
@@ -209,4 +238,5 @@ This is the IDD payoff superpowers does not provide: verify the RESULT against i
 - **"iwiki not available"** — Skip Step 0 silently. Never block IDD or mention the absence of iwiki context. The process works without it.
 - **"subagent-driven said not to stop"** — The intent doc's Autonomy Zones override continuous-execution. A no-go / proposal-first decision means halt and escalate.
 - **"Tests are green, so it's done"** — Green tests are not a completed outcome. Done is determined by Outcome Verification against Desired Outcomes, not by a test run.
+- **"Approved intent always means brainstorming"** — First recommend `execute|full`; only `full` enters brainstorming.
 - **"Brainstorm already asked about the goal"** — If the intent doc is approved, brainstorm does not re-ask WHY/WHAT/Outcomes/Constraints. Duplicate questions mean the intent doc never reached brainstorm (see handoff).

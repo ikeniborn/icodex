@@ -27,14 +27,41 @@ if [[ -f "$agents" ]]; then
   assert_contains "topic rule includes LoEn topic directory" "$agents_body" "LoEn topic directory, for LoEn loop work"
   assert_contains "thread title is best effort" "$agents_body" "Thread title is best-effort only"
   assert_contains "inaccessible thread title is not blocking" "$flat_agents_body" "Do not treat an inaccessible UI thread title as a blocking artifact"
+  assert_contains "workflow has three external routes" "$agents_body" 'Workflow recommendation: direct | chain | loen'
+  assert_contains "chain branches after intent" "$agents_body" 'Continuation after intent: execute | full | n/a'
+  assert_contains "chain execute skips spec and plan" "$flat_agents_body" 'implements directly from the approved intent and marks Spec and Plan n/a'
+  assert_contains "full continuation needs evidence" "$flat_agents_body" 'Recommend `full` only with an enumerated trigger'
+  assert_contains "direct skips fix-intent" "$agents_body" 'Direct work must not invoke `fix-intent`'
+  assert_contains "direct skips brainstorming" "$agents_body" '`superpowers:brainstorming`'
+  assert_contains "direct skips writing plans" "$agents_body" '`superpowers:writing-plans`'
+  assert_contains "direct skips plan execution skills" "$flat_agents_body" '`superpowers:subagent-driven-development`, or `superpowers:executing-plans`'
+  assert_contains "finishing skill remains available" "$agents_body" '`superpowers:finishing-a-development-branch` remains available'
+  assert_contains "LoEn gets model checkpoints" "$flat_agents_body" 'At LoEn loop start and after each check or review, classify the next work'
+  assert_contains "semantic route mechanical" "$agents_body" '`mechanical`'
+  assert_contains "semantic route engineering" "$agents_body" '`engineering`'
+  assert_contains "semantic route synthesis" "$agents_body" '`synthesis`'
+  assert_contains "semantic route deep" "$agents_body" '`deep`'
+  assert_contains "semantic route escalation" "$agents_body" '`escalation`'
+  assert_contains "semantic route parallel audit" "$agents_body" '`parallel-audit`'
+  assert_contains "single current catalog mapping" "$agents_body" '### Current Catalog Mapping'
+  assert_eq "one current catalog mapping section" "1" "$(grep -cF '### Current Catalog Mapping' "$agents")"
+  model_ids_outside_mapping="$(awk '
+    /^### Current Catalog Mapping$/ { in_mapping=1; next }
+    in_mapping && /^### / { in_mapping=0 }
+    !in_mapping { print }
+  ' "$agents" | grep -E 'gpt-[0-9]' || true)"
+  assert_eq "exact model ids only in current mapping" "" "$model_ids_outside_mapping"
 fi
 
 if [[ -f "$readme" ]]; then
   readme_body="$(cat "$readme")"
+  flat_readme_body="$(tr '\n' ' ' < "$readme" | sed 's/[[:space:]][[:space:]]*/ /g')"
   assert_contains "README workflow boundaries section" "$readme_body" "## Workflow boundaries"
   assert_contains "README separates LoEn and Superpowers" "$readme_body" "IDD->SDD/Superpowers and LoEn are separate workflow systems"
-  assert_contains "README LoEn no Superpowers requirement" "$readme_body" "a LoEn loop does not require \`fix-intent\`, \`superpowers:*\`, or"
+  assert_contains "README LoEn no Superpowers requirement" "$flat_readme_body" "a LoEn loop does not require \`fix-intent\`, \`superpowers:*\`, or"
   assert_contains "README thread titles best effort" "$readme_body" "Thread titles are best-effort only"
+  assert_contains "README documents three workflow routes" "$flat_readme_body" 'Workflow routing has three entries: `direct`, `chain`, and `loen`.'
+  assert_contains "README documents chain continuation" "$flat_readme_body" 'After the checked intent, `execute` goes directly to implementation while `full` adds spec and plan.'
 fi
 
 if [[ -f "$readme_ru" ]]; then
@@ -43,6 +70,8 @@ if [[ -f "$readme_ru" ]]; then
   assert_contains "Russian README separates LoEn and Superpowers" "$readme_ru_body" "IDD -> SDD/Superpowers и LoEn — отдельные workflow"
   assert_contains "Russian README LoEn no Superpowers requirement" "$readme_ru_body" "активный LoEn loop сам по себе не требует \`fix-intent\`, \`superpowers:*\` или"
   assert_contains "Russian README thread titles best effort" "$readme_ru_body" "Thread title — best-effort"
+  assert_contains "Russian README documents three workflow routes" "$readme_ru_body" 'Маршрутизация workflow имеет три входа: `direct`, `chain` и `loen`.'
+  assert_contains "Russian README documents chain continuation" "$readme_ru_body" 'После проверенного intent ветка `execute` сразу переходит к реализации, а `full` добавляет spec и plan.'
 fi
 
 if [[ -f "$loen_readme" ]]; then

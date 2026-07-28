@@ -60,9 +60,11 @@ Run bash via the Bash tool; never recompute "in your head".
 
 If frontmatter has a `review:` block, `current_body_hash == review.<hash_key>` AND every
 phase `status == passed` AND no finding with `severity == CRITICAL ∧ verdict == open` →
-output `OK (cached, hash match)` and finish. (`result` uses `result_check.verdict == OK`
-with a matching `plan_hash`.) Otherwise continue. The advisory `alignment` phase is not
-recomputed on a hash match — trust the previous run.
+output `OK (cached, hash match)` and finish. For `result`, require
+`result_check.verdict == OK` and a matching `plan_hash` for source `plan` or
+`intent_hash` for source `intent`; missing `source` means `plan` for backward
+compatibility. Otherwise continue. The advisory `alignment` phase is not recomputed on
+a hash match — trust the previous run.
 
 ### Step 1 — scope resolution
 
@@ -108,11 +110,19 @@ review:
 chain:
   intent: <path or null>               # spec adds chain.intent; plan adds intent+spec
   spec: <path or null>
+workflow:                               # intent only, after user accepts continuation
+  route: chain
+  continuation: execute | full
 ---
 ```
 
+`workflow` is not a review verdict. Main context writes it only after intent returns
+`OK` and the user accepts the continuation recommendation. The intent body hash and
+`review` cache remain unchanged because only frontmatter changes.
+
 For the `result` stage the block is `result_check:` with `verdict: OK|needs_work`,
-`plan_hash`, `last_run` (no `phases`/`findings`).
+`source: intent|plan`, the matching `intent_hash` or `plan_hash`, and `last_run` (no
+`phases`/`findings`).
 
 ### Step 3 — phase execution & finding-handling
 
@@ -267,30 +277,32 @@ HTML report generation is optional even at `result`. Ask the user in Russian whe
 Only the `result` stage may offer to generate or refresh the chain HTML report. When the
 user accepts, invoke the `html-report` skill (`skill: "html-report"`) with
 `mode: chain`, output `docs/superpowers/reports/<topic>-results.html`, and pass a
-complete single final report for the completed task. Determine `<topic>` from the plan
-basename minus `.md`, strip the `^YYYY-MM-DD-` date prefix, and strip a trailing
-`-plan` suffix if present; fallback to the bare basename.
+complete single final report for the completed task. Determine `<topic>` from the
+selected intent or plan basename minus `.md`, strip the `^YYYY-MM-DD-` date prefix, and
+strip a trailing `-intent` or `-plan` suffix if present; fallback to the bare basename.
 
-When generated, the final report is built from the current intent, spec, plan, result
-reconciliation, review findings, verification evidence, documentation evidence, and
-TODO row state. It is one self-contained Russian HTML file: all visible report text must
-be Russian-only except technical terms, paths, code identifiers, stage keys, hash keys,
-and short source fragments. It may use tabs or sections for readability, but it is
-generated only after explicit user acceptance at `result`, not incrementally by
-stage-owned tab merges.
+When generated, the final report is built from the selected source and every available
+linked artifact, result reconciliation, review findings, verification evidence,
+documentation evidence, and TODO row state. For intent-backed execution, absent spec and
+plan content is explicitly `n/a`; never invent it. The report is one self-contained
+Russian HTML file: all visible report text must be Russian-only except technical terms,
+paths, code identifiers, stage keys, hash keys, and short source fragments. It may use
+tabs or sections for readability, but it is generated only after explicit user
+acceptance at `result`, not incrementally by stage-owned tab merges.
 
 **Final report payload (when accepted).** Reconstruct the full block set from current chain
 artifacts and result evidence:
 
 1. `<h2>` heading — «Итоговый отчёт — <topic> — <last_run>».
 2. Executive summary — task goal, implementation outcome, and final verdict.
-3. Artifact summary — intent outcomes, spec requirements, plan steps, and result status.
+3. Artifact summary — selected-source commitments, available linked artifacts, explicit
+   `n/a` stages, and result status.
 4. Change inventory — every changed file or artifact grouped by implementation, tests,
    docs, wiki, skills, hooks, plugins, or generated assets; each row needs a brief,
    concrete Russian description of the specific change made within this task, why it
    changed, what result was obtained, and what evidence verifies it.
-5. Reconciliation tables — plan step coverage, diff paths, outcome/spec coverage, and
-   excess or missing work.
+5. Reconciliation tables — selected-source commitment coverage, diff paths, available
+   outcome/spec coverage, and excess or missing work.
 6. Review and verification evidence — code review findings, fixed bugs, commands run,
    and pass/fail evidence.
 7. Documentation evidence — repository docs, iwiki updates, unchanged-with-rationale
@@ -365,7 +377,9 @@ The final report must include these common semantic blocks:
 6. Phase/findings/verdict evidence — current validation state from frontmatter and
    `result_check`.
 
-Mandatory rich visualizations in the final report:
+Mandatory rich visualizations in the final report. Include the `spec` and `plan` groups
+only for plan-backed results; for intent-backed results, record those groups as `n/a`
+without synthetic diagrams:
 
 - `intent`:
   - `Outcome Chain`: problem/objective → desired outcomes → done-when criteria.
@@ -389,9 +403,11 @@ Mandatory rich visualizations in the final report:
   - `Human Checkpoint Flow`: proposal-first or no-go decisions derived from autonomy
     zones.
 - `result`:
-  - `Diff Reconciliation Graph`: plan steps → changed paths → DONE/PARTIAL/MISSING/EXCESS.
-  - `Outcome Evidence Map`: intent outcomes and spec requirements → diff or test evidence.
-  - `Excess/Gap Map`: unplanned changes and missing work, grouped by severity.
+  - `Diff Reconciliation Graph`: selected-source commitments → changed paths →
+    DONE/PARTIAL/MISSING/EXCESS.
+  - `Outcome Evidence Map`: intent outcomes plus available spec requirements → diff or
+    test evidence.
+  - `Excess/Gap Map`: source-unmapped changes and missing commitments, grouped by severity.
   - `Change Inventory Map`: changed file or artifact → Russian change description → evidence.
   - `Code Review Findings Map`: changed code paths → reviewed risk → bug finding → fix evidence.
   - `Documentation Evidence Map`: behavior/architecture/user-facing change → doc or wiki update evidence.
@@ -409,7 +425,8 @@ After the verdict, upsert the chain's row in `docs/TODO.md` keyed by `<topic>` (
 Task Log convention in `CLAUDE.md`). Create the file with the header row if absent. Mark
 this stage's cell `✓` on `OK` (`–` if it still needs work); `intent` opens the row, a
 missing upstream stage is `n/a`; `result` on `OK` closes the row (`Result: OK`,
-`Status: done`, `Closed: <today>`).
+`Status: done`, `Closed: <today>`). For `workflow.continuation: execute`, result must
+mark `Spec: n/a` and `Plan: n/a`; for `full`, preserve their checked state.
 
 ## Rules (prohibited)
 
@@ -418,8 +435,8 @@ missing upstream stage is `n/a`; `result` on `OK` closes the row (`Result: OK`,
 - Inventing requirements absent from the source (and the conversation, for `intent`).
 - Editing the artifact body (frontmatter is the only exception).
 - Writing «вероятно подразумевается» without a textual anchor.
-- (`result`) Closing with `OK` while confirmed bugs, missing plan work, failed checks,
-  or required documentation updates remain unresolved.
+- (`result`) Closing with `OK` while confirmed bugs, missing selected-source commitments,
+  failed checks, or required documentation updates remain unresolved.
 
 ## Stage profiles
 
@@ -428,7 +445,7 @@ missing upstream stage is `n/a`; `result` on `OK` closes the row (`Result: OK`,
 | intent | intents/ | *-intent.md | intent_hash | review | structure, completeness, clarity, consistency, alignment(advisory) |
 | spec | specs/ | *-design.md | spec_hash | review | structure, coverage, clarity, consistency |
 | plan | plans/ | *.md | plan_hash | review | structure, coverage, dependencies, verifiability, consistency |
-| result | plans/ | *.md | plan_hash | result_check | non-phased: git diff reconciliation |
+| result | selected source | intent or plan | intent_hash or plan_hash | result_check | non-phased: git diff reconciliation |
 
 ### intent checklist
 
@@ -473,7 +490,10 @@ Closed checklist (do NOT extend). Never emits CRITICAL; never blocks a phase tra
 - If the iwiki MCP server / `wiki_search` are unavailable — skip silently (like IDD Step 0). Do not block, do not mention the absence.
 
 ---
-Next step: superpowers:brainstorming
+Next step after intent `OK`: honor its accepted continuation. `execute` goes directly to
+implementation and finishes with intent-backed result reconciliation; `full` goes to
+`superpowers:brainstorming`. If continuation is absent, recommend `execute|full` from
+evidence and obtain user acceptance before proceeding.
 
 ### spec checklist
 
@@ -558,26 +578,42 @@ Closed checklist:
 ### result reconciliation and review
 
 Result includes a focused code review in addition to diff reconciliation. It verifies
-that the plan was executed, the implementation is not obviously buggy, required checks
-were run, confirmed bugs were fixed, and documentation stayed current.
+that the selected source was executed, the implementation is not obviously buggy,
+required checks were run, confirmed bugs were fixed, and documentation stayed current.
 
-#### Step 1. Load the plan
+**Result has two source modes:**
 
-- Read the plan file from `$ARGUMENTS`
-- Extract `chain.intent` and `chain.spec` from the frontmatter
-- If absent — extract `<topic>` from the plan filename (`YYYY-MM-DD-<topic>-plan.md`) and run:
-  ```bash
-  find docs/superpowers/intents/ -name "*<topic>*intent.md" 2>/dev/null | head -1
-  find docs/superpowers/specs/   -name "*<topic>*design.md" 2>/dev/null | head -1
-  ```
-- If the plan is not found — report: «Не найден план. Укажи путь: `$check-chain result path/to/plan.md`» and stop
-- If the intent or spec is not found — warn the user, continue with the available documents
+- **Intent-backed:** an explicit intent path whose frontmatter has
+  `workflow.route: chain` and `workflow.continuation: execute`. Spec and plan must be
+  absent for this topic. Reconcile directly against intent outcomes and constraints.
+- **Plan-backed:** a plan path for `workflow.continuation: full`, or a legacy plan with
+  no workflow marker. Preserve existing intent/spec/plan reconciliation.
+
+Never infer intent-backed mode merely because a plan is missing. It requires the
+explicit workflow marker or `$check-chain result <intent-path>` plus user confirmation
+to set that marker. Reject a plan source for `execute` and an intent source for `full`.
+
+#### Step 1. Select the result source
+
+- Read the explicit file from `$ARGUMENTS` when present.
+- A path under `docs/superpowers/intents/` selects intent-backed mode only when its
+  workflow marker is `chain/execute`.
+- A path under `docs/superpowers/plans/` selects plan-backed mode. Extract `chain.intent`
+  and `chain.spec`; if absent, resolve them from the plan topic.
+- With no explicit path, resolve the topic. Select its intent when marked
+  `chain/execute`; otherwise require its plan.
+- If neither valid source exists, report both accepted forms and stop:
+  `$check-chain result path/to/*-intent.md` or `$check-chain result path/to/*-plan.md`.
+- In plan-backed mode, warn when intent or spec is absent and continue with available
+  documents. In intent-backed mode, missing spec and plan are expected.
 
 #### Step 2. Load the documents
 
-- **Intent doc:** read the Objective, Desired Outcomes, Constraints sections
-- **Spec:** read the requirements sections and Success Criteria
-- **Plan:** read all steps (both `[ ]` and `[x]`)
+- **Both modes:** read intent Objective, Desired Outcomes, Health Metrics, Constraints,
+  and Stop Rules.
+- **Plan-backed:** also read spec requirements/Success Criteria and every plan step.
+- **Intent-backed:** confirm `workflow.route: chain` and
+  `workflow.continuation: execute`; do not invent spec requirements or plan steps.
 
 #### Step 3. Get the git diff
 
@@ -589,24 +625,25 @@ If `--since=<ref>` is passed: `git diff <ref>`.
 
 If the diff is empty — report: «Нет незакоммиченных изменений. Запусти после внесения изменений или передай `--since=<ref>`.»
 
-#### Step 4. Match plan steps against the diff
+#### Step 4. Reconcile source commitments against the diff
 
-For each plan step:
+**Plan-backed:** for each plan step, match explicit paths and semantic evidence as
+`DONE`, `PARTIAL`, or `MISSING`; identify `EXCESS` paths with no corresponding step.
 
-1. Extract explicit file paths from the step text
-2. Check for those files in `git diff HEAD`
-3. For steps without explicit paths — semantic matching:
-   - `DONE` — the changes in the diff clearly and fully match the step description
-   - `PARTIAL` — the diff contains related changes but misses part of the described action (e.g. the step says "rename and rewrite X" but the diff only renames)
-   - `MISSING` — there is no evidence of the step in the diff
-
-Additionally — find `EXCESS`: files changed in the diff with no corresponding plan step.
+**Intent-backed:** create a change inventory and map every changed path to at least one
+Desired Outcome, Hard Constraint implementation need, or verification requirement.
+Unmapped paths are `EXCESS`. Do not create synthetic steps.
 
 #### Step 5. Check intent + spec coverage
 
-- For each Desired Outcome from the intent doc: is it reflected in the diff?
-- For each requirement / Success Criterion from the spec: is it reflected in the diff?
-- Uncovered → a finding referencing the specific outcome/requirement
+- In both modes, require evidence for every Desired Outcome and `Done when` criterion;
+  verify Health Metrics and Hard Constraints were not degraded or violated.
+- In plan-backed mode, also require evidence for every spec requirement / Success
+  Criterion and plan step.
+- In intent-backed mode, a missing Desired Outcome or `Done when` result is `CRITICAL`;
+  incomplete Health Metric evidence or an `EXCESS` path is `WARNING` unless it proves a
+  scope or hard-constraint violation, which is `CRITICAL`.
+- Every finding references the exact source commitment and current evidence.
 
 #### Step 6. Focused code review
 
@@ -621,8 +658,8 @@ Closed checklist (do NOT extend):
   the diff.
 - Integration: changed APIs, hooks, skills, CLI flags, config keys, or file contracts
   still match their callers and documented contracts.
-- Tests: new or changed behavior has focused tests, and verification commands recorded
-  by the plan were run or have a documented blocker.
+- Tests: new or changed behavior has focused tests, and verification required by the
+  selected intent or plan was run or has a documented blocker.
 - Error handling: realistic failure modes introduced by the diff are handled or
   intentionally surfaced.
 - Docs: behavior, architecture, user-facing workflow, or chain-contract changes are
@@ -654,22 +691,56 @@ through the chain before result can pass:
 2. Rerun the affected upstream `check-chain <stage>` validations so their frontmatter
    hashes, findings, and TODO cells match the revised source.
 3. Update repository docs and iwiki pages that present the old decision.
-4. Rerun `check-chain result <plan>` after those updates, using the new diff evidence.
+4. Rerun `check-chain result <source>` after those updates, using the same intent or plan
+   source mode and the new diff evidence.
 
 Do not write `result_check.verdict: OK` while intent, spec, plan, repository docs, or iwiki describe stale decisions. A stale cross-chain artifact is `CRITICAL`; an intentionally unchanged artifact requires a recorded rationale in the final report.
 
-#### Step 8. Optional report offer
+#### Step 8. Write state into the selected source
 
-After result reconciliation and the terminal verdict, ask the user whether to generate
-the optional final HTML report. If the user declines, skip `html-report` and continue to
-Step 9 with terminal evidence only.
+Before offering the optional report, write `result_check` into the selected source
+artifact frontmatter without changing its body. This makes the current verdict and hash
+available to the first generated report.
+
+1. Compute the selected source body hash via the canonical algorithm.
+2. Determine the verdict. `OK` requires no open CRITICAL finding, missing selected-source
+   commitment, confirmed unfixed bug, failed required verification, or stale required
+   documentation; otherwise use `needs_work`.
+3. For intent-backed mode, write:
+   ```yaml
+   result_check:
+     verdict: OK | needs_work
+     source: intent
+     intent_hash: <intent body hash>
+     last_run: <today>
+     reviewed: true
+     docs_checked: true
+   ```
+4. For plan-backed mode, write the existing compatible shape plus explicit source:
+   ```yaml
+   result_check:
+     verdict: OK | needs_work
+     source: plan
+     plan_hash: <plan body hash>
+     last_run: <today>
+     reviewed: true
+     docs_checked: true
+   ```
+
+#### Step 9. Optional report offer
+
+After result reconciliation, terminal verdict, and the Step 8 state write, ask the user
+whether to generate the optional final HTML report. If the user declines, skip
+`html-report` and finish with terminal evidence only.
 
 If the user accepts, emit the single final report through the shared **Step 5 —
 Result-only optional HTML report** flow (`html-report`, `mode: chain`) with the full
-final payload. The reconciliation content must include:
+final payload, including the persisted current `result_check`. The reconciliation
+content must include:
 
-- Reconciliation table — one row per plan step → badge `DONE` / `PARTIAL` / `MISSING` /
-  `EXCESS` (from reconciliation Step 4), with the matched diff paths.
+- Reconciliation table — plan-backed uses one row per plan step with `DONE` / `PARTIAL`
+  / `MISSING` / `EXCESS`; intent-backed uses one row per intent outcome, Stop Rule, and
+  `EXCESS` path, with matched diff and verification evidence.
 - Coverage — each Desired Outcome and each requirement / Success Criterion (from
   reconciliation Step 5) → reflected in the diff, or a finding.
 - Code review findings — every changed path reviewed in Step 6, with bug/risk status,
@@ -684,34 +755,12 @@ final payload. The reconciliation content must include:
 Do not depend on existing intent / spec / plan report tabs. When the report is
 requested, build it from the current markdown artifacts and result evidence.
 
-#### Step 9. Write the state into the plan frontmatter
-
-After the optional report decision, write a machine-readable block into the **plan
-frontmatter** (do NOT touch the plan body — it is the merge-gate pass signal for
-idd-gate).
-
-1. Compute the plan body hash via the canonical algorithm (see above).
-2. Determine the verdict: `OK` if there are no open CRITICAL findings, no MISSING plan
-   steps, no confirmed unfixed bugs, no failed required verification command, and no
-   stale required documentation; otherwise `needs_work`.
-3. Create the `result_check:` block (or update the existing one) in the plan frontmatter:
-   ```yaml
-   result_check:
-     verdict: OK | needs_work
-     plan_hash: <plan body hash>
-     last_run: <today>
-     reviewed: true
-     docs_checked: true
-   ```
-   If the plan has no frontmatter — add it at the start of the file
-   (`---` … `---`) without changing the body.
-
 #### Severity
 
 | Severity | Condition |
 |----------|-----------|
-| `[CRITICAL]` | A plan step is entirely absent from the diff; a confirmed bug remains unfixed; a required verification command fails; docs contradict changed behavior; intent/spec/plan/wiki still describe a stale decision |
-| `[WARNING]` | A step is partially done; excess changes have no link to the plan; required documentation evidence is missing; verification evidence is incomplete |
+| `[CRITICAL]` | A selected-source commitment is absent; a confirmed bug remains unfixed; required verification fails; docs contradict changed behavior; an intent/spec/plan/wiki decision is stale |
+| `[WARNING]` | A commitment is partial; excess changes lack a source link; required documentation or verification evidence is incomplete |
 | `[INFO]` | A semantic discrepancy; an intent outcome is partially reflected; documentation is intentionally unchanged with rationale |
 
 ## Run modes
@@ -721,16 +770,26 @@ idd-gate).
 1. Resolve `<topic>` from the argument or the most-recently-modified artifact; locate
    every existing stage file for that topic.
 2. Confirm the set once: «Проверю chain `<topic>`: intent=…, spec=…, plan=…. Верно?»
-3. For each stage in `[intent, spec, plan, result]`:
-   - artifact absent → record it (`Intent: n/a` etc.) and continue;
+3. Read `workflow.route` and `workflow.continuation` from intent frontmatter. A chain
+   intent with no accepted continuation stops after intent and asks for `execute|full`.
+   When workflow markers are absent but a plan exists, a legacy plan selects the
+   plan-backed compatibility path; validate every available upstream artifact, then the
+   plan and result. Do not require new workflow markers for that legacy chain.
+4. For each selected stage:
+   - `execute` runs `[intent, result(intent)]`, records spec/plan as `n/a`;
+   - `full` runs `[intent, spec, plan, result(plan)]` and treats a missing selected
+     artifact as a blocker;
+   - legacy plan-backed runs every available upstream stage, then `[plan, result(plan)]`;
+   - an unrelated artifact absent from the selected route is `n/a`;
    - Step 0 quick-exit passes → `✓ cached`, continue;
    - else run the stage's full Step 1–6 (findings → verdicts → frontmatter → TODO cell; only `result` may offer the optional final HTML report);
    - stage ends `needs_work` (open CRITICAL) → STOP: «chain остановлен на `<stage>`,
      почини и перезапусти». Do not run downstream stages.
-4. `result` needs a `git diff`. Reached with an empty diff → emit INFO
-   «result pending implementation», chain verdict «OK up to plan», leave the TODO
-   `Result` cell `–` (not `done`). Non-empty diff → reconcile; on `OK` close the row.
-5. Print the chain summary and, when `result` ran and the user accepted the report, the path to the final HTML report.
+5. `result` needs a `git diff`. Reached with an empty diff → emit INFO
+   «result pending implementation», chain verdict `OK up to intent` for `execute` or
+   `OK up to plan` for plan-backed, and leave the TODO `Result` cell `–` (not `done`).
+   Non-empty diff → reconcile; on `OK` close the row.
+6. Print the chain summary and, when `result` ran and the user accepted the report, the path to the final HTML report.
 
 ### Single stage — `$check-chain <stage> [path]`
 
