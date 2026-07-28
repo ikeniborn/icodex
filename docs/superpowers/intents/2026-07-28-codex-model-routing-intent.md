@@ -1,6 +1,6 @@
 ---
 review:
-  intent_hash: b6645a592ab5876f
+  intent_hash: 71858e405689301d
   last_run: 2026-07-28
   phases:
     structure: { status: passed }
@@ -38,14 +38,19 @@ interactive model changed. The user retains control of any switch through `/mode
 - Sol Medium is limited to non-trivial specification and planning synthesis.
 - Sol High, Sol Max, and Ultra require explicit observable triggers and never carry
   forward automatically.
+- Every named route resolves to one exact `gpt-5.6-*` model and effort pair; Ultra is
+  always `gpt-5.6-sol / ultra`.
 - A failed check or first failed attempt does not by itself increase model or effort.
 - Ultra is recommended only as a separate independent audit, never inside active
   subagent orchestration.
+- Critical migrations always receive a separate final integration review at Sol High
+  or higher.
 
 ## Health Metrics
 
 - The shared AGENTS policy contains deterministic stage baselines, classification rules,
   escalation rules, and one fixed recommendation format.
+- The routing section stays at or below 600 words to limit its prompt overhead.
 - Every expensive recommendation cites an artifact, finding, failure, invariant, or
   concrete risk.
 - The policy explicitly chooses the lower route when evidence is absent or ambiguous.
@@ -77,7 +82,10 @@ interactive model changed. The user retains control of any switch through `/mode
 - Do not silently switch the active model or reasoning effort.
 - Do not use Sol High because a stage is named plan or result, because a diff is large,
   or because one attempt failed.
+- Treat two or more coupled subsystem boundaries as a Sol High trigger.
 - Do not use Max as a default or Ultra inside existing subagent orchestration.
+- Do not continue after a declined escalation without explicit risk acceptance, and do
+  not waive the final review of a critical migration.
 - Do not let an implementer revise accepted upstream artifacts.
 
 ## Autonomy Zones

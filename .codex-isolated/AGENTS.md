@@ -114,105 +114,95 @@ transition gate only: validation state still comes from frontmatter written by t
 
 ## Model and Reasoning Recommendations
 
-This policy only recommends the model and reasoning effort for the next workflow
-stage. It does not edit TOML, select a profile, spawn a replacement session, or claim
-that the active model changed. The user applies an accepted switch through `/model`
-and may verify it with `/status`.
+Recommend only; never edit TOML, select profiles, start sessions, or claim a switch.
+The user switches with `/model` and verifies with `/status`.
 
-### Checkpoint Rule
+### Routes
 
-After every `$check-chain <stage>` verdict and before starting the next stage:
+| Name | Exact route |
+|------|-------------|
+| Luna Medium | `gpt-5.6-luna / medium` |
+| Terra Medium | `gpt-5.6-terra / medium` |
+| Sol Medium | `gpt-5.6-sol / medium` |
+| Sol High | `gpt-5.6-sol / high` |
+| Sol Max | `gpt-5.6-sol / max` |
+| Sol Ultra | `gpt-5.6-sol / ultra` |
 
-1. Read the accepted artifact, check findings, current diff or test evidence, and the
-   exact work remaining in the next stage.
-2. Classify only that next stage. Do not inherit High, Max, or Ultra from the stage
-   that just finished.
-3. Start from the lowest sufficient route and raise it only for a matching observable
-   trigger below.
-4. Report the recommendation. If a switch is needed, wait for the user to apply or
-   decline it before starting the next stage.
-5. A `needs_work` verdict alone is not escalation evidence. Fix the artifact or use
-   a materially different strategy, rerun the same check, then reassess.
+### Checkpoints
 
-### Stage Baselines
+Reassess after every `$check-chain <stage>` verdict (`intent`, `spec`, `plan`, or
+`result`), after each implementation task review, and before the next work:
 
-| Boundary | Lowest normal route for the next stage |
-|----------|-----------------------------------------|
-| Task start -> intent or coordination | Terra / Medium |
-| Intent OK -> non-trivial spec | Sol / Medium |
-| Spec OK -> direct plan from a complete spec | Sol / Medium |
-| Plan OK -> fully determined mechanical task | Luna / Medium |
-| Plan OK -> ordinary implementation task | Terra / Medium |
-| Task check -> local diff or atomic-task review | Terra / Medium |
-| Execution complete -> bounded single-component result check | Terra / Medium |
-| Execution complete -> evidenced cross-system or critical result check | Sol / High |
-| Result OK -> finish or routine follow-up | Terra / Medium |
+| Boundary | Baseline |
+|----------|----------|
+| Start -> intent or coordination | Terra Medium |
+| Intent OK -> non-trivial spec | Sol Medium |
+| Spec OK -> direct plan | Sol Medium |
+| Plan OK -> implementation | Classify each task |
+| Implementation task complete -> task review | Terra Medium |
+| Task review complete -> next task | Classify next task |
+| Execution -> bounded result check | Terra Medium |
+| Execution -> cross-system or critical result check | Sol High |
+| Result OK -> routine follow-up | Terra Medium |
 
-The table gives baselines, not automatic escalation. A trivial task that legitimately
-skips spec or plan remains Terra Medium, or Luna Medium when every mechanical-task
-condition below is satisfied. Merely entering a stage named `plan`, `review`, or
-`result` does not justify High.
+For `needs_work`, classify remediation in the same stage; do not transition or escalate
+from the verdict alone. Fix the artifact or change strategy, rerun, then reassess.
 
-### Objective Classification
+### Classification
 
-Use Luna Medium only when every condition is true:
+Choose the lowest sufficient route:
 
-- the change is completely defined with no unresolved decision;
-- one bounded component owns the behavior;
-- the failure cause, when relevant, is already known;
-- no public contract, schema, migration, concurrency, security boundary, or data risk
-  changes;
-- the verification command and expected result are known before editing.
+1. **Luna Medium** only if work is fully defined, single-component, has known cause and
+   verification, and changes no contract, schema, migration, concurrency, security, or
+   data invariant.
+2. **Sol Medium** for non-trivial specification or planning synthesis without a High
+   trigger.
+3. **Sol High** when evidence shows an unknown reproduced-defect cause, artifact/code
+   contradiction, public compatibility change, transactional/concurrent/distributed
+   invariants, migration/security/data risk, two or more coupled subsystem boundaries,
+   or result reconciliation across coupled invariants.
+4. **Terra Medium** otherwise.
 
-Use Sol Medium for specification or planning that needs synthesis across accepted
-requirements but has none of the High triggers below.
+Never inherit a higher route. File count, task length, general uncertainty, one failure,
+or a stage name are not triggers. If evidence is ambiguous, gather it at the lower route.
 
-Use Sol High only when at least one trigger has concrete evidence:
+### Exceptional Routes
 
-- a reproduced defect still has an unknown cause;
-- code materially contradicts an accepted artifact;
-- a public compatibility contract must change;
-- transactional, concurrent, or distributed invariants must be preserved;
-- migration, security-boundary, or data-integrity risk exists;
-- three or more independently owned subsystems must change together;
-- final reconciliation must retain several coupled invariants across subsystems.
+Use **Sol Max** only after two different Sol High strategies fail, reviewers contradict
+the same invariant, a required test remains unexplained after strategy change, an
+enumerated critical invariant set cannot be decomposed safely, or critical migration
+reconciliation has credible data-loss risk.
 
-Use Terra Medium for all work between those classes. File count, task length, a failed
-first attempt, or general uncertainty are supporting context, not escalation triggers.
-When evidence is ambiguous, keep the lower route and gather evidence first.
+Every critical migration requires a separate final integration review at Sol High or
+higher, regardless of its implementation route.
 
-### Exceptional Escalation
+Use **Sol Ultra** only as a separate run with at least two independent read-only audit
+directions, no shared writes, and one consolidation step. Never use Ultra inside active
+subagent orchestration.
 
-Recommend Sol Max only after two materially different Sol High strategies fail,
-reviewers contradict each other about the same invariant, a required test remains
-unexplained after strategy change, or a critical migration has credible data-loss risk.
-State the trigger and how the next strategy differs. Max is never a default stage route.
+Implementers never revise accepted intent, spec, or plan. Return drift to the earliest
+gate. Never retry without changing strategy.
 
-Recommend Ultra only as a separate run for at least two independent, read-only audit
-directions with no shared writes and a defined consolidation step. Never recommend Ultra
-inside `subagent-driven-development`, an execute subagent, or another active subagent
-orchestration.
+### Switch Handling
 
-Never let an implementer revise accepted intent, spec, or plan decisions. Return drift
-to the earliest affected gate. Never repeat a failed attempt without changing strategy.
+Same route means `keep`; cheaper means `downgrade`; more capable means `escalate`;
+Sol Ultra means `separate-run`. If current route is unknown, ask the user to check
+`/status`; never guess.
 
-### Recommendation Format
-
-Use this compact format in the conversation language:
+Wait when switching is required. A declined downgrade may continue with the extra cost
+recorded. A declined escalation stops the next work until explicit risk acceptance.
+Critical-migration final review cannot be waived.
 
 ```text
-Checkpoint: <completed check and verdict>
-Next stage: <stage or task>
-Current: <model> / <effort>
+Checkpoint: <check and verdict>
+Next work: <stage or task>
+Current: <exact model> / <effort>
 Decision: keep | downgrade | escalate | separate-run
-Recommended: <model> / <effort>
-Evidence: <artifact, path, finding, failed check, invariant, or risk>
-Higher mode rejected because: <why extra cost is not justified>
+Recommended: <exact model> / <effort>
+Evidence: <artifact, finding, failure, invariant, or risk>
+Higher route rejected because: <reason or n/a for Sol Ultra>
 Switch required: yes | no
 ```
-
-If the current model or effort is unknown, write `Current: unknown`; do not guess.
-A recommendation is advisory until the user applies it.
 
 ## Project Status Reports
 
