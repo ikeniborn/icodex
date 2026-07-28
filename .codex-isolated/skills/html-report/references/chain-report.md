@@ -11,9 +11,14 @@ The caller is `check-chain result` after the user accepts the optional report of
 
 - `mode: chain` — selects this code path.
 - `target: docs/superpowers/reports/<topic>-results.html` — the final report file.
-- A complete inline final payload containing current intent, spec, plan, result
-  reconciliation, review findings, verification evidence, documentation evidence, TODO
-  state, and the final verdict.
+- A complete inline final payload containing source mode, selected-source content,
+  available linked artifacts, persisted current `result_check`, result reconciliation,
+  review findings, verification evidence, documentation evidence, TODO state, and the
+  final verdict.
+
+Intent-backed reports mark spec and plan `n/a`; do not synthesize their requirements,
+steps, or diagrams. Plan-backed reports include real intent/spec/plan content available
+to the selected plan source.
 
 The skill never reads chain sources itself; all report content arrives inline. It may
 overwrite an existing caller-supplied `target` without asking because the target is an
@@ -25,13 +30,14 @@ The caller owns the chain semantics and passes complete final-report HTML. The r
 should contain:
 
 - executive overview;
-- source anchors for intent/spec/plan/result evidence;
+- source anchors for selected-source and result evidence, plus available linked artifacts;
 - full change inventory covering every changed file or artifact, with a brief,
   concrete Russian description of the specific change made within this task, why it
   changed, what result was obtained, and what evidence verifies it;
 - intent outcomes and stop rules;
-- spec requirements and acceptance coverage;
-- plan steps and diff reconciliation;
+- spec requirements and acceptance coverage for plan-backed results, otherwise spec
+  `n/a`;
+- plan steps and diff reconciliation for plan-backed results, otherwise plan `n/a`;
 - code review findings and fix evidence;
 - verification commands and observed output;
 - repository docs / iwiki evidence, including `wiki_lint` when bound;
@@ -69,12 +75,12 @@ Visible Russian title map:
 
 ## Mandatory Rich Visualizations
 
-The final report includes semantic diagrams or compact matrices for the full chain:
+The final report includes semantic diagrams or compact matrices for available stages:
 
 - Intent: `Outcome Chain`, `Constraint Matrix`, `Autonomy Map`, `Context Map`.
-- Spec: `Requirement Coverage Map`, `Component Graph`, `Data Flow`,
+- Spec, plan-backed only: `Requirement Coverage Map`, `Component Graph`, `Data Flow`,
   `Risk/Mitigation Map`.
-- Plan: `Step DAG`, `Artifact Impact Map`, `Verification Map`,
+- Plan, plan-backed only: `Step DAG`, `Artifact Impact Map`, `Verification Map`,
   `Human Checkpoint Flow`.
 - Result: `Diff Reconciliation Graph`, `Outcome Evidence Map`, `Excess/Gap Map`,
   `Change Inventory Map`, `Code Review Findings Map`, `Documentation Evidence Map`,
@@ -94,11 +100,12 @@ explicit Russian fallback note: `В источнике недостаточно 
 
 Before `result`, the user reviews Russian terminal summaries printed by `check-chain intent`, `check-chain spec`, and `check-chain plan`. Feedback before implementation is applied to the English markdown source first, then the relevant `check-chain <stage>` validation is rerun and a fresh Russian terminal summary is printed. No HTML is regenerated until `check-chain result`.
 
-At result time, ask the user whether to generate the final report. If the user declines,
-finish with the terminal result summary and do not invoke `html-report`. If the user
-accepts and later requests result-report changes, update the underlying markdown,
-implementation, verification evidence, docs, or wiki source first, rerun the affected
-checks, then offer to regenerate the final report with `check-chain result`.
+At result time, write the current `result_check` into the selected source before asking
+whether to generate the final report. If the user declines, finish with the terminal
+result summary and do not invoke `html-report`. If the user accepts and later requests
+result-report changes, update the underlying markdown, implementation, verification
+evidence, docs, or wiki source first, rerun the affected checks, then offer to regenerate
+the final report with `check-chain result`.
 
 Small inline JavaScript may support filtering, highlighting, expand/collapse controls,
 or local search, but the report must remain readable without JavaScript. Never add CDN
@@ -134,8 +141,9 @@ acceptable. The renderer may use this high-level skeleton:
 - [ ] One self-contained HTML file; no external assets, CDN, fetch, `<script src>`, or
       stylesheet links.
 - [ ] Theme toggle present and wired.
-- [ ] Intent, spec, plan, result, review, verification, documentation, decision
-      propagation, and final verdict content present.
+- [ ] Intent, result, review, verification, documentation, decision propagation, and
+      final verdict content present; spec and plan contain source-backed content or
+      explicit `n/a` markers according to source mode.
 - [ ] Every changed file or artifact is described briefly and concretely in Russian,
       including the specific change, reason, obtained result, and evidence.
 - [ ] All visible UI text is Russian except allowed technical terms and source

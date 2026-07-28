@@ -11,12 +11,16 @@ _Russian version / Русская версия: [`docs/README.ru.md`](docs/READM
 ## Workflow boundaries
 
 IDD->SDD/Superpowers and LoEn are separate workflow systems. Non-trivial
-Superpowers work follows `fix-intent -> check-chain -> brainstorming ->
-writing-plans -> implementation -> check-chain result`. Durable LoEn workspace
-tasks use `loen:loop-*` skills and repository artifacts under `docs/loen/<topic>/`
-instead; a LoEn loop does not require `fix-intent`, `superpowers:*`, or
-`$check-chain` unless the user explicitly chooses the IDD->SDD chain for a
-separate non-LoEn change.
+work does not select a workflow by itself. Workflow routing has three entries: `direct`,
+`chain`, and `loen`.
+
+- `direct` executes a bounded request without formal intent/spec/plan artifacts.
+- `chain` starts with `fix-intent -> check-chain intent`. After the checked intent,
+  `execute` goes directly to implementation while `full` adds spec and plan. Both end
+  with `check-chain result`, using the intent or plan as the result source.
+- `loen` uses `loen:loop-*` skills and artifacts under `docs/loen/<topic>/`; a LoEn loop
+  does not require `fix-intent`, `superpowers:*`, or `$check-chain` unless the user
+  explicitly chooses chain for a separate non-LoEn change.
 
 Task naming uses one canonical kebab-case `<topic>` across controlled artifacts:
 `docs/TODO.md`, the Superpowers chain topic or LoEn topic directory, and the

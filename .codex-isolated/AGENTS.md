@@ -38,13 +38,14 @@ Always use the iwiki MCP tools (`wiki_status`, `wiki_bind`, `wiki_search`, `wiki
 
 ## Task Log (docs/TODO.md)
 
-**Every elaboration task that runs through the IDD→SDD chain (intent → spec → plan → result) is tracked as one row in `docs/TODO.md`: opened when work starts, closed when it finishes.**
+**Every task that enters the `chain` workflow is tracked as one row in `docs/TODO.md`:
+opened at intent validation and closed after result reconciliation.**
 
 Purpose: a single human-readable index of what is being worked on and what is done — **one row per chain `<topic>`** (the shared chain key the `check-chain` skill converges on; in Codex, invoke it as `$check-chain`), never per finding or per step.
 
 - **One file, one table.** `docs/TODO.md` holds a single Markdown table, one row per `<topic>`.
 - **Columns:** `Topic | Status | Intent | Spec | Plan | Result | Opened | Closed | Notes`.
-  - `Status`: `in-progress` while any stage is still open; `done` once `$check-chain result` returns `OK`.
+  - `Status`: `in-progress` while any selected stage is open; `done` once `$check-chain result` returns `OK` against the selected intent or plan source.
   - Stage cells (`Intent` / `Spec` / `Plan`): `✓` once that stage's `$check-chain <stage>` passes (verdict `OK`, including a cached quick-exit); `–` if not reached yet; `n/a` if the stage does not exist for this topic (e.g. no intent).
   - `Result`: `OK` / `needs_work` / `–`.
   - `Opened` / `Closed`: ISO date (`YYYY-MM-DD`). `Closed` stays empty until the task is `done`.
@@ -52,8 +53,12 @@ Purpose: a single human-readable index of what is being worked on and what is do
 - **Upsert, never duplicate.** Keyed by `<topic>`: update the matching row in place if it exists, otherwise append a new one.
 - **Lifecycle (driven by the `check-chain` skill via `$check-chain` in Codex):**
   - The first `$check-chain <stage>` run for a topic **opens** the row (`Opened: <today>`, `Status: in-progress`). Normally that is `$check-chain intent`; if there is no intent, `$check-chain spec` opens it and marks `Intent: n/a`.
+  - After intent passes, `workflow.continuation: execute` marks `Spec: n/a` and
+    `Plan: n/a`; `workflow.continuation: full` leaves them open for their checks.
   - `$check-chain spec` / `$check-chain plan` mark their own stage cell `✓` and keep `Status: in-progress`.
-  - `$check-chain result` **closes** the row on verdict `OK` (`Result: OK`, `Status: done`, `Closed: <today>`); on `needs_work` it sets `Result: needs_work` and leaves the row open.
+  - `$check-chain result` **closes** the row on verdict `OK` against the intent for
+    `execute` or the plan for `full` (`Result: OK`, `Status: done`, `Closed: <today>`);
+    on `needs_work` it leaves the row open.
 - **Create on demand.** If `docs/TODO.md` is absent, the first `$check-chain <stage>` run creates it with the header row, then appends.
 - **Manual rows are allowed.** A task may be added by hand before any `$check-chain <stage>` run; the skill then updates the matching `<topic>` row instead of duplicating it.
 
@@ -79,10 +84,58 @@ workflow artifacts the agent can control.**
   disagree, stop and normalize them to one `<topic>` before continuing. Do not
   treat an inaccessible UI thread title as a blocking artifact.
 
-## Superpowers Chain Order
+## Workflow Route Selection
 
-**For every non-trivial behavior, architecture, CLI/API, or feature change, keep the
-Superpowers workflow gated by `check-chain`, except LoEn loop workspaces:**
+Classify the workflow before invoking `fix-intent`, `superpowers:brainstorming`, or
+creating chain artifacts. Superpowers skills are selected tools; using an applicable
+scoped skill does not by itself select `chain`. This rule overrides generic Superpowers
+wording that treats every behavior change as requiring brainstorming.
+
+Recommend **direct** execution when all are true: the requested outcome is explicit,
+the change is bounded to existing behavior, no unresolved design choice remains, the
+verification path is known, and no public contract, schema, migration, security
+boundary, concurrency/transaction rule, or data invariant changes. Typical examples:
+known-cause local fixes, typos, formatting, focused tests for existing behavior, and
+mechanical config or documentation edits.
+
+Recommend **chain** when outcomes, constraints, or acceptance evidence need a formal
+approved intent, or when the user explicitly requests it. Chain does not imply spec and
+plan: that decision occurs only after `$check-chain intent` returns `OK`.
+
+After intent validation, recommend `execute` when implementation is bounded, its
+verification is known, and no unresolved design or planning decision remains. It
+implements directly from the approved intent and marks Spec and Plan n/a. Recommend
+`full` only with an enumerated trigger: a new capability or module needs design, a public
+contract changes, architecture must be chosen, schema/migration/security/concurrency/
+transaction/data-integrity behavior changes, or coupled subsystem design is required.
+General uncertainty, task size, or the word "non-trivial" are not triggers.
+
+Recommend **loen** only for tasks that operate a durable LoEn workspace through its own
+loop lifecycle.
+
+At task start, state the recommendation and its evidence. Do not invoke `fix-intent` or
+start chain until the user accepts that recommendation; an explicit chain request counts
+as acceptance. After intent validation, report `execute` or `full` with evidence and wait
+before starting `full`. Prefer `execute` when no full trigger is evidenced.
+
+Direct work creates no formal intent, spec, plan, `check-chain`, or chain TODO artifacts.
+Direct work must not invoke `fix-intent`, `superpowers:brainstorming`,
+`superpowers:writing-plans`, `superpowers:subagent-driven-development`, or
+`superpowers:executing-plans`. Scoped systematic debugging, TDD, and verification remain
+allowed. `superpowers:finishing-a-development-branch` remains available after verified
+direct or chain work. If direct scope crosses a chain trigger, stop and recommend chain.
+
+```text
+Workflow recommendation: direct | chain | loen
+Continuation after intent: execute | full | n/a
+Evidence: <bounded facts or qualifying trigger>
+Intent required: yes | no
+Confirmation required: yes | no
+```
+
+## Chain Order
+
+After the user accepts chain, keep selected transitions gated by `check-chain`:
 
 **LoEn carve-out:** tasks that start, continue, audit, repair, research, review, or
 govern durable LoEn workspaces through `loen:loop-*` skills use the LoEn lifecycle
@@ -95,22 +148,145 @@ only. Do not run `fix-intent`, `superpowers:brainstorming`,
 IDD->SDD chain for a separate non-LoEn change.
 
 1. `fix-intent` creates or updates `docs/superpowers/intents/*-intent.md`.
-2. `$check-chain intent` validates the intent before any brainstorming starts.
-3. `superpowers:brainstorming` creates or updates `docs/superpowers/specs/*-design.md`.
-4. `$check-chain spec` validates the spec before any implementation plan starts.
-5. `superpowers:writing-plans` creates or updates `docs/superpowers/plans/*.md`.
-6. `$check-chain plan` validates the plan before any implementation starts.
-7. `superpowers:subagent-driven-development` is preferred for execution; use
-   `superpowers:executing-plans` only when subagents are unavailable or the task is
-   small enough for inline execution.
-8. `$check-chain result` reconciles the implementation diff against the plan, spec,
-   and intent before finishing the branch.
+2. `$check-chain intent` validates the intent.
+3. Record `workflow.route: chain` and `workflow.continuation: execute|full` in intent
+   frontmatter after the user accepts the continuation recommendation.
+4. For `execute`, skip brainstorming and writing-plans, implement from the approved
+   intent with scoped implementation skills, then run `$check-chain result <intent>`.
+5. For `full`, run `superpowers:brainstorming` -> `$check-chain spec` ->
+   `superpowers:writing-plans` -> `$check-chain plan` -> plan execution.
+6. Run `$check-chain result <plan>` for `full`; result reconciliation always precedes
+   branch finishing.
 
 The Codex hook `.codex-isolated/hooks/chain-gate.py` enforces transitions when it
 can see them. It must gate both explicit `Skill` events and Codex skill-loading
 signals such as reading `skills/<name>/SKILL.md` through `Read` or `Bash`. It is a
 transition gate only: validation state still comes from frontmatter written by the
 `check-chain` skill.
+
+## Model and Reasoning Recommendations
+
+Recommend only; never edit TOML, select profiles, start sessions, or claim a switch.
+The user switches with `/model` and verifies with `/status`.
+
+### Execution Routes
+
+Rules refer only to stable semantic routes, never model branding:
+
+| Route | Capability target | Effort target |
+|-------|-------------------|---------------|
+| `mechanical` | Lowest-cost capable coding model | baseline |
+| `engineering` | Balanced general coding model | baseline |
+| `synthesis` | Strongest reasoning model for design synthesis | baseline |
+| `deep` | Strongest single-agent reasoning model | deep |
+| `escalation` | Strongest model after evidenced failure | maximum |
+| `parallel-audit` | Strongest agentic model for independent audits | parallel |
+
+### Current Catalog Mapping
+
+Exact model IDs live only here. Update this table when the Codex catalog changes; do not
+rewrite classification or workflow rules.
+
+| Route | Current model | Current effort |
+|-------|---------------|----------------|
+| `mechanical` | `gpt-5.6-luna` | `medium` |
+| `engineering` | `gpt-5.6-terra` | `medium` |
+| `synthesis` | `gpt-5.6-sol` | `medium` |
+| `deep` | `gpt-5.6-sol` | `high` |
+| `escalation` | `gpt-5.6-sol` | `max` |
+| `parallel-audit` | `gpt-5.6-sol` | `ultra` |
+
+Resolve the semantic route through the current catalog before recommending a switch. If
+the mapped entry is absent from `/model`, keep the semantic route, describe its capability
+and effort targets, mark resolution `unresolved`, and ask the user to select the current
+equivalent. Never substitute a model by name from memory.
+
+### Checkpoints
+
+Reassess at direct task start, after chain or LoEn checks/reviews, and before next work:
+
+| Boundary | Baseline |
+|----------|----------|
+| Direct task start -> execution | Classify task |
+| Direct check/review -> next work | Reclassify if evidence changed |
+| Start -> chain intent or coordination | `engineering` |
+| Intent OK -> continuation decision | `engineering` |
+| Intent execute -> implementation | Classify task |
+| Intent full -> spec | `synthesis` |
+| Spec OK -> plan | `synthesis` |
+| Plan OK -> implementation | Classify each task |
+| Implementation task complete -> task review | `engineering` |
+| Task review complete -> next task | Classify next task |
+| Execution -> bounded result check | `engineering` |
+| Execution -> cross-system or critical result check | `deep` |
+| Result OK -> routine follow-up | `engineering` |
+
+At LoEn loop start and after each check or review, classify the next work with the same
+execution routes. LoEn workflow selection never implies a stronger model.
+
+For `needs_work`, remain in the stage, change strategy, rerun, and reassess. The verdict
+alone never requires escalation.
+
+Workflow and execution routes are independent: direct does not imply `mechanical`, and
+chain does not imply `deep`. Repeat classification after failed checks, scope changes,
+or newly discovered invariants.
+
+### Classification
+
+Choose the lowest sufficient route:
+
+1. **`mechanical`** only if work is fully defined, single-component, has known cause and
+   verification, and changes no contract, schema, migration, concurrency, security, or
+   data invariant.
+2. **`synthesis`** for specification or planning synthesis without a deep trigger.
+3. **`deep`** when evidence shows an unknown reproduced-defect cause, artifact/code
+   contradiction, public compatibility change, transactional/concurrent/distributed
+   invariants, migration/security/data risk, two or more coupled subsystem boundaries,
+   or result reconciliation across coupled invariants.
+4. **`engineering`** otherwise.
+
+Never inherit a higher route. File count, task length, one failure, or a stage name are
+not triggers. Gather ambiguous evidence at the lower route.
+
+### Exceptional Routes
+
+Use **`escalation`** only after two different `deep` strategies fail, reviewers
+contradict the same invariant, a required test remains unexplained after strategy
+change, an enumerated critical invariant set cannot be decomposed safely, or critical
+migration reconciliation has credible data-loss risk.
+
+Every critical migration requires a separate final integration review at `deep` or
+higher, regardless of its implementation route.
+
+Use **`parallel-audit`** only as a separate run with at least two independent read-only
+audit directions, no shared writes, and one consolidation step. Never use it inside
+active subagent orchestration.
+
+Implementers never revise accepted intent, spec, or plan. Return drift to the earliest
+gate. Never retry without changing strategy.
+
+### Switch Handling
+
+Use `keep`, `downgrade`, `escalate`, or `separate-run` (`parallel-audit`). If the active
+mapping is unknown, ask the user to check `/status`; never guess.
+
+Wait when switching is required. A declined downgrade may continue with the extra cost
+recorded. A declined escalation stops the next work until explicit risk acceptance.
+Critical-migration final review cannot be waived.
+
+```text
+Workflow: direct | chain | loen
+Continuation: execute | full | n/a
+Checkpoint: <check and verdict>
+Next work: <stage or task>
+Execution route: <semantic route>
+Current mapping: <exact model / effort | unknown>
+Recommended mapping: <exact model / effort | unresolved>
+Decision: keep | downgrade | escalate | separate-run
+Evidence: <artifact, finding, failure, invariant, or risk>
+Higher route rejected because: <reason or n/a for parallel-audit>
+Switch required: yes | no
+```
 
 ## Project Status Reports
 

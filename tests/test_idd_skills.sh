@@ -37,6 +37,15 @@ assert_before() { # <desc> <haystack> <first> <second>
   fi
 }
 
+assert_not_contains() { # <desc> <haystack> <needle>
+  local desc="$1" hay="$2" need="$3"
+  if grep -qF -- "$need" <<<"$hay"; then
+    echo "FAIL [$desc]: unexpected '$need' found"; FAIL=$((FAIL+1))
+  else
+    echo "PASS [$desc]"; PASS=$((PASS+1))
+  fi
+}
+
 # check-chain: one unified validator, four stage profiles.
 CC="$SK/check-chain/SKILL.md"
 assert_exit "check-chain SKILL.md exists" 0 test -f "$CC"
@@ -47,6 +56,17 @@ if [[ -f "$CC" ]]; then
   assert_contains "check-chain references intent_hash" "$body" "intent_hash"
   assert_contains "check-chain references spec_hash" "$body" "spec_hash"
   assert_contains "check-chain references plan_hash" "$body" "plan_hash"
+  assert_contains "check-chain result has two source modes" "$body" "Result has two source modes"
+  assert_contains "check-chain recognizes chain route" "$body" 'workflow.route: chain'
+  assert_contains "check-chain recognizes execute continuation" "$body" 'workflow.continuation: execute'
+  assert_contains "check-chain intent result uses intent hash" "$body" 'intent_hash: <intent body hash>'
+  assert_contains "check-chain execute continuation skips stages" "$body" 'mark `Spec: n/a` and `Plan: n/a`'
+  assert_contains "check-chain legacy whole-chain detects plan" "$body" 'a legacy plan selects the'
+  assert_contains "check-chain legacy whole-chain uses plan" "$body" 'plan-backed compatibility path'
+  assert_contains "check-chain execute pending summary uses intent" "$body" '`OK up to intent` for `execute`'
+  assert_contains "check-chain plan pending summary uses plan" "$body" '`OK up to plan` for plan-backed'
+  assert_not_contains "check-chain has no unconditional brainstorm handoff" "$body" 'Next step: superpowers:brainstorming'
+  assert_contains "check-chain writes result to source" "$body" 'Before offering the optional report, write `result_check` into the selected source'
   assert_contains "check-chain covers result stage" "$body" "result_check"
   assert_contains "check-chain approval requires OK first" "$body" 'Human approval is requested only after this stage returns `OK`'
   assert_exit "check-chain frontmatter parses" 0 parse_frontmatter "$CC"
@@ -60,7 +80,13 @@ if [[ -f "$FI" ]]; then
   assert_contains "fix-intent name frontmatter" "$body" "name: fix-intent"
   assert_contains "fix-intent has a description" "$body" "description:"
   assert_contains "fix-intent runs check before approval" "$body" 'Run `$check-chain intent'
-  assert_before "fix-intent check-chain before approval" "$body" 'Run `$check-chain intent' 'On approval: set `Status: approved`'
+  assert_before "fix-intent check-chain before approval" "$body" 'Run `$check-chain intent' 'On approval, set `Status: approved`'
+  assert_contains "fix-intent recommends continuation" "$body" 'Recommend `execute` or `full`'
+  assert_contains "fix-intent records chain route" "$body" '`workflow.route: chain`'
+  assert_contains "fix-intent records accepted continuation" "$body" '`workflow.continuation: execute|full`'
+  assert_not_contains "existing intent does not force brainstorming" "$body" 'Skip → go to brainstorm'
+  assert_not_contains "small known work does not force IDD" "$body" 'Run IDD anyway'
+  assert_before "fix-intent chooses continuation before brainstorming" "$body" 'Recommend `execute` or `full`' 'Run superpowers:brainstorming'
   assert_exit "fix-intent frontmatter parses" 0 parse_frontmatter "$FI"
 fi
 

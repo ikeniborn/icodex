@@ -73,7 +73,10 @@ In `mode: chain`, `html-report` is the optional final report renderer for
 
 `html-report` chain mode accepts a fully enriched final payload from the caller. That
 payload may include narrative blocks, tables, `<details>`, inline SVG, CSS diagrams, and
-small inline JavaScript. The caller owns all chain semantics.
+small inline JavaScript. The caller owns all chain semantics and supplies the persisted
+current `result_check` plus the source mode. A plan-backed payload includes intent, spec,
+and plan content. An intent-backed payload marks spec and plan `n/a`; it must not provide
+synthetic requirements, steps, or diagrams for those absent stages.
 
 All chain report user-facing text must remain Russian only. English visible UI copy is not allowed. English is allowed only for technical terms, code identifiers, file paths, stage keys (`intent`, `spec`, `plan`, `result`), hash keys, source section names, and short source fragments that would lose meaning if translated. Markdown source artifacts and implementation docs remain English outside the generated HTML report.
 
@@ -124,8 +127,11 @@ Reject and fix the assembled HTML if any fails:
 
 **`mode: chain` only** (see `references/chain-report.md`):
 
-- [ ] The report contains intent, spec, plan, result, review, verification, docs, and
-      final verdict sections.
+- [ ] The report contains intent, result, review, verification, docs, and final verdict
+      sections. Spec and plan contain real source-backed content for plan-backed payloads
+      or explicit `n/a` markers for intent-backed payloads.
+- [ ] For intent-backed payloads, spec and plan diagrams are omitted. Spec and plan
+      diagrams are required only for plan-backed payloads.
 - [ ] The report briefly and concretely describes every changed file or artifact in
       Russian, including the specific change, reason, obtained result, and evidence.
 - [ ] Process diagrams are included when workflow, approval flow, hook order, command
