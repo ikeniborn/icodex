@@ -331,6 +331,15 @@ run_capture validate_topic
 assert_eq "symlink registry exit" 3 "$CODE"
 assert_contains "symlink registry rejected" "$OUTPUT" "registry worktree path must be a regular file"
 
+init_policy_fixture "$TMP/fifo-registry" fast engineering
+rm "$SHARED_REGISTRY"
+mkfifo "$SHARED_REGISTRY"
+run_capture timeout 2s python3 "$ROOT/lib/profile/policy.py" validate-topic \
+  "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY"
+assert_eq "FIFO registry rejects without blocking exit" 3 "$CODE"
+assert_contains "FIFO registry rejected as non-regular" "$OUTPUT" \
+  "registry worktree path must be a regular file"
+
 init_policy_fixture "$TMP/symlink-registry-parent" fast engineering
 mv "$SHARED_ROOT/profiles" "$FIXTURE_BASE/real-profiles"
 ln -s "$FIXTURE_BASE/real-profiles" "$SHARED_ROOT/profiles"
@@ -362,6 +371,15 @@ run_capture validate_topic
 assert_eq "symlink manifest exit" 3 "$CODE"
 assert_contains "symlink manifest rejected" "$OUTPUT" "topic manifest worktree path must be a regular file"
 
+init_policy_fixture "$TMP/fifo-manifest" fast engineering
+rm "$MANIFEST"
+mkfifo "$MANIFEST"
+run_capture timeout 2s python3 "$ROOT/lib/profile/policy.py" validate-topic \
+  "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY"
+assert_eq "FIFO manifest rejects without blocking exit" 3 "$CODE"
+assert_contains "FIFO manifest rejected as non-regular" "$OUTPUT" \
+  "topic manifest worktree path must be a regular file"
+
 init_policy_fixture "$TMP/symlink-manifest-parent" fast engineering
 mv "$TARGET_REPO/docs/profiles" "$FIXTURE_BASE/real-manifests"
 ln -s "$FIXTURE_BASE/real-manifests" "$TARGET_REPO/docs/profiles"
@@ -392,6 +410,15 @@ assert_exit "schema checks pinned regular context blob only" 0 validate_topic_sc
 run_capture validate_topic
 assert_eq "symlink context exit" 3 "$CODE"
 assert_contains "symlink context rejected" "$OUTPUT" "context input worktree path must be a regular file"
+
+init_policy_fixture "$TMP/fifo-context" fast engineering
+rm "$TARGET_REPO/docs/context/demo.md"
+mkfifo "$TARGET_REPO/docs/context/demo.md"
+run_capture timeout 2s python3 "$ROOT/lib/profile/policy.py" validate-topic \
+  "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY"
+assert_eq "FIFO context rejects without blocking exit" 3 "$CODE"
+assert_contains "FIFO context rejected as non-regular" "$OUTPUT" \
+  "context input worktree path must be a regular file"
 
 init_policy_fixture "$TMP/symlink-context-parent" fast engineering
 mv "$TARGET_REPO/docs/context" "$TARGET_REPO/docs/real-context"

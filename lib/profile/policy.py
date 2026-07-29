@@ -479,7 +479,11 @@ def _tree_blob(repo: Path, commit: str, relative: Path, label: str) -> bytes:
 
 def _read_regular_beneath(repo_root: Path, relative: Path, label: str) -> bytes:
     components = _relative_components(relative, label)
-    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
+    if (
+        not hasattr(os, "O_NOFOLLOW")
+        or not hasattr(os, "O_DIRECTORY")
+        or not hasattr(os, "O_NONBLOCK")
+    ):
         raise PolicyError("platform cannot enforce rooted no-follow policy reads", 3)
     directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     descriptors: list[int] = []
@@ -502,7 +506,11 @@ def _read_regular_beneath(repo_root: Path, relative: Path, label: str) -> bytes:
                     f"{label} path component must be a real directory: {component}", 3
                 )
         try:
-            descriptor = os.open(components[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=current)
+            descriptor = os.open(
+                components[-1],
+                os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW,
+                dir_fd=current,
+            )
         except OSError as error:
             raise PolicyError(f"{label} worktree path must be a regular file: {error}", 3) from None
         with os.fdopen(descriptor, "rb") as stream:
