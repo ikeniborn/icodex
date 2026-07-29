@@ -438,6 +438,6 @@ assert_exit "production registry exists at canonical path" 0 test -f "$PRODUCTIO
 assert_exit "production topic policy exists at canonical path" 0 test -f "$PRODUCTION_TOPIC"
 assert_exit "production registry schema version is exactly 1" 0 grep -Fxq 'schema_version: 1' "$PRODUCTION_REGISTRY"
 assert_exit "production topic schema version is exactly 1" 0 grep -Fxq 'schema_version: 1' "$PRODUCTION_TOPIC"
-assert_exit "production approved topic has canonical topic and exact registry SHA pin" 0 python3 "$ROOT/lib/profile/policy.py" validate-topic-schema "$PRODUCTION_TOPIC" "$PRODUCTION_REGISTRY"
+assert_exit "production approved topic has canonical topic and exact registry SHA pin" 0 python3 "$ROOT/lib/profile/policy.py" validate-topic "$PRODUCTION_TOPIC" "$PRODUCTION_REGISTRY"
 
 finish
