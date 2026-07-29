@@ -342,23 +342,27 @@ def _validate_relative_path(value: str, name: str) -> None:
 
 
 def _require_context_blob(repo: Path, commit: str, value: str) -> None:
-    candidate = repo / value
+    relative = Path(value)
+    candidate = repo.resolve() / relative
     resolved = candidate.resolve()
     try:
-        relative = resolved.relative_to(repo.resolve())
+        resolved.relative_to(repo.resolve())
     except ValueError:
         raise PolicyError(f"context input must resolve inside repository: {value}", 3) from None
     if not resolved.is_file():
         raise PolicyError(f"context input does not exist: {value}", 3)
     result = subprocess.run(
-        ["git", "-C", str(repo), "cat-file", "-t", f"{commit}:{relative.as_posix()}"],
+        ["git", "-C", str(repo), "ls-tree", "--full-tree", commit, "--", relative.as_posix()],
         check=False,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    if result.returncode != 0 or result.stdout.strip() != "blob":
+    entry = result.stdout.strip().split(None, 3)
+    if result.returncode != 0 or not entry:
         raise PolicyError(f"context input is not tracked at pinned HEAD: {value}", 3)
+    if len(entry) < 2 or entry[0] not in {"100644", "100755"} or entry[1] != "blob":
+        raise PolicyError(f"context input must be a tracked regular file at pinned HEAD: {value}", 3)
 
 
 @dataclass(frozen=True)

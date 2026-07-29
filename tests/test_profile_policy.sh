@@ -263,6 +263,36 @@ run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$UNTRACKED_CON
 assert_eq "untracked context input exit" 3 "$CODE"
 assert_contains "untracked context input message" "$OUTPUT" "context input is not tracked at pinned HEAD"
 
+UNTRACKED_CONTEXT_LINK_REPO="$TMP/untracked-context-link"
+init_policy_repo "$UNTRACKED_CONTEXT_LINK_REPO" fast engineering
+ln -s docs/superpowers/plans/demo.md "$UNTRACKED_CONTEXT_LINK_REPO/untracked-link.md"
+sed -i 's#docs/superpowers/plans/demo.md#untracked-link.md#' "$UNTRACKED_CONTEXT_LINK_REPO/docs/profiles/demo.yaml"
+git -C "$UNTRACKED_CONTEXT_LINK_REPO" add docs/profiles/demo.yaml
+git -C "$UNTRACKED_CONTEXT_LINK_REPO" commit -qm 'reference untracked context symlink'
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$UNTRACKED_CONTEXT_LINK_REPO/docs/profiles/demo.yaml" "$UNTRACKED_CONTEXT_LINK_REPO/docs/profiles/registry.yaml"
+assert_eq "untracked context symlink exit" 3 "$CODE"
+assert_contains "untracked context symlink message" "$OUTPUT" "context input is not tracked at pinned HEAD: untracked-link.md"
+
+TRACKED_CONTEXT_LINK_REPO="$TMP/tracked-context-link"
+init_policy_repo "$TRACKED_CONTEXT_LINK_REPO" fast engineering
+ln -s docs/superpowers/plans/demo.md "$TRACKED_CONTEXT_LINK_REPO/tracked-link.md"
+sed -i 's#docs/superpowers/plans/demo.md#tracked-link.md#' "$TRACKED_CONTEXT_LINK_REPO/docs/profiles/demo.yaml"
+git -C "$TRACKED_CONTEXT_LINK_REPO" add docs/profiles/demo.yaml tracked-link.md
+git -C "$TRACKED_CONTEXT_LINK_REPO" commit -qm 'reference tracked context symlink'
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$TRACKED_CONTEXT_LINK_REPO/docs/profiles/demo.yaml" "$TRACKED_CONTEXT_LINK_REPO/docs/profiles/registry.yaml"
+assert_eq "tracked context symlink exit" 3 "$CODE"
+assert_contains "tracked context symlink message" "$OUTPUT" "context input must be a tracked regular file at pinned HEAD: tracked-link.md"
+
+PATHSPEC_CONTEXT_REPO="$TMP/pathspec-context"
+init_policy_repo "$PATHSPEC_CONTEXT_REPO" fast engineering
+printf '%s\n' 'untracked literal wildcard path' >"$PATHSPEC_CONTEXT_REPO/docs/superpowers/plans/*.md"
+sed -i 's#docs/superpowers/plans/demo.md#docs/superpowers/plans/*.md#' "$PATHSPEC_CONTEXT_REPO/docs/profiles/demo.yaml"
+git -C "$PATHSPEC_CONTEXT_REPO" add docs/profiles/demo.yaml
+git -C "$PATHSPEC_CONTEXT_REPO" commit -qm 'reference untracked literal wildcard path'
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$PATHSPEC_CONTEXT_REPO/docs/profiles/demo.yaml" "$PATHSPEC_CONTEXT_REPO/docs/profiles/registry.yaml"
+assert_eq "context input pathspec treated literally exit" 3 "$CODE"
+assert_contains "context input pathspec treated literally message" "$OUTPUT" "context input is not tracked at pinned HEAD: docs/superpowers/plans/*.md"
+
 OUTSIDE_CONTEXT_REPO="$TMP/outside-context"
 init_policy_repo "$OUTSIDE_CONTEXT_REPO" fast engineering
 printf '%s\n' 'outside context' >"$TMP/outside-context.md"
