@@ -1,0 +1,88 @@
+schema_version: 1
+registry_version: 1
+dimensions:
+  capability:
+    comparator: gte
+    tiers:
+      - baseline
+      - strong
+      - strongest
+  context:
+    comparator: gte
+    tiers:
+      - small
+      - medium
+      - large
+  latency:
+    comparator: lte
+    tiers:
+      - low
+      - medium
+      - high
+  cost:
+    comparator: lte
+    tiers:
+      - low
+      - medium
+      - high
+  throughput:
+    comparator: gte
+    tiers:
+      - low
+      - medium
+      - high
+profiles:
+  mechanical:
+    model: gpt-5.6-luna
+    effort: medium
+    capacities:
+      capability: baseline
+      context: medium
+      latency: low
+      cost: low
+      throughput: high
+  engineering:
+    model: gpt-5.6-terra
+    effort: medium
+    capacities:
+      capability: strong
+      context: medium
+      latency: medium
+      cost: medium
+      throughput: medium
+  synthesis:
+    model: gpt-5.6-sol
+    effort: medium
+    capacities:
+      capability: strongest
+      context: medium
+      latency: medium
+      cost: medium
+      throughput: medium
+  deep:
+    model: gpt-5.6-sol
+    effort: high
+    capacities:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low
+  escalation:
+    model: gpt-5.6-sol
+    effort: max
+    capacities:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low
+  parallel-audit:
+    model: gpt-5.6-sol
+    effort: ultra
+    capacities:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low

@@ -432,4 +432,12 @@ assert_eq "no sufficient profile exit" 4 "$CODE"
 assert_contains "no sufficient profile message" "$OUTPUT" "no available sufficient profile"
 assert_contains "insufficient dimension evidence" "$OUTPUT" "capability"
 
+PRODUCTION_REGISTRY="$ROOT/docs/profiles/registry.yaml"
+PRODUCTION_TOPIC="$ROOT/docs/profiles/profile-recheck-at-task-transition.yaml"
+assert_exit "production registry exists at canonical path" 0 test -f "$PRODUCTION_REGISTRY"
+assert_exit "production topic policy exists at canonical path" 0 test -f "$PRODUCTION_TOPIC"
+assert_exit "production registry schema version is exactly 1" 0 grep -Fxq 'schema_version: 1' "$PRODUCTION_REGISTRY"
+assert_exit "production topic schema version is exactly 1" 0 grep -Fxq 'schema_version: 1' "$PRODUCTION_TOPIC"
+assert_exit "production approved topic has canonical topic and exact registry SHA pin" 0 python3 "$ROOT/lib/profile/policy.py" validate-topic-schema "$PRODUCTION_TOPIC" "$PRODUCTION_REGISTRY"
+
 finish
