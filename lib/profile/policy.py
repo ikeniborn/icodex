@@ -270,7 +270,7 @@ def load_registry(path: Path) -> dict[str, object]:
     """Validate schema_version, registry_version, dimensions, and exact profiles."""
     registry = _read_yaml(path)
     _exact_keys(registry, {"schema_version", "registry_version", "dimensions", "profiles"}, "registry")
-    if registry["schema_version"] != SCHEMA_VERSION:
+    if type(registry["schema_version"]) is not int or registry["schema_version"] != SCHEMA_VERSION:
         raise PolicyError(f"unsupported registry schema_version: {registry['schema_version']}")
     _version(registry["registry_version"], "registry_version")
 
@@ -341,7 +341,7 @@ def _load_topic_schema(path: Path, registry_path: Path, repo: Path) -> tuple[dic
         {"schema_version", "topic", "status", "registry", "context_inputs", "portable_history", "tasks"},
         "topic manifest",
     )
-    if topic["schema_version"] != SCHEMA_VERSION:
+    if type(topic["schema_version"]) is not int or topic["schema_version"] != SCHEMA_VERSION:
         raise PolicyError(f"unsupported topic schema_version: {topic['schema_version']}")
     topic_name = _string(topic["topic"], "topic")
     if not SLUG_RE.fullmatch(topic_name) or path.stem != topic_name:

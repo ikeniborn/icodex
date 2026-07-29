@@ -128,6 +128,12 @@ VALID_REGISTRY="$TMP/valid-registry.yaml"
 write_registry "$VALID_REGISTRY"
 assert_exit "valid registry" 0 python3 "$ROOT/lib/profile/policy.py" validate-registry "$VALID_REGISTRY"
 
+BOOL_REGISTRY="$TMP/bool-schema-registry.yaml"
+sed 's/^schema_version: 1$/schema_version: true/' "$VALID_REGISTRY" >"$BOOL_REGISTRY"
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-registry "$BOOL_REGISTRY"
+assert_eq "registry boolean schema version exit" 2 "$CODE"
+assert_contains "registry boolean schema version rejected" "$OUTPUT" "unsupported registry schema_version"
+
 DUPLICATE_REGISTRY="$TMP/duplicate-registry.yaml"
 write_registry "$DUPLICATE_REGISTRY"
 printf '%s\n' \
@@ -167,6 +173,20 @@ printf '%s\n' '# changed registry' >>"$MISMATCH_REPO/docs/profiles/registry.yaml
 run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$MISMATCH_REPO/docs/profiles/demo.yaml" "$MISMATCH_REPO/docs/profiles/registry.yaml"
 assert_eq "registry mismatch exit" 3 "$CODE"
 assert_contains "registry mismatch message" "$OUTPUT" "registry hash mismatch"
+
+BOOL_TOPIC_REPO="$TMP/bool-topic-schema"
+init_policy_repo "$BOOL_TOPIC_REPO" fast engineering
+sed -i 's/^schema_version: 1$/schema_version: true/' "$BOOL_TOPIC_REPO/docs/profiles/demo.yaml"
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic-schema "$BOOL_TOPIC_REPO/docs/profiles/demo.yaml" "$BOOL_TOPIC_REPO/docs/profiles/registry.yaml"
+assert_eq "topic boolean schema version exit" 2 "$CODE"
+assert_contains "topic boolean schema version rejected" "$OUTPUT" "unsupported topic schema_version"
+
+FALLBACK_REPO="$TMP/exact-fallback"
+init_policy_repo "$FALLBACK_REPO" fast engineering
+ENGINEERING_AVAILABLE='[{"id":"gpt-engineering","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]}]'
+run_capture python3 "$ROOT/lib/profile/policy.py" select "$FALLBACK_REPO/docs/profiles/demo.yaml" build "$ENGINEERING_AVAILABLE"
+assert_eq "second sufficient profile selection exit" 0 "$CODE"
+assert_eq "unavailable first profile falls through to second" '{"effort":"medium","model":"gpt-engineering","profile":"engineering","task":"build"}' "$OUTPUT"
 
 SELECT_REPO="$TMP/select"
 init_policy_repo "$SELECT_REPO" fast weak engineering
