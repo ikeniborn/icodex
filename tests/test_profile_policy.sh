@@ -221,12 +221,6 @@ printf '%s\n' \
   '  printf "%s\n" "$output"' \
   '  exit 0' \
   'fi' \
-  'if [[ "$*" == "-C $SNAPSHOT_REPO show HEAD:docs/profiles/demo.yaml" ]]; then' \
-  '  output="$("$REAL_GIT" "$@")"' \
-  '  "$REAL_GIT" -C "$SNAPSHOT_REPO" update-ref HEAD "$SNAPSHOT_NEW_HEAD"' \
-  '  printf "%s\n" "$output"' \
-  '  exit 0' \
-  'fi' \
   'exec "$REAL_GIT" "$@"' >"$SNAPSHOT_GIT_DIR/git"
 chmod +x "$SNAPSHOT_GIT_DIR/git"
 run_capture env PATH="$SNAPSHOT_GIT_DIR:$PATH" REAL_GIT="$(command -v git)" SNAPSHOT_REPO="$SNAPSHOT_REPO" SNAPSHOT_NEW_HEAD="$SNAPSHOT_NEW_HEAD" python3 "$ROOT/lib/profile/policy.py" validate-topic "$SNAPSHOT_REPO/docs/profiles/demo.yaml" "$SNAPSHOT_REPO/docs/profiles/registry.yaml"
@@ -262,6 +256,21 @@ git -C "$UNTRACKED_CONTEXT_REPO" commit -qm 'reference untracked context'
 run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$UNTRACKED_CONTEXT_REPO/docs/profiles/demo.yaml" "$UNTRACKED_CONTEXT_REPO/docs/profiles/registry.yaml"
 assert_eq "untracked context input exit" 3 "$CODE"
 assert_contains "untracked context input message" "$OUTPUT" "context input is not tracked at pinned HEAD"
+
+DIRTY_CONTEXT_LINK_REPO="$TMP/dirty-context-link"
+init_policy_repo "$DIRTY_CONTEXT_LINK_REPO" fast engineering
+rm "$DIRTY_CONTEXT_LINK_REPO/docs/superpowers/plans/demo.md"
+ln -s ../../profiles/registry.yaml "$DIRTY_CONTEXT_LINK_REPO/docs/superpowers/plans/demo.md"
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$DIRTY_CONTEXT_LINK_REPO/docs/profiles/demo.yaml" "$DIRTY_CONTEXT_LINK_REPO/docs/profiles/registry.yaml"
+assert_eq "dirty context symlink exit" 3 "$CODE"
+assert_contains "dirty context symlink message" "$OUTPUT" "context input worktree path must be a regular file"
+
+DIRTY_CONTEXT_BYTES_REPO="$TMP/dirty-context-bytes"
+init_policy_repo "$DIRTY_CONTEXT_BYTES_REPO" fast engineering
+printf '%s\n' 'dirty context bytes' >"$DIRTY_CONTEXT_BYTES_REPO/docs/superpowers/plans/demo.md"
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$DIRTY_CONTEXT_BYTES_REPO/docs/profiles/demo.yaml" "$DIRTY_CONTEXT_BYTES_REPO/docs/profiles/registry.yaml"
+assert_eq "dirty context bytes exit" 3 "$CODE"
+assert_contains "dirty context bytes message" "$OUTPUT" "context input differs from pinned HEAD"
 
 UNTRACKED_CONTEXT_LINK_REPO="$TMP/untracked-context-link"
 init_policy_repo "$UNTRACKED_CONTEXT_LINK_REPO" fast engineering

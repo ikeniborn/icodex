@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -389,6 +390,35 @@ def _require_context_blob(repo: Path, commit: str, value: str) -> None:
         raise PolicyError(f"malformed context input tree entry at pinned HEAD: {value}", 3)
     if fields[0] not in {b"100644", b"100755"} or fields[1] != b"blob":
         raise PolicyError(f"context input must be a tracked regular file at pinned HEAD: {value}", 3)
+    try:
+        worktree_stat = candidate.lstat()
+    except OSError as error:
+        raise PolicyError(f"cannot inspect context input worktree path {value}: {error}", 3) from None
+    if not stat.S_ISREG(worktree_stat.st_mode):
+        raise PolicyError(f"context input worktree path must be a regular file: {value}", 3)
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise PolicyError("platform cannot enforce no-follow context input reads", 3)
+    try:
+        descriptor = os.open(candidate, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(descriptor, "rb") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise PolicyError(f"context input worktree path must be a regular file: {value}", 3)
+            worktree_bytes = stream.read()
+    except PolicyError:
+        raise
+    except OSError as error:
+        raise PolicyError(f"cannot read context input worktree path {value}: {error}", 3) from None
+    blob_id = fields[2].decode("ascii")
+    pinned = subprocess.run(
+        ["git", "-C", str(repo), "cat-file", "blob", blob_id],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if pinned.returncode != 0:
+        raise PolicyError(f"cannot read context input blob at pinned HEAD: {value}", 3)
+    if worktree_bytes != pinned.stdout:
+        raise PolicyError(f"context input differs from pinned HEAD: {value}", 3)
 
 
 @dataclass(frozen=True)
@@ -449,8 +479,8 @@ def _policy_pair_from_bytes(
         if context_input in seen_inputs:
             raise PolicyError(f"duplicate context input: {context_input}")
         seen_inputs.add(context_input)
-        # Validation consumes only the path, not context bytes. Bind that path to a
-        # tracked blob in the same immutable commit without reading mutable content.
+        # Compare one no-follow worktree snapshot with one blob snapshot from the
+        # same immutable commit used for the policy pair.
         _require_context_blob(repo, commit, context_input)
 
     portable_history = _mapping(topic["portable_history"], "portable_history")
