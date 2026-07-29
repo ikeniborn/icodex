@@ -342,16 +342,17 @@ def _validate_relative_path(value: str, name: str) -> None:
         raise PolicyError(f"{name} must be a repository-relative path")
 
 
-def _require_context_blob(repo: Path, commit: str, value: str) -> None:
+def _require_context_blob(repo: Path, commit: str, value: str, require_worktree_match: bool) -> None:
     relative = Path(value)
     candidate = repo.resolve() / relative
-    resolved = candidate.resolve()
-    try:
-        resolved.relative_to(repo.resolve())
-    except ValueError:
-        raise PolicyError(f"context input must resolve inside repository: {value}", 3) from None
-    if not resolved.is_file():
-        raise PolicyError(f"context input does not exist: {value}", 3)
+    if require_worktree_match:
+        resolved = candidate.resolve()
+        try:
+            resolved.relative_to(repo.resolve())
+        except ValueError:
+            raise PolicyError(f"context input must resolve inside repository: {value}", 3) from None
+        if not resolved.is_file():
+            raise PolicyError(f"context input does not exist: {value}", 3)
     result = subprocess.run(
         [
             "git",
@@ -390,6 +391,8 @@ def _require_context_blob(repo: Path, commit: str, value: str) -> None:
         raise PolicyError(f"malformed context input tree entry at pinned HEAD: {value}", 3)
     if fields[0] not in {b"100644", b"100755"} or fields[1] != b"blob":
         raise PolicyError(f"context input must be a tracked regular file at pinned HEAD: {value}", 3)
+    if not require_worktree_match:
+        return
     try:
         worktree_stat = candidate.lstat()
     except OSError as error:
@@ -434,6 +437,7 @@ def _policy_pair_from_bytes(
     topic_bytes: bytes,
     registry_bytes: bytes,
     commit: str,
+    require_context_worktree_match: bool,
 ) -> _PolicyPair:
     topic = _parse_yaml_bytes(topic_bytes, path)
     _exact_keys(
@@ -479,9 +483,10 @@ def _policy_pair_from_bytes(
         if context_input in seen_inputs:
             raise PolicyError(f"duplicate context input: {context_input}")
         seen_inputs.add(context_input)
-        # Compare one no-follow worktree snapshot with one blob snapshot from the
-        # same immutable commit used for the policy pair.
-        _require_context_blob(repo, commit, context_input)
+        # Schema-only validation binds the literal path and regular blob type.
+        # Runtime additionally compares one no-follow worktree snapshot with the
+        # blob snapshot from the same immutable commit used for the policy pair.
+        _require_context_blob(repo, commit, context_input, require_context_worktree_match)
 
     portable_history = _mapping(topic["portable_history"], "portable_history")
     _exact_keys(portable_history, {"enabled"}, "portable_history")
@@ -533,7 +538,7 @@ def _load_topic_schema(path: Path, registry_path: Path, repo: Path) -> _PolicyPa
     commit = _resolve_head(repo)
     topic_bytes = _read_bytes(path)
     registry_bytes = _read_bytes(registry_path)
-    return _policy_pair_from_bytes(path, registry_path, repo, topic_bytes, registry_bytes, commit)
+    return _policy_pair_from_bytes(path, registry_path, repo, topic_bytes, registry_bytes, commit, False)
 
 
 def _resolve_head(repo: Path) -> str:
@@ -576,7 +581,7 @@ def _load_committed_pair(path: Path, registry_path: Path, repo: Path) -> _Policy
             "registry differs from pinned HEAD; registry hash mismatch requires review and repinning",
             3,
         )
-    return _policy_pair_from_bytes(path, registry_path, repo, topic_bytes, registry_bytes, commit)
+    return _policy_pair_from_bytes(path, registry_path, repo, topic_bytes, registry_bytes, commit, True)
 
 
 def load_topic(path: Path, registry_path: Path, repo: Path) -> dict[str, object]:

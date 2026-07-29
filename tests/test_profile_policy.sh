@@ -261,6 +261,8 @@ DIRTY_CONTEXT_LINK_REPO="$TMP/dirty-context-link"
 init_policy_repo "$DIRTY_CONTEXT_LINK_REPO" fast engineering
 rm "$DIRTY_CONTEXT_LINK_REPO/docs/superpowers/plans/demo.md"
 ln -s ../../profiles/registry.yaml "$DIRTY_CONTEXT_LINK_REPO/docs/superpowers/plans/demo.md"
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic-schema "$DIRTY_CONTEXT_LINK_REPO/docs/profiles/demo.yaml" "$DIRTY_CONTEXT_LINK_REPO/docs/profiles/registry.yaml"
+assert_eq "dirty context symlink allowed by schema-only validation" 0 "$CODE"
 run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$DIRTY_CONTEXT_LINK_REPO/docs/profiles/demo.yaml" "$DIRTY_CONTEXT_LINK_REPO/docs/profiles/registry.yaml"
 assert_eq "dirty context symlink exit" 3 "$CODE"
 assert_contains "dirty context symlink message" "$OUTPUT" "context input worktree path must be a regular file"
@@ -268,6 +270,8 @@ assert_contains "dirty context symlink message" "$OUTPUT" "context input worktre
 DIRTY_CONTEXT_BYTES_REPO="$TMP/dirty-context-bytes"
 init_policy_repo "$DIRTY_CONTEXT_BYTES_REPO" fast engineering
 printf '%s\n' 'dirty context bytes' >"$DIRTY_CONTEXT_BYTES_REPO/docs/superpowers/plans/demo.md"
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic-schema "$DIRTY_CONTEXT_BYTES_REPO/docs/profiles/demo.yaml" "$DIRTY_CONTEXT_BYTES_REPO/docs/profiles/registry.yaml"
+assert_eq "dirty context bytes allowed by schema-only validation" 0 "$CODE"
 run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$DIRTY_CONTEXT_BYTES_REPO/docs/profiles/demo.yaml" "$DIRTY_CONTEXT_BYTES_REPO/docs/profiles/registry.yaml"
 assert_eq "dirty context bytes exit" 3 "$CODE"
 assert_contains "dirty context bytes message" "$OUTPUT" "context input differs from pinned HEAD"
