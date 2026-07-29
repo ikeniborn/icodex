@@ -1,6 +1,6 @@
 ---
 review:
-  intent_hash: 30d4385989ee8f6a
+  intent_hash: 63ec74acade51667
   last_run: 2026-07-29
   phases:
     structure: { status: passed }
@@ -23,11 +23,11 @@ workflow:
 
 Add an automatic model-transition system that evaluates the active Codex model before
 protected task work continues. One shared capacity registry must apply to every project
-launched by this icodex installation. Each project retains its own manifest under its
-per-project `.codex-homes/<project>-<hash>/profiles/` area. At a task boundary, an
-orchestrator selects a sufficient approved profile and starts the next Codex turn with
-it. The hook permits protected work only when the selected profile and task requirement
-agree.
+launched by this icodex installation. Each project retains its own authoritative manifest
+under the target repository's `docs/profiles/` directory, and runtime reads it directly
+from that repository. At a task boundary, an orchestrator selects a sufficient approved
+profile and starts the next Codex turn with it. The hook permits protected work only when
+the selected profile and task requirement agree.
 
 The shared registry must be available through the shared `.codex-isolated/` store and a
 per-home symlink. The per-project manifest requires a durable, reviewed, secret-free Git
@@ -45,8 +45,8 @@ recorded for the task in the capacity registry.
 
 - Every launched project home uses one shared, user-approved registry of model and
   reasoning-effort capacity tiers.
-- Each project has a distinct manifest materialized under its own
-  `.codex-homes/<project>-<hash>/profiles/` location.
+- Each project has a distinct authoritative manifest under its target repository's
+  `docs/profiles/` directory; no home copy or manifest symlink is required.
 - The manifest's approved source and hash survive cross-machine work through a reviewed,
   secret-free Git artifact.
 - A hook detects an active model-slug change per Codex session before protected work.
@@ -68,6 +68,8 @@ recorded for the task in the capacity registry.
   idempotent.
 - Project homes continue to isolate sessions, logs, and mutable runtime state from each
   other.
+- A missing `state/profile-routing/` on another machine produces a safe cold start: policy
+  is revalidated and no prior task progress is inferred.
 - No auth material, caches, temporary files, SQLite state, raw session files, or other
   internal Codex state enters Git.
 - Existing shared-asset symlink behavior and offline launch remain available.
@@ -113,8 +115,11 @@ recorded for the task in the capacity registry.
   a Git authority.
 - Keep the shared registry under `.codex-isolated/` and link it into every per-project
   home; do not duplicate or independently edit it per project.
-- Materialize the project manifest under that project's `.codex-homes/.../profiles/`
-  location only from an approved, hash-addressed, secret-free Git artifact.
+- Read the project manifest directly from the target repository's approved
+  `docs/profiles/<topic>.yaml`; do not copy or symlink it into the project home.
+- Keep handoffs, decisions, and orchestration progress under the per-project
+  `$CODEX_HOME/state/profile-routing/`. Missing state starts a new local run and never
+  implies cross-machine continuation.
 - Never add a whole `.codex-homes/` tree, session history, or a session export to Git.
   Only approved project profile sources under `docs/profiles/` may be tracked.
 - Do not issue `/model`, mutate model configuration, make network requests from the
@@ -132,7 +137,7 @@ recorded for the task in the capacity registry.
   manifest, choose a clearly sufficient profile from the approved matrix, and allow
   that transition.
 - Guarded: persist the decision and inject concise context about the detected transition.
-- Proposal-first: change the capacity registry, manifest source or materialization,
+- Proposal-first: change the capacity registry, manifest source, registry-home symlink,
   hook wiring, blocking semantics, or model-routing policy.
 - No autonomy: choose a profile outside the approved matrix, accept a risk waiver,
   invent capacity values, or track secrets, raw session state, or runtime-home contents.
@@ -145,7 +150,8 @@ recorded for the task in the capacity registry.
   metrics, an undocumented payload field, a profile outside the approved matrix, a
   change to existing chain semantics, or Git tracking of secrets/raw runtime state.
 - Done when two project homes on different machines can use the same reviewed registry,
-  materialize the same approved project manifest from `docs/profiles/`, and select/start
-  a sufficient profile without a manual switch while session history stays machine-local;
-  unknown state blocks with a precise remediation; composition and focused tests pass
-  without weakening existing hooks.
+  validate and use the same approved project manifest from `docs/profiles/`, and
+  select/start a sufficient profile without a manual switch while session history and
+  routing state stay machine-local; missing state produces an explicit new cold start,
+  unknown policy blocks with a precise remediation, and focused tests pass without
+  weakening existing hooks.
