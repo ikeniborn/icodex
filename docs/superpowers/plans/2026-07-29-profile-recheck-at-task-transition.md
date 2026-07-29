@@ -1,6 +1,6 @@
 ---
 review:
-  plan_hash: 18e884530a192064
+  plan_hash: 27f3c7cc799d856d
   last_run: 2026-07-29
   phases:
     structure: { status: passed }
@@ -18,357 +18,490 @@ chain:
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add committed profile policy, deterministic App Server task routing, hook enforcement, and portable cross-machine task history while preserving ordinary interactive Codex launches.
+**Goal:** Route explicit tasks through a shared approved capacity registry and a directly read project manifest, with deterministic App Server selection and machine-local enforcement at every task boundary.
 
-**Architecture:** A dependency-free Python profile layer validates tracked YAML policy, selects the first available sufficient profile, manages one-time state, and speaks App Server JSON-RPC. Bash wrapper modules expose explicit commands and merge a validation-only hook into existing hook wiring. Tracked policy under `docs/profiles/` remains separate from disposable state under `$CODEX_HOME/state/profile-routing/`.
+**Architecture:** icodex owns one tracked registry at `.codex-isolated/profiles/registry.yaml` and exposes it through an exact `$CODEX_HOME/profiles` symlink. Each target repository owns `docs/profiles/<topic>.yaml`; policy validation pins icodex HEAD and target HEAD independently, while runtime handoffs, decisions, and LoEn cache remain under `$CODEX_HOME/state/profile-routing/`. Explicit runner commands start App Server turns; ordinary interactive launches retain manual `/model` and `/status` handling.
 
-**Tech Stack:** Bash, Python 3 standard library, JSON-RPC over stdio, strict project-owned YAML subset, Git, standalone Bash tests.
+**Tech Stack:** Bash, Python 3 standard library, strict project-owned YAML subset, Git plumbing, JSON-RPC over stdio, standalone Bash tests.
 
 ---
 
 ## File Map
 
-- Create `lib/profile/policy.py`: strict YAML-subset parser, schema checks, Git checks,
-  capacity comparison, and deterministic selection.
-- Create `lib/profile/state.py`: restrictive atomic files, one-time handoffs, session
-  decisions, cache keys, and portable bundle validation.
-- Create `lib/profile/app_server.py`: synchronous JSON-RPC process client and documented
-  App Server method adapters.
-- Create `lib/profile/runner.py`: one-shot/orchestration sequencing, structured result
-  handling, LoEn selection reuse, export, and import.
-- Create `lib/profile/profile.sh`: Bash entrypoints that invoke the Python runner.
+- Modify `lib/profile/policy.py`: split Git authority snapshots, canonical shared-registry resolution, immutable policy metadata, and deterministic selection.
+- Modify `tests/test_profile_policy.sh`: two-repository fixtures, authority/path failures, production policy, and stale-policy rejection.
+- Modify `.gitignore`: whitelist only curated shared profile policy while keeping `.codex-homes/` ignored.
+- Create `.codex-isolated/profiles/README.md`: shared registry contract and approval lifecycle.
+- Create `.codex-isolated/profiles/registry.yaml`: single user-approved shared capacity registry.
+- Modify `docs/profiles/README.md`: project-manifest contract and direct-read boundary.
+- Delete `docs/profiles/registry.yaml`: remove stale project-local registry authority.
+- Modify `docs/profiles/profile-recheck-at-task-transition.yaml`: split-authority reference and approved implementation tasks; no portable-history field or task.
+- Modify `lib/config/isolated.sh`: exact managed-link validation and `$CODEX_HOME/profiles` wiring.
+- Modify `tests/test_isolated.sh`: correct, idempotent, and wrong-target profile-link coverage.
+- Create `lib/profile/state.py`: restrictive atomic handoffs, session decisions, exact LoEn cache tuple, invalidation, and cold-start detection.
+- Create `tests/test_profile_state.sh`: state permissions, correlation, replay, isolation, cache, and deletion-recovery tests.
+- Create `.codex-isolated/hooks/profile-transition.py`: protected-action authorization from correlated local evidence.
 - Create `lib/profile/wiring.sh`: idempotent profile-hook composition.
-- Create `.codex-isolated/hooks/profile-transition.py`: protected-action enforcement.
-- Modify `lib/command/args.sh`: parse profile commands without changing passthrough
-  behavior.
-- Modify `icodex.sh`: source profile modules, wire the hook, and dispatch profile modes.
-- Create `docs/profiles/README.md`: schema and approval lifecycle.
-- Create `docs/profiles/registry.yaml`: user-approved exact profile capacities.
-- Create `docs/profiles/profile-recheck-at-task-transition.yaml`: approved topic policy
-  used as the first real manifest.
-- Modify `.codex-isolated/AGENTS.md`: orchestrated path and manual interactive fallback.
-- Modify `docs/README.ru.md`: user-facing commands, failures, and portable transfer.
-- Create `tests/test_profile_policy.sh`: policy, Git state, and selection tests.
-- Create `tests/test_profile_state.sh`: handoff, replay, cache, and permission tests.
-- Create `tests/test_profile_hook.sh`: hook allow/deny and model-change tests.
-- Create `tests/test_profile_runner.sh`: fake App Server and sequencing tests.
-- Create `tests/test_profile_bundle.sh`: portable export/import tests.
+- Create `tests/test_profile_hook.sh`: allow/deny, model-change, and interactive-fallback tests.
 - Create `tests/test_profile_wiring.sh`: hook composition and idempotency tests.
-- Modify `tests/test_args.sh`, `tests/test_smoke.sh`, and
-  `tests/test_workflow_boundaries.sh`: wrapper and documentation integration checks.
+- Create `lib/profile/app_server.py`: synchronous JSON-RPC process client and App Server adapters.
+- Create `lib/profile/runner.py`: one-shot/orchestration sequencing, cold starts, and exact LoEn selection reuse.
+- Create `lib/profile/profile.sh`: Bash runner entrypoints.
+- Modify `lib/command/args.sh`: parse `--run-task` and `--orchestrate` without changing passthrough behavior.
+- Modify `icodex.sh`: source profile modules, compose hook, and dispatch explicit profile modes after normal setup.
+- Create `tests/test_profile_runner.sh`: fake App Server, transition, cold-start, and cache-request-count tests.
+- Modify `tests/test_args.sh`: exact profile-command parsing and ordinary passthrough tests.
+- Modify `tests/test_smoke.sh`: source/setup/dispatch order and absence of export/import commands.
+- Modify `.codex-isolated/AGENTS.md`: orchestrated evidence branch versus ordinary interactive profile gate.
+- Modify `docs/README.ru.md`: shared/project policy locations, commands, cold starts, and recovery.
+- Modify `tests/test_workflow_boundaries.sh`: durable workflow wording and local-only state contract.
+- Update iwiki pages `reference/model-and-reasoning-routing` and `plugin-and-hook-wiring` after behavior stabilizes.
 
 ## Requirement Coverage
 
 | Spec requirement | Plan tasks |
 |---|---|
-| R1 Versioned Capacity Registry | 1, 2 |
-| R2 Committed Topic Profile Manifest | 1, 2 |
-| R3 Deterministic Profile Selection | 1, 5 |
-| R4 Explicit App Server Orchestration | 4, 5 |
-| R5 One-Time Handoff and Hook Enforcement | 3, 4 |
-| R6 Runtime Cache and LoEn Re-evaluation | 3, 5 |
-| R7 Portable Cross-Machine History | 6 |
-| R8 Policy and User Documentation | 2, 7 |
-| R9 Verification Coverage | 1, 3, 4, 5, 6, 7 |
+| R1 Shared Versioned Capacity Registry | 1 |
+| R2 Project-Local Topic Manifest | 1 |
+| R3 Split Git Authority Validation | 1 |
+| R4 Shared Profile Home Wiring | 2 |
+| R5 Deterministic Profile Selection | 1, 5 |
+| R6 App Server Task Runner | 5 |
+| R7 Machine-Local State and Hook Enforcement | 3, 4, 5 |
+| R8 Explicit Cold Starts | 3, 5 |
+| R9 Documentation and Scope Boundary | 1, 5, 6 |
 
-### Task 1: Build Strict Policy Validation and Selection
+## Migration Rule
 
-**Closes:** R1, R2, and R3 by creating the dependency-free policy boundary used by all
-later runtime components.
+Commits `5d8c622` and `1e74dcc` remain in local history, but their policy layout is stale and must never become runtime authority. Task 1 reconciles them through normal forward commits: delete the project-local registry, replace the manifest schema, move the already approved registry bytes into the shared tracked directory, and replace tests that accept the stale layout. Do not reset, amend, rebase, or force-push those commits.
+
+### Task 1: Migrate Policy to Split Git Authorities
+
+**Closes:** R1, R2, R3, and policy-side R5. Produces the first valid shared registry plus direct project manifest and prevents the stale single-repository layout from being accepted.
 
 **Files:**
 
-- Create: `lib/profile/policy.py`
-- Create: `tests/test_profile_policy.sh`
+- Modify: `lib/profile/policy.py`
+- Modify: `tests/test_profile_policy.sh`
+- Modify: `.gitignore`
+- Create: `.codex-isolated/profiles/README.md`
+- Create: `.codex-isolated/profiles/registry.yaml`
+- Modify: `docs/profiles/README.md`
+- Delete: `docs/profiles/registry.yaml`
+- Modify: `docs/profiles/profile-recheck-at-task-transition.yaml`
 
-- [ ] **Step 1: Write failing schema and selector tests**
+- [ ] **Step 1: Write failing two-authority policy tests**
 
-Create `tests/test_profile_policy.sh` using `tests/helpers.sh`. Its fixtures must cover:
+Replace the fixture layout in `tests/test_profile_policy.sh` with two Git repositories and one home link:
 
 ```bash
-python3 "$ROOT/lib/profile/policy.py" validate-registry "$repo/docs/profiles/registry.yaml"
-python3 "$ROOT/lib/profile/policy.py" validate-topic "$repo/docs/profiles/demo.yaml" "$repo/docs/profiles/registry.yaml"
-python3 "$ROOT/lib/profile/policy.py" select "$repo/docs/profiles/demo.yaml" build "$available_json"
+init_policy_pair() { # <shared-repo> <target-repo> <home> <preferred-profile> [preferred-profile]
+  local shared_repo="$1" target_repo="$2" home="$3" registry hash
+  shift 3
+  registry="$shared_repo/.codex-isolated/profiles/registry.yaml"
+  mkdir -p "$(dirname "$registry")" "$target_repo/docs/profiles" "$target_repo/docs/superpowers/plans" "$home"
+  write_registry "$registry"
+  ln -s "$shared_repo/.codex-isolated/profiles" "$home/profiles"
+  hash="$(sha256sum "$registry" | awk '{print $1}')"
+  write_topic "$target_repo/docs/profiles/demo.yaml" "$hash" "$@"
+  printf '%s\n' '# Demo plan' >"$target_repo/docs/superpowers/plans/demo.md"
+  git -C "$shared_repo" init -q -b main
+  git -C "$shared_repo" config user.email test@example.com
+  git -C "$shared_repo" config user.name Test
+  git -C "$shared_repo" add .codex-isolated/profiles
+  git -C "$shared_repo" commit -qm 'shared registry fixture'
+  git -C "$target_repo" init -q -b main
+  git -C "$target_repo" config user.email test@example.com
+  git -C "$target_repo" config user.name Test
+  git -C "$target_repo" add docs
+  git -C "$target_repo" commit -qm 'target manifest fixture'
+}
 ```
 
-Assert these exact observable cases:
+`write_topic` must emit exactly this authority object and omit `portable_history`:
 
-```text
-valid registry -> exit 0
-duplicate mapping key -> exit 2 and "duplicate key: profiles.engineering"
-unsupported YAML feature -> exit 2 and "unsupported YAML"
-dirty topic manifest -> exit 3 and "topic manifest differs from HEAD"
-registry hash mismatch -> exit 3 and "registry hash mismatch"
-first profile unavailable -> second sufficient profile selected
-available but insufficient profile -> skipped with failing dimension
-no sufficient profile -> exit 4 and "no available sufficient profile"
+```yaml
+registry:
+  authority: icodex-shared
+  path: profiles/registry.yaml
+  sha256: REGISTRY_SHA256
 ```
 
-- [ ] **Step 2: Run the policy test and confirm red state**
+Invoke runtime validation with explicit authority inputs:
 
-Run:
+```bash
+python3 "$ROOT/lib/profile/policy.py" validate-topic "$target_repo" "$home" "$shared_repo/.codex-isolated" "$target_repo/docs/profiles/demo.yaml" "$home/profiles/registry.yaml"
+python3 "$ROOT/lib/profile/policy.py" select "$target_repo" "$home" "$shared_repo/.codex-isolated" "$target_repo/docs/profiles/demo.yaml" build "$available_json"
+```
+
+Add assertions for: independent immutable HEADs; dirty/untracked/symlink registry; dirty/untracked/symlink/pathspec context; wrong authority; absolute/traversal registry path; wrong home-link target; project-local `docs/profiles/registry.yaml` rejection; changed registry HEAD during target validation; changed target HEAD during registry validation; manifest SHA and both commit OIDs in successful snapshot output; deterministic fallback; duplicate `model/list`; missing effort metadata; and live remaining-context rejection.
+
+- [ ] **Step 2: Run policy tests and verify the revised contract fails**
 
 ```bash
 bash tests/test_profile_policy.sh
 ```
 
-Expected: non-zero; `lib/profile/policy.py` is missing.
+Expected: non-zero with assertions showing the existing CLI still assumes one repository and still requires `portable_history`.
 
-- [ ] **Step 3: Implement the strict YAML subset and schemas**
+- [ ] **Step 3: Refactor policy loading around explicit immutable snapshots**
 
-Create `lib/profile/policy.py` with these public interfaces:
+Preserve the existing strict YAML parser, registry schema, availability parser, and dimension comparators. Replace `_PolicyPair` with these immutable public data objects in `lib/profile/policy.py`:
 
 ```python
-class PolicyError(Exception):
-    def __init__(self, message: str, exit_code: int = 2):
-        super().__init__(message)
-        self.exit_code = exit_code
+@dataclass(frozen=True)
+class GitBlobSnapshot:
+    repo_root: Path
+    commit_oid: str
+    relative_path: str
+    sha256: str
+    data: bytes
 
 
-def parse_yaml_subset(text: str) -> dict[str, object]:
-    """Parse mappings, lists, quoted/plain scalars, bools, nulls, and integers.
-
-    Reject aliases, anchors, tags, flow collections, duplicate keys, tabs, and
-    implicit type extensions. Return only JSON-compatible values.
-    """
-
-
-def load_registry(path: Path) -> dict[str, object]:
-    """Validate schema_version, registry_version, dimensions, and exact profiles."""
-
-
-def load_topic(path: Path, registry_path: Path, repo: Path) -> dict[str, object]:
-    """Validate schema, committed HEAD equality, approval, registry pin, and tasks."""
-
-
-def select_profile(
-    registry: dict[str, object],
-    topic: dict[str, object],
-    task_id: str,
-    available_models: list[dict[str, object]],
-) -> dict[str, object]:
-    """Return the first ordered profile that is available and sufficient."""
+@dataclass(frozen=True)
+class ValidatedPolicy:
+    registry: dict[str, object]
+    manifest: dict[str, object]
+    registry_commit: str
+    registry_sha256: str
+    registry_version: int
+    target_commit: str
+    manifest_sha256: str
+    target_root: str
+    topic: str
 ```
 
-Implement comparators exactly as specified: `gte` uses candidate index greater than or
-equal to requirement index; `lte` uses candidate index less than or equal to requirement
-index. Treat missing dimensions, unknown tiers, unsupported efforts, and required live
-remaining-context confirmation as blocking errors.
+Add exact authority entrypoints:
 
-- [ ] **Step 4: Add CLI adapters and deterministic JSON output**
+```python
+def snapshot_regular_blob(repo_root: Path, commit_oid: str, path: Path, label: str) -> GitBlobSnapshot:
+    """Read one no-follow worktree file and require equality with one regular blob at commit_oid."""
 
-Add `validate-registry`, `validate-topic`, `validate-topic-schema`, and `select`
-subcommands in the same file. `validate-topic-schema` performs all content and registry
-checks except committed-HEAD equality; runtime code must call `validate-topic`.
-Successful selection output must use sorted compact JSON:
 
-```json
-{"effort":"medium","model":"gpt-5.6-terra","profile":"engineering","task":"build"}
+def load_policy(
+    target_root: Path,
+    codex_home: Path,
+    shared_root: Path,
+    manifest_path: Path,
+    registry_path: Path,
+) -> ValidatedPolicy:
+    """Pin both HEADs once, validate canonical paths, parse each snapshot once, and return immutable metadata."""
 ```
 
-Errors go to stderr and use the `PolicyError.exit_code`; unexpected exceptions use exit
-1 without a traceback unless `ICODEX_PROFILE_DEBUG=1`.
+`load_policy` must enforce these resolved paths before reading bytes:
+
+```python
+expected_manifest = target_root.resolve() / "docs" / "profiles" / f"{topic}.yaml"
+expected_registry = shared_root.resolve() / "profiles" / "registry.yaml"
+home_registry = codex_home.resolve() / "profiles" / "registry.yaml"
+if manifest_path.resolve() != expected_manifest:
+    raise PolicyError(f"topic manifest path must be docs/profiles/{topic}.yaml", 3)
+if registry_path.resolve() != expected_registry or home_registry.resolve() != expected_registry:
+    raise PolicyError("registry must resolve through CODEX_HOME/profiles to shared profiles/registry.yaml", 3)
+```
+
+Resolve the registry repository root with `git -C <shared-root> rev-parse --show-toplevel`, require `<shared-root>` to equal its `.codex-isolated` directory, then resolve `registry_commit` from that repository. Resolve `target_commit` independently from `target_root` before either snapshot read. Use `git ls-tree --literal-pathspecs` plus `git cat-file blob`; do not use `git show HEAD:path` after pinning. Validate context inputs against `target_commit` only. Validate registry bytes against `registry_commit` only. Return the already parsed `ValidatedPolicy`; selection receives it and performs no file read.
+
+- [ ] **Step 4: Replace manifest schema and CLI adapters**
+
+The manifest exact top-level keys become:
+
+```python
+MANIFEST_KEYS = {
+    "schema_version",
+    "topic",
+    "status",
+    "registry",
+    "context_inputs",
+    "tasks",
+}
+REGISTRY_REFERENCE_KEYS = {"authority", "path", "sha256"}
+```
+
+Require `authority == "icodex-shared"`, `path == "profiles/registry.yaml"`, lowercase SHA-256, `status == "approved"`, and exact filename/topic match. Delete every parser branch and error mentioning `portable_history`.
+
+Use these CLI forms:
+
+```text
+policy.py validate-registry <registry-path>
+policy.py validate-topic-schema <target-root> <codex-home> <shared-root> <manifest-path> <registry-path>
+policy.py validate-topic <target-root> <codex-home> <shared-root> <manifest-path> <registry-path>
+policy.py select <target-root> <codex-home> <shared-root> <manifest-path> <task-id> <available-models-json>
+```
+
+`validate-topic-schema` may skip worktree-versus-HEAD equality only for the target manifest being prepared; it must still validate canonical paths, both repository identities, registry hash, context blob types at pinned target HEAD, and schema. Runtime `validate-topic` must require all worktree bytes equal the pinned blobs.
 
 - [ ] **Step 5: Run focused policy tests**
 
-Run:
-
 ```bash
 bash tests/test_profile_policy.sh
 ```
 
-Expected: `FAIL=0` and exit 0.
+Expected: `FAIL=0` and exit 0 for temporary two-repository fixtures; production-policy assertions still fail because migration files are not yet written.
 
-- [ ] **Step 6: Commit the policy boundary**
+- [ ] **Step 6: Write curated shared registry location and ignore rules**
 
-```bash
-git add lib/profile/policy.py tests/test_profile_policy.sh
-git commit -m "feat(profile): validate routing policy"
+Move the previously user-approved registry bytes unchanged from `docs/profiles/registry.yaml` to `.codex-isolated/profiles/registry.yaml`. Its SHA-256 must remain:
+
+```text
+7ef5c802e43fc96ecc23260e0460aa7a0df568c21dd369d86947d8e935d16a92
 ```
 
-### Task 2: Add Approved Registry and Topic Policy
+Add only this whitelist to `.gitignore` beside other curated `.codex-isolated` entries:
 
-**Closes:** R1, R2, and the policy-documentation part of R8 by creating the first
-durable cross-machine routing decision.
+```gitignore
+!.codex-isolated/profiles/
+!.codex-isolated/profiles/**
+```
+
+Create `.codex-isolated/profiles/README.md` stating: registry is shared policy; changes require explicit approval; manifests pin byte hash; directory must contain no manifests, runtime state, auth, cache, binaries, sessions, or live measurements. Update `docs/profiles/README.md` to state that this directory contains direct-read project manifests only and never a registry or runtime-state copy.
+
+- [ ] **Step 7: HUMAN CHECKPOINT — approve revised project manifest bytes**
+
+Present the complete revised `docs/profiles/profile-recheck-at-task-transition.yaml` and SHA-256. It must pin `authority: icodex-shared`, `path: profiles/registry.yaml`, the approved registry hash, current intent/spec/plan context inputs, and exactly these routed task IDs:
+
+```text
+shared-profile-home-wiring
+machine-local-routing-state
+transition-gate-hook-and-wiring
+app-server-task-runner
+documentation-verification-and-result-reconciliation
+```
+
+Present these complete proposed bytes, substituting no values:
+
+```yaml
+schema_version: 1
+topic: profile-recheck-at-task-transition
+status: approved
+registry:
+  authority: icodex-shared
+  path: profiles/registry.yaml
+  sha256: 7ef5c802e43fc96ecc23260e0460aa7a0df568c21dd369d86947d8e935d16a92
+context_inputs:
+  - docs/superpowers/intents/2026-07-29-profile-recheck-at-task-transition-intent.md
+  - docs/superpowers/specs/2026-07-29-profile-recheck-at-task-transition-design.md
+  - docs/superpowers/plans/2026-07-29-profile-recheck-at-task-transition.md
+tasks:
+  - id: shared-profile-home-wiring
+    requirements:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low
+    live_remaining_context: false
+    preferred_profiles:
+      - deep
+  - id: machine-local-routing-state
+    requirements:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low
+    live_remaining_context: false
+    preferred_profiles:
+      - deep
+  - id: transition-gate-hook-and-wiring
+    requirements:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low
+    live_remaining_context: false
+    preferred_profiles:
+      - deep
+  - id: app-server-task-runner
+    requirements:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low
+    live_remaining_context: false
+    preferred_profiles:
+      - deep
+  - id: documentation-verification-and-result-reconciliation
+    requirements:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low
+    live_remaining_context: false
+    preferred_profiles:
+      - deep
+```
+
+The manifest contains neither a `portable_history` field nor a portable-history task. Stop until user approves exact bytes; plan approval does not count as manifest approval.
+
+- [ ] **Step 8: Replace stale production policy and validate pre-commit schema**
+
+Delete `docs/profiles/registry.yaml`, write approved manifest bytes, and extend production assertions in `tests/test_profile_policy.sh`:
+
+```bash
+PRODUCTION_REGISTRY="$ROOT/.codex-isolated/profiles/registry.yaml"
+PRODUCTION_TOPIC="$ROOT/docs/profiles/profile-recheck-at-task-transition.yaml"
+assert_exit "shared registry not ignored by policy whitelist" 1 git -C "$ROOT" check-ignore -q --no-index "$PRODUCTION_REGISTRY"
+assert_exit "stale project registry absent" 1 test -e "$ROOT/docs/profiles/registry.yaml"
+assert_exit "portable history absent from manifest" 1 grep -q 'portable_history\|portable-history' "$PRODUCTION_TOPIC"
+python3 "$ROOT/lib/profile/policy.py" validate-registry "$PRODUCTION_REGISTRY"
+```
+
+For schema validation, create a temporary home whose `profiles` link targets `$ROOT/.codex-isolated/profiles`; use the real target root and shared root. Expected: registry and schema commands exit 0, stale path checks pass.
+
+- [ ] **Step 9: Commit migration, then validate committed production authorities**
+
+```bash
+git add .gitignore .codex-isolated/profiles docs/profiles lib/profile/policy.py tests/test_profile_policy.sh
+git commit -m "feat(profile): split routing policy authorities"
+bash tests/test_profile_policy.sh
+```
+
+Expected: commit succeeds; `FAIL=0`; runtime validation reports distinct `registry_commit` and `target_commit`; `git ls-files docs/profiles/registry.yaml` prints nothing.
+
+### Task 2: Wire the Shared Registry into Every Project Home
+
+**Closes:** R4. Makes the shared registry discoverable at one stable home-relative path without creating any home manifest.
 
 **Files:**
 
-- Create: `docs/profiles/README.md`
-- Create: `docs/profiles/registry.yaml`
-- Create: `docs/profiles/profile-recheck-at-task-transition.yaml`
-- Modify: `tests/test_profile_policy.sh`
+- Modify: `lib/config/isolated.sh`
+- Modify: `tests/test_isolated.sh`
 
-- [ ] **Step 1: Write failing repository-policy tests**
+- [ ] **Step 1: Write failing managed-link tests**
 
-Extend `tests/test_profile_policy.sh` to require both repository paths, strict schema
-version `1`, exact registry hash pinning, and canonical topic
-`profile-recheck-at-task-transition`. At this pre-commit stage, validate the production
-topic with `validate-topic-schema`; committed-HEAD behavior remains covered by the
-temporary-repository tests from Task 1.
-
-Run:
+Add a shared profile fixture and assertions to `tests/test_isolated.sh`:
 
 ```bash
-bash tests/test_profile_policy.sh
+mkdir -p "$ICODEX_SHARED_DIR/profiles"
+printf 'schema_version: 1\n' >"$ICODEX_SHARED_DIR/profiles/registry.yaml"
+setup_codex_home
+assert_exit "profiles symlink" 0 test -L "$ICODEX_HOME_DIR/profiles"
+assert_eq "profiles exact target" "$ICODEX_SHARED_DIR/profiles" "$(readlink "$ICODEX_HOME_DIR/profiles")"
+assert_exit "home manifest absent" 1 test -e "$ICODEX_HOME_DIR/profiles/demo.yaml"
 ```
 
-Expected: FAIL because the production policy files do not exist.
+Capture `stat -c '%i:%Y'` for a correct link, rerun setup, and require unchanged output. Replace it with a wrong symlink, rerun setup, and require exact repair.
 
-- [ ] **Step 2: HUMAN CHECKPOINT — approve exact capacity classifications**
-
-Generate a complete registry proposal from the exact model/effort pairs in the current
-`.codex-isolated/AGENTS.md` catalog. For each pair, propose values for capability,
-catalogued context capacity, latency, cost, and throughput; cite the local policy or
-current `model/list` evidence used. Present the complete YAML and its SHA-256 to the
-user. Stop until the user explicitly approves those exact bytes. Do not treat plan
-approval as registry approval and do not invent live measurements.
-
-- [ ] **Step 3: Write the approved registry and schema documentation**
-
-Write the exact approved bytes to `docs/profiles/registry.yaml`. Document in
-`docs/profiles/README.md`:
-
-```text
-tracked policy != runtime state
-status: approved requires explicit review before commit
-registry hash changes invalidate topic manifests
-gte dimensions: capability, context, throughput
-lte dimensions: latency, cost
-live remaining context is not inferred from catalog context capacity
-unsupported YAML constructs fail closed
-```
-
-- [ ] **Step 4: HUMAN CHECKPOINT — approve the topic task matrix**
-
-Create a complete topic proposal whose task IDs match Tasks 3–7 in this plan. Each task
-must contain requirements and an ordered `preferred_profiles` list referencing only the
-approved registry. Present the full YAML and registry hash to the user. Stop until the
-user explicitly approves those exact bytes.
-
-- [ ] **Step 5: Write and validate the approved topic manifest**
-
-Write the approved bytes to
-`docs/profiles/profile-recheck-at-task-transition.yaml`, set `status: approved`, and run
-pre-commit schema validation:
+- [ ] **Step 2: Run isolated-home test and verify failure**
 
 ```bash
-python3 lib/profile/policy.py validate-registry docs/profiles/registry.yaml
-python3 lib/profile/policy.py validate-topic-schema docs/profiles/profile-recheck-at-task-transition.yaml docs/profiles/registry.yaml
-bash tests/test_profile_policy.sh
+bash tests/test_isolated.sh
 ```
 
-Expected: schema commands exit 0. Repository tests may keep the production-manifest
-HEAD-equality assertion skipped until the approved files are committed; all other
-assertions end with `FAIL=0`.
+Expected: failure because `setup_codex_home` does not create `profiles` and `_link_shared` accepts any existing symlink.
 
-- [ ] **Step 6: Commit approved policy once**
+- [ ] **Step 3: Make the shared-link helper exact and add profiles wiring**
+
+Change `_link_shared` in `lib/config/isolated.sh` to accept only the exact raw target:
 
 ```bash
-git add docs/profiles/README.md docs/profiles/registry.yaml docs/profiles/profile-recheck-at-task-transition.yaml tests/test_profile_policy.sh
-git commit -m "docs(profile): add approved routing manifests"
+_link_shared() { # <name>
+  local name="$1"
+  local target="$ICODEX_HOME_DIR/$name" src="$ICODEX_SHARED_DIR/$name"
+  if [[ -L "$target" && "$(readlink "$target")" == "$src" ]]; then
+    return 0
+  fi
+  rm -rf "$target" 2>/dev/null || true
+  ln -s "$src" "$target"
+}
 ```
 
-- [ ] **Step 7: Verify committed policy authority**
+Add `_link_shared profiles` beside other curated shared directories. Do not create `$ICODEX_HOME/docs/profiles`, copy a manifest, or create routing state during home setup.
+
+- [ ] **Step 4: Run isolated and smoke tests**
 
 ```bash
-python3 lib/profile/policy.py validate-topic docs/profiles/profile-recheck-at-task-transition.yaml docs/profiles/registry.yaml
-bash tests/test_profile_policy.sh
+bash tests/test_isolated.sh
+bash tests/test_smoke.sh
 ```
 
-Expected: both commands exit 0 and the test ends with `FAIL=0`.
+Expected: both exit 0 and report `FAIL=0`.
 
-- [ ] **Step 8: Enforce committed policy in the repository test**
-
-Replace the production manifest's `validate-topic-schema` assertion with full
-`validate-topic`, then run:
+- [ ] **Step 5: Commit shared home wiring**
 
 ```bash
-bash tests/test_profile_policy.sh
+git add lib/config/isolated.sh tests/test_isolated.sh
+git commit -m "feat(profile): link shared registry into homes"
 ```
 
-Expected: `FAIL=0`. Commit the stronger invariant:
+### Task 3: Implement Machine-Local Handoffs, Decisions, and Cache
 
-```bash
-git add tests/test_profile_policy.sh
-git commit -m "test(profile): require committed routing policy"
-```
-
-### Task 3: Implement Atomic Handoffs and Session Decisions
-
-**Closes:** R5 and R6 by making runtime authorization single-use, session-bound, and
-recoverable without treating state as policy.
+**Closes:** state-side R7 and R8. Makes authorization single-use and session-bound while treating missing state as an empty local cold start.
 
 **Files:**
 
 - Create: `lib/profile/state.py`
 - Create: `tests/test_profile_state.sh`
 
-- [ ] **Step 1: Write failing state tests**
+- [ ] **Step 1: Write failing state API tests**
 
-Test these public operations with a temporary `CODEX_HOME`:
+Create `tests/test_profile_state.sh` with Python fixture calls covering:
 
 ```python
 create_handoff(state_root, request)
 consume_handoff(state_root, run_id, sequence, session_id, payload_model)
 load_decision(state_root, session_id)
-cache_matches(decision, expected_tuple)
+save_selection_cache(state_root, run_id, selection_tuple, session_id)
+load_selection_cache(state_root, run_id)
+cache_matches(cache, selection_tuple, authorized_decision)
 invalidate_run(state_root, run_id)
+detect_cold_start(state_root)
 ```
 
-Assertions must prove mode `0600`, atomic replace, one consumer, replay rejection,
-cross-run rejection, cross-task rejection, model mismatch, changed tuple invalidation,
-and recovery after deleting state.
+Assert `0700` state directories and `0600` JSON files; same-directory atomic replace; one consumer; replay, cross-run, cross-task, sequence, hash, request-ID, and model mismatch rejection; concurrent runners cannot consume each other's handoffs; exact tuple match; every tuple-field change misses; missing decision misses; observed-model change misses; deletion returns cold start with no inferred task or history.
 
-- [ ] **Step 2: Run the state test and confirm red state**
+- [ ] **Step 2: Run state test and verify red state**
 
 ```bash
 bash tests/test_profile_state.sh
 ```
 
-Expected: non-zero; `lib/profile/state.py` is missing.
+Expected: non-zero because `lib/profile/state.py` is missing.
 
-- [ ] **Step 3: Implement restrictive atomic state files**
+- [ ] **Step 3: Implement restrictive JSON storage and complete cache tuple**
 
-Create `lib/profile/state.py` with:
+Create `lib/profile/state.py` with these exact data fields:
 
 ```python
 @dataclass(frozen=True)
 class SelectionTuple:
+    target_root: str
     topic: str
     task_id: str
-    requirement_hash: str
+    requirement_fingerprint: str
+    registry_commit: str
+    registry_version: int
     registry_hash: str
+    manifest_commit: str
     manifest_hash: str
     profile: str
+    model: str
+    effort: str
 
 
-def atomic_json_write(path: Path, payload: dict[str, object]) -> None:
-    """Write through a same-directory temporary file, fsync, chmod 0600, replace."""
+class StateError(Exception):
+    pass
 
 
-def create_handoff(state_root: Path, request: dict[str, object]) -> Path:
-    """Validate required fields and create one pending run/sequence record."""
+def routing_root(codex_home: Path) -> Path:
+    return codex_home / "state" / "profile-routing"
 
 
-def consume_handoff(
-    state_root: Path,
-    run_id: str,
-    sequence: int,
-    session_id: str,
-    payload_model: str,
-) -> dict[str, object]:
-    """Atomically move pending state to one session decision or raise StateError."""
+def detect_cold_start(state_root: Path) -> bool:
+    return not state_root.exists()
 ```
 
-Use `os.open` with restrictive creation mode, `os.replace`, and a per-handoff lock file
-created with `O_CREAT | O_EXCL`. Store no prompts, tool output, auth material, or
-transcript paths.
+Implement `atomic_json_write` with a same-directory `os.open(temp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)` temporary file, `flush`, `os.fsync`, `os.chmod(0o600)`, `os.replace`, and directory `fsync`. Create directories at `0700`. Use per-handoff lock files created with `O_CREAT | O_EXCL`; atomically move consumed handoffs out of `pending/` before writing `decisions/<session-id>.json`.
 
-- [ ] **Step 4: Implement cache comparison and invalidation**
+- [ ] **Step 4: Implement exact correlation, cache reuse, and invalidation**
 
-Require exact equality for topic, task, requirement hash, registry hash, manifest hash,
-and selected profile. A later hook event must also match the persisted model. Missing
-fields return false; they never inherit earlier values.
+Require handoff keys: run ID, sequence, canonical target root, topic, task, both commit OIDs, both hashes, registry version, selected profile, exact model/effort, App Server request ID, and a SHA-256 of the exact `turn/start` request. Persist no prompt, response, transcript, auth path, session history, or tool output.
+
+`cache_matches` must compare `dataclasses.asdict(expected)` with the stored tuple, require the same run ID and session ID, and require `decision["authorized"] is True` plus `decision["observed_model"] == expected.model`. Missing or malformed state returns `False`; correlation or replay errors raise `StateError`.
 
 - [ ] **Step 5: Run focused state tests**
 
@@ -376,19 +509,18 @@ fields return false; they never inherit earlier values.
 bash tests/test_profile_state.sh
 ```
 
-Expected: `FAIL=0` and exit 0.
+Expected: `FAIL=0`, exit 0, and deletion case reports a cold start without recovered progress.
 
-- [ ] **Step 6: Commit runtime state support**
+- [ ] **Step 6: Commit local state support**
 
 ```bash
 git add lib/profile/state.py tests/test_profile_state.sh
-git commit -m "feat(profile): persist transition handoffs"
+git commit -m "feat(profile): persist local routing evidence"
 ```
 
-### Task 4: Enforce Profile Decisions in Hook Wiring
+### Task 4: Enforce Profile Decisions in Existing Hook Wiring
 
-**Closes:** R5 and the hook-composition part of R9 by adding a validation-only guard that
-coexists with current enforcement.
+**Closes:** hook-side R7 and R9. Adds a validation-only guard without weakening secret, caveman, chain, LoEn, or iwiki behavior.
 
 **Files:**
 
@@ -401,72 +533,57 @@ coexists with current enforcement.
 
 - [ ] **Step 1: Write failing hook behavior tests**
 
-Feed JSON hook payloads on stdin with `ICODEX_PROFILE_RUN_ID`,
-`ICODEX_PROFILE_SEQUENCE`, and temporary state. Cover:
+Feed JSON hook payloads with temporary `ICODEX_PROFILE_RUN_ID`, `ICODEX_PROFILE_SEQUENCE`, `ICODEX_PROFILE_REQUEST_ID`, `ICODEX_ROOT`, and `CODEX_HOME`. Use this protected payload:
 
 ```json
 {"session_id":"s1","cwd":"/repo","hook_event_name":"PreToolUse","model":"gpt-5.6-terra","tool_name":"Write","tool_input":{"file_path":"x"}}
 ```
 
-Assert allow for a matching one-time handoff, deny for missing/stale/replayed handoff,
-deny for changed model on the next protected event, allow direct `Read`, allow the
-closed read-only command `rg --files`, and deny an unknown shell command. A `Read` or
-otherwise allowlisted shell command targeting an execution skill's `SKILL.md` must be
-protected; an unrelated documentation read remains unprotected. Without
-`ICODEX_PROFILE_RUN_ID`, the hook must allow the ordinary interactive path without
-claiming routed authorization. Also assert that no code path opens `transcript_path`.
+Assert: matching handoff authorizes once; later protected action reuses matching decision; replay, missing handoff, wrong run/task/sequence/request/hash, or changed model denies; direct unrelated `Read` allows; `rg --files` allows; unknown shell command denies; reading an execution skill `SKILL.md` is protected; no routed env allows ordinary interactive work without claiming routed authorization; hook never reads `transcript_path` and never invokes network or `/model`.
 
 - [ ] **Step 2: Write failing wiring-composition tests**
 
-Create `tests/test_profile_wiring.sh` following `tests/test_idd_wiring.sh`. Compose base
-secret hooks, caveman, IDD, then profile wiring. Assert valid JSON, one profile hook,
-idempotency, and preservation of `block-secrets.py`, `redact-secrets.py`,
-`caveman-hook.py`, and both `chain-gate.py` entries.
+Create `tests/test_profile_wiring.sh` following the existing wiring tests. Compose base secret hooks, caveman, chain/IDD, LoEn, iwiki, then profile wiring. Assert valid JSON, one profile hook with matcher `*`, idempotent bytes, and preservation of every existing hook entry.
 
-- [ ] **Step 3: Run hook tests and confirm red state**
+- [ ] **Step 3: Run hook tests and verify red state**
 
 ```bash
 bash tests/test_profile_hook.sh
 bash tests/test_profile_wiring.sh
 ```
 
-Expected: both fail because the hook and wiring module are missing.
+Expected: both fail because hook and wiring module are missing.
 
-- [ ] **Step 4: Implement the transition hook**
+- [ ] **Step 4: Implement protected-action classification and state binding**
 
-Create `.codex-isolated/hooks/profile-transition.py`. It must:
+Create `.codex-isolated/hooks/profile-transition.py` with:
 
 ```python
+READ_ONLY_TOOLS = {"Read", "Glob", "Grep"}
+MUTATING_TOOLS = {"Write", "Edit", "apply_patch"}
+
+
 def is_protected(event: dict[str, object]) -> bool:
-    """Protect writes, edits, patches, skills, unknown tools, and non-allowlisted shell."""
+    """Return false only for a closed read-only discovery allowlist."""
 
 
 def validate_event(event: dict[str, object], environ: Mapping[str, str]) -> dict[str, object]:
-    """Consume or reuse a decision and return a Codex hook allow/deny object."""
+    """Consume the correlated handoff or validate its persisted session decision."""
 ```
 
-The closed read-only shell allowlist contains only commands whose parsed argv begin with
-`rg`, `sed -n`, `git status`, `git diff`, `git show`, `git log`, `git branch
---show-current`, `git rev-parse`, `tree`, or `find` without action flags. Reject shell
-operators, redirections, substitutions, and compound commands before allowlist matching.
-Unknown syntax is protected.
-Resolve `lib/profile/state.py` only through the wrapper-exported `ICODEX_ROOT`; reject a
-missing or non-absolute root rather than importing from cwd or `transcript_path`.
+For Bash, reject shell operators, redirections, substitutions, assignments, and compound syntax before parsing argv. Allow only argv prefixes `rg`, `sed -n`, `git status`, `git diff`, `git show`, `git log`, `git branch --show-current`, `git rev-parse`, `tree`, and `find` without action flags. Unknown syntax/tool/skill is protected. Resolve state code only from absolute `ICODEX_ROOT/lib/profile/state.py`; never use cwd or transcript paths. Return standard hook JSON allowing a match or denying with one remediation: restart through `icodex --run-task <topic> <task-id>`.
 
-- [ ] **Step 5: Implement idempotent hook wiring**
+- [ ] **Step 5: Implement idempotent profile-hook composition**
 
-Create `lib/profile/wiring.sh` using the existing JSON merge pattern. Add one
-`PreToolUse` command:
+Create `lib/profile/wiring.sh` using the established JSON merge/write-if-changed pattern. Add exactly one `PreToolUse` command:
 
-```text
-python3 "$CODEX_HOME/hooks/profile-transition.py"
+```json
+{"matcher":"*","hooks":[{"type":"command","command":"python3 \"$CODEX_HOME/hooks/profile-transition.py\"","timeout":30,"statusMessage":"Checking routed profile evidence"}]}
 ```
 
-Use matcher `*` so unknown tool names reach `is_protected`, preserve every unrelated
-entry, and avoid writing when JSON is unchanged. Source `profile/wiring` in `icodex.sh` and call
-`ensure_profile_wiring` after `ensure_idd_wiring`.
+Source `profile/wiring` in `icodex.sh` and call `ensure_profile_wiring` after existing hook wiring. Do not replace or reorder unrelated entries.
 
-- [ ] **Step 6: Run focused hook and smoke tests**
+- [ ] **Step 6: Run hook regressions**
 
 ```bash
 bash tests/test_profile_hook.sh
@@ -475,19 +592,18 @@ bash tests/test_idd_wiring.sh
 bash tests/test_smoke.sh
 ```
 
-Expected: every test ends with `FAIL=0`.
+Expected: all commands exit 0 with `FAIL=0`; wiring test proves LoEn and iwiki hook entries remain byte-equivalent.
 
 - [ ] **Step 7: Commit hook enforcement**
 
 ```bash
 git add .codex-isolated/hooks/profile-transition.py lib/profile/wiring.sh icodex.sh tests/test_profile_hook.sh tests/test_profile_wiring.sh tests/test_smoke.sh
-git commit -m "feat(profile): enforce routed task transitions"
+git commit -m "feat(profile): enforce routed task evidence"
 ```
 
-### Task 5: Add App Server Runner and Wrapper Commands
+### Task 5: Add App Server Task Runner and Explicit Commands
 
-**Closes:** R3, R4, and R6 by starting tasks with the selected profile and advancing
-only from validated structured output.
+**Closes:** R5, R6, remaining R7, and R8. Starts explicit tasks with selected profile, advances only on structured completion, and treats missing local state as a new run.
 
 **Files:**
 
@@ -498,87 +614,117 @@ only from validated structured output.
 - Modify: `lib/command/args.sh`
 - Modify: `icodex.sh`
 - Modify: `tests/test_args.sh`
+- Modify: `tests/test_smoke.sh`
 
 - [ ] **Step 1: Write failing CLI parsing tests**
 
 Extend `tests/test_args.sh` with exact cases:
 
 ```text
---run-task demo build -> command profile-run-task, topic demo, task build
---orchestrate demo -> command profile-orchestrate, topic demo
-missing topic/task -> non-zero
+--run-task demo build -> ICODEX_CMD=profile-run-task, ICODEX_PROFILE_TOPIC=demo, ICODEX_PROFILE_TASK=build
+--orchestrate demo -> ICODEX_CMD=profile-orchestrate, ICODEX_PROFILE_TOPIC=demo
+--run-task with missing topic/task -> non-zero
+--orchestrate with missing topic -> non-zero
 ordinary --model gpt-x -> unchanged passthrough
+--export-profile-history and --import-profile-history -> ordinary passthrough, never wrapper commands
 ```
 
-- [ ] **Step 2: Write a deterministic fake App Server test**
+- [ ] **Step 2: Write fake App Server and runner tests**
 
-Create `tests/test_profile_runner.sh`. Its fake executable reads newline-delimited JSON
-and responds to `initialize`, `model/list`, `thread/start`, and `turn/start`. Record each
-request to a temporary file. Assert that `turn/start.params` contains exact `model`,
-`effort`, `cwd`, and this transition schema:
+Create `tests/test_profile_runner.sh`. Fake executable reads newline-delimited JSON and handles `initialize`, `model/list`, `thread/start`, and `turn/start`, recording every request. Require `turn/start.params` to contain exact `model`, `effort`, `cwd`, and:
 
 ```json
 {"additionalProperties":false,"properties":{"evidence":{"items":{"type":"string"},"type":"array"},"summary":{"type":"string"},"transition":{"enum":["complete","needs_input","blocked"],"type":"string"}},"required":["transition","summary","evidence"],"type":"object"}
 ```
 
-Test one-shot starts one task. Test orchestration advances once on `complete` and stops
-on `needs_input`, `blocked`, malformed output, interruption, or server error.
+Test: cold `--run-task` starts only requested task with fresh run ID; cold `--orchestrate` prints `Starting new run from first task: <id>` and starts first declared task; `complete` advances exactly once; `needs_input`, `blocked`, malformed output, interruption, or server error never advances. Verify no home manifest is read or created.
 
-- [ ] **Step 3: Run CLI and runner tests and confirm red state**
+For LoEn reuse, seed an authorized session decision and exact cache tuple. Assert second same-run iteration makes zero additional `model/list` requests. Change each tuple field one at a time, delete state, change run ID, and change observed model; each case must add one `model/list` request and create a new handoff.
+
+- [ ] **Step 3: Run CLI and runner tests and verify red state**
 
 ```bash
 bash tests/test_args.sh
 bash tests/test_profile_runner.sh
 ```
 
-Expected: new CLI assertions fail and the runner module is missing.
+Expected: new CLI assertions fail and runner files are missing.
 
-- [ ] **Step 4: Implement the JSON-RPC client**
+- [ ] **Step 4: Implement strict JSON-RPC process client**
 
 Create `lib/profile/app_server.py` with:
 
 ```python
+class AppServerError(Exception):
+    pass
+
+
 class AppServerClient:
-    def __enter__(self) -> "AppServerClient": ...
-    def __exit__(self, exc_type, exc, traceback) -> None: ...
+    def __init__(self, command: list[str], cwd: Path):
+        self.command = command
+        self.cwd = cwd
+        self.next_request_id = 1
+
     def request(
         self,
         method: str,
         params: dict[str, object],
         before_send: Callable[[int, dict[str, object]], None] | None = None,
-    ) -> dict[str, object]: ...
-    def wait_for_turn(self, turn_id: str) -> dict[str, object]: ...
+    ) -> dict[str, object]:
+        """Allocate an ID, persist correlation through before_send, flush one request, and return its matching result."""
+
+    def wait_for_turn(self, turn_id: str) -> dict[str, object]:
+        """Consume validated notifications until the requested turn reaches a terminal state."""
 ```
 
-Use `subprocess.Popen` with stdin/stdout pipes, monotonically increasing request IDs,
-strict response correlation, stderr capture, and bounded shutdown. Ignore unrelated
-notifications only after validating their object shape. Call `before_send` with the
-allocated ID and exact request object immediately before writing and flushing it. If the
-callback fails, write no request. No network transport is added.
+Use `subprocess.Popen` stdio pipes, monotonically increasing integer IDs, exact response correlation, bounded shutdown, and captured stderr. Validate notification object shape before ignoring unrelated events. Call `before_send` after building the exact request and immediately before writing; callback failure must write no App Server request.
 
-- [ ] **Step 5: Implement one-shot and orchestration sequencing**
+- [ ] **Step 5: Implement policy resolution, selection, and cold run sequencing**
 
-Create `lib/profile/runner.py`. Before `turn/start`, validate policy, call `model/list`,
-select the profile, compute the complete cache tuple, and create the correlated handoff.
-Create that handoff from the `before_send` callback so its request ID and exact
-`turn/start` fields are durable before the request reaches App Server. Always pass
-explicit `model`, `effort`, `cwd`, and `outputSchema`.
+Create `lib/profile/runner.py` with these boundaries:
 
-For LoEn, compare the persisted selection tuple before calling `model/list`. Reuse only
-an exact match; otherwise re-evaluate. A `complete` result advances to the next declared
-task. Every other terminal result stops without marking later tasks complete.
+```python
+TRANSITION_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "transition": {"type": "string", "enum": ["complete", "needs_input", "blocked"]},
+        "summary": {"type": "string"},
+        "evidence": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["transition", "summary", "evidence"],
+}
 
-- [ ] **Step 6: Wire wrapper commands**
 
-Create `lib/profile/profile.sh` functions `run_profile_task` and
-`run_profile_orchestrator`. Update `lib/command/args.sh` and `icodex.sh` to dispatch them
-after normal home, permission, hook, binary, and proxy setup. Launch App Server through
-the installed isolated binary as `"$ICODEX_BIN" app-server`. When PII masking is
-enabled, reuse `start_pii_proxy_server`, pass the same explicit
-`openai_base_url="http://127.0.0.1:${PII_PROXY_ACTIVE_PORT}/v1"` override to the App
-Server command, and stop the proxy on runner exit.
+def run_task(config: RunnerConfig, topic: str, task_id: str) -> int:
+    """Start exactly one explicit task and return without selecting a successor."""
 
-- [ ] **Step 7: Run focused runner tests**
+
+def orchestrate(config: RunnerConfig, topic: str) -> int:
+    """Start or continue only local run state and advance on structured complete."""
+```
+
+Resolve manifest only as `target_root / "docs/profiles" / f"{topic}.yaml"`; resolve registry only as `codex_home / "profiles/registry.yaml"` plus exact shared-root check. On cache miss: call `load_policy`, call `model/list`, select first sufficient preferred profile, compute requirement fingerprint from canonical sorted JSON, and build the full `SelectionTuple`. On exact LoEn cache hit: reuse selection without policy reread or second `model/list`, but only with same run namespace and matching authorized session decision.
+
+Allocate request ID first through `AppServerClient.request`; in `before_send`, write handoff containing SHA-256 of canonical exact request plus explicit model/effort/cwd. Export only run/sequence/request correlation variables to App Server child environment. A new state root always creates a fresh run ID. Never infer previous task completion from Git or manifest.
+
+- [ ] **Step 6: Wire Bash commands after normal setup**
+
+Create `lib/profile/profile.sh`:
+
+```bash
+run_profile_task() {
+  python3 "$ICODEX_ROOT/lib/profile/runner.py" run-task --target-root "$ICODEX_PROJECT_ROOT" --codex-home "$CODEX_HOME" --shared-root "$ICODEX_SHARED_DIR" --binary "$ICODEX_BIN" --topic "$ICODEX_PROFILE_TOPIC" --task "$ICODEX_PROFILE_TASK"
+}
+
+run_profile_orchestrator() {
+  python3 "$ICODEX_ROOT/lib/profile/runner.py" orchestrate --target-root "$ICODEX_PROJECT_ROOT" --codex-home "$CODEX_HOME" --shared-root "$ICODEX_SHARED_DIR" --binary "$ICODEX_BIN" --topic "$ICODEX_PROFILE_TOPIC"
+}
+```
+
+Parse exact arity in `lib/command/args.sh`. Source `profile/profile` in `icodex.sh`; after normal home, trust, permission, hooks, binary, CLI tools, proxy, PII, and telemetry setup, dispatch `profile-run-task` or `profile-orchestrate` instead of interactive launch. App Server command is `"$ICODEX_BIN" app-server`; when PII masking is active, reuse existing proxy startup/cleanup and exact `openai_base_url` override.
+
+- [ ] **Step 7: Run focused runner and wrapper tests**
 
 ```bash
 bash tests/test_args.sh
@@ -586,213 +732,114 @@ bash tests/test_profile_runner.sh
 bash tests/test_smoke.sh
 ```
 
-Expected: every test ends with `FAIL=0`.
+Expected: all exit 0 with `FAIL=0`; fake request log proves exact one-shot/orchestration counts and zero second `model/list` on exact LoEn cache reuse.
 
-- [ ] **Step 8: Commit task orchestration**
+- [ ] **Step 8: Commit explicit task runner**
 
 ```bash
 git add lib/profile/app_server.py lib/profile/runner.py lib/profile/profile.sh lib/command/args.sh icodex.sh tests/test_args.sh tests/test_profile_runner.sh tests/test_smoke.sh
 git commit -m "feat(profile): orchestrate App Server tasks"
 ```
 
-### Task 6: Add Portable History Export and Import
+### Task 6: Align Durable Guidance and Reconcile the Result
 
-**Closes:** R7 by moving supported model-visible history and routing progress without
-copying internal Codex state.
-
-**Files:**
-
-- Modify: `lib/profile/app_server.py`
-- Modify: `lib/profile/runner.py`
-- Modify: `lib/profile/profile.sh`
-- Modify: `lib/command/args.sh`
-- Create: `tests/test_profile_bundle.sh`
-- Modify: `tests/test_args.sh`
-
-- [ ] **Step 1: Write failing bundle tests**
-
-Add exact command parsing for:
-
-```text
-icodex --profile-export demo s1 /tmp/profile-bundle.json
-icodex --profile-import demo /tmp/profile-bundle.json
-```
-
-The fake App Server must prove export calls `thread/read`, retains only raw Responses
-items accepted by `thread/inject_items`, stores completed task IDs and last sequence,
-and creates mode `0600`. Import must create a new local thread, call
-`thread/inject_items`, and reject topic, schema, sequence, manifest hash, registry hash,
-or unsupported-item mismatch before injection.
-
-- [ ] **Step 2: Run bundle tests and confirm red state**
-
-```bash
-bash tests/test_profile_bundle.sh
-```
-
-Expected: non-zero because export/import commands are absent.
-
-- [ ] **Step 3: Implement documented App Server adapters**
-
-Add:
-
-```python
-def read_thread(self, thread_id: str) -> dict[str, object]:
-    return self.request("thread/read", {"threadId": thread_id, "includeTurns": True})
-
-
-def inject_items(self, thread_id: str, items: list[dict[str, object]]) -> dict[str, object]:
-    return self.request("thread/inject_items", {"threadId": thread_id, "items": items})
-```
-
-Validate every exported item against the documented injection shapes. Fail the whole
-operation on an unsupported item; never silently omit one.
-
-- [ ] **Step 4: Implement restrictive bundle serialization**
-
-Extend `lib/profile/state.py` with `write_bundle` and `load_bundle`. Serialize sorted
-JSON with schema version, topic, source thread ID, completed task IDs, sequence, registry
-hash, manifest hash, and compatible items. Use the same restrictive atomic writer as
-handoffs. Explicitly exclude environment variables, auth paths, internal database paths,
-and transcript paths.
-
-- [ ] **Step 5: Wire export/import commands**
-
-Export requires explicit topic, session ID, and destination. Import requires explicit
-topic and bundle path, validates current committed policy, creates a new thread, injects
-items, and stores the resulting local thread ID for the next matching runner invocation.
-Neither command uploads, syncs, or deletes the source bundle.
-
-- [ ] **Step 6: Run focused bundle and runner tests**
-
-```bash
-bash tests/test_profile_bundle.sh
-bash tests/test_profile_runner.sh
-bash tests/test_args.sh
-```
-
-Expected: every test ends with `FAIL=0`.
-
-- [ ] **Step 7: Commit portable history support**
-
-```bash
-git add lib/profile/app_server.py lib/profile/runner.py lib/profile/state.py lib/profile/profile.sh lib/command/args.sh tests/test_profile_bundle.sh tests/test_profile_runner.sh tests/test_args.sh
-git commit -m "feat(profile): transfer routed task history"
-```
-
-### Task 7: Align Policy Documentation and Complete Verification
-
-**Closes:** R8 and R9 by documenting the verified paths, preserving hook composition,
-and reconciling all design requirements.
+**Closes:** R9 and verifies R1–R8 as one end-to-end behavior set.
 
 **Files:**
 
 - Modify: `.codex-isolated/AGENTS.md`
 - Modify: `docs/README.ru.md`
-- Modify: `lib/command/args.sh`
 - Modify: `tests/test_workflow_boundaries.sh`
 - Modify: `tests/test_smoke.sh`
 - Update through iwiki MCP: `reference/model-and-reasoning-routing`
 - Update through iwiki MCP: `plugin-and-hook-wiring`
 
-- [ ] **Step 1: Write failing documentation-contract tests**
+- [ ] **Step 1: Write failing documentation and scope-boundary tests**
 
-Extend `tests/test_workflow_boundaries.sh` to require these distinctions:
+Extend `tests/test_workflow_boundaries.sh` and `tests/test_smoke.sh` to require these exact distinctions:
 
 ```text
-orchestrated profile path uses committed docs/profiles policy and handoff
-valid orchestrated evidence replaces manual /status confirmation
-ordinary interactive path retains manual /model and /status gate
-hook validates but never selects or changes a model
-registry changes and matrix expansion require user approval
-portable bundle transport remains user-owned
+shared registry authority: .codex-isolated/profiles/registry.yaml
+project manifest authority: <target-repository>/docs/profiles/<topic>.yaml
+orchestrated work: validated split policy plus correlated local handoff
+interactive work: manual /model and /status confirmation remains required
+missing state: new cold run, never cross-machine continuation
+hook: validates evidence, never selects or changes model
+portable history/export/import: out of scope
+.codex-homes/: fully ignored
 ```
 
-Extend help assertions for all four profile commands.
+Assert help documents only `--run-task` and `--orchestrate` as profile wrapper commands. Assert `git ls-files` returns no `.codex-homes/`, `auth.json`, SQLite, raw session, cache, temp, or stale `docs/profiles/registry.yaml` path.
 
-- [ ] **Step 2: Run documentation tests and confirm red state**
+- [ ] **Step 2: Run boundary tests and verify red state**
 
 ```bash
 bash tests/test_workflow_boundaries.sh
 bash tests/test_smoke.sh
 ```
 
-Expected: new assertions fail before documentation edits.
+Expected: new assertions fail before durable guidance and help text are updated.
 
-- [ ] **Step 3: Update durable workflow guidance**
+- [ ] **Step 3: Update `.codex-isolated/AGENTS.md` and user docs**
 
-Edit `.codex-isolated/AGENTS.md` so the Task Transition Gate has two explicit branches:
+Split Task Transition Gate into two explicit branches:
 
 ```text
-Orchestrated: validate committed approved manifest + correlated handoff; do not request
-manual /status when that evidence is current.
+Orchestrated branch: runner validates shared registry and direct project manifest, then the hook accepts only correlated local handoff/session evidence. Matching routed evidence replaces manual /status confirmation for that protected task only.
 
-Interactive: retain current classification, /model request, /status confirmation,
-downgrade, escalation, and critical-migration rules.
+Interactive branch: retain route classification, /model switch request, /status confirmation, downgrade/escalation handling, and critical-migration rules.
 ```
 
-Update `docs/README.ru.md` and CLI help with command examples, approval lifecycle,
-fail-closed messages, state location, export permissions, and external transport
-responsibility. Do not describe the planned behavior as verified until focused tests
-pass.
+Document in `docs/README.ru.md`: policy locations; exact home symlink; two independent Git commits; manifest approval and registry repin lifecycle; command examples; cold `--run-task`; cold `--orchestrate` from first task; local state deletion recovery; actionable dirty/hash/path/model failures; no home manifest; no portable session history. Update CLI help with the two commands and their exact arguments.
 
 - [ ] **Step 4: Run focused integration checks**
 
 ```bash
 bash tests/test_profile_policy.sh
+bash tests/test_isolated.sh
 bash tests/test_profile_state.sh
 bash tests/test_profile_hook.sh
 bash tests/test_profile_wiring.sh
 bash tests/test_profile_runner.sh
-bash tests/test_profile_bundle.sh
 bash tests/test_args.sh
 bash tests/test_smoke.sh
 bash tests/test_workflow_boundaries.sh
 bash tests/test_idd_wiring.sh
 ```
 
-Expected: every test exits 0 and reports `FAIL=0`.
+Expected: every command exits 0 and every test reports `FAIL=0`.
 
-- [ ] **Step 5: Update iwiki after behavior is stable**
+- [ ] **Step 5: Update iwiki after behavior is verified**
 
-Use `wiki_update_page` for `reference/model-and-reasoning-routing` and
-`plugin-and-hook-wiring`. Document verified command semantics, tracked/runtime boundary,
-hook composition, interactive fallback, and portable transfer. Then run `wiki_lint`.
+Use `wiki_update_page` for `reference/model-and-reasoning-routing` and `plugin-and-hook-wiring`. Record only implemented command semantics, split authorities, home symlink, cold-start behavior, local-only state/cache, hook composition, and interactive fallback. Run `wiki_lint`.
 
-Expected: no broken links, orphans, missing sources, stale pages, legacy links, missing
-frontmatter, or tag drift caused by this change.
+Expected: no broken references, orphan/stale pages, missing sources, or tag drift caused by this change.
 
-- [ ] **Step 6: Run the full repository suite**
+- [ ] **Step 6: Run full repository and tracking verification**
 
 ```bash
 for t in tests/test_*.sh; do bash "$t" || exit 1; done
-```
-
-Expected: exit 0; every test file completes without a failure.
-
-- [ ] **Step 7: Review result scope and commit closeout docs**
-
-Run:
-
-```bash
 git diff --check
+git ls-files .codex-homes
+git ls-files '.codex-isolated/auth.json' '.codex-isolated/state/**' '.codex-isolated/sessions/**' '*.sqlite' '*.sqlite3'
+git ls-files docs/profiles/registry.yaml
 git status --short
-git diff --stat
 ```
 
-Verify every changed path maps to R1–R9 and no runtime state, bundle, auth file, binary,
-or secret is tracked. Then commit:
+Expected: full suite exits 0; diff check clean; all three tracking queries print nothing; status contains only intended closeout metadata or is clean.
+
+- [ ] **Step 7: Commit durable guidance**
 
 ```bash
 git add .codex-isolated/AGENTS.md docs/README.ru.md lib/command/args.sh tests/test_workflow_boundaries.sh tests/test_smoke.sh
-git commit -m "docs(profile): document orchestrated routing"
+git commit -m "docs(profile): document split routing authorities"
 ```
 
 - [ ] **Step 8: Run chain result reconciliation**
 
 Run `$check-chain result docs/superpowers/plans/2026-07-29-profile-recheck-at-task-transition.md`.
-Expected: `OK`, no missing commitments, no excess implementation paths, matching plan
-hash, and the topic row closed as `done` with `Result: OK`.
+
+Expected: `OK`; result evidence covers R1–R9; stale commits are reconciled by later commits; topic row becomes `done` with `Result: OK` and current date.
 
 - [ ] **Step 9: Commit machine-readable result closeout**
 
@@ -801,4 +848,4 @@ git add docs/superpowers/plans/2026-07-29-profile-recheck-at-task-transition.md 
 git commit -m "docs(result): close profile transition orchestration"
 ```
 
-Expected: the commit contains the matching `result_check` state and closed topic row.
+Expected: commit contains matching result-check metadata and closed topic row; no runtime state or session artifact is staged.
