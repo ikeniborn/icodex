@@ -1,6 +1,6 @@
 ---
 review:
-  intent_hash: 8422dbed86f3cdad
+  intent_hash: 30d4385989ee8f6a
   last_run: 2026-07-29
   phases:
     structure: { status: passed }
@@ -30,9 +30,9 @@ it. The hook permits protected work only when the selected profile and task requ
 agree.
 
 The shared registry must be available through the shared `.codex-isolated/` store and a
-per-home symlink. The per-project manifest and any portable session history require a
-durable, reviewed, secret-free Git source so the same approved policy can be reconstructed
-on another machine.
+per-home symlink. The per-project manifest requires a durable, reviewed, secret-free Git
+source so the same approved policy can be reconstructed on another machine. Session
+history remains machine-local runtime state.
 
 The hook is a runtime guardrail, not a model selector. The orchestrator may choose only
 from the approved matrix; unknown requirements, new risks, or critical failures outside
@@ -47,8 +47,8 @@ recorded for the task in the capacity registry.
   reasoning-effort capacity tiers.
 - Each project has a distinct manifest materialized under its own
   `.codex-homes/<project>-<hash>/profiles/` location.
-- The manifest's approved source and hash, plus an explicitly exported compatible
-  history, survive cross-machine work through reviewed, secret-free Git artifacts.
+- The manifest's approved source and hash survive cross-machine work through a reviewed,
+  secret-free Git artifact.
 - A hook detects an active model-slug change per Codex session before protected work.
 - A shared, versioned capacity registry evaluates capability, context-window, latency,
   cost, and throughput tiers without claiming live measurements.
@@ -101,7 +101,7 @@ recorded for the task in the capacity registry.
 - Keep capacity attributes qualitative tiers, not fabricated live metrics.
 - Return a concise reason that names the missing or insufficient evidence.
 - Preserve the existing policy's human control over model selection and risk waivers.
-- Prefer explicit, sanitized export/import over tracking runtime-home contents.
+- Keep session history machine-local; do not add portable history export/import.
 
 ### Hard (architectural enforcement)
 
@@ -115,8 +115,8 @@ recorded for the task in the capacity registry.
   home; do not duplicate or independently edit it per project.
 - Materialize the project manifest under that project's `.codex-homes/.../profiles/`
   location only from an approved, hash-addressed, secret-free Git artifact.
-- Never add a whole `.codex-homes/` tree to Git. Only an explicitly defined sanitized
-  profile/session export may be tracked or synchronized.
+- Never add a whole `.codex-homes/` tree, session history, or a session export to Git.
+  Only approved project profile sources under `docs/profiles/` may be tracked.
 - Do not issue `/model`, mutate model configuration, make network requests from the
   hook, or use a `Stop` hook to create a continuation loop.
 - Use App Server `turn/start` model and effort overrides only at task boundaries and
@@ -133,8 +133,7 @@ recorded for the task in the capacity registry.
   that transition.
 - Guarded: persist the decision and inject concise context about the detected transition.
 - Proposal-first: change the capacity registry, manifest source or materialization,
-  Git-tracked export format, hook wiring, blocking semantics, model-routing policy, or
-  retention/synchronization policy.
+  hook wiring, blocking semantics, or model-routing policy.
 - No autonomy: choose a profile outside the approved matrix, accept a risk waiver,
   invent capacity values, or track secrets, raw session state, or runtime-home contents.
 
@@ -146,7 +145,7 @@ recorded for the task in the capacity registry.
   metrics, an undocumented payload field, a profile outside the approved matrix, a
   change to existing chain semantics, or Git tracking of secrets/raw runtime state.
 - Done when two project homes on different machines can use the same reviewed registry,
-  materialize the same approved project manifest and compatible history from secret-free
-  Git artifacts, and select/start a sufficient profile without a manual switch; unknown
-  state blocks with a precise remediation; composition and focused tests pass without
-  weakening existing hooks.
+  materialize the same approved project manifest from `docs/profiles/`, and select/start
+  a sufficient profile without a manual switch while session history stays machine-local;
+  unknown state blocks with a precise remediation; composition and focused tests pass
+  without weakening existing hooks.
