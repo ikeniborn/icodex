@@ -10,8 +10,10 @@ import re
 import stat
 import subprocess
 import sys
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import NoReturn
 
 
@@ -241,14 +243,14 @@ def _parse_yaml_bytes(data: bytes, path: Path) -> dict[str, object]:
     return parse_yaml_subset(text)
 
 
-def _mapping(value: object, name: str) -> dict[str, object]:
-    if not isinstance(value, dict):
+def _mapping(value: object, name: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
         raise PolicyError(f"{name} must be a mapping")
     return value
 
 
-def _list(value: object, name: str) -> list[object]:
-    if not isinstance(value, list):
+def _list(value: object, name: str) -> Sequence[object]:
+    if not isinstance(value, (list, tuple)):
         raise PolicyError(f"{name} must be a list")
     return value
 
@@ -259,7 +261,7 @@ def _string(value: object, name: str) -> str:
     return value
 
 
-def _exact_keys(mapping: dict[str, object], expected: set[str], name: str) -> None:
+def _exact_keys(mapping: Mapping[str, object], expected: set[str], name: str) -> None:
     missing = sorted(expected - mapping.keys())
     unknown = sorted(mapping.keys() - expected)
     if missing:
@@ -271,6 +273,14 @@ def _exact_keys(mapping: dict[str, object], expected: set[str], name: str) -> No
 def _version(value: object, name: str) -> int:
     if type(value) is not int or value < 1:
         raise PolicyError(f"{name} must be a positive integer")
+    return value
+
+
+def _seal(value: object) -> object:
+    if isinstance(value, dict):
+        return MappingProxyType({key: _seal(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_seal(item) for item in value)
     return value
 
 
@@ -340,8 +350,8 @@ class GitBlobSnapshot:
 
 @dataclass(frozen=True)
 class ValidatedPolicy:
-    registry: dict[str, object]
-    manifest: dict[str, object]
+    registry: Mapping[str, object]
+    manifest: Mapping[str, object]
     registry_commit: str
     registry_sha256: str
     registry_version: int
@@ -351,20 +361,32 @@ class ValidatedPolicy:
     topic: str
 
 
-def _normalized(path: Path) -> Path:
-    return Path(os.path.abspath(path))
+def _lexical_absolute(path: Path) -> Path:
+    return path if path.is_absolute() else Path.cwd() / path
+
+
+def _relative_components(path: Path, label: str) -> tuple[str, ...]:
+    parts = path.parts
+    if path.is_absolute() or not parts or any(part in {"", ".", ".."} for part in parts):
+        raise PolicyError(f"{label} must be a lexical repository-relative path", 3)
+    return parts
 
 
 def _repo_relative(path: Path, repo: Path, label: str) -> Path:
-    try:
-        return _normalized(path).relative_to(_normalized(repo))
-    except ValueError:
-        raise PolicyError(f"{label} must be inside repository {repo}") from None
+    root_parts = repo.resolve().parts
+    path_parts = _lexical_absolute(path).parts
+    if path_parts[: len(root_parts)] != root_parts:
+        raise PolicyError(f"{label} must be inside repository {repo}", 3) from None
+    relative_parts = path_parts[len(root_parts) :]
+    relative = Path(*relative_parts)
+    _relative_components(relative, label)
+    return relative
 
 
 def _validate_relative_path(value: str, name: str) -> None:
     path = Path(value)
-    if path.is_absolute() or ".." in path.parts or value in {"", "."}:
+    raw_parts = value.split("/")
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in raw_parts):
         raise PolicyError(f"{name} must be a repository-relative path")
 
 
@@ -455,32 +477,50 @@ def _tree_blob(repo: Path, commit: str, relative: Path, label: str) -> bytes:
     return pinned.stdout
 
 
-def _read_regular_nofollow(path: Path, label: str) -> bytes:
+def _read_regular_beneath(repo_root: Path, relative: Path, label: str) -> bytes:
+    components = _relative_components(relative, label)
+    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
+        raise PolicyError("platform cannot enforce rooted no-follow policy reads", 3)
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptors: list[int] = []
     try:
-        worktree_stat = path.lstat()
-    except OSError as error:
-        raise PolicyError(f"cannot inspect {label} worktree path: {error}", 3) from None
-    if not stat.S_ISREG(worktree_stat.st_mode):
-        raise PolicyError(f"{label} worktree path must be a regular file", 3)
-    if not hasattr(os, "O_NOFOLLOW"):
-        raise PolicyError("platform cannot enforce no-follow policy reads", 3)
-    try:
-        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            current = os.open(repo_root.resolve(), directory_flags)
+        except OSError as error:
+            raise PolicyError(f"cannot open trusted repository root for {label}: {error}", 3) from None
+        descriptors.append(current)
+        for component in components[:-1]:
+            try:
+                current = os.open(component, directory_flags, dir_fd=current)
+            except OSError as error:
+                raise PolicyError(
+                    f"{label} path component must be a real directory: {component}: {error}", 3
+                ) from None
+            descriptors.append(current)
+            if not stat.S_ISDIR(os.fstat(current).st_mode):
+                raise PolicyError(
+                    f"{label} path component must be a real directory: {component}", 3
+                )
+        try:
+            descriptor = os.open(components[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=current)
+        except OSError as error:
+            raise PolicyError(f"{label} worktree path must be a regular file: {error}", 3) from None
         with os.fdopen(descriptor, "rb") as stream:
             if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
                 raise PolicyError(f"{label} worktree path must be a regular file", 3)
             return stream.read()
     except PolicyError:
         raise
-    except OSError as error:
-        raise PolicyError(f"cannot read {label} worktree path: {error}", 3) from None
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
 
 
 def snapshot_regular_blob(repo_root: Path, commit_oid: str, path: Path, label: str) -> GitBlobSnapshot:
     """Read one no-follow worktree file and require equality with one regular blob at commit_oid."""
     repo = repo_root.resolve()
     relative = _repo_relative(path, repo, label)
-    worktree_bytes = _read_regular_nofollow(path, label)
+    worktree_bytes = _read_regular_beneath(repo, relative, label)
     pinned_bytes = _tree_blob(repo, commit_oid, relative, label)
     if worktree_bytes != pinned_bytes:
         raise PolicyError(f"{label} differs from pinned HEAD; approve and commit exact bytes", 3)
@@ -503,12 +543,7 @@ def _require_context_blob(
     pinned = _tree_blob(repo, commit, relative, "context input")
     if not require_context_worktree_match:
         return
-    candidate = repo / relative
-    try:
-        candidate.resolve().relative_to(repo.resolve())
-    except (OSError, ValueError):
-        raise PolicyError(f"context input must resolve inside repository: {value}", 3) from None
-    worktree = _read_regular_nofollow(candidate, "context input")
+    worktree = _read_regular_beneath(repo, relative, "context input")
     if worktree != pinned:
         raise PolicyError(f"context input differs from pinned HEAD: {value}", 3)
 
@@ -534,7 +569,9 @@ def _validate_manifest(
     if not SLUG_RE.fullmatch(topic_name) or path.stem != topic_name:
         raise PolicyError("topic must be canonical lowercase kebab-case and match the filename")
     expected_topic = target_repo / "docs" / "profiles" / f"{topic_name}.yaml"
-    if _normalized(path) != _normalized(expected_topic):
+    if _repo_relative(path, target_repo, "topic manifest") != _repo_relative(
+        expected_topic, target_repo, "topic manifest"
+    ):
         raise PolicyError(f"topic manifest path must be docs/profiles/{topic_name}.yaml", 3)
     if manifest["status"] != "approved":
         raise PolicyError("topic status must be approved", 3)
@@ -624,8 +661,6 @@ def _canonical_authorities(
     expected_shared_root = shared_repo / ".codex-isolated"
     if shared_root.resolve() != expected_shared_root.resolve():
         raise PolicyError("shared root must be the shared repository .codex-isolated", 3)
-    if target_repo == shared_repo:
-        raise PolicyError("target and shared policy authorities must be different Git repositories", 3)
 
     profiles_link = codex_home / "profiles"
     try:
@@ -636,7 +671,7 @@ def _canonical_authorities(
         raise PolicyError("CODEX_HOME profiles link must target shared profiles", 3)
 
     expected_registry_argument = codex_home / "profiles" / "registry.yaml"
-    if _normalized(registry_path) != _normalized(expected_registry_argument):
+    if _lexical_absolute(registry_path) != _lexical_absolute(expected_registry_argument):
         raise PolicyError("registry path must be CODEX_HOME/profiles/registry.yaml", 3)
     canonical_registry = shared_root / "profiles" / "registry.yaml"
     if registry_path.resolve() != canonical_registry.resolve():
@@ -645,7 +680,9 @@ def _canonical_authorities(
     if manifest_path.suffix != ".yaml" or not SLUG_RE.fullmatch(manifest_path.stem):
         raise PolicyError("topic manifest filename must be lowercase kebab-case YAML")
     expected_manifest = target_repo / "docs" / "profiles" / manifest_path.name
-    if _normalized(manifest_path) != _normalized(expected_manifest):
+    if _repo_relative(manifest_path, target_repo, "topic manifest") != _repo_relative(
+        expected_manifest, target_repo, "topic manifest"
+    ):
         raise PolicyError(f"topic manifest path must be docs/profiles/{manifest_path.name}", 3)
     return target_repo, shared_repo, canonical_registry
 
@@ -678,7 +715,10 @@ def _load_policy(
         manifest_bytes = manifest_snapshot.data
         manifest_sha256 = manifest_snapshot.sha256
     else:
-        manifest_bytes = _read_regular_nofollow(manifest_path, "topic manifest")
+        manifest_relative = _repo_relative(manifest_path, target_repo, "topic manifest")
+        manifest_bytes = _read_regular_beneath(
+            target_repo, manifest_relative, "topic manifest"
+        )
         manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
 
     registry, manifest = _validate_manifest(
@@ -690,16 +730,18 @@ def _load_policy(
         registry_snapshot.data,
         require_context_match,
     )
+    sealed_registry = _mapping(_seal(registry), "registry")
+    sealed_manifest = _mapping(_seal(manifest), "topic manifest")
     return ValidatedPolicy(
-        registry=registry,
-        manifest=manifest,
+        registry=sealed_registry,
+        manifest=sealed_manifest,
         registry_commit=registry_commit,
         registry_sha256=registry_snapshot.sha256,
         registry_version=_version(registry["registry_version"], "registry_version"),
         target_commit=target_commit,
         manifest_sha256=manifest_sha256,
         target_root=str(target_repo),
-        topic=_string(manifest["topic"], "topic"),
+        topic=_string(sealed_manifest["topic"], "topic"),
     )
 
 
@@ -722,7 +764,7 @@ def load_policy(
     )
 
 
-def _task(topic: dict[str, object], task_id: str) -> dict[str, object]:
+def _task(topic: Mapping[str, object], task_id: str) -> Mapping[str, object]:
     tasks = _list(topic.get("tasks"), "tasks")
     for raw_task in tasks:
         task = _mapping(raw_task, "task")
@@ -761,14 +803,18 @@ def _availability(available_models: list[dict[str, object]]) -> dict[str, set[st
             )
             if effort not in SUPPORTED_EFFORTS:
                 raise PolicyError(f"unsupported effort metadata for model {model}: {effort}", 4)
+            if effort in parsed:
+                raise PolicyError(
+                    f"duplicate supported reasoning effort for model {model}: {effort}", 4
+                )
             parsed.add(effort)
         availability[model] = parsed
     return availability
 
 
 def select_profile(
-    registry: dict[str, object],
-    topic: dict[str, object],
+    registry: Mapping[str, object],
+    topic: Mapping[str, object],
     task_id: str,
     available_models: list[dict[str, object]],
 ) -> dict[str, object]:
@@ -841,6 +887,15 @@ def select_profile(
     raise PolicyError(f"no available sufficient profile for task {task_id}: {detail}", 4)
 
 
+def select_validated_profile(
+    policy: ValidatedPolicy,
+    task_id: str,
+    available_models: list[dict[str, object]],
+) -> dict[str, object]:
+    """Select from one recursively sealed, validated policy snapshot."""
+    return select_profile(policy.registry, policy.manifest, task_id, available_models)
+
+
 def _available_json(text: str) -> list[dict[str, object]]:
     try:
         value = json.loads(text)
@@ -894,11 +949,8 @@ def _run_cli(arguments: list[str]) -> None:
             Path(arguments[4]),
             Path(arguments[2]) / "profiles" / "registry.yaml",
         )
-        selected = select_profile(
-            policy.registry,
-            policy.manifest,
-            arguments[5],
-            _available_json(arguments[6]),
+        selected = select_validated_profile(
+            policy, arguments[5], _available_json(arguments[6])
         )
         print(json.dumps(selected, sort_keys=True, separators=(",", ":")))
         return

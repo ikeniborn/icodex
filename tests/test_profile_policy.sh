@@ -212,6 +212,25 @@ run_capture python3 "$ROOT/lib/profile/policy.py" validate-registry "$UNKNOWN_TI
 assert_eq "unknown tier exit" 2 "$CODE"
 assert_contains "unknown tier message" "$OUTPUT" "unknown tier"
 
+INVALID_COMPARATOR_REGISTRY="$TMP/invalid-comparator-registry.yaml"
+sed '0,/comparator: gte/s//comparator: lte/' "$VALID_REGISTRY" >"$INVALID_COMPARATOR_REGISTRY"
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-registry "$INVALID_COMPARATOR_REGISTRY"
+assert_eq "invalid comparator exit" 2 "$CODE"
+assert_contains "invalid comparator rejected" "$OUTPUT" "dimensions.capability.comparator must be gte"
+
+UNKNOWN_NESTED_KEY_REGISTRY="$TMP/unknown-nested-key-registry.yaml"
+awk '{ print; if ($0 == "    model: gpt-fast") print "    mystery: forbidden" }' \
+  "$VALID_REGISTRY" >"$UNKNOWN_NESTED_KEY_REGISTRY"
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-registry "$UNKNOWN_NESTED_KEY_REGISTRY"
+assert_eq "unknown nested key exit" 2 "$CODE"
+assert_contains "unknown nested key rejected" "$OUTPUT" "profiles.fast unknown keys: mystery"
+
+DUPLICATE_PAIR_REGISTRY="$TMP/duplicate-model-effort-registry.yaml"
+sed 's/model: gpt-weak/model: gpt-fast/' "$VALID_REGISTRY" >"$DUPLICATE_PAIR_REGISTRY"
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-registry "$DUPLICATE_PAIR_REGISTRY"
+assert_eq "duplicate model effort pair exit" 2 "$CODE"
+assert_contains "duplicate model effort pair rejected" "$OUTPUT" "duplicate model/effort profile: gpt-fast/medium"
+
 # Two independent Git authorities plus one CODEX_HOME symlink.
 init_policy_fixture "$TMP/valid" fast engineering
 assert_exit "split-authority schema validation" 0 validate_topic_schema
@@ -225,19 +244,69 @@ else
 fi
 
 SNAPSHOT_JSON="$(PYTHONPATH="$ROOT/lib/profile" python3 - "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY" <<'PY'
-import dataclasses
 import json
 import sys
 from pathlib import Path
 from policy import load_policy
 
 value = load_policy(*(Path(item) for item in sys.argv[1:]))
-print(json.dumps(dataclasses.asdict(value), sort_keys=True, separators=(",", ":")))
+metadata = {
+    "manifest_sha256": value.manifest_sha256,
+    "registry_commit": value.registry_commit,
+    "target_commit": value.target_commit,
+}
+print(json.dumps(metadata, sort_keys=True, separators=(",", ":")))
 PY
 )"
 assert_contains "snapshot includes registry commit" "$SNAPSHOT_JSON" "\"registry_commit\":\"$SHARED_HEAD\""
 assert_contains "snapshot includes target commit" "$SNAPSHOT_JSON" "\"target_commit\":\"$TARGET_HEAD\""
 assert_contains "snapshot includes manifest hash" "$SNAPSHOT_JSON" "\"manifest_sha256\":\"$(sha256sum "$MANIFEST" | awk '{print $1}')\""
+
+assert_exit "validated policy rejects nested registry and manifest mutation" 0 \
+  env PYTHONPATH="$ROOT/lib/profile" python3 - \
+    "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY" <<'PY'
+import sys
+from pathlib import Path
+
+from policy import load_policy
+
+validated = load_policy(*(Path(value) for value in sys.argv[1:]))
+mutations = (
+    lambda: validated.manifest["tasks"][0]["requirements"].__setitem__("capability", "baseline"),
+    lambda: validated.manifest["tasks"][0]["preferred_profiles"].__setitem__(0, "weak"),
+    lambda: validated.registry["profiles"]["engineering"]["capacities"].__setitem__("context", "small"),
+)
+for mutation in mutations:
+    try:
+        mutation()
+    except (AttributeError, TypeError):
+        continue
+    raise AssertionError("validated policy exposes mutable nested state")
+PY
+
+assert_exit "sealed validated policy is the selection boundary" 0 \
+  env PYTHONPATH="$ROOT/lib/profile" python3 - \
+    "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY" <<'PY'
+import sys
+from pathlib import Path
+
+from policy import load_policy, select_validated_profile
+
+validated = load_policy(*(Path(value) for value in sys.argv[1:]))
+available = [
+    {
+        "id": "gpt-engineering",
+        "supportedReasoningEfforts": [{"reasoningEffort": "medium"}],
+    }
+]
+selected = select_validated_profile(validated, "build", available)
+assert selected == {
+    "effort": "medium",
+    "model": "gpt-engineering",
+    "profile": "engineering",
+    "task": "build",
+}
+PY
 
 init_policy_fixture "$TMP/dirty-registry" fast engineering
 printf '%s\n' '# dirty registry' >>"$SHARED_REGISTRY"
@@ -261,6 +330,13 @@ ln -s "$TMP/real-registry.yaml" "$SHARED_REGISTRY"
 run_capture validate_topic
 assert_eq "symlink registry exit" 3 "$CODE"
 assert_contains "symlink registry rejected" "$OUTPUT" "registry worktree path must be a regular file"
+
+init_policy_fixture "$TMP/symlink-registry-parent" fast engineering
+mv "$SHARED_ROOT/profiles" "$FIXTURE_BASE/real-profiles"
+ln -s "$FIXTURE_BASE/real-profiles" "$SHARED_ROOT/profiles"
+run_capture validate_topic
+assert_eq "symlink registry parent exit" 3 "$CODE"
+assert_contains "symlink registry parent rejected" "$OUTPUT" "registry path component must be a real directory"
 
 init_policy_fixture "$TMP/dirty-manifest" fast engineering
 printf '%s\n' '# dirty manifest' >>"$MANIFEST"
@@ -286,6 +362,13 @@ run_capture validate_topic
 assert_eq "symlink manifest exit" 3 "$CODE"
 assert_contains "symlink manifest rejected" "$OUTPUT" "topic manifest worktree path must be a regular file"
 
+init_policy_fixture "$TMP/symlink-manifest-parent" fast engineering
+mv "$TARGET_REPO/docs/profiles" "$FIXTURE_BASE/real-manifests"
+ln -s "$FIXTURE_BASE/real-manifests" "$TARGET_REPO/docs/profiles"
+run_capture validate_topic
+assert_eq "symlink manifest parent exit" 3 "$CODE"
+assert_contains "symlink manifest parent rejected" "$OUTPUT" "topic manifest path component must be a real directory"
+
 init_policy_fixture "$TMP/dirty-context" fast engineering
 printf '%s\n' 'dirty context' >"$TARGET_REPO/docs/context/demo.md"
 assert_exit "schema preparation permits dirty context bytes" 0 validate_topic_schema
@@ -310,6 +393,13 @@ run_capture validate_topic
 assert_eq "symlink context exit" 3 "$CODE"
 assert_contains "symlink context rejected" "$OUTPUT" "context input worktree path must be a regular file"
 
+init_policy_fixture "$TMP/symlink-context-parent" fast engineering
+mv "$TARGET_REPO/docs/context" "$TARGET_REPO/docs/real-context"
+ln -s real-context "$TARGET_REPO/docs/context"
+run_capture validate_topic
+assert_eq "symlink context parent exit" 3 "$CODE"
+assert_contains "symlink context parent rejected" "$OUTPUT" "context input path component must be a real directory"
+
 init_policy_fixture "$TMP/tracked-symlink-context" fast engineering
 ln -s docs/context/demo.md "$TARGET_REPO/tracked-link.md"
 sed -i 's#docs/context/demo.md#tracked-link.md#' "$MANIFEST"
@@ -327,6 +417,18 @@ git -C "$TARGET_REPO" commit -qm 'reference literal wildcard'
 run_capture validate_topic
 assert_eq "pathspec context exit" 3 "$CODE"
 assert_contains "pathspec treated literally" "$OUTPUT" "context input is not tracked at pinned HEAD: docs/context/*.md"
+
+init_policy_fixture "$TMP/magic-pathspec-context" fast engineering
+MAGIC_CONTEXT=':(top)docs/context/demo.md'
+mkdir -p "$TARGET_REPO/:(top)docs/context"
+printf '%s\n' 'literal Git magic path' >"$TARGET_REPO/$MAGIC_CONTEXT"
+sed -i "s#docs/context/demo.md#$MAGIC_CONTEXT#" "$MANIFEST"
+git -C "$TARGET_REPO" add docs/profiles/demo.yaml
+git -C "$TARGET_REPO" commit -qm 'reference literal Git magic path'
+run_capture validate_topic
+assert_eq "Git magic context pathspec exit" 3 "$CODE"
+assert_contains "Git magic context treated literally" "$OUTPUT" \
+  "context input is not tracked at pinned HEAD: $MAGIC_CONTEXT"
 
 init_policy_fixture "$TMP/wrong-authority" fast engineering
 sed -i 's/authority: icodex-shared/authority: target-project/' "$MANIFEST"
@@ -427,6 +529,41 @@ run_capture env PATH="$GIT_WRAPPER:$PATH" REAL_GIT="$(command -v git)" SHARED_RE
   python3 "$ROOT/lib/profile/policy.py" validate-topic "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY"
 assert_eq "shared HEAD movement during target validation uses pinned registry commit" 0 "$CODE"
 
+init_policy_fixture "$TMP/directory-swap" fast engineering
+ORIGINAL_PROFILES="$FIXTURE_BASE/original-profiles"
+EVIL_PROFILES="$FIXTURE_BASE/evil-profiles"
+mkdir -p "$EVIL_PROFILES"
+cp "$SHARED_REGISTRY" "$EVIL_PROFILES/registry.yaml"
+printf '%s\n' '# swapped authority bytes' >>"$EVIL_PROFILES/registry.yaml"
+assert_exit "directory swap cannot escape opened registry authority" 0 \
+  env PYTHONPATH="$ROOT/lib/profile" EXPECTED_REGISTRY_HASH="$(sha256sum "$SHARED_REGISTRY" | awk '{print $1}')" python3 - \
+    "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY" \
+    "$SHARED_ROOT/profiles" "$ORIGINAL_PROFILES" "$EVIL_PROFILES" <<'PY'
+import os
+import sys
+from pathlib import Path
+
+import policy
+
+arguments = [Path(value) for value in sys.argv[1:6]]
+profiles_path, original_path, evil_path = [Path(value) for value in sys.argv[6:9]]
+real_open = policy.os.open
+swapped = False
+
+def racing_open(path, flags, mode=0o777, *, dir_fd=None):
+    global swapped
+    if not swapped and Path(os.fsdecode(path)).name == "registry.yaml":
+        os.rename(profiles_path, original_path)
+        os.symlink(evil_path, profiles_path, target_is_directory=True)
+        swapped = True
+    return real_open(path, flags, mode, dir_fd=dir_fd)
+
+policy.os.open = racing_open
+validated = policy.load_policy(*arguments)
+assert swapped
+assert validated.registry_sha256 == os.environ["EXPECTED_REGISTRY_HASH"]
+PY
+
 # Selector, comparator, and model/list coverage.
 ENGINEERING_AVAILABLE='[{"id":"gpt-engineering","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]}]'
 init_policy_fixture "$TMP/fallback" fast engineering
@@ -458,6 +595,12 @@ MISSING_EFFORT_METADATA='[{"id":"gpt-engineering"}]'
 run_capture select_topic build "$MISSING_EFFORT_METADATA"
 assert_eq "missing effort metadata exit" 4 "$CODE"
 assert_contains "missing effort metadata rejected" "$OUTPUT" "missing supported effort metadata"
+
+DUPLICATE_EFFORT_METADATA='[{"id":"gpt-engineering","supportedReasoningEfforts":[{"reasoningEffort":"medium"},{"reasoningEffort":"medium"}]}]'
+run_capture select_topic build "$DUPLICATE_EFFORT_METADATA"
+assert_eq "duplicate supported reasoning effort exit" 4 "$CODE"
+assert_eq "duplicate supported reasoning effort rejected" \
+  "duplicate supported reasoning effort for model gpt-engineering: medium" "$OUTPUT"
 
 MISMATCHED_MODEL_FIELDS='[{"id":"gpt-engineering","model":"gpt-other","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]}]'
 run_capture select_topic build "$MISMATCHED_MODEL_FIELDS"
@@ -506,6 +649,14 @@ assert_exit "production manifest pins canonical shared path" 0 grep -Fxq '  path
 assert_eq "production manifest approved byte hash" \
   "6176029a40963ad9db08964606909dc9def856565a94db3817cc35522fa22eef" \
   "$(sha256sum "$PRODUCTION_MANIFEST" | awk '{print $1}')"
+
+SELF_CODEX_HOME="$TMP/self-target-home"
+mkdir -p "$SELF_CODEX_HOME"
+ln -s "$ROOT/.codex-isolated/profiles" "$SELF_CODEX_HOME/profiles"
+assert_exit "production manifest validates when target and shared roles use one repository" 0 \
+  python3 "$ROOT/lib/profile/policy.py" validate-topic \
+    "$ROOT" "$SELF_CODEX_HOME" "$ROOT/.codex-isolated" \
+    "$PRODUCTION_MANIFEST" "$SELF_CODEX_HOME/profiles/registry.yaml"
 
 PRODUCTION_BASE="$TMP/production-policy"
 PRODUCTION_SHARED_REPO="$PRODUCTION_BASE/shared"
