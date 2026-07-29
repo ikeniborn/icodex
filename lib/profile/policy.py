@@ -225,10 +225,17 @@ def parse_yaml_subset(text: str) -> dict[str, object]:
     return value
 
 
-def _read_yaml(path: Path) -> dict[str, object]:
+def _read_bytes(path: Path) -> bytes:
     try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as error:
+        return path.read_bytes()
+    except OSError as error:
+        raise PolicyError(f"cannot read policy file {path}: {error}") from None
+
+
+def _parse_yaml_bytes(data: bytes, path: Path) -> dict[str, object]:
+    try:
+        text = data.decode("utf-8")
+    except UnicodeError as error:
         raise PolicyError(f"cannot read policy file {path}: {error}") from None
     return parse_yaml_subset(text)
 
@@ -266,9 +273,7 @@ def _version(value: object, name: str) -> int:
     return value
 
 
-def load_registry(path: Path) -> dict[str, object]:
-    """Validate schema_version, registry_version, dimensions, and exact profiles."""
-    registry = _read_yaml(path)
+def _validate_registry(registry: dict[str, object]) -> dict[str, object]:
     _exact_keys(registry, {"schema_version", "registry_version", "dimensions", "profiles"}, "registry")
     if type(registry["schema_version"]) is not int or registry["schema_version"] != SCHEMA_VERSION:
         raise PolicyError(f"unsupported registry schema_version: {registry['schema_version']}")
@@ -314,11 +319,13 @@ def load_registry(path: Path) -> dict[str, object]:
     return registry
 
 
-def _sha256(path: Path) -> str:
-    try:
-        return hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError as error:
-        raise PolicyError(f"cannot read policy file {path}: {error}") from None
+def _registry_from_bytes(data: bytes, path: Path) -> dict[str, object]:
+    return _validate_registry(_parse_yaml_bytes(data, path))
+
+
+def load_registry(path: Path) -> dict[str, object]:
+    """Validate schema_version, registry_version, dimensions, and exact profiles."""
+    return _registry_from_bytes(_read_bytes(path), path)
 
 
 def _repo_relative(path: Path, repo: Path, label: str) -> Path:
@@ -334,8 +341,41 @@ def _validate_relative_path(value: str, name: str) -> None:
         raise PolicyError(f"{name} must be a repository-relative path")
 
 
-def _load_topic_schema(path: Path, registry_path: Path, repo: Path) -> tuple[dict[str, object], dict[str, object]]:
-    topic = _read_yaml(path)
+def _require_context_blob(repo: Path, commit: str, value: str) -> None:
+    candidate = repo / value
+    resolved = candidate.resolve()
+    try:
+        relative = resolved.relative_to(repo.resolve())
+    except ValueError:
+        raise PolicyError(f"context input must resolve inside repository: {value}", 3) from None
+    if not resolved.is_file():
+        raise PolicyError(f"context input does not exist: {value}", 3)
+    result = subprocess.run(
+        ["git", "-C", str(repo), "cat-file", "-t", f"{commit}:{relative.as_posix()}"],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0 or result.stdout.strip() != "blob":
+        raise PolicyError(f"context input is not tracked at pinned HEAD: {value}", 3)
+
+
+@dataclass(frozen=True)
+class _PolicyPair:
+    topic: dict[str, object]
+    registry: dict[str, object]
+
+
+def _policy_pair_from_bytes(
+    path: Path,
+    registry_path: Path,
+    repo: Path,
+    topic_bytes: bytes,
+    registry_bytes: bytes,
+    commit: str,
+) -> _PolicyPair:
+    topic = _parse_yaml_bytes(topic_bytes, path)
     _exact_keys(
         topic,
         {"schema_version", "topic", "status", "registry", "context_inputs", "portable_history", "tasks"},
@@ -346,6 +386,9 @@ def _load_topic_schema(path: Path, registry_path: Path, repo: Path) -> tuple[dic
     topic_name = _string(topic["topic"], "topic")
     if not SLUG_RE.fullmatch(topic_name) or path.stem != topic_name:
         raise PolicyError("topic must be canonical lowercase kebab-case and match the filename")
+    expected_topic = repo.resolve() / "docs" / "profiles" / f"{topic_name}.yaml"
+    if path.resolve() != expected_topic:
+        raise PolicyError(f"topic manifest path must be docs/profiles/{topic_name}.yaml", 3)
     if topic["status"] != "approved":
         raise PolicyError("topic status must be approved", 3)
 
@@ -353,14 +396,17 @@ def _load_topic_schema(path: Path, registry_path: Path, repo: Path) -> tuple[dic
     _exact_keys(registry_pin, {"path", "sha256"}, "registry")
     pinned_path = _string(registry_pin["path"], "registry.path")
     _validate_relative_path(pinned_path, "registry.path")
+    expected_registry = repo.resolve() / "docs" / "profiles" / "registry.yaml"
+    if registry_path.resolve() != expected_registry:
+        raise PolicyError("registry path must be docs/profiles/registry.yaml", 3)
     actual_registry_relative = _repo_relative(registry_path, repo, "registry")
     if Path(pinned_path) != actual_registry_relative:
         raise PolicyError(f"registry path mismatch: expected {actual_registry_relative.as_posix()}", 3)
     pinned_hash = _string(registry_pin["sha256"], "registry.sha256")
     if not SHA256_RE.fullmatch(pinned_hash):
         raise PolicyError("registry.sha256 must be a lowercase SHA-256")
-    registry = load_registry(registry_path)
-    if _sha256(registry_path) != pinned_hash:
+    registry = _registry_from_bytes(registry_bytes, registry_path)
+    if hashlib.sha256(registry_bytes).hexdigest() != pinned_hash:
         raise PolicyError("registry hash mismatch; review and repin the topic manifest", 3)
 
     context_inputs = _list(topic["context_inputs"], "context_inputs")
@@ -373,6 +419,9 @@ def _load_topic_schema(path: Path, registry_path: Path, repo: Path) -> tuple[dic
         if context_input in seen_inputs:
             raise PolicyError(f"duplicate context input: {context_input}")
         seen_inputs.add(context_input)
+        # Validation consumes only the path, not context bytes. Bind that path to a
+        # tracked blob in the same immutable commit without reading mutable content.
+        _require_context_blob(repo, commit, context_input)
 
     portable_history = _mapping(topic["portable_history"], "portable_history")
     _exact_keys(portable_history, {"enabled"}, "portable_history")
@@ -417,35 +466,62 @@ def _load_topic_schema(path: Path, registry_path: Path, repo: Path) -> tuple[dic
         unknown_profiles = [profile_id for profile_id in preferred_ids if profile_id not in profiles]
         if unknown_profiles:
             raise PolicyError(f"unknown preferred profile: {unknown_profiles[0]}")
-    return topic, registry
+    return _PolicyPair(topic, registry)
 
 
-def _head_bytes(repo: Path, path: Path, label: str) -> bytes:
+def _load_topic_schema(path: Path, registry_path: Path, repo: Path) -> _PolicyPair:
+    commit = _resolve_head(repo)
+    topic_bytes = _read_bytes(path)
+    registry_bytes = _read_bytes(registry_path)
+    return _policy_pair_from_bytes(path, registry_path, repo, topic_bytes, registry_bytes, commit)
+
+
+def _resolve_head(repo: Path) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--verify", "HEAD^{commit}"],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    commit = result.stdout.strip()
+    if result.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40,64}", commit):
+        raise PolicyError("cannot resolve immutable HEAD commit", 3)
+    return commit
+
+
+def _head_bytes(repo: Path, commit: str, path: Path, label: str) -> bytes:
     relative = _repo_relative(path, repo, label)
     result = subprocess.run(
-        ["git", "-C", str(repo), "show", f"HEAD:{relative.as_posix()}"],
+        ["git", "-C", str(repo), "show", f"{commit}:{relative.as_posix()}"],
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
     if result.returncode != 0:
-        raise PolicyError(f"{label} is not tracked at HEAD; approve and commit it", 3)
+        raise PolicyError(f"{label} is not tracked at pinned HEAD; approve and commit it", 3)
     return result.stdout
+
+
+def _load_committed_pair(path: Path, registry_path: Path, repo: Path) -> _PolicyPair:
+    commit = _resolve_head(repo)
+    topic_bytes = _read_bytes(path)
+    registry_bytes = _read_bytes(registry_path)
+    committed_topic = _head_bytes(repo, commit, path, "topic manifest")
+    committed_registry = _head_bytes(repo, commit, registry_path, "registry")
+    if topic_bytes != committed_topic:
+        raise PolicyError("topic manifest differs from HEAD; approve and commit exact bytes", 3)
+    if registry_bytes != committed_registry:
+        raise PolicyError(
+            "registry differs from pinned HEAD; registry hash mismatch requires review and repinning",
+            3,
+        )
+    return _policy_pair_from_bytes(path, registry_path, repo, topic_bytes, registry_bytes, commit)
 
 
 def load_topic(path: Path, registry_path: Path, repo: Path) -> dict[str, object]:
     """Validate schema, committed HEAD equality, approval, registry pin, and tasks."""
-    topic, _ = _load_topic_schema(path, registry_path, repo)
-    try:
-        topic_bytes = path.read_bytes()
-        registry_bytes = registry_path.read_bytes()
-    except OSError as error:
-        raise PolicyError(f"cannot read policy file: {error}") from None
-    if topic_bytes != _head_bytes(repo, path, "topic manifest"):
-        raise PolicyError("topic manifest differs from HEAD; approve and commit exact bytes", 3)
-    if registry_bytes != _head_bytes(repo, registry_path, "registry"):
-        raise PolicyError("registry differs from HEAD; review and commit exact bytes", 3)
-    return topic
+    return _load_committed_pair(path, registry_path, repo).topic
 
 
 def _task(topic: dict[str, object], task_id: str) -> dict[str, object]:
@@ -462,29 +538,31 @@ def _availability(available_models: list[dict[str, object]]) -> dict[str, set[st
     for index, entry in enumerate(available_models):
         if not isinstance(entry, dict):
             raise PolicyError(f"available_models[{index}] must be a mapping")
-        model_value = entry.get("id", entry.get("model"))
-        model = _string(model_value, f"available_models[{index}].id")
-        raw_efforts = entry.get(
-            "supportedReasoningEfforts",
-            entry.get("supported_efforts", entry.get("reasoning_efforts")),
-        )
+        model_id = entry.get("id")
+        model_alias = entry.get("model")
+        if model_id is not None and model_alias is not None and model_id != model_alias:
+            raise PolicyError(f"model/list id and model disagree at index {index}", 4)
+        model = _string(model_id if model_id is not None else model_alias, f"available_models[{index}].id")
+        if model in availability:
+            raise PolicyError(f"duplicate available model id: {model}", 4)
+        raw_efforts = entry.get("supportedReasoningEfforts")
         if raw_efforts is None:
             availability[model] = None
             continue
         efforts = _list(raw_efforts, f"available_models[{index}].supportedReasoningEfforts")
         parsed: set[str] = set()
         for effort_index, raw_effort in enumerate(efforts):
-            if isinstance(raw_effort, str):
-                effort = raw_effort
-            elif isinstance(raw_effort, dict):
-                effort = _string(
-                    raw_effort.get("reasoningEffort", raw_effort.get("effort")),
-                    f"available_models[{index}].supportedReasoningEfforts[{effort_index}]",
+            if not isinstance(raw_effort, dict) or not isinstance(raw_effort.get("reasoningEffort"), str):
+                raise PolicyError(
+                    f"model/list supportedReasoningEfforts[{effort_index}].reasoningEffort is required",
+                    4,
                 )
-            else:
-                raise PolicyError(f"invalid supported effort metadata for model {model}")
+            effort = _string(
+                raw_effort["reasoningEffort"],
+                f"available_models[{index}].supportedReasoningEfforts[{effort_index}].reasoningEffort",
+            )
             if effort not in SUPPORTED_EFFORTS:
-                raise PolicyError(f"unsupported effort metadata for model {model}: {effort}")
+                raise PolicyError(f"unsupported effort metadata for model {model}: {effort}", 4)
             parsed.add(effort)
         availability[model] = parsed
     return availability
@@ -578,14 +656,6 @@ def _find_repo(path: Path) -> Path:
     return Path(result.stdout.strip())
 
 
-def _topic_registry_path(topic_path: Path, repo: Path) -> Path:
-    topic = _read_yaml(topic_path)
-    registry = _mapping(topic.get("registry"), "registry")
-    registry_value = _string(registry.get("path"), "registry.path")
-    _validate_relative_path(registry_value, "registry.path")
-    return repo / registry_value
-
-
 def _available_json(text: str) -> list[dict[str, object]]:
     try:
         value = json.loads(text)
@@ -622,10 +692,9 @@ def _run_cli(arguments: list[str]) -> None:
     if command == "select" and len(arguments) == 4:
         topic_path = Path(arguments[1])
         repo = _find_repo(topic_path)
-        registry_path = _topic_registry_path(topic_path, repo)
-        topic = load_topic(topic_path, registry_path, repo)
-        registry = load_registry(registry_path)
-        selected = select_profile(registry, topic, arguments[2], _available_json(arguments[3]))
+        registry_path = repo / "docs/profiles/registry.yaml"
+        pair = _load_committed_pair(topic_path, registry_path, repo)
+        selected = select_profile(pair.registry, pair.topic, arguments[2], _available_json(arguments[3]))
         print(json.dumps(selected, sort_keys=True, separators=(",", ":")))
         return
     _usage()
