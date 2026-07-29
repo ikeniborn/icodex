@@ -92,12 +92,11 @@ write_topic() { # <path> <registry-hash> <preferred-profile-lines...>
       'topic: demo' \
       'status: approved' \
       'registry:' \
-      '  path: docs/profiles/registry.yaml' \
+      '  authority: icodex-shared' \
+      '  path: profiles/registry.yaml' \
       "  sha256: $registry_hash" \
       'context_inputs:' \
-      '  - docs/superpowers/plans/demo.md' \
-      'portable_history:' \
-      '  enabled: true' \
+      '  - docs/context/demo.md' \
       'tasks:' \
       '  - id: build' \
       '    requirements:' \
@@ -112,20 +111,51 @@ write_topic() { # <path> <registry-hash> <preferred-profile-lines...>
   } >"$path"
 }
 
-init_policy_repo() { # <repo> <preferred-profile-lines...>
-  local repo="$1" registry hash
+git_init() { # <repo>
+  git -C "$1" init -q -b main
+  git -C "$1" config user.email test@example.com
+  git -C "$1" config user.name Test
+}
+
+init_policy_fixture() { # <base> <preferred-profile-lines...>
+  FIXTURE_BASE="$1"
   shift
-  registry="$repo/docs/profiles/registry.yaml"
-  mkdir -p "$repo/docs/superpowers/plans"
-  write_registry "$registry"
-  printf '%s\n' '# Demo plan' >"$repo/docs/superpowers/plans/demo.md"
-  hash="$(sha256sum "$registry" | awk '{print $1}')"
-  write_topic "$repo/docs/profiles/demo.yaml" "$hash" "$@"
-  git -C "$repo" init -q -b main
-  git -C "$repo" config user.email test@example.com
-  git -C "$repo" config user.name Test
-  git -C "$repo" add docs
-  git -C "$repo" commit -qm 'test fixture'
+  SHARED_REPO="$FIXTURE_BASE/shared"
+  SHARED_ROOT="$SHARED_REPO/.codex-isolated"
+  SHARED_REGISTRY="$SHARED_ROOT/profiles/registry.yaml"
+  TARGET_REPO="$FIXTURE_BASE/target"
+  MANIFEST="$TARGET_REPO/docs/profiles/demo.yaml"
+  CODEX_HOME="$FIXTURE_BASE/home"
+  HOME_REGISTRY="$CODEX_HOME/profiles/registry.yaml"
+
+  mkdir -p "$SHARED_ROOT/profiles" "$TARGET_REPO/docs/context" "$CODEX_HOME"
+  write_registry "$SHARED_REGISTRY"
+  git_init "$SHARED_REPO"
+  git -C "$SHARED_REPO" add .codex-isolated/profiles/registry.yaml
+  git -C "$SHARED_REPO" commit -qm 'shared registry'
+
+  printf '%s\n' '# Demo context' >"$TARGET_REPO/docs/context/demo.md"
+  write_topic "$MANIFEST" "$(sha256sum "$SHARED_REGISTRY" | awk '{print $1}')" "$@"
+  git_init "$TARGET_REPO"
+  git -C "$TARGET_REPO" add docs
+  git -C "$TARGET_REPO" commit -qm 'target manifest'
+
+  ln -s "$SHARED_ROOT/profiles" "$CODEX_HOME/profiles"
+}
+
+validate_topic() {
+  python3 "$ROOT/lib/profile/policy.py" validate-topic \
+    "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY"
+}
+
+validate_topic_schema() {
+  python3 "$ROOT/lib/profile/policy.py" validate-topic-schema \
+    "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY"
+}
+
+select_topic() { # <task> <available-json>
+  python3 "$ROOT/lib/profile/policy.py" select \
+    "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$1" "$2"
 }
 
 run_capture() { # <cmd...>
@@ -133,6 +163,7 @@ run_capture() { # <cmd...>
   CODE=$?
 }
 
+# Strict parser and registry schema coverage.
 VALID_REGISTRY="$TMP/valid-registry.yaml"
 write_registry "$VALID_REGISTRY"
 assert_exit "valid registry" 0 python3 "$ROOT/lib/profile/policy.py" validate-registry "$VALID_REGISTRY"
@@ -181,263 +212,329 @@ run_capture python3 "$ROOT/lib/profile/policy.py" validate-registry "$UNKNOWN_TI
 assert_eq "unknown tier exit" 2 "$CODE"
 assert_contains "unknown tier message" "$OUTPUT" "unknown tier"
 
-DIRTY_REPO="$TMP/dirty"
-init_policy_repo "$DIRTY_REPO" fast engineering
-printf '%s\n' '# dirty' >>"$DIRTY_REPO/docs/profiles/demo.yaml"
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$DIRTY_REPO/docs/profiles/demo.yaml" "$DIRTY_REPO/docs/profiles/registry.yaml"
-assert_eq "dirty topic exit" 3 "$CODE"
-assert_contains "dirty topic message" "$OUTPUT" "topic manifest differs from HEAD"
+# Two independent Git authorities plus one CODEX_HOME symlink.
+init_policy_fixture "$TMP/valid" fast engineering
+assert_exit "split-authority schema validation" 0 validate_topic_schema
+assert_exit "split-authority runtime validation" 0 validate_topic
+SHARED_HEAD="$(git -C "$SHARED_REPO" rev-parse HEAD)"
+TARGET_HEAD="$(git -C "$TARGET_REPO" rev-parse HEAD)"
+if [[ "$SHARED_HEAD" != "$TARGET_HEAD" ]]; then
+  echo "PASS [independent immutable HEADs]"; PASS=$((PASS+1))
+else
+  echo "FAIL [independent immutable HEADs]: fixture commits unexpectedly equal"; FAIL=$((FAIL+1))
+fi
 
-MISMATCH_REPO="$TMP/mismatch"
-init_policy_repo "$MISMATCH_REPO" fast engineering
-printf '%s\n' '# changed registry' >>"$MISMATCH_REPO/docs/profiles/registry.yaml"
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$MISMATCH_REPO/docs/profiles/demo.yaml" "$MISMATCH_REPO/docs/profiles/registry.yaml"
-assert_eq "registry mismatch exit" 3 "$CODE"
-assert_contains "registry mismatch message" "$OUTPUT" "registry hash mismatch"
+SNAPSHOT_JSON="$(PYTHONPATH="$ROOT/lib/profile" python3 - "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY" <<'PY'
+import dataclasses
+import json
+import sys
+from pathlib import Path
+from policy import load_policy
 
-SNAPSHOT_REPO="$TMP/snapshot"
-init_policy_repo "$SNAPSHOT_REPO" fast engineering
-cp "$SNAPSHOT_REPO/docs/profiles/demo.yaml" "$TMP/snapshot-topic-a.yaml"
-cp "$SNAPSHOT_REPO/docs/profiles/registry.yaml" "$TMP/snapshot-registry-a.yaml"
-printf '%s\n' '# registry from commit B' >>"$SNAPSHOT_REPO/docs/profiles/registry.yaml"
-git -C "$SNAPSHOT_REPO" add docs/profiles/registry.yaml
-git -C "$SNAPSHOT_REPO" commit -qm 'inconsistent old snapshot'
-SNAPSHOT_OLD_HEAD="$(git -C "$SNAPSHOT_REPO" rev-parse HEAD)"
-cp "$TMP/snapshot-registry-a.yaml" "$SNAPSHOT_REPO/docs/profiles/registry.yaml"
-printf '%s\n' '# topic from commit C' >>"$SNAPSHOT_REPO/docs/profiles/demo.yaml"
-git -C "$SNAPSHOT_REPO" add docs/profiles/demo.yaml docs/profiles/registry.yaml
-git -C "$SNAPSHOT_REPO" commit -qm 'inconsistent new snapshot'
-SNAPSHOT_NEW_HEAD="$(git -C "$SNAPSHOT_REPO" rev-parse HEAD)"
-git -C "$SNAPSHOT_REPO" update-ref HEAD "$SNAPSHOT_OLD_HEAD"
-cp "$TMP/snapshot-topic-a.yaml" "$SNAPSHOT_REPO/docs/profiles/demo.yaml"
-SNAPSHOT_GIT_DIR="$TMP/snapshot-git"
-mkdir -p "$SNAPSHOT_GIT_DIR"
-printf '%s\n' \
-  '#!/usr/bin/env bash' \
-  'set -eu' \
-  'if [[ "$*" == "-C $SNAPSHOT_REPO rev-parse --verify HEAD^{commit}" ]]; then' \
-  '  output="$("$REAL_GIT" "$@")"' \
-  '  "$REAL_GIT" -C "$SNAPSHOT_REPO" update-ref HEAD "$SNAPSHOT_NEW_HEAD"' \
-  '  printf "%s\n" "$output"' \
-  '  exit 0' \
-  'fi' \
-  'exec "$REAL_GIT" "$@"' >"$SNAPSHOT_GIT_DIR/git"
-chmod +x "$SNAPSHOT_GIT_DIR/git"
-run_capture env PATH="$SNAPSHOT_GIT_DIR:$PATH" REAL_GIT="$(command -v git)" SNAPSHOT_REPO="$SNAPSHOT_REPO" SNAPSHOT_NEW_HEAD="$SNAPSHOT_NEW_HEAD" python3 "$ROOT/lib/profile/policy.py" validate-topic "$SNAPSHOT_REPO/docs/profiles/demo.yaml" "$SNAPSHOT_REPO/docs/profiles/registry.yaml"
-assert_eq "single immutable HEAD snapshot exit" 3 "$CODE"
-assert_contains "single immutable HEAD snapshot message" "$OUTPUT" "registry differs from pinned HEAD"
+value = load_policy(*(Path(item) for item in sys.argv[1:]))
+print(json.dumps(dataclasses.asdict(value), sort_keys=True, separators=(",", ":")))
+PY
+)"
+assert_contains "snapshot includes registry commit" "$SNAPSHOT_JSON" "\"registry_commit\":\"$SHARED_HEAD\""
+assert_contains "snapshot includes target commit" "$SNAPSHOT_JSON" "\"target_commit\":\"$TARGET_HEAD\""
+assert_contains "snapshot includes manifest hash" "$SNAPSHOT_JSON" "\"manifest_sha256\":\"$(sha256sum "$MANIFEST" | awk '{print $1}')\""
 
-WRONG_TOPIC_REPO="$TMP/wrong-topic-path"
-init_policy_repo "$WRONG_TOPIC_REPO" fast engineering
-mkdir -p "$WRONG_TOPIC_REPO/policies"
-git -C "$WRONG_TOPIC_REPO" mv docs/profiles/demo.yaml policies/demo.yaml
-git -C "$WRONG_TOPIC_REPO" commit -qm 'move topic outside authority directory'
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$WRONG_TOPIC_REPO/policies/demo.yaml" "$WRONG_TOPIC_REPO/docs/profiles/registry.yaml"
-assert_eq "wrong topic directory exit" 3 "$CODE"
-assert_contains "wrong topic directory message" "$OUTPUT" "topic manifest path must be"
+init_policy_fixture "$TMP/dirty-registry" fast engineering
+printf '%s\n' '# dirty registry' >>"$SHARED_REGISTRY"
+run_capture validate_topic
+assert_eq "dirty registry exit" 3 "$CODE"
+assert_contains "dirty registry rejected" "$OUTPUT" "registry differs from pinned HEAD"
 
-WRONG_REGISTRY_REPO="$TMP/wrong-registry-path"
-init_policy_repo "$WRONG_REGISTRY_REPO" fast engineering
-mkdir -p "$WRONG_REGISTRY_REPO/policies"
-git -C "$WRONG_REGISTRY_REPO" mv docs/profiles/registry.yaml policies/registry.yaml
-sed -i 's#path: docs/profiles/registry.yaml#path: policies/registry.yaml#' "$WRONG_REGISTRY_REPO/docs/profiles/demo.yaml"
-git -C "$WRONG_REGISTRY_REPO" add docs/profiles/demo.yaml
-git -C "$WRONG_REGISTRY_REPO" commit -qm 'move registry outside authority directory'
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$WRONG_REGISTRY_REPO/docs/profiles/demo.yaml" "$WRONG_REGISTRY_REPO/policies/registry.yaml"
-assert_eq "wrong registry directory exit" 3 "$CODE"
-assert_contains "wrong registry directory message" "$OUTPUT" "registry path must be"
-
-UNTRACKED_CONTEXT_REPO="$TMP/untracked-context"
-init_policy_repo "$UNTRACKED_CONTEXT_REPO" fast engineering
-printf '%s\n' 'untracked context' >"$UNTRACKED_CONTEXT_REPO/untracked-context.md"
-sed -i 's#docs/superpowers/plans/demo.md#untracked-context.md#' "$UNTRACKED_CONTEXT_REPO/docs/profiles/demo.yaml"
-git -C "$UNTRACKED_CONTEXT_REPO" add docs/profiles/demo.yaml
-git -C "$UNTRACKED_CONTEXT_REPO" commit -qm 'reference untracked context'
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$UNTRACKED_CONTEXT_REPO/docs/profiles/demo.yaml" "$UNTRACKED_CONTEXT_REPO/docs/profiles/registry.yaml"
-assert_eq "untracked context input exit" 3 "$CODE"
-assert_contains "untracked context input message" "$OUTPUT" "context input is not tracked at pinned HEAD"
-
-DIRTY_CONTEXT_LINK_REPO="$TMP/dirty-context-link"
-init_policy_repo "$DIRTY_CONTEXT_LINK_REPO" fast engineering
-rm "$DIRTY_CONTEXT_LINK_REPO/docs/superpowers/plans/demo.md"
-ln -s ../../profiles/registry.yaml "$DIRTY_CONTEXT_LINK_REPO/docs/superpowers/plans/demo.md"
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic-schema "$DIRTY_CONTEXT_LINK_REPO/docs/profiles/demo.yaml" "$DIRTY_CONTEXT_LINK_REPO/docs/profiles/registry.yaml"
-assert_eq "dirty context symlink allowed by schema-only validation" 0 "$CODE"
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$DIRTY_CONTEXT_LINK_REPO/docs/profiles/demo.yaml" "$DIRTY_CONTEXT_LINK_REPO/docs/profiles/registry.yaml"
-assert_eq "dirty context symlink exit" 3 "$CODE"
-assert_contains "dirty context symlink message" "$OUTPUT" "context input worktree path must be a regular file"
-
-DIRTY_CONTEXT_BYTES_REPO="$TMP/dirty-context-bytes"
-init_policy_repo "$DIRTY_CONTEXT_BYTES_REPO" fast engineering
-printf '%s\n' 'dirty context bytes' >"$DIRTY_CONTEXT_BYTES_REPO/docs/superpowers/plans/demo.md"
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic-schema "$DIRTY_CONTEXT_BYTES_REPO/docs/profiles/demo.yaml" "$DIRTY_CONTEXT_BYTES_REPO/docs/profiles/registry.yaml"
-assert_eq "dirty context bytes allowed by schema-only validation" 0 "$CODE"
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$DIRTY_CONTEXT_BYTES_REPO/docs/profiles/demo.yaml" "$DIRTY_CONTEXT_BYTES_REPO/docs/profiles/registry.yaml"
-assert_eq "dirty context bytes exit" 3 "$CODE"
-assert_contains "dirty context bytes message" "$OUTPUT" "context input differs from pinned HEAD"
-
-UNTRACKED_CONTEXT_LINK_REPO="$TMP/untracked-context-link"
-init_policy_repo "$UNTRACKED_CONTEXT_LINK_REPO" fast engineering
-ln -s docs/superpowers/plans/demo.md "$UNTRACKED_CONTEXT_LINK_REPO/untracked-link.md"
-sed -i 's#docs/superpowers/plans/demo.md#untracked-link.md#' "$UNTRACKED_CONTEXT_LINK_REPO/docs/profiles/demo.yaml"
-git -C "$UNTRACKED_CONTEXT_LINK_REPO" add docs/profiles/demo.yaml
-git -C "$UNTRACKED_CONTEXT_LINK_REPO" commit -qm 'reference untracked context symlink'
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$UNTRACKED_CONTEXT_LINK_REPO/docs/profiles/demo.yaml" "$UNTRACKED_CONTEXT_LINK_REPO/docs/profiles/registry.yaml"
-assert_eq "untracked context symlink exit" 3 "$CODE"
-assert_contains "untracked context symlink message" "$OUTPUT" "context input is not tracked at pinned HEAD: untracked-link.md"
-
-TRACKED_CONTEXT_LINK_REPO="$TMP/tracked-context-link"
-init_policy_repo "$TRACKED_CONTEXT_LINK_REPO" fast engineering
-ln -s docs/superpowers/plans/demo.md "$TRACKED_CONTEXT_LINK_REPO/tracked-link.md"
-sed -i 's#docs/superpowers/plans/demo.md#tracked-link.md#' "$TRACKED_CONTEXT_LINK_REPO/docs/profiles/demo.yaml"
-git -C "$TRACKED_CONTEXT_LINK_REPO" add docs/profiles/demo.yaml tracked-link.md
-git -C "$TRACKED_CONTEXT_LINK_REPO" commit -qm 'reference tracked context symlink'
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$TRACKED_CONTEXT_LINK_REPO/docs/profiles/demo.yaml" "$TRACKED_CONTEXT_LINK_REPO/docs/profiles/registry.yaml"
-assert_eq "tracked context symlink exit" 3 "$CODE"
-assert_contains "tracked context symlink message" "$OUTPUT" "context input must be a tracked regular file at pinned HEAD: tracked-link.md"
-
-PATHSPEC_CONTEXT_REPO="$TMP/pathspec-context"
-init_policy_repo "$PATHSPEC_CONTEXT_REPO" fast engineering
-printf '%s\n' 'untracked literal wildcard path' >"$PATHSPEC_CONTEXT_REPO/docs/superpowers/plans/*.md"
-sed -i 's#docs/superpowers/plans/demo.md#docs/superpowers/plans/*.md#' "$PATHSPEC_CONTEXT_REPO/docs/profiles/demo.yaml"
-git -C "$PATHSPEC_CONTEXT_REPO" add docs/profiles/demo.yaml
-git -C "$PATHSPEC_CONTEXT_REPO" commit -qm 'reference untracked literal wildcard path'
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$PATHSPEC_CONTEXT_REPO/docs/profiles/demo.yaml" "$PATHSPEC_CONTEXT_REPO/docs/profiles/registry.yaml"
-assert_eq "context input pathspec treated literally exit" 3 "$CODE"
-assert_contains "context input pathspec treated literally message" "$OUTPUT" "context input is not tracked at pinned HEAD: docs/superpowers/plans/*.md"
-
-MAGIC_CONTEXT_REPO="$TMP/magic-context"
-MAGIC_CONTEXT_VALUE=':(top)docs/superpowers/plans/demo.md'
-init_policy_repo "$MAGIC_CONTEXT_REPO" fast engineering
-mkdir -p "$MAGIC_CONTEXT_REPO/:(top)docs/superpowers/plans"
-printf '%s\n' 'untracked literal magic path' >"$MAGIC_CONTEXT_REPO/$MAGIC_CONTEXT_VALUE"
-sed -i "s#docs/superpowers/plans/demo.md#$MAGIC_CONTEXT_VALUE#" "$MAGIC_CONTEXT_REPO/docs/profiles/demo.yaml"
-git -C "$MAGIC_CONTEXT_REPO" add docs/profiles/demo.yaml
-git -C "$MAGIC_CONTEXT_REPO" commit -qm 'reference untracked literal magic path'
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$MAGIC_CONTEXT_REPO/docs/profiles/demo.yaml" "$MAGIC_CONTEXT_REPO/docs/profiles/registry.yaml"
-assert_eq "context input magic path treated literally exit" 3 "$CODE"
-assert_contains "context input magic path treated literally message" "$OUTPUT" "context input is not tracked at pinned HEAD: $MAGIC_CONTEXT_VALUE"
-
-OUTSIDE_CONTEXT_REPO="$TMP/outside-context"
-init_policy_repo "$OUTSIDE_CONTEXT_REPO" fast engineering
-printf '%s\n' 'outside context' >"$TMP/outside-context.md"
-ln -s "$TMP/outside-context.md" "$OUTSIDE_CONTEXT_REPO/outside-link.md"
-sed -i 's#docs/superpowers/plans/demo.md#outside-link.md#' "$OUTSIDE_CONTEXT_REPO/docs/profiles/demo.yaml"
-git -C "$OUTSIDE_CONTEXT_REPO" add docs/profiles/demo.yaml outside-link.md
-git -C "$OUTSIDE_CONTEXT_REPO" commit -qm 'reference outside context'
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$OUTSIDE_CONTEXT_REPO/docs/profiles/demo.yaml" "$OUTSIDE_CONTEXT_REPO/docs/profiles/registry.yaml"
-assert_eq "outside context input exit" 3 "$CODE"
-assert_contains "outside context input message" "$OUTPUT" "context input must resolve inside repository"
-
-UNAPPROVED_REPO="$TMP/unapproved-topic"
-init_policy_repo "$UNAPPROVED_REPO" fast engineering
-sed -i 's/^status: approved$/status: draft/' "$UNAPPROVED_REPO/docs/profiles/demo.yaml"
-git -C "$UNAPPROVED_REPO" add docs/profiles/demo.yaml
-git -C "$UNAPPROVED_REPO" commit -qm 'mark topic unapproved'
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$UNAPPROVED_REPO/docs/profiles/demo.yaml" "$UNAPPROVED_REPO/docs/profiles/registry.yaml"
-assert_eq "unapproved topic exit" 3 "$CODE"
-assert_contains "unapproved topic message" "$OUTPUT" "topic status must be approved"
-
-UNTRACKED_TOPIC_REPO="$TMP/untracked-topic"
-init_policy_repo "$UNTRACKED_TOPIC_REPO" fast engineering
-cp "$UNTRACKED_TOPIC_REPO/docs/profiles/demo.yaml" "$TMP/untracked-topic.yaml"
-git -C "$UNTRACKED_TOPIC_REPO" rm -q docs/profiles/demo.yaml
-git -C "$UNTRACKED_TOPIC_REPO" commit -qm 'remove tracked topic'
-cp "$TMP/untracked-topic.yaml" "$UNTRACKED_TOPIC_REPO/docs/profiles/demo.yaml"
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$UNTRACKED_TOPIC_REPO/docs/profiles/demo.yaml" "$UNTRACKED_TOPIC_REPO/docs/profiles/registry.yaml"
-assert_eq "untracked topic exit" 3 "$CODE"
-assert_contains "untracked topic message" "$OUTPUT" "topic manifest is not tracked at pinned HEAD"
-
-UNTRACKED_REGISTRY_REPO="$TMP/untracked-registry"
-init_policy_repo "$UNTRACKED_REGISTRY_REPO" fast engineering
-cp "$UNTRACKED_REGISTRY_REPO/docs/profiles/registry.yaml" "$TMP/untracked-registry.yaml"
-git -C "$UNTRACKED_REGISTRY_REPO" rm -q docs/profiles/registry.yaml
-git -C "$UNTRACKED_REGISTRY_REPO" commit -qm 'remove tracked registry'
-cp "$TMP/untracked-registry.yaml" "$UNTRACKED_REGISTRY_REPO/docs/profiles/registry.yaml"
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$UNTRACKED_REGISTRY_REPO/docs/profiles/demo.yaml" "$UNTRACKED_REGISTRY_REPO/docs/profiles/registry.yaml"
+init_policy_fixture "$TMP/untracked-registry" fast engineering
+cp "$SHARED_REGISTRY" "$TMP/untracked-registry-copy.yaml"
+git -C "$SHARED_REPO" rm -q .codex-isolated/profiles/registry.yaml
+git -C "$SHARED_REPO" commit -qm 'remove registry'
+mkdir -p "$(dirname "$SHARED_REGISTRY")"
+cp "$TMP/untracked-registry-copy.yaml" "$SHARED_REGISTRY"
+run_capture validate_topic
 assert_eq "untracked registry exit" 3 "$CODE"
-assert_contains "untracked registry message" "$OUTPUT" "registry is not tracked at pinned HEAD"
+assert_contains "untracked registry rejected" "$OUTPUT" "registry is not tracked at pinned HEAD"
 
-BOOL_TOPIC_REPO="$TMP/bool-topic-schema"
-init_policy_repo "$BOOL_TOPIC_REPO" fast engineering
-sed -i 's/^schema_version: 1$/schema_version: true/' "$BOOL_TOPIC_REPO/docs/profiles/demo.yaml"
-run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic-schema "$BOOL_TOPIC_REPO/docs/profiles/demo.yaml" "$BOOL_TOPIC_REPO/docs/profiles/registry.yaml"
+init_policy_fixture "$TMP/symlink-registry" fast engineering
+mv "$SHARED_REGISTRY" "$TMP/real-registry.yaml"
+ln -s "$TMP/real-registry.yaml" "$SHARED_REGISTRY"
+run_capture validate_topic
+assert_eq "symlink registry exit" 3 "$CODE"
+assert_contains "symlink registry rejected" "$OUTPUT" "registry worktree path must be a regular file"
+
+init_policy_fixture "$TMP/dirty-manifest" fast engineering
+printf '%s\n' '# dirty manifest' >>"$MANIFEST"
+assert_exit "schema preparation permits dirty manifest bytes" 0 validate_topic_schema
+run_capture validate_topic
+assert_eq "dirty manifest exit" 3 "$CODE"
+assert_contains "dirty manifest rejected" "$OUTPUT" "topic manifest differs from pinned HEAD"
+
+init_policy_fixture "$TMP/untracked-manifest" fast engineering
+cp "$MANIFEST" "$TMP/untracked-manifest-copy.yaml"
+git -C "$TARGET_REPO" rm -q docs/profiles/demo.yaml
+git -C "$TARGET_REPO" commit -qm 'remove manifest'
+mkdir -p "$(dirname "$MANIFEST")"
+cp "$TMP/untracked-manifest-copy.yaml" "$MANIFEST"
+run_capture validate_topic
+assert_eq "untracked manifest exit" 3 "$CODE"
+assert_contains "untracked manifest rejected" "$OUTPUT" "topic manifest is not tracked at pinned HEAD"
+
+init_policy_fixture "$TMP/symlink-manifest" fast engineering
+mv "$MANIFEST" "$TMP/real-manifest.yaml"
+ln -s "$TMP/real-manifest.yaml" "$MANIFEST"
+run_capture validate_topic
+assert_eq "symlink manifest exit" 3 "$CODE"
+assert_contains "symlink manifest rejected" "$OUTPUT" "topic manifest worktree path must be a regular file"
+
+init_policy_fixture "$TMP/dirty-context" fast engineering
+printf '%s\n' 'dirty context' >"$TARGET_REPO/docs/context/demo.md"
+assert_exit "schema preparation permits dirty context bytes" 0 validate_topic_schema
+run_capture validate_topic
+assert_eq "dirty context exit" 3 "$CODE"
+assert_contains "dirty context rejected" "$OUTPUT" "context input differs from pinned HEAD"
+
+init_policy_fixture "$TMP/untracked-context" fast engineering
+printf '%s\n' 'untracked context' >"$TARGET_REPO/untracked.md"
+sed -i 's#docs/context/demo.md#untracked.md#' "$MANIFEST"
+git -C "$TARGET_REPO" add docs/profiles/demo.yaml
+git -C "$TARGET_REPO" commit -qm 'reference untracked context'
+run_capture validate_topic
+assert_eq "untracked context exit" 3 "$CODE"
+assert_contains "untracked context rejected" "$OUTPUT" "context input is not tracked at pinned HEAD"
+
+init_policy_fixture "$TMP/symlink-context" fast engineering
+rm "$TARGET_REPO/docs/context/demo.md"
+ln -s ../profiles/demo.yaml "$TARGET_REPO/docs/context/demo.md"
+assert_exit "schema checks pinned regular context blob only" 0 validate_topic_schema
+run_capture validate_topic
+assert_eq "symlink context exit" 3 "$CODE"
+assert_contains "symlink context rejected" "$OUTPUT" "context input worktree path must be a regular file"
+
+init_policy_fixture "$TMP/tracked-symlink-context" fast engineering
+ln -s docs/context/demo.md "$TARGET_REPO/tracked-link.md"
+sed -i 's#docs/context/demo.md#tracked-link.md#' "$MANIFEST"
+git -C "$TARGET_REPO" add docs/profiles/demo.yaml tracked-link.md
+git -C "$TARGET_REPO" commit -qm 'reference tracked symlink'
+run_capture validate_topic_schema
+assert_eq "tracked symlink context exit" 3 "$CODE"
+assert_contains "tracked symlink context rejected" "$OUTPUT" "context input must be a tracked regular file at pinned HEAD"
+
+init_policy_fixture "$TMP/pathspec-context" fast engineering
+printf '%s\n' 'literal wildcard' >"$TARGET_REPO/docs/context/*.md"
+sed -i 's#docs/context/demo.md#docs/context/*.md#' "$MANIFEST"
+git -C "$TARGET_REPO" add docs/profiles/demo.yaml
+git -C "$TARGET_REPO" commit -qm 'reference literal wildcard'
+run_capture validate_topic
+assert_eq "pathspec context exit" 3 "$CODE"
+assert_contains "pathspec treated literally" "$OUTPUT" "context input is not tracked at pinned HEAD: docs/context/*.md"
+
+init_policy_fixture "$TMP/wrong-authority" fast engineering
+sed -i 's/authority: icodex-shared/authority: target-project/' "$MANIFEST"
+run_capture validate_topic_schema
+assert_eq "wrong authority exit" 2 "$CODE"
+assert_contains "wrong authority rejected" "$OUTPUT" "registry.authority must be icodex-shared"
+
+init_policy_fixture "$TMP/absolute-registry-path" fast engineering
+sed -i 's#path: profiles/registry.yaml#path: /profiles/registry.yaml#' "$MANIFEST"
+run_capture validate_topic_schema
+assert_eq "absolute registry path exit" 2 "$CODE"
+assert_contains "absolute registry path rejected" "$OUTPUT" "registry.path must be a repository-relative path"
+
+init_policy_fixture "$TMP/traversal-registry-path" fast engineering
+sed -i 's#path: profiles/registry.yaml#path: profiles/../profiles/registry.yaml#' "$MANIFEST"
+run_capture validate_topic_schema
+assert_eq "traversal registry path exit" 2 "$CODE"
+assert_contains "traversal registry path rejected" "$OUTPUT" "registry.path must be a repository-relative path"
+
+init_policy_fixture "$TMP/portable-history" fast engineering
+sed -i '/^tasks:/i portable_history:\n  enabled: true' "$MANIFEST"
+run_capture validate_topic_schema
+assert_eq "portable history exit" 2 "$CODE"
+assert_contains "portable history rejected" "$OUTPUT" "topic manifest unknown keys: portable_history"
+
+init_policy_fixture "$TMP/bool-topic-schema" fast engineering
+sed -i 's/^schema_version: 1$/schema_version: true/' "$MANIFEST"
+run_capture validate_topic_schema
 assert_eq "topic boolean schema version exit" 2 "$CODE"
 assert_contains "topic boolean schema version rejected" "$OUTPUT" "unsupported topic schema_version"
 
-FALLBACK_REPO="$TMP/exact-fallback"
-init_policy_repo "$FALLBACK_REPO" fast engineering
-ENGINEERING_AVAILABLE='[{"id":"gpt-engineering","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]}]'
-run_capture python3 "$ROOT/lib/profile/policy.py" select "$FALLBACK_REPO/docs/profiles/demo.yaml" build "$ENGINEERING_AVAILABLE"
-assert_eq "second sufficient profile selection exit" 0 "$CODE"
-assert_eq "unavailable first profile falls through to second" '{"effort":"medium","model":"gpt-engineering","profile":"engineering","task":"build"}' "$OUTPUT"
+init_policy_fixture "$TMP/unapproved-topic" fast engineering
+sed -i 's/^status: approved$/status: draft/' "$MANIFEST"
+run_capture validate_topic_schema
+assert_eq "unapproved topic exit" 3 "$CODE"
+assert_contains "unapproved topic rejected" "$OUTPUT" "topic status must be approved"
 
-LTE_REPO="$TMP/lte-comparator"
-init_policy_repo "$LTE_REPO" expensive engineering
+init_policy_fixture "$TMP/wrong-home-link" fast engineering
+rm "$CODEX_HOME/profiles"
+mkdir -p "$FIXTURE_BASE/other/profiles"
+cp "$SHARED_REGISTRY" "$FIXTURE_BASE/other/profiles/registry.yaml"
+ln -s "$FIXTURE_BASE/other/profiles" "$CODEX_HOME/profiles"
+run_capture validate_topic
+assert_eq "wrong home link target exit" 3 "$CODE"
+assert_contains "wrong home link target rejected" "$OUTPUT" "CODEX_HOME profiles link must target shared profiles"
+
+init_policy_fixture "$TMP/target-local-registry" fast engineering
+cp "$SHARED_REGISTRY" "$TARGET_REPO/docs/profiles/registry.yaml"
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic \
+  "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$TARGET_REPO/docs/profiles/registry.yaml"
+assert_eq "target-local registry exit" 3 "$CODE"
+assert_contains "target-local registry rejected" "$OUTPUT" "registry path must be CODEX_HOME/profiles/registry.yaml"
+
+# Pin both authorities before either policy snapshot is read.
+init_policy_fixture "$TMP/move-target" fast engineering
+TARGET_A="$(git -C "$TARGET_REPO" rev-parse HEAD)"
+cp "$MANIFEST" "$TMP/target-a.yaml"
+printf '%s\n' '# target B' >>"$MANIFEST"
+git -C "$TARGET_REPO" add docs/profiles/demo.yaml
+git -C "$TARGET_REPO" commit -qm 'target B'
+TARGET_B="$(git -C "$TARGET_REPO" rev-parse HEAD)"
+git -C "$TARGET_REPO" update-ref HEAD "$TARGET_A"
+cp "$TMP/target-a.yaml" "$MANIFEST"
+GIT_WRAPPER="$TMP/move-target-bin"
+mkdir -p "$GIT_WRAPPER"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -eu' \
+  'if [[ "$*" == *"-C $SHARED_REPO"* && "$*" == *"ls-tree"* ]]; then' \
+  '  "$REAL_GIT" -C "$TARGET_REPO" update-ref HEAD "$TARGET_B"' \
+  'fi' \
+  'exec "$REAL_GIT" "$@"' >"$GIT_WRAPPER/git"
+chmod +x "$GIT_WRAPPER/git"
+run_capture env PATH="$GIT_WRAPPER:$PATH" REAL_GIT="$(command -v git)" SHARED_REPO="$SHARED_REPO" TARGET_REPO="$TARGET_REPO" TARGET_B="$TARGET_B" \
+  python3 "$ROOT/lib/profile/policy.py" validate-topic "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY"
+assert_eq "target HEAD movement during registry validation uses pinned target commit" 0 "$CODE"
+
+init_policy_fixture "$TMP/move-shared" fast engineering
+SHARED_A="$(git -C "$SHARED_REPO" rev-parse HEAD)"
+cp "$SHARED_REGISTRY" "$TMP/shared-a.yaml"
+printf '%s\n' '# shared B' >>"$SHARED_REGISTRY"
+git -C "$SHARED_REPO" add .codex-isolated/profiles/registry.yaml
+git -C "$SHARED_REPO" commit -qm 'shared B'
+SHARED_B="$(git -C "$SHARED_REPO" rev-parse HEAD)"
+git -C "$SHARED_REPO" update-ref HEAD "$SHARED_A"
+cp "$TMP/shared-a.yaml" "$SHARED_REGISTRY"
+GIT_WRAPPER="$TMP/move-shared-bin"
+mkdir -p "$GIT_WRAPPER"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'set -eu' \
+  'if [[ "$*" == *"-C $TARGET_REPO"* && "$*" == *"ls-tree"* ]]; then' \
+  '  "$REAL_GIT" -C "$SHARED_REPO" update-ref HEAD "$SHARED_B"' \
+  'fi' \
+  'exec "$REAL_GIT" "$@"' >"$GIT_WRAPPER/git"
+chmod +x "$GIT_WRAPPER/git"
+run_capture env PATH="$GIT_WRAPPER:$PATH" REAL_GIT="$(command -v git)" SHARED_REPO="$SHARED_REPO" TARGET_REPO="$TARGET_REPO" SHARED_B="$SHARED_B" \
+  python3 "$ROOT/lib/profile/policy.py" validate-topic "$TARGET_REPO" "$CODEX_HOME" "$SHARED_ROOT" "$MANIFEST" "$HOME_REGISTRY"
+assert_eq "shared HEAD movement during target validation uses pinned registry commit" 0 "$CODE"
+
+# Selector, comparator, and model/list coverage.
+ENGINEERING_AVAILABLE='[{"id":"gpt-engineering","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]}]'
+init_policy_fixture "$TMP/fallback" fast engineering
+run_capture select_topic build "$ENGINEERING_AVAILABLE"
+assert_eq "second sufficient profile selection exit" 0 "$CODE"
+assert_eq "deterministic fallback" '{"effort":"medium","model":"gpt-engineering","profile":"engineering","task":"build"}' "$OUTPUT"
+
+init_policy_fixture "$TMP/lte" expensive engineering
 LTE_AVAILABLE='[{"id":"gpt-expensive","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]},{"id":"gpt-engineering","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]}]'
-run_capture python3 "$ROOT/lib/profile/policy.py" select "$LTE_REPO/docs/profiles/demo.yaml" build "$LTE_AVAILABLE"
+run_capture select_topic build "$LTE_AVAILABLE"
 assert_eq "lte decisive selection exit" 0 "$CODE"
 assert_eq "high latency and cost fail lte" '{"effort":"medium","model":"gpt-engineering","profile":"engineering","task":"build"}' "$OUTPUT"
 
-LIVE_CONTEXT_REPO="$TMP/live-context"
-init_policy_repo "$LIVE_CONTEXT_REPO" engineering
-sed -i 's/live_remaining_context: false/live_remaining_context: true/' "$LIVE_CONTEXT_REPO/docs/profiles/demo.yaml"
-git -C "$LIVE_CONTEXT_REPO" add docs/profiles/demo.yaml
-git -C "$LIVE_CONTEXT_REPO" commit -qm 'require live remaining context'
-run_capture python3 "$ROOT/lib/profile/policy.py" select "$LIVE_CONTEXT_REPO/docs/profiles/demo.yaml" build "$ENGINEERING_AVAILABLE"
+init_policy_fixture "$TMP/live-context" engineering
+sed -i 's/live_remaining_context: false/live_remaining_context: true/' "$MANIFEST"
+git -C "$TARGET_REPO" add docs/profiles/demo.yaml
+git -C "$TARGET_REPO" commit -qm 'require live remaining context'
+run_capture select_topic build "$ENGINEERING_AVAILABLE"
 assert_eq "live remaining context exit" 4 "$CODE"
-assert_contains "live remaining context message" "$OUTPUT" "requires live remaining-context confirmation"
+assert_contains "live remaining context rejected" "$OUTPUT" "requires live remaining-context confirmation"
 
+init_policy_fixture "$TMP/model-list" engineering
 DUPLICATE_MODELS='[{"id":"gpt-engineering","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]},{"id":"gpt-engineering","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]}]'
-run_capture python3 "$ROOT/lib/profile/policy.py" select "$FALLBACK_REPO/docs/profiles/demo.yaml" build "$DUPLICATE_MODELS"
-assert_eq "duplicate available model id exit" 4 "$CODE"
-assert_contains "duplicate available model id message" "$OUTPUT" "duplicate available model id: gpt-engineering"
-
-MISMATCHED_MODEL_FIELDS='[{"id":"gpt-engineering","model":"gpt-other","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]}]'
-run_capture python3 "$ROOT/lib/profile/policy.py" select "$FALLBACK_REPO/docs/profiles/demo.yaml" build "$MISMATCHED_MODEL_FIELDS"
-assert_eq "mismatched id and model exit" 4 "$CODE"
-assert_contains "mismatched id and model message" "$OUTPUT" "model/list id and model disagree"
+run_capture select_topic build "$DUPLICATE_MODELS"
+assert_eq "duplicate model/list exit" 4 "$CODE"
+assert_contains "duplicate model/list rejected" "$OUTPUT" "duplicate available model id: gpt-engineering"
 
 MISSING_EFFORT_METADATA='[{"id":"gpt-engineering"}]'
-run_capture python3 "$ROOT/lib/profile/policy.py" select "$FALLBACK_REPO/docs/profiles/demo.yaml" build "$MISSING_EFFORT_METADATA"
+run_capture select_topic build "$MISSING_EFFORT_METADATA"
 assert_eq "missing effort metadata exit" 4 "$CODE"
-assert_contains "missing effort metadata message" "$OUTPUT" "missing supported effort metadata"
+assert_contains "missing effort metadata rejected" "$OUTPUT" "missing supported effort metadata"
+
+MISMATCHED_MODEL_FIELDS='[{"id":"gpt-engineering","model":"gpt-other","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]}]'
+run_capture select_topic build "$MISMATCHED_MODEL_FIELDS"
+assert_eq "mismatched model fields exit" 4 "$CODE"
+assert_contains "mismatched model fields rejected" "$OUTPUT" "model/list id and model disagree"
 
 MODEL_FIELD_AVAILABLE='[{"model":"gpt-engineering","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]}]'
-run_capture python3 "$ROOT/lib/profile/policy.py" select "$FALLBACK_REPO/docs/profiles/demo.yaml" build "$MODEL_FIELD_AVAILABLE"
+run_capture select_topic build "$MODEL_FIELD_AVAILABLE"
 assert_eq "documented model field selection exit" 0 "$CODE"
 assert_eq "documented model field accepted" '{"effort":"medium","model":"gpt-engineering","profile":"engineering","task":"build"}' "$OUTPUT"
 
 UNDOCUMENTED_TOP_LEVEL_EFFORTS='[{"id":"gpt-engineering","supported_efforts":["medium"]}]'
-run_capture python3 "$ROOT/lib/profile/policy.py" select "$FALLBACK_REPO/docs/profiles/demo.yaml" build "$UNDOCUMENTED_TOP_LEVEL_EFFORTS"
-assert_eq "undocumented top-level efforts rejected exit" 4 "$CODE"
-assert_contains "undocumented top-level efforts rejected message" "$OUTPUT" "missing supported effort metadata"
+run_capture select_topic build "$UNDOCUMENTED_TOP_LEVEL_EFFORTS"
+assert_eq "undocumented top-level efforts exit" 4 "$CODE"
+assert_contains "undocumented top-level efforts rejected" "$OUTPUT" "missing supported effort metadata"
 
 UNDOCUMENTED_NESTED_EFFORT='[{"id":"gpt-engineering","supportedReasoningEfforts":[{"effort":"medium"}]}]'
-run_capture python3 "$ROOT/lib/profile/policy.py" select "$FALLBACK_REPO/docs/profiles/demo.yaml" build "$UNDOCUMENTED_NESTED_EFFORT"
-assert_eq "undocumented nested effort rejected exit" 4 "$CODE"
-assert_contains "undocumented nested effort rejected message" "$OUTPUT" "reasoningEffort"
+run_capture select_topic build "$UNDOCUMENTED_NESTED_EFFORT"
+assert_eq "undocumented nested effort exit" 4 "$CODE"
+assert_contains "undocumented nested effort rejected" "$OUTPUT" "reasoningEffort"
 
-SELECT_REPO="$TMP/select"
-init_policy_repo "$SELECT_REPO" fast weak engineering
+init_policy_fixture "$TMP/unavailable-and-insufficient" fast weak engineering
 AVAILABLE='[{"id":"gpt-weak","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]},{"id":"gpt-engineering","supportedReasoningEfforts":[{"reasoningEffort":"medium"}]}]'
-run_capture python3 "$ROOT/lib/profile/policy.py" select "$SELECT_REPO/docs/profiles/demo.yaml" build "$AVAILABLE"
-assert_eq "fallback selection exit" 0 "$CODE"
+run_capture select_topic build "$AVAILABLE"
+assert_eq "unavailable and insufficient fallback exit" 0 "$CODE"
 assert_eq "unavailable and insufficient profiles skipped" '{"effort":"medium","model":"gpt-engineering","profile":"engineering","task":"build"}' "$OUTPUT"
 
-INSUFFICIENT_REPO="$TMP/insufficient"
-init_policy_repo "$INSUFFICIENT_REPO" weak
-run_capture python3 "$ROOT/lib/profile/policy.py" select "$INSUFFICIENT_REPO/docs/profiles/demo.yaml" build "$AVAILABLE"
+init_policy_fixture "$TMP/insufficient" weak
+run_capture select_topic build "$AVAILABLE"
 assert_eq "no sufficient profile exit" 4 "$CODE"
-assert_contains "no sufficient profile message" "$OUTPUT" "no available sufficient profile"
+assert_contains "no sufficient profile rejected" "$OUTPUT" "no available sufficient profile"
 assert_contains "insufficient dimension evidence" "$OUTPUT" "capability"
 
-PRODUCTION_REGISTRY="$ROOT/docs/profiles/registry.yaml"
-PRODUCTION_TOPIC="$ROOT/docs/profiles/profile-recheck-at-task-transition.yaml"
-assert_exit "production registry exists at canonical path" 0 test -f "$PRODUCTION_REGISTRY"
-assert_exit "production topic policy exists at canonical path" 0 test -f "$PRODUCTION_TOPIC"
-assert_exit "production registry schema version is exactly 1" 0 grep -Fxq 'schema_version: 1' "$PRODUCTION_REGISTRY"
-assert_exit "production topic schema version is exactly 1" 0 grep -Fxq 'schema_version: 1' "$PRODUCTION_TOPIC"
-assert_exit "production approved topic has canonical topic and exact registry SHA pin" 0 python3 "$ROOT/lib/profile/policy.py" validate-topic "$PRODUCTION_TOPIC" "$PRODUCTION_REGISTRY"
+# Curated production policy: canonical shared registry and direct project manifest.
+PRODUCTION_SHARED_REGISTRY="$ROOT/.codex-isolated/profiles/registry.yaml"
+PRODUCTION_STALE_REGISTRY="$ROOT/docs/profiles/registry.yaml"
+PRODUCTION_MANIFEST="$ROOT/docs/profiles/profile-recheck-at-task-transition.yaml"
+assert_exit "production shared registry exists at canonical path" 0 test -f "$PRODUCTION_SHARED_REGISTRY"
+assert_eq "production shared registry keeps approved byte hash" \
+  "7ef5c802e43fc96ecc23260e0460aa7a0df568c21dd369d86947d8e935d16a92" \
+  "$(sha256sum "$PRODUCTION_SHARED_REGISTRY" | awk '{print $1}')"
+assert_exit "stale project-local registry is absent" 0 test ! -e "$PRODUCTION_STALE_REGISTRY"
+assert_exit "production manifest omits portable history" 1 grep -Fq 'portable_history' "$PRODUCTION_MANIFEST"
+assert_exit "production manifest names shared authority" 0 grep -Fxq '  authority: icodex-shared' "$PRODUCTION_MANIFEST"
+assert_exit "production manifest pins canonical shared path" 0 grep -Fxq '  path: profiles/registry.yaml' "$PRODUCTION_MANIFEST"
+assert_eq "production manifest approved byte hash" \
+  "6176029a40963ad9db08964606909dc9def856565a94db3817cc35522fa22eef" \
+  "$(sha256sum "$PRODUCTION_MANIFEST" | awk '{print $1}')"
+
+PRODUCTION_BASE="$TMP/production-policy"
+PRODUCTION_SHARED_REPO="$PRODUCTION_BASE/shared"
+PRODUCTION_SHARED_ROOT="$PRODUCTION_SHARED_REPO/.codex-isolated"
+PRODUCTION_TARGET_REPO="$PRODUCTION_BASE/target"
+PRODUCTION_CODEX_HOME="$PRODUCTION_BASE/home"
+PRODUCTION_FIXTURE_MANIFEST="$PRODUCTION_TARGET_REPO/docs/profiles/profile-recheck-at-task-transition.yaml"
+PRODUCTION_HOME_REGISTRY="$PRODUCTION_CODEX_HOME/profiles/registry.yaml"
+mkdir -p "$PRODUCTION_SHARED_ROOT/profiles" "$PRODUCTION_TARGET_REPO/docs/profiles" "$PRODUCTION_CODEX_HOME"
+cp "$PRODUCTION_SHARED_REGISTRY" "$PRODUCTION_SHARED_ROOT/profiles/registry.yaml"
+cp "$PRODUCTION_MANIFEST" "$PRODUCTION_FIXTURE_MANIFEST"
+while IFS= read -r context_path; do
+  mkdir -p "$PRODUCTION_TARGET_REPO/$(dirname "$context_path")"
+  cp "$ROOT/$context_path" "$PRODUCTION_TARGET_REPO/$context_path"
+done < <(sed -n 's/^  - \(docs\/superpowers\/.*\.md\)$/\1/p' "$PRODUCTION_MANIFEST")
+git_init "$PRODUCTION_SHARED_REPO"
+git -C "$PRODUCTION_SHARED_REPO" add .codex-isolated/profiles/registry.yaml
+git -C "$PRODUCTION_SHARED_REPO" commit -qm 'production shared authority'
+git_init "$PRODUCTION_TARGET_REPO"
+git -C "$PRODUCTION_TARGET_REPO" add docs
+git -C "$PRODUCTION_TARGET_REPO" commit -qm 'production target authority'
+ln -s "$PRODUCTION_SHARED_ROOT/profiles" "$PRODUCTION_CODEX_HOME/profiles"
+assert_exit "production manifest schema preparation" 0 \
+  python3 "$ROOT/lib/profile/policy.py" validate-topic-schema \
+    "$PRODUCTION_TARGET_REPO" "$PRODUCTION_CODEX_HOME" "$PRODUCTION_SHARED_ROOT" \
+    "$PRODUCTION_FIXTURE_MANIFEST" "$PRODUCTION_HOME_REGISTRY"
+assert_exit "production manifest committed runtime authority" 0 \
+  python3 "$ROOT/lib/profile/policy.py" validate-topic \
+    "$PRODUCTION_TARGET_REPO" "$PRODUCTION_CODEX_HOME" "$PRODUCTION_SHARED_ROOT" \
+    "$PRODUCTION_FIXTURE_MANIFEST" "$PRODUCTION_HOME_REGISTRY"
 
 finish

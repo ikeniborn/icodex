@@ -329,9 +329,35 @@ def load_registry(path: Path) -> dict[str, object]:
     return _registry_from_bytes(_read_bytes(path), path)
 
 
+@dataclass(frozen=True)
+class GitBlobSnapshot:
+    repo_root: Path
+    commit_oid: str
+    relative_path: str
+    sha256: str
+    data: bytes
+
+
+@dataclass(frozen=True)
+class ValidatedPolicy:
+    registry: dict[str, object]
+    manifest: dict[str, object]
+    registry_commit: str
+    registry_sha256: str
+    registry_version: int
+    target_commit: str
+    manifest_sha256: str
+    target_root: str
+    topic: str
+
+
+def _normalized(path: Path) -> Path:
+    return Path(os.path.abspath(path))
+
+
 def _repo_relative(path: Path, repo: Path, label: str) -> Path:
     try:
-        return path.resolve().relative_to(repo.resolve())
+        return _normalized(path).relative_to(_normalized(repo))
     except ValueError:
         raise PolicyError(f"{label} must be inside repository {repo}") from None
 
@@ -342,17 +368,34 @@ def _validate_relative_path(value: str, name: str) -> None:
         raise PolicyError(f"{name} must be a repository-relative path")
 
 
-def _require_context_blob(repo: Path, commit: str, value: str, require_worktree_match: bool) -> None:
-    relative = Path(value)
-    candidate = repo.resolve() / relative
-    if require_worktree_match:
-        resolved = candidate.resolve()
-        try:
-            resolved.relative_to(repo.resolve())
-        except ValueError:
-            raise PolicyError(f"context input must resolve inside repository: {value}", 3) from None
-        if not resolved.is_file():
-            raise PolicyError(f"context input does not exist: {value}", 3)
+def _git_toplevel(path: Path, label: str) -> Path:
+    result = subprocess.run(
+        ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        raise PolicyError(f"cannot locate {label} Git repository", 3)
+    return Path(result.stdout.strip()).resolve()
+
+
+def _resolve_head(repo: Path) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--verify", "HEAD^{commit}"],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    commit = result.stdout.strip()
+    if result.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40,64}", commit):
+        raise PolicyError("cannot resolve immutable HEAD commit", 3)
+    return commit
+
+
+def _tree_blob(repo: Path, commit: str, relative: Path, label: str) -> bytes:
     result = subprocess.run(
         [
             "git",
@@ -371,14 +414,18 @@ def _require_context_blob(repo: Path, commit: str, value: str, require_worktree_
         stderr=subprocess.PIPE,
     )
     if result.returncode != 0:
-        raise PolicyError(f"cannot validate context input at pinned HEAD: {value}", 3)
+        raise PolicyError(f"cannot validate {label} at pinned HEAD", 3)
     entries = result.stdout.split(b"\0")
     if entries and entries[-1] == b"":
         entries.pop()
     if not entries:
-        raise PolicyError(f"context input is not tracked at pinned HEAD: {value}", 3)
+        if label == "context input":
+            raise PolicyError(
+                f"context input is not tracked at pinned HEAD: {relative.as_posix()}", 3
+            )
+        raise PolicyError(f"{label} is not tracked at pinned HEAD; approve and commit it", 3)
     if len(entries) != 1:
-        raise PolicyError(f"ambiguous context input tree entry at pinned HEAD: {value}", 3)
+        raise PolicyError(f"ambiguous {label} tree entry at pinned HEAD", 3)
     metadata, separator, returned_path = entries[0].partition(b"\t")
     fields = metadata.split()
     expected_path = os.fsencode(relative.as_posix())
@@ -388,29 +435,14 @@ def _require_context_blob(repo: Path, commit: str, value: str, require_worktree_
         or len(fields) != 3
         or re.fullmatch(rb"[0-9a-f]{40,64}", fields[2]) is None
     ):
-        raise PolicyError(f"malformed context input tree entry at pinned HEAD: {value}", 3)
+        raise PolicyError(f"malformed {label} tree entry at pinned HEAD", 3)
     if fields[0] not in {b"100644", b"100755"} or fields[1] != b"blob":
-        raise PolicyError(f"context input must be a tracked regular file at pinned HEAD: {value}", 3)
-    if not require_worktree_match:
-        return
-    try:
-        worktree_stat = candidate.lstat()
-    except OSError as error:
-        raise PolicyError(f"cannot inspect context input worktree path {value}: {error}", 3) from None
-    if not stat.S_ISREG(worktree_stat.st_mode):
-        raise PolicyError(f"context input worktree path must be a regular file: {value}", 3)
-    if not hasattr(os, "O_NOFOLLOW"):
-        raise PolicyError("platform cannot enforce no-follow context input reads", 3)
-    try:
-        descriptor = os.open(candidate, os.O_RDONLY | os.O_NOFOLLOW)
-        with os.fdopen(descriptor, "rb") as stream:
-            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
-                raise PolicyError(f"context input worktree path must be a regular file: {value}", 3)
-            worktree_bytes = stream.read()
-    except PolicyError:
-        raise
-    except OSError as error:
-        raise PolicyError(f"cannot read context input worktree path {value}: {error}", 3) from None
+        if label == "context input":
+            raise PolicyError(
+                f"context input must be a tracked regular file at pinned HEAD: {relative.as_posix()}",
+                3,
+            )
+        raise PolicyError(f"{label} must be a tracked regular file at pinned HEAD", 3)
     blob_id = fields[2].decode("ascii")
     pinned = subprocess.run(
         ["git", "-C", str(repo), "cat-file", "blob", blob_id],
@@ -419,53 +451,102 @@ def _require_context_blob(repo: Path, commit: str, value: str, require_worktree_
         stderr=subprocess.PIPE,
     )
     if pinned.returncode != 0:
-        raise PolicyError(f"cannot read context input blob at pinned HEAD: {value}", 3)
-    if worktree_bytes != pinned.stdout:
+        raise PolicyError(f"cannot read {label} blob at pinned HEAD", 3)
+    return pinned.stdout
+
+
+def _read_regular_nofollow(path: Path, label: str) -> bytes:
+    try:
+        worktree_stat = path.lstat()
+    except OSError as error:
+        raise PolicyError(f"cannot inspect {label} worktree path: {error}", 3) from None
+    if not stat.S_ISREG(worktree_stat.st_mode):
+        raise PolicyError(f"{label} worktree path must be a regular file", 3)
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise PolicyError("platform cannot enforce no-follow policy reads", 3)
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(descriptor, "rb") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise PolicyError(f"{label} worktree path must be a regular file", 3)
+            return stream.read()
+    except PolicyError:
+        raise
+    except OSError as error:
+        raise PolicyError(f"cannot read {label} worktree path: {error}", 3) from None
+
+
+def snapshot_regular_blob(repo_root: Path, commit_oid: str, path: Path, label: str) -> GitBlobSnapshot:
+    """Read one no-follow worktree file and require equality with one regular blob at commit_oid."""
+    repo = repo_root.resolve()
+    relative = _repo_relative(path, repo, label)
+    worktree_bytes = _read_regular_nofollow(path, label)
+    pinned_bytes = _tree_blob(repo, commit_oid, relative, label)
+    if worktree_bytes != pinned_bytes:
+        raise PolicyError(f"{label} differs from pinned HEAD; approve and commit exact bytes", 3)
+    return GitBlobSnapshot(
+        repo_root=repo,
+        commit_oid=commit_oid,
+        relative_path=relative.as_posix(),
+        sha256=hashlib.sha256(worktree_bytes).hexdigest(),
+        data=worktree_bytes,
+    )
+
+
+def _require_context_blob(
+    repo: Path,
+    commit: str,
+    value: str,
+    require_context_worktree_match: bool,
+) -> None:
+    relative = Path(value)
+    pinned = _tree_blob(repo, commit, relative, "context input")
+    if not require_context_worktree_match:
+        return
+    candidate = repo / relative
+    try:
+        candidate.resolve().relative_to(repo.resolve())
+    except (OSError, ValueError):
+        raise PolicyError(f"context input must resolve inside repository: {value}", 3) from None
+    worktree = _read_regular_nofollow(candidate, "context input")
+    if worktree != pinned:
         raise PolicyError(f"context input differs from pinned HEAD: {value}", 3)
 
 
-@dataclass(frozen=True)
-class _PolicyPair:
-    topic: dict[str, object]
-    registry: dict[str, object]
-
-
-def _policy_pair_from_bytes(
+def _validate_manifest(
     path: Path,
     registry_path: Path,
-    repo: Path,
-    topic_bytes: bytes,
+    target_repo: Path,
+    target_commit: str,
+    manifest_bytes: bytes,
     registry_bytes: bytes,
-    commit: str,
     require_context_worktree_match: bool,
-) -> _PolicyPair:
-    topic = _parse_yaml_bytes(topic_bytes, path)
+) -> tuple[dict[str, object], dict[str, object]]:
+    manifest = _parse_yaml_bytes(manifest_bytes, path)
     _exact_keys(
-        topic,
-        {"schema_version", "topic", "status", "registry", "context_inputs", "portable_history", "tasks"},
+        manifest,
+        {"schema_version", "topic", "status", "registry", "context_inputs", "tasks"},
         "topic manifest",
     )
-    if type(topic["schema_version"]) is not int or topic["schema_version"] != SCHEMA_VERSION:
-        raise PolicyError(f"unsupported topic schema_version: {topic['schema_version']}")
-    topic_name = _string(topic["topic"], "topic")
+    if type(manifest["schema_version"]) is not int or manifest["schema_version"] != SCHEMA_VERSION:
+        raise PolicyError(f"unsupported topic schema_version: {manifest['schema_version']}")
+    topic_name = _string(manifest["topic"], "topic")
     if not SLUG_RE.fullmatch(topic_name) or path.stem != topic_name:
         raise PolicyError("topic must be canonical lowercase kebab-case and match the filename")
-    expected_topic = repo.resolve() / "docs" / "profiles" / f"{topic_name}.yaml"
-    if path.resolve() != expected_topic:
+    expected_topic = target_repo / "docs" / "profiles" / f"{topic_name}.yaml"
+    if _normalized(path) != _normalized(expected_topic):
         raise PolicyError(f"topic manifest path must be docs/profiles/{topic_name}.yaml", 3)
-    if topic["status"] != "approved":
+    if manifest["status"] != "approved":
         raise PolicyError("topic status must be approved", 3)
 
-    registry_pin = _mapping(topic["registry"], "registry")
-    _exact_keys(registry_pin, {"path", "sha256"}, "registry")
+    registry_pin = _mapping(manifest["registry"], "registry")
+    _exact_keys(registry_pin, {"authority", "path", "sha256"}, "registry")
+    if registry_pin["authority"] != "icodex-shared":
+        raise PolicyError("registry.authority must be icodex-shared")
     pinned_path = _string(registry_pin["path"], "registry.path")
     _validate_relative_path(pinned_path, "registry.path")
-    expected_registry = repo.resolve() / "docs" / "profiles" / "registry.yaml"
-    if registry_path.resolve() != expected_registry:
-        raise PolicyError("registry path must be docs/profiles/registry.yaml", 3)
-    actual_registry_relative = _repo_relative(registry_path, repo, "registry")
-    if Path(pinned_path) != actual_registry_relative:
-        raise PolicyError(f"registry path mismatch: expected {actual_registry_relative.as_posix()}", 3)
+    if pinned_path != "profiles/registry.yaml":
+        raise PolicyError("registry.path must be profiles/registry.yaml", 3)
     pinned_hash = _string(registry_pin["sha256"], "registry.sha256")
     if not SHA256_RE.fullmatch(pinned_hash):
         raise PolicyError("registry.sha256 must be a lowercase SHA-256")
@@ -473,7 +554,7 @@ def _policy_pair_from_bytes(
     if hashlib.sha256(registry_bytes).hexdigest() != pinned_hash:
         raise PolicyError("registry hash mismatch; review and repin the topic manifest", 3)
 
-    context_inputs = _list(topic["context_inputs"], "context_inputs")
+    context_inputs = _list(manifest["context_inputs"], "context_inputs")
     if not context_inputs:
         raise PolicyError("context_inputs must not be empty")
     seen_inputs: set[str] = set()
@@ -486,16 +567,11 @@ def _policy_pair_from_bytes(
         # Schema-only validation binds the literal path and regular blob type.
         # Runtime additionally compares one no-follow worktree snapshot with the
         # blob snapshot from the same immutable commit used for the policy pair.
-        _require_context_blob(repo, commit, context_input, require_context_worktree_match)
-
-    portable_history = _mapping(topic["portable_history"], "portable_history")
-    _exact_keys(portable_history, {"enabled"}, "portable_history")
-    if type(portable_history["enabled"]) is not bool:
-        raise PolicyError("portable_history.enabled must be a boolean")
+        _require_context_blob(target_repo, target_commit, context_input, require_context_worktree_match)
 
     dimensions = _mapping(registry["dimensions"], "dimensions")
     profiles = _mapping(registry["profiles"], "profiles")
-    tasks = _list(topic["tasks"], "tasks")
+    tasks = _list(manifest["tasks"], "tasks")
     if not tasks:
         raise PolicyError("tasks must not be empty")
     seen_tasks: set[str] = set()
@@ -531,62 +607,119 @@ def _policy_pair_from_bytes(
         unknown_profiles = [profile_id for profile_id in preferred_ids if profile_id not in profiles]
         if unknown_profiles:
             raise PolicyError(f"unknown preferred profile: {unknown_profiles[0]}")
-    return _PolicyPair(topic, registry)
+    return registry, manifest
 
 
-def _load_topic_schema(path: Path, registry_path: Path, repo: Path) -> _PolicyPair:
-    commit = _resolve_head(repo)
-    topic_bytes = _read_bytes(path)
-    registry_bytes = _read_bytes(registry_path)
-    return _policy_pair_from_bytes(path, registry_path, repo, topic_bytes, registry_bytes, commit, False)
+def _canonical_authorities(
+    target_root: Path,
+    codex_home: Path,
+    shared_root: Path,
+    manifest_path: Path,
+    registry_path: Path,
+) -> tuple[Path, Path, Path]:
+    target_repo = _git_toplevel(target_root, "target")
+    if target_root.resolve() != target_repo:
+        raise PolicyError("target root must be the target Git repository root", 3)
+    shared_repo = _git_toplevel(shared_root, "shared")
+    expected_shared_root = shared_repo / ".codex-isolated"
+    if shared_root.resolve() != expected_shared_root.resolve():
+        raise PolicyError("shared root must be the shared repository .codex-isolated", 3)
+    if target_repo == shared_repo:
+        raise PolicyError("target and shared policy authorities must be different Git repositories", 3)
+
+    profiles_link = codex_home / "profiles"
+    try:
+        link_stat = profiles_link.lstat()
+    except OSError as error:
+        raise PolicyError(f"cannot inspect CODEX_HOME profiles link: {error}", 3) from None
+    if not stat.S_ISLNK(link_stat.st_mode) or profiles_link.resolve() != (shared_root / "profiles").resolve():
+        raise PolicyError("CODEX_HOME profiles link must target shared profiles", 3)
+
+    expected_registry_argument = codex_home / "profiles" / "registry.yaml"
+    if _normalized(registry_path) != _normalized(expected_registry_argument):
+        raise PolicyError("registry path must be CODEX_HOME/profiles/registry.yaml", 3)
+    canonical_registry = shared_root / "profiles" / "registry.yaml"
+    if registry_path.resolve() != canonical_registry.resolve():
+        raise PolicyError("registry path must resolve to shared profiles/registry.yaml", 3)
+
+    if manifest_path.suffix != ".yaml" or not SLUG_RE.fullmatch(manifest_path.stem):
+        raise PolicyError("topic manifest filename must be lowercase kebab-case YAML")
+    expected_manifest = target_repo / "docs" / "profiles" / manifest_path.name
+    if _normalized(manifest_path) != _normalized(expected_manifest):
+        raise PolicyError(f"topic manifest path must be docs/profiles/{manifest_path.name}", 3)
+    return target_repo, shared_repo, canonical_registry
 
 
-def _resolve_head(repo: Path) -> str:
-    result = subprocess.run(
-        ["git", "-C", str(repo), "rev-parse", "--verify", "HEAD^{commit}"],
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+def _load_policy(
+    target_root: Path,
+    codex_home: Path,
+    shared_root: Path,
+    manifest_path: Path,
+    registry_path: Path,
+    require_manifest_match: bool,
+    require_context_match: bool,
+) -> ValidatedPolicy:
+    target_repo, shared_repo, canonical_registry = _canonical_authorities(
+        target_root, codex_home, shared_root, manifest_path, registry_path
     )
-    commit = result.stdout.strip()
-    if result.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40,64}", commit):
-        raise PolicyError("cannot resolve immutable HEAD commit", 3)
-    return commit
 
+    # Both authority commits are immutable inputs. Pin both before reading either
+    # policy snapshot so validation of one authority cannot select the other's HEAD.
+    registry_commit = _resolve_head(shared_repo)
+    target_commit = _resolve_head(target_repo)
 
-def _head_bytes(repo: Path, commit: str, path: Path, label: str) -> bytes:
-    relative = _repo_relative(path, repo, label)
-    result = subprocess.run(
-        ["git", "-C", str(repo), "show", f"{commit}:{relative.as_posix()}"],
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+    registry_snapshot = snapshot_regular_blob(
+        shared_repo, registry_commit, canonical_registry, "registry"
     )
-    if result.returncode != 0:
-        raise PolicyError(f"{label} is not tracked at pinned HEAD; approve and commit it", 3)
-    return result.stdout
-
-
-def _load_committed_pair(path: Path, registry_path: Path, repo: Path) -> _PolicyPair:
-    commit = _resolve_head(repo)
-    topic_bytes = _read_bytes(path)
-    registry_bytes = _read_bytes(registry_path)
-    committed_topic = _head_bytes(repo, commit, path, "topic manifest")
-    committed_registry = _head_bytes(repo, commit, registry_path, "registry")
-    if topic_bytes != committed_topic:
-        raise PolicyError("topic manifest differs from HEAD; approve and commit exact bytes", 3)
-    if registry_bytes != committed_registry:
-        raise PolicyError(
-            "registry differs from pinned HEAD; registry hash mismatch requires review and repinning",
-            3,
+    if require_manifest_match:
+        manifest_snapshot = snapshot_regular_blob(
+            target_repo, target_commit, manifest_path, "topic manifest"
         )
-    return _policy_pair_from_bytes(path, registry_path, repo, topic_bytes, registry_bytes, commit, True)
+        manifest_bytes = manifest_snapshot.data
+        manifest_sha256 = manifest_snapshot.sha256
+    else:
+        manifest_bytes = _read_regular_nofollow(manifest_path, "topic manifest")
+        manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+
+    registry, manifest = _validate_manifest(
+        manifest_path,
+        canonical_registry,
+        target_repo,
+        target_commit,
+        manifest_bytes,
+        registry_snapshot.data,
+        require_context_match,
+    )
+    return ValidatedPolicy(
+        registry=registry,
+        manifest=manifest,
+        registry_commit=registry_commit,
+        registry_sha256=registry_snapshot.sha256,
+        registry_version=_version(registry["registry_version"], "registry_version"),
+        target_commit=target_commit,
+        manifest_sha256=manifest_sha256,
+        target_root=str(target_repo),
+        topic=_string(manifest["topic"], "topic"),
+    )
 
 
-def load_topic(path: Path, registry_path: Path, repo: Path) -> dict[str, object]:
-    """Validate schema, committed HEAD equality, approval, registry pin, and tasks."""
-    return _load_committed_pair(path, registry_path, repo).topic
+def load_policy(
+    target_root: Path,
+    codex_home: Path,
+    shared_root: Path,
+    manifest_path: Path,
+    registry_path: Path,
+) -> ValidatedPolicy:
+    """Pin both HEADs once, validate canonical paths, parse each snapshot once, return immutable metadata."""
+    return _load_policy(
+        target_root,
+        codex_home,
+        shared_root,
+        manifest_path,
+        registry_path,
+        require_manifest_match=True,
+        require_context_match=True,
+    )
 
 
 def _task(topic: dict[str, object], task_id: str) -> dict[str, object]:
@@ -708,19 +841,6 @@ def select_profile(
     raise PolicyError(f"no available sufficient profile for task {task_id}: {detail}", 4)
 
 
-def _find_repo(path: Path) -> Path:
-    result = subprocess.run(
-        ["git", "-C", str(path.parent), "rev-parse", "--show-toplevel"],
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    if result.returncode != 0:
-        raise PolicyError(f"cannot locate Git repository for {path}", 3)
-    return Path(result.stdout.strip())
-
-
 def _available_json(text: str) -> list[dict[str, object]]:
     try:
         value = json.loads(text)
@@ -733,8 +853,10 @@ def _available_json(text: str) -> list[dict[str, object]]:
 
 def _usage() -> NoReturn:
     raise PolicyError(
-        "usage: policy.py validate-registry <registry> | validate-topic <topic> <registry> | "
-        "validate-topic-schema <topic> <registry> | select <topic> <task> <available-json>"
+        "usage: policy.py validate-registry <registry> | "
+        "validate-topic <target-root> <codex-home> <shared-root> <manifest> <registry> | "
+        "validate-topic-schema <target-root> <codex-home> <shared-root> <manifest> <registry> | "
+        "select <target-root> <codex-home> <shared-root> <manifest> <task> <available-json>"
     )
 
 
@@ -745,21 +867,39 @@ def _run_cli(arguments: list[str]) -> None:
     if command == "validate-registry" and len(arguments) == 2:
         load_registry(Path(arguments[1]))
         return
-    if command in {"validate-topic", "validate-topic-schema"} and len(arguments) == 3:
-        topic_path = Path(arguments[1])
-        registry_path = Path(arguments[2])
-        repo = _find_repo(topic_path)
+    if command in {"validate-topic", "validate-topic-schema"} and len(arguments) == 6:
+        target_root = Path(arguments[1])
+        codex_home = Path(arguments[2])
+        shared_root = Path(arguments[3])
+        manifest_path = Path(arguments[4])
+        registry_path = Path(arguments[5])
         if command == "validate-topic":
-            load_topic(topic_path, registry_path, repo)
+            load_policy(target_root, codex_home, shared_root, manifest_path, registry_path)
         else:
-            _load_topic_schema(topic_path, registry_path, repo)
+            _load_policy(
+                target_root,
+                codex_home,
+                shared_root,
+                manifest_path,
+                registry_path,
+                require_manifest_match=False,
+                require_context_match=False,
+            )
         return
-    if command == "select" and len(arguments) == 4:
-        topic_path = Path(arguments[1])
-        repo = _find_repo(topic_path)
-        registry_path = repo / "docs/profiles/registry.yaml"
-        pair = _load_committed_pair(topic_path, registry_path, repo)
-        selected = select_profile(pair.registry, pair.topic, arguments[2], _available_json(arguments[3]))
+    if command == "select" and len(arguments) == 7:
+        policy = load_policy(
+            Path(arguments[1]),
+            Path(arguments[2]),
+            Path(arguments[3]),
+            Path(arguments[4]),
+            Path(arguments[2]) / "profiles" / "registry.yaml",
+        )
+        selected = select_profile(
+            policy.registry,
+            policy.manifest,
+            arguments[5],
+            _available_json(arguments[6]),
+        )
         print(json.dumps(selected, sort_keys=True, separators=(",", ":")))
         return
     _usage()

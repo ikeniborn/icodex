@@ -1,16 +1,12 @@
-# Profile Policy
+# Project Profile Manifests
 
-Tracked policy is not runtime state. Runtime state is local and disposable; it does not
-alter approved routing policy.
+This directory contains approved project manifests read directly from the target
+repository. Each manifest names its task requirements and pins the exact byte hash of
+the shared profile registry.
 
-`status: approved` requires explicit review before commit. Registry hash changes
-invalidate topic manifests, so a changed registry requires review and a new manifest
-pin.
+Never copy the shared registry or runtime routing state into this directory. Runtime
+state is local and disposable; it does not alter approved policy.
 
-Capability, context, and throughput use `gte` comparisons. Latency and cost use `lte`
-comparisons.
-
-Live remaining context is not inferred from catalog context capacity. A task requiring
-that confirmation must use a separately documented supported source.
-
-Unsupported YAML constructs fail closed.
+`status: approved` requires explicit review before commit. A registry hash change
+invalidates manifests and requires review plus a new pin. Unsupported YAML constructs
+fail closed.
