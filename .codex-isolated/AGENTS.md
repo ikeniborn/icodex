@@ -231,6 +231,29 @@ Workflow and execution routes are independent: direct does not imply `mechanical
 chain does not imply `deep`. Repeat classification after failed checks, scope changes,
 or newly discovered invariants.
 
+### Task Transition Gate
+
+A task-scoped recommendation expires when that task reaches review or completion, or
+when execution moves to another plan task. Never assume that the active session profile
+or the recommendation for the previous task is suitable for the next task.
+
+Before any execution on each next task:
+
+1. Identify the next work and classify its execution route independently from current
+   evidence.
+2. Resolve the recommended exact model and effort through the current catalog mapping.
+3. Establish the active exact model and effort from the latest `/status`. If that mapping
+   is unavailable, or its confirmation predates a requested switch, ask the user to run
+   `/status` and stop before starting the task.
+4. Compare the active and recommended mappings. If they differ, report
+   `Switch required: yes`, ask the user to switch with `/model`, and stop before the task.
+5. Resume only after the user confirms that `/status` shows the recommended mapping, or
+   explicitly declines the switch under the downgrade or escalation rules below.
+
+Apply the same gate when a scope change or newly discovered invariant reclassifies work
+inside an active task. A matching active mapping uses `Decision: keep` and does not
+require another switch.
+
 ### Classification
 
 Choose the lowest sufficient route:
@@ -268,11 +291,14 @@ gate. Never retry without changing strategy.
 ### Switch Handling
 
 Use `keep`, `downgrade`, `escalate`, or `separate-run` (`parallel-audit`). If the active
-mapping is unknown, ask the user to check `/status`; never guess.
+mapping is unknown, ask the user to check `/status`, mark switch confirmation `pending`,
+and stop before the next task; never guess or inherit the previous task's recommendation.
 
-Wait when switching is required. A declined downgrade may continue with the extra cost
-recorded. A declined escalation stops the next work until explicit risk acceptance.
-Critical-migration final review cannot be waived.
+Wait when switching is required. After requesting a switch, resume only when the user
+confirms the resulting `/status`. A declined downgrade may continue with the extra cost
+recorded and switch confirmation marked `declined`. A declined escalation stops the next
+work until explicit risk acceptance, also recorded as `declined`. Critical-migration
+final review cannot be waived.
 
 ```text
 Workflow: direct | chain | loen
@@ -286,6 +312,7 @@ Decision: keep | downgrade | escalate | separate-run
 Evidence: <artifact, finding, failure, invariant, or risk>
 Higher route rejected because: <reason or n/a for parallel-audit>
 Switch required: yes | no
+Switch confirmation: n/a | pending | confirmed | declined
 ```
 
 ## Project Status Reports
