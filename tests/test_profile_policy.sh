@@ -293,6 +293,18 @@ run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$PATHSPEC_CONT
 assert_eq "context input pathspec treated literally exit" 3 "$CODE"
 assert_contains "context input pathspec treated literally message" "$OUTPUT" "context input is not tracked at pinned HEAD: docs/superpowers/plans/*.md"
 
+MAGIC_CONTEXT_REPO="$TMP/magic-context"
+MAGIC_CONTEXT_VALUE=':(top)docs/superpowers/plans/demo.md'
+init_policy_repo "$MAGIC_CONTEXT_REPO" fast engineering
+mkdir -p "$MAGIC_CONTEXT_REPO/:(top)docs/superpowers/plans"
+printf '%s\n' 'untracked literal magic path' >"$MAGIC_CONTEXT_REPO/$MAGIC_CONTEXT_VALUE"
+sed -i "s#docs/superpowers/plans/demo.md#$MAGIC_CONTEXT_VALUE#" "$MAGIC_CONTEXT_REPO/docs/profiles/demo.yaml"
+git -C "$MAGIC_CONTEXT_REPO" add docs/profiles/demo.yaml
+git -C "$MAGIC_CONTEXT_REPO" commit -qm 'reference untracked literal magic path'
+run_capture python3 "$ROOT/lib/profile/policy.py" validate-topic "$MAGIC_CONTEXT_REPO/docs/profiles/demo.yaml" "$MAGIC_CONTEXT_REPO/docs/profiles/registry.yaml"
+assert_eq "context input magic path treated literally exit" 3 "$CODE"
+assert_contains "context input magic path treated literally message" "$OUTPUT" "context input is not tracked at pinned HEAD: $MAGIC_CONTEXT_VALUE"
+
 OUTSIDE_CONTEXT_REPO="$TMP/outside-context"
 init_policy_repo "$OUTSIDE_CONTEXT_REPO" fast engineering
 printf '%s\n' 'outside context' >"$TMP/outside-context.md"

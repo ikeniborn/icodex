@@ -352,16 +352,42 @@ def _require_context_blob(repo: Path, commit: str, value: str) -> None:
     if not resolved.is_file():
         raise PolicyError(f"context input does not exist: {value}", 3)
     result = subprocess.run(
-        ["git", "-C", str(repo), "ls-tree", "--full-tree", commit, "--", relative.as_posix()],
+        [
+            "git",
+            "-C",
+            str(repo),
+            "--literal-pathspecs",
+            "ls-tree",
+            "-z",
+            "--full-tree",
+            commit,
+            "--",
+            relative.as_posix(),
+        ],
         check=False,
-        text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    entry = result.stdout.strip().split(None, 3)
-    if result.returncode != 0 or not entry:
+    if result.returncode != 0:
+        raise PolicyError(f"cannot validate context input at pinned HEAD: {value}", 3)
+    entries = result.stdout.split(b"\0")
+    if entries and entries[-1] == b"":
+        entries.pop()
+    if not entries:
         raise PolicyError(f"context input is not tracked at pinned HEAD: {value}", 3)
-    if len(entry) < 2 or entry[0] not in {"100644", "100755"} or entry[1] != "blob":
+    if len(entries) != 1:
+        raise PolicyError(f"ambiguous context input tree entry at pinned HEAD: {value}", 3)
+    metadata, separator, returned_path = entries[0].partition(b"\t")
+    fields = metadata.split()
+    expected_path = os.fsencode(relative.as_posix())
+    if (
+        separator != b"\t"
+        or returned_path != expected_path
+        or len(fields) != 3
+        or re.fullmatch(rb"[0-9a-f]{40,64}", fields[2]) is None
+    ):
+        raise PolicyError(f"malformed context input tree entry at pinned HEAD: {value}", 3)
+    if fields[0] not in {b"100644", b"100755"} or fields[1] != b"blob":
         raise PolicyError(f"context input must be a tracked regular file at pinned HEAD: {value}", 3)
 
 
