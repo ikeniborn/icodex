@@ -25,4 +25,4 @@
 | check-chain-plan-review-summary | done | ✓ | ✓ | ✓ | OK | 2026-07-20 | 2026-07-20 | Strengthened `check-chain spec`/`plan` reviews and made result HTML optional by user request |
 | loen-start-mode-gates | done | ✓ | ✓ | ✓ | OK | 2026-07-23 | 2026-07-24 | Strengthen LoEn start trust and close runtime, audit, and durable IDD vendor-gate blockers |
 | codex-model-routing | done | ✓ | n/a | n/a | OK | 2026-07-28 | 2026-07-28 | Added intent-backed execution, LoEn checkpoints, semantic model routes, aligned reports/docs, and focused tests; no spec, plan, TOML, or runtime model switching |
-| profile-recheck-at-task-transition | in-progress | ✓ | – | – | – | 2026-07-29 |  | Shared registry authority and per-home project manifests under re-review |
+| profile-recheck-at-task-transition | in-progress | ✓ | ✓ | – | – | 2026-07-29 |  | Shared registry authority and direct project manifests approved for planning |

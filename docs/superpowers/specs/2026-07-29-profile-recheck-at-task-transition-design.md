@@ -1,6 +1,6 @@
 ---
 review:
-  spec_hash: 0611bd346a430c74
+  spec_hash: 758333e9e0791cd0
   last_run: 2026-07-29
   phases:
     structure: { status: passed }
@@ -12,379 +12,403 @@ chain:
   intent: docs/superpowers/intents/2026-07-29-profile-recheck-at-task-transition-intent.md
 ---
 
-# Design: Profile Recheck at Task Transition
+# Profile Recheck at Task Transition Design
 
 **Date:** 2026-07-29
 **Status:** approved
 
-## 1. Scope and Design Principles
+## 1. Scope and Principles
 
-This design adds an explicit, manifest-driven execution path that selects an approved
-Codex model and reasoning-effort profile at task boundaries. It preserves ordinary
-interactive Codex launches and their manual model-transition policy.
+This design adds an explicit profile-routed execution path at task boundaries. It keeps
+ordinary interactive Codex launches and their manual `/model` and `/status` policy.
 
-The system has two independent authorities:
+Policy and state have distinct authorities:
 
-- tracked policy under `docs/profiles/` defines approved profiles, task requirements,
-  and deterministic preference order;
-- runtime state under `$CODEX_HOME/state/profile-routing/` records an orchestrator
-  request and the hook decision for one local session.
+- `.codex-isolated/profiles/registry.yaml` is the single shared capacity registry for
+  every project launched by this icodex installation.
+- `<target-repository>/docs/profiles/<topic>.yaml` is the authoritative project manifest.
+- `$CODEX_HOME/state/profile-routing/` contains only machine-local handoffs, session
+  decisions, and current-run progress.
 
-Runtime state is never policy. Losing it requires a new handoff but does not weaken or
-change the committed routing decision. The hook is a guardrail: it validates the
-orchestrator's selection and active model but never selects a model, changes Codex
-configuration, calls `/model`, parses a transcript, or starts another turn.
+The launcher exposes the shared registry through `$CODEX_HOME/profiles`, but the home
+path is a convenience, not a second policy authority. The runner reads the project
+manifest directly from the target repository. It never copies or symlinks a manifest
+into the project home.
 
-In this design, protected profile-routed work means mutation or execution performed by
-a runner process carrying a valid profile run ID. An ordinary interactive session is
-not represented as profile-routed work and remains governed by the manual transition
-policy.
+Trust has priority over speed and cost. Unknown policy blocks protected execution.
+Session history and routing progress are not portable and never enter Git.
 
-## 2. Requirements
+## 2. Acceptance (from intent)
 
-### R1: Versioned Capacity Registry
+### Desired Outcomes
 
-`docs/profiles/registry.yaml` must define one entry for each exact `model` and `effort`
-pair that may be referenced by a topic. Each entry has a stable profile ID and
-qualitative tiers for capability, context capacity, latency, cost, and throughput.
+- Every launched project home uses one shared, user-approved registry of model and
+  reasoning-effort capacity tiers.
+- Each project has a distinct authoritative manifest under its target repository's
+  `docs/profiles/` directory; no home copy or manifest symlink is required.
+- The manifest's approved source and hash survive cross-machine work through a reviewed,
+  secret-free Git artifact.
+- A hook detects an active model-slug change per Codex session before protected work.
+- A shared, versioned capacity registry evaluates capability, context-window, latency,
+  cost, and throughput tiers without claiming live measurements.
+- At each task boundary, an orchestrator starts the next Codex turn with a sufficient
+  profile from the approved matrix, without requiring a manual profile change.
+- LoEn iterations continue without repeated profile evaluation while the topic,
+  requirement, registry version, and selected profile remain unchanged.
+- A missing registry entry, task requirement, approved profile, or sufficient capacity
+  blocks protected work with an actionable reason.
+- A newly discovered risk, increased complexity, or critical failure blocks automatic
+  selection when it requires a profile outside the approved matrix.
+- The hook never invokes `/model` or creates an automatic continuation loop.
 
-The registry defines the ordered vocabulary and comparator for every dimension.
-Capability, context, and throughput use `gte`; latency and cost use `lte`. It contains
-curated qualitative classifications and provenance notes, not live measurements.
-The context tier describes catalogued model context-window capacity, not live remaining
-context in a session. A task that requires confirmed remaining context must block unless
-a separately documented supported source provides that confirmation.
+### Done When
+
+- Done when two project homes on different machines can use the same reviewed registry,
+  validate and use the same approved project manifest from `docs/profiles/`, and
+  select/start a sufficient profile without a manual switch while session history and
+  routing state stay machine-local; missing state produces an explicit new cold start,
+  unknown policy blocks with a precise remediation, and focused tests pass without
+  weakening existing hooks.
+
+## 3. Requirements
+
+### R1: Shared Versioned Capacity Registry
+
+`.codex-isolated/profiles/registry.yaml` defines the ordered vocabulary, comparator, and
+qualitative capacities for every approved exact `model` and `effort` pair. Capability,
+catalogued context capacity, and throughput use `gte`; latency and cost use `lte`.
+
+The registry is a curated policy, not a measurement service. It performs no network
+request, contains no live remaining-context value, and derives no effort modifier.
+`.gitignore` must whitelist only the curated `.codex-isolated/profiles/` content while
+continuing to exclude secrets and runtime state elsewhere in `.codex-isolated/`.
 
 Acceptance criteria:
 
-- Each profile resolves to exactly one model slug and one supported effort value.
-- Every capacity value belongs to the ordered vocabulary for its dimension.
-- Registry validation rejects duplicate profile IDs, unknown dimensions, unknown
-  tiers, and missing comparators.
-- No registry reader makes a network request or derives effort modifiers.
+- The registry is tracked at the exact canonical shared-store path and its worktree
+  bytes equal its pinned icodex HEAD blob.
+- Every profile has a unique stable ID and exact model/effort pair.
+- Unknown dimensions, tiers, comparators, keys, or duplicate pairs fail validation.
+- A registry content change produces a new SHA-256 and invalidates every manifest that
+  pins the previous bytes.
 
-### R2: Committed Topic Profile Manifest
+### R2: Project-Local Topic Manifest
 
-Each routed topic must have `docs/profiles/<topic>.yaml`. The manifest contains the
-canonical topic, schema version, `status: approved`, registry path and full SHA-256,
-ordered tasks, tracked context inputs, and portable-history policy.
+Each routed topic has `<target-repository>/docs/profiles/<topic>.yaml`. The manifest
+contains the canonical topic, schema version, `status: approved`, ordered tasks, tracked
+context inputs, and this shared-registry reference:
 
-Each task contains a stable task ID, requirement tiers for all enforced dimensions,
-and an ordered `preferred_profiles` list. It references registry profile IDs and never
-duplicates model or capacity data.
+```yaml
+registry:
+  authority: icodex-shared
+  path: profiles/registry.yaml
+  sha256: <64 lowercase hex characters>
+```
 
-User approval and commit are separate workflow steps. The user approves the exact
-manifest contents before commit. Runtime accepts a manifest only when it is tracked,
-its worktree bytes equal the `HEAD` blob, its status is approved, and its pinned
-registry hash matches the committed registry. Git provides the durable review trail;
-the manifest does not claim cryptographic proof of user identity.
+`authority` is a logical authority ID. `path` is resolved under `$CODEX_HOME` and must
+resolve exactly to `$ICODEX_SHARED_DIR/profiles/registry.yaml`. Absolute paths, alternate
+authorities, path traversal, and another symlink target fail closed.
+
+The manifest remains in the target Git repository. Runtime reads it directly and never
+creates a home manifest. The target repository supplies the immutable manifest and
+context-input blobs; the icodex repository independently supplies the immutable registry
+blob.
 
 Acceptance criteria:
 
-- A dirty, untracked, unapproved, malformed, or registry-mismatched manifest blocks
-  routed execution with one concrete recovery action.
-- Changing either committed file invalidates every handoff made from the prior hashes.
-- A new or changed manifest cannot become runnable before explicit user approval and a
+- The manifest path is exactly `docs/profiles/<canonical-topic>.yaml` in the target root.
+- Manifest and context-input worktree bytes equal regular blobs at one immutable target
+  HEAD commit during runtime validation.
+- A dirty, untracked, unapproved, malformed, or registry-mismatched manifest blocks with
+  one concrete recovery action.
+- A new or changed manifest cannot run before explicit user approval and a target-repo
   commit.
-- The same committed registry and topic manifest produce the same ordered candidate
-  set on different machines.
+- No manifest copy or manifest symlink exists under `.codex-homes/`.
 
-### R3: Deterministic Profile Selection
+### R3: Split Git Authority Validation
 
-The selector must obtain current model availability and supported efforts from App
-Server `model/list`. It scans `preferred_profiles` in order and selects the first entry
-that is both available and sufficient for every task requirement.
+The policy API receives explicit target root, shared-store root, manifest path, and
+registry path. It resolves one immutable commit OID for each Git repository before
+reading any policy bytes. It reads each relevant worktree file once and compares those
+bytes with the corresponding committed blob from the already pinned repository commit.
 
-Sufficiency is evaluated per dimension using the registry comparator. The selector
-must not combine dimensions into a score, infer missing values, use an App Server
-default, or choose a profile outside the task list.
+Registry validation cannot use the target repository HEAD. Manifest and context
+validation cannot use the icodex HEAD. Selection reuses the validated registry/manifest
+pair and performs no policy reread.
 
-Acceptance criteria:
+The validated snapshot records:
 
-- An unavailable preferred profile falls through to the next approved candidate.
-- An insufficient profile is skipped even when its model is available.
-- Missing requirements, unknown registry data, unavailable model metadata, or no
-  sufficient candidate blocks the task with the failing dimension or missing source.
-- Equal inputs produce the same selected profile and explanation.
-
-### R4: Explicit App Server Orchestration
-
-The wrapper must expose two explicit modes:
-
-- `icodex --run-task <topic> <task-id>` starts one declared task and exits after its
-  terminal result;
-- `icodex --orchestrate <topic>` runs the declared sequence and may start the next task
-  only after the current task reports completion.
-
-Both modes use documented App Server methods. The runner starts or resumes a thread,
-passes exact `model` and `effort` overrides to `turn/start`, and supplies an
-`outputSchema` whose transition is `complete`, `needs_input`, or `blocked`.
-`turn/completed` alone never advances the sequence. `needs_input`, `blocked`, malformed
-structured output, interruption, or App Server failure stops the runner.
+- registry commit OID, registry SHA-256, and registry version;
+- target commit OID and manifest SHA-256;
+- canonical target root, topic, and task ID.
 
 Acceptance criteria:
 
-- One-shot mode never starts a second task.
-- Orchestration mode advances exactly once after a valid `complete` result.
-- Every started task records its selected profile, requirement evidence, App Server
-  request ID, and manifest hashes.
-- Ordinary interactive `icodex` launches continue to use the existing CLI path.
+- Moving either HEAD during validation cannot combine bytes from different commits.
+- A symlink, Git pathspec, alternate repository, dirty byte change, or non-regular blob
+  cannot substitute another authority path.
+- Equal registry, manifest, availability, and task inputs produce the same candidate
+  order on different machines.
 
-### R5: One-Time Handoff and Hook Enforcement
+### R4: Shared Profile Home Wiring
 
-Before `turn/start`, the runner must atomically create a one-time handoff containing a
-process-scoped run ID, sequence, topic, task ID, registry hash, manifest hash, selected
-profile, exact model, exact effort, and App Server request correlation data. The App
-Server child process receives the run ID through its environment; hook subprocesses
-inherit that value.
+`setup_codex_home` ensures `$CODEX_HOME/profiles` is an exact symlink to
+`$ICODEX_SHARED_DIR/profiles`. The managed-link helper verifies the link target rather
+than accepting any symlink. A missing or incorrect managed link is repaired
+idempotently during launcher setup.
 
-At the first protected action, `.codex-isolated/hooks/profile-transition.py` binds the
-handoff to the documented hook payload `session_id`, compares the payload `model` with
-the selected model, and persists the decision under
-`$CODEX_HOME/state/profile-routing/<session_id>/`. The effort confirmation is the exact
-value written to the correlated `turn/start` request; the hook must not claim an
-independent observation of active effort.
-
-On every later protected hook event, the hook compares the current payload `model` with
-the persisted selected model before reusing the decision. A model-slug change therefore
-invalidates the cached authorization before protected work continues.
-
-Protected actions include file mutation, execution skills, arbitrary shell commands,
-and unknown tools. Direct reads, searches, and a closed allowlist of read-only commands
-may run before selection. Unknown commands fail closed as protected.
+The shared profile directory contains registry policy and its documentation only. It
+contains no per-project manifest, session state, auth data, cache, or downloaded binary.
 
 Acceptance criteria:
 
-- Missing, stale, replayed, cross-run, cross-task, or hash-mismatched handoffs block a
-  protected action.
-- A payload model mismatch blocks even when every manifest check passes.
-- A mid-session payload model change is detected on the next protected hook event.
-- A consumed handoff cannot authorize a second session or sequence.
-- The hook reads no `transcript_path`, makes no network request, changes no model
-  setting, and starts no continuation loop.
-- Existing hook entries remain enabled and wiring remains idempotent.
+- New and existing homes resolve `profiles/registry.yaml` to the same shared file.
+- A second launcher run leaves a correct link byte-for-byte unchanged.
+- An incorrect profiles link is repaired to the exact shared target.
+- `.codex-homes/` remains fully Git-ignored.
 
-### R6: Runtime Cache and LoEn Re-evaluation
+### R5: Deterministic Profile Selection
 
-Runtime decisions are keyed by session ID and the tuple of topic, task requirement,
-registry hash, manifest hash, and selected profile. Repeated LoEn iterations may reuse
-the decision only while the entire tuple is unchanged. The runner may still issue
-another documented turn request, but it must not recompute profile sufficiency for an
-unchanged tuple.
+The runner obtains current model availability and supported efforts from App Server
+`model/list`. It scans the task's `preferred_profiles` in manifest order and selects the
+first entry that is both available and sufficient for every requirement.
 
-Any task boundary, requirement change, selected-profile change, registry change,
-manifest change, or newly discovered risk that exceeds the approved matrix invalidates
-the cache. A requirement outside the approved matrix blocks for user clarification and
-a newly approved manifest; it is never silently downgraded or escalated.
+Sufficiency is evaluated independently for each dimension. The selector never combines
+dimensions into a score, infers missing values, chooses an App Server default, or uses a
+profile outside the approved list. A task that requires confirmed live remaining context
+blocks because the shared registry describes only catalogued context capacity.
 
 Acceptance criteria:
 
-- An unchanged LoEn tuple reuses the recorded selection.
-- Changing any tuple member forces validation and selection before protected work.
-- Deleted local state is recoverable from committed policy through a fresh handoff.
-- Cache recovery never infers approval or completion from missing data.
+- An unavailable or insufficient candidate falls through to the next approved candidate.
+- Missing effort metadata, requirement data, or a sufficient candidate blocks with
+  evidence naming the failed source or dimension.
+- Duplicate or ambiguous `model/list` entries fail closed.
 
-### R7: Portable Cross-Machine History
+### R6: App Server Task Runner
 
-The runner must support an explicit portable export/import path based only on documented
-App Server data. Export reads model-visible history through `thread/read`, retains only
-items accepted by `thread/inject_items`, and adds completed task IDs, the last sequence,
-topic identity, and pinned registry/manifest hashes.
+The wrapper exposes:
 
-The bundle is written only on an explicit export command, to a user-selected path, with
-file mode `0600`. It must not contain Codex authentication files, the internal state
-database, or raw transcript files. Transport and storage between machines are supplied
-by the user; icodex performs no upload or remote synchronization.
+```text
+icodex --run-task <topic> <task-id>
+icodex --orchestrate <topic>
+```
 
-Import creates or resumes a supported thread, injects compatible items through
-`thread/inject_items`, and restores progress only after topic and policy hashes match.
-Unsupported item types or incomplete history fail export or import explicitly rather
-than producing a partial silent reconstruction.
+Both commands run after normal home, permission, hook, binary, and proxy setup. The
+runner validates split policy, calls `model/list`, selects a profile, creates a
+correlated one-time handoff, and sends explicit `model`, `effort`, `cwd`, and strict
+transition `outputSchema` fields through `turn/start`.
 
-Acceptance criteria:
-
-- A valid bundle round-trips model-visible history and task progress without copying
-  `$CODEX_HOME` internals.
-- Topic, schema, sequence, registry, or manifest mismatch blocks import.
-- Export and import never parse `transcript_path`.
-- The bundle is never added to Git by the feature.
-
-### R8: Policy and User Documentation
-
-`.codex-isolated/AGENTS.md` must describe the profile workflow as a first-class task
-transition path. For an orchestrated task, a valid approved manifest and correlated
-handoff replace the manual `/status` confirmation. For ordinary interactive Codex, the
-current manual `/status` and `/model` gate remains in effect.
-
-CLI help, `docs/README.ru.md`, schema documentation under `docs/profiles/`, and the
-bound iwiki model-routing and hook pages must describe the two commands, approval
-lifecycle, failure recovery, portable transfer boundary, and the distinction between
-tracked policy and runtime state.
+Only structured `transition: complete` advances orchestration. `needs_input`, `blocked`,
+malformed output, interruption, or App Server failure stops without advancing.
 
 Acceptance criteria:
 
-- The documented workflow never implies that a hook chooses or changes a model.
-- Interactive and orchestrated paths have distinct, non-contradictory rules.
-- Examples use committed approved manifests and omit secrets, live metrics, and
-  internal Codex state.
-- `wiki_lint` reports no broken, orphan, missing-source, or stale page caused by this
-  change.
+- One-shot mode starts exactly the requested task and never another task.
+- Orchestration advances exactly once per valid `complete` result.
+- Ordinary interactive launch remains on the existing path.
+- The hook never invokes `/model` and never creates a stop-driven continuation loop.
 
-### R9: Verification Coverage
+### R7: Machine-Local State and Hook Enforcement
 
-Focused dependency-free tests must cover schema validation, Git approval state,
-multi-dimensional sufficiency, ordered availability fallback, one-time handoffs, hook
-blocking, structured transitions, LoEn cache reuse and invalidation, portable bundle
-round-trips, and hook composition.
+Before `turn/start`, the runner atomically creates a one-time handoff under
+`$CODEX_HOME/state/profile-routing/`. The handoff includes run ID, sequence, topic, task,
+both commit OIDs, registry and manifest hashes, selected profile, exact model/effort,
+and App Server request correlation.
+
+At the first protected action, the profile hook binds the handoff to the documented hook
+`session_id`, compares the payload model, and persists a local decision. Effort evidence
+comes from the exact correlated `turn/start` request, not inference from the hook payload.
+
+Protected work includes mutating tools and execution skills. A closed read-only discovery
+allowlist may run before authorization; unknown tool or skill events are protected.
+
+Within one local LoEn run, the runner may reuse a validated selection without another
+profile evaluation only when this complete cache tuple is unchanged: canonical target
+root, topic, task ID, requirement fingerprint, registry commit/version/hash, manifest
+commit/hash, selected profile, exact model, and exact effort. Reuse also requires the
+same local run namespace and an authorized session decision whose observed model still
+matches. The cache is state, not policy.
+
+Any tuple change, task transition, model mismatch, run change, missing state, invalidated
+decision, or newly required supported confirmation forces full policy validation,
+`model/list`, and a new handoff. A cold start never reconstructs the LoEn cache from Git.
 
 Acceptance criteria:
 
-- Mocked App Server JSON-RPC tests prove exact `model`, `effort`, and `outputSchema`
-  fields without network access.
-- Negative tests cover every fail-closed condition named in R2, R3, R5, and R7.
-- Existing secret guard, caveman, IDD, LoEn, and iwiki hook wiring tests remain green.
-- The full Bash test suite exits successfully.
+- State files use restrictive permissions, atomic replace, and single-use consumption.
+- Replay, cross-run, cross-task, hash, model, or sequence mismatch blocks.
+- Concurrent runners cannot consume each other's handoffs.
+- Hooks read no transcript, make no network request, and do not modify policy or model.
+- An exact LoEn cache tuple reuses the prior selection without a second `model/list`
+  request; changing any tuple field forces reevaluation before protected work.
 
-## 3. Components and Boundaries
+### R8: Explicit Cold Starts
 
-### 3.1 Profile Policy Files
+Missing `$CODEX_HOME/state/profile-routing/` is a valid cold start. Policy is fully
+revalidated and a new run ID is created. No completed task, prior selection, history,
+or continuation point is inferred from another machine.
 
-`docs/profiles/registry.yaml` owns tier definitions and exact profile capacities.
-`docs/profiles/<topic>.yaml` owns topic tasks, requirements, approved candidates, order,
-and the registry pin. Neither file stores runtime decisions or session history.
+`--run-task` starts the explicit task on a cold home. `--orchestrate` reports that it is
+starting a new run from the first declared task. Deleting local routing state is a
+recoverable reset, not a policy change.
 
-### 3.2 Profile Library
+Acceptance criteria:
 
-`lib/profile/` owns strict YAML loading, schema validation, canonical hashing, Git blob
-checks, sufficiency comparison, selection, state serialization, and portable bundle
-validation. It accepts a documented, project-owned YAML subset and introduces no
-package-manager or runtime dependency. Shell entrypoints consume stable command results
-instead of duplicating policy logic.
+- A new home can run an explicit task using the same shared registry and committed
+  project manifest.
+- A cold orchestrator never claims to resume a previous-machine run.
+- Missing state does not bypass manifest, registry, model availability, or hook checks.
 
-### 3.3 App Server Runner
+### R9: Documentation and Scope Boundary
 
-The runner owns App Server process lifecycle, JSON-RPC request correlation,
-`model/list`, thread start/resume/read/injection, `turn/start`, structured completion,
-task sequencing, and portable export/import. It may select only through the profile
-library.
+`.codex-isolated/AGENTS.md` distinguishes two branches:
 
-### 3.4 Transition Hook
+- orchestrated work uses validated split policy plus correlated local handoff evidence;
+- ordinary interactive work retains manual `/model` and `/status` confirmation.
 
-The hook owns enforcement at protected tool boundaries. It validates and consumes an
-existing selection; it does not own registry policy, selection, App Server lifecycle,
-or task progression.
+Repository docs describe shared registry placement, project manifest placement, home
+symlink wiring, cold starts, and recovery actions. Portable history export/import, Git
+tracking of `.codex-homes/`, session synchronization, retention, and transport are
+explicit non-goals.
 
-### 3.5 Runtime State
+Acceptance criteria:
 
-`$CODEX_HOME/state/profile-routing/` contains atomic handoffs and session decisions.
-State files use restrictive permissions and are scoped by run and session identifiers.
-They are disposable caches, not portable policy or approval records.
+- No profile export/import command or portable bundle schema is added.
+- Tests prove `.codex-homes/`, auth paths, raw sessions, SQLite, caches, and temp files
+  remain untracked.
+- iwiki documents implemented behavior and passes lint before result closure.
+- Stale project-local registry or portable-history artifacts cannot be cited as approved
+  evidence by the revised runner, plan, or result reconciliation.
 
-## 4. Data Flow
+## 4. Components and Boundaries
 
-1. The user approves and commits the registry and topic manifest.
-2. The runner validates both committed blobs and the registry pin.
-3. The runner calls `model/list` and deterministically selects the first available and
-   sufficient approved profile.
-4. The runner atomically writes a one-time handoff and starts the App Server process with
-   the run ID in its environment.
-5. The runner starts the declared task with exact model/effort overrides and the task
-   transition output schema.
-6. The first protected action invokes the transition hook. The hook binds the handoff to
-   the payload session ID, verifies the active model, and records the decision.
-7. Later protected actions reuse the decision while its complete cache tuple matches.
-8. The runner accepts only valid structured terminal output. One-shot mode exits;
-   orchestration mode advances only on `complete`.
-9. Explicit export packages compatible model-visible history and routing progress.
-   Explicit import validates policy pins before reconstructing a thread with documented
-   App Server methods.
+### 4.1 Home Wiring
 
-## 5. Error Handling and Recovery
+`lib/config/isolated.sh` owns shared profile symlink creation. It does not validate YAML
+or create routing state. `tests/test_isolated.sh` owns observable wiring coverage.
 
-| Failure | Required behavior | Recovery |
+### 4.2 Policy Library
+
+`lib/profile/policy.py` owns strict YAML parsing, schema checks, split Git snapshots,
+canonical path checks, hashing, and deterministic selection. It accepts explicit roots
+and returns a validated immutable policy object. It does not start App Server, write
+runtime state, or update Git policy.
+
+### 4.3 Runtime State
+
+`lib/profile/state.py` owns restrictive atomic files, one-time handoffs, session
+decisions, cache tuples, invalidation, and cold-start detection. It treats absence as
+empty local state and never reconstructs progress from policy.
+
+### 4.4 Runner and App Server
+
+`lib/profile/app_server.py` owns synchronous JSON-RPC process lifecycle and documented
+method adapters. `lib/profile/runner.py` owns policy resolution, selection, handoff
+sequencing, one-shot/orchestration behavior, and structured completion.
+
+### 4.5 Hook and Wrapper
+
+`.codex-isolated/hooks/profile-transition.py` enforces local evidence at protected
+actions. `lib/profile/wiring.sh` composes it with existing hooks. `lib/profile/profile.sh`,
+`lib/command/args.sh`, and `icodex.sh` expose and dispatch explicit runner commands.
+
+## 5. Data Flow
+
+1. Launcher resolves target root and per-project home, then repairs the shared profiles
+   symlink.
+2. Runner resolves the manifest from target `docs/profiles/` and registry through the
+   home symlink.
+3. Policy validation pins icodex and target HEAD independently, reads exact bytes once,
+   and validates the manifest registry pin.
+4. Runner calls `model/list` and selects the first available sufficient approved profile.
+5. Runner allocates an App Server request ID, atomically writes the correlated handoff,
+   then sends `turn/start`.
+6. Hook consumes the handoff at first protected action and stores the session decision.
+7. A valid structured `complete` advances; every other terminal result stops.
+8. Missing local state on another machine returns to step 3 with a new run.
+
+## 6. Failure Semantics
+
+| Failure | Result | Recovery |
 |---|---|---|
-| Manifest is dirty, untracked, or unapproved | Block before selection | Approve exact contents and commit them. |
-| Registry hash differs | Block before selection | Review the registry change and approve a repinned manifest. |
-| No available sufficient profile | Block with candidate and dimension evidence | Change availability or approve a revised matrix. |
-| Handoff is missing, stale, or replayed | Block protected action | Restart the task to create a fresh handoff. |
-| Payload model differs | Block protected action | Stop the mismatched session and restart through the runner. |
-| App Server or structured result fails | Do not advance task sequence | Fix the reported failure and rerun the same task. |
-| Local state is lost | Do not infer completion | Recreate a handoff from committed policy. |
-| Portable bundle hashes differ | Reject import without injection | Checkout matching policy or create a new approved routing decision. |
-| New risk exceeds approved matrix | Block automatic selection | Obtain user clarification and approve a revised manifest. |
+| Shared profiles link missing or wrong | Launcher repairs exact managed link | Relaunch |
+| Registry or manifest dirty/untracked | Block before selection | Review and commit exact bytes |
+| Registry SHA mismatch | Block before selection | Reapprove and repin manifest |
+| Authority/path/symlink mismatch | Block | Restore canonical path and managed link |
+| No available sufficient candidate | Block task | Update availability or approve policy change |
+| State missing | Explicit cold start | Run explicit task or new orchestration |
+| State stale/malformed/replayed | Block or explicit invalidate | Delete local routing state and restart |
+| Payload model mismatch | Block protected action | Restart through runner |
+| Structured result not `complete` | Stop orchestration | Resolve result and rerun explicitly |
 
-Ordinary interactive launches do not carry a runner run ID, so the profile hook does
-not claim orchestrated authorization for them. Their task-transition decisions remain
-governed by the manual policy in `.codex-isolated/AGENTS.md`.
+No failure path silently selects another authority, imports previous-machine progress,
+or weakens existing hooks.
 
-## 6. Compatibility and Migration
+## 7. Verification Strategy
 
-The feature is opt-in through the two explicit runner commands. Existing `icodex`
-passthrough behavior, configuration, hooks, and interactive sessions remain available.
-No existing topic is routed automatically merely because a registry exists.
+Focused tests must prove:
 
-The launcher adds the new hook idempotently without replacing secret guards, caveman,
-IDD, LoEn, or iwiki entries. Existing model-routing guidance is revised only where the
-orchestrated path supersedes manual confirmation; its interactive fallback remains.
+- shared profile directory tracking and correct/idempotent/wrong-link home wiring;
+- split registry and manifest Git repositories with two immutable HEAD snapshots;
+- dirty, untracked, symlink, pathspec, alternate-authority, and hash mismatch rejection;
+- absence of a home manifest and direct target-repo manifest reads;
+- exact dimension comparators and ordered availability fallback;
+- atomic permissions, replay rejection, concurrent-run isolation, and deletion recovery;
+- cold one-shot task selection and cold orchestration from the first task;
+- App Server request correlation and strict structured completion;
+- composition with secret, caveman, IDD, LoEn, and iwiki hooks;
+- absence of portable-history commands and tracked home/session artifacts.
 
-Registry and topic schema versions are strict. Unsupported versions block with an
-upgrade instruction; the runtime performs no silent migration of approved policy.
+Required verification includes focused policy, isolated-home, state, hook, runner,
+argument, workflow-boundary, smoke, and full Bash test suites plus `wiki_lint`.
 
-## 7. Testing Strategy
+## 8. Human Checkpoints
 
-Focused tests use temporary repositories and a deterministic fake App Server. They
-verify:
+- Exact registry capacity bytes require explicit user approval before commit.
+- Every new or changed project manifest, task requirement, candidate order, and registry
+  pin requires explicit user approval before target-repo commit.
+- Tracking or synchronizing home/session state is no-go and requires a new intent rather
+  than an implementation exception.
 
-- valid and invalid registry/topic schemas;
-- rejection of unsupported YAML constructs without an external YAML dependency;
-- committed-versus-dirty approval state and exact hash pinning;
-- both comparator directions and ordered availability fallback;
-- selection failure diagnostics;
-- atomic handoff creation, consumption, replay rejection, and session binding;
-- model mismatch and unknown protected-command behavior;
-- exact JSON-RPC model, effort, output schema, and transition sequencing;
-- one-shot versus orchestration mode;
-- LoEn cache reuse for an unchanged tuple and re-evaluation for each changed member;
-- portable history round-trip, restrictive permissions, and mismatch rejection;
-- idempotent hook composition with all existing hook families.
+## 9. Migration from the Stale Design
 
-The final verification runs the focused profile tests, existing workflow and hook tests,
-and every `tests/test_*.sh` file. Tests use no network and no real Codex account.
+The previous design and local implementation assumed registry and manifest both lived
+under one target repository's `docs/profiles/`. Local, unpushed commits `5d8c622` and
+`1e74dcc` created stale migration artifacts: `docs/profiles/registry.yaml`, a manifest
+that pins that path and enables portable history, and a production test that treats the
+pair as current. They are not valid policy for this revised design even though the stale
+manifest body says `status: approved`. No routing command may use them as authority.
 
-## 8. Documentation and Human Checkpoints
+The revised implementation plan must begin by reconciling those commits without history
+rewrites: replace or remove stale files through normal commits, then establish the new
+authorities and tests. It must:
 
-The implementation updates `.codex-isolated/AGENTS.md`, CLI help, `docs/README.ru.md`, and
-the schema/examples in `docs/profiles/`. It then updates the bound iwiki pages for model
-routing and hook wiring and runs `wiki_lint`.
+- move the approved registry bytes to `.codex-isolated/profiles/registry.yaml`;
+- keep only project manifest policy and project-facing documentation under
+  `docs/profiles/`;
+- replace single-repository path checks in `lib/profile/policy.py` with split authority;
+- add shared profile home wiring;
+- remove every portable-history requirement and planned command;
+- reconcile or revert stale local commits before result closure.
 
-Human checkpoints remain:
+Implementation cannot proceed past policy migration while any test or runtime path still
+accepts `docs/profiles/registry.yaml`, a manifest without registry authority
+`icodex-shared`, or a portable-history task. Result reconciliation cannot return `OK`
+until the stale registry is absent, the shared registry is tracked, the project manifest
+matches R2, and focused tests prove the revised paths.
 
-- approve exact registry changes before they can affect any topic;
-- approve exact topic manifests before commit;
-- approve any matrix expansion caused by a new risk or missing sufficient profile;
-- choose and operate the external transport for portable history bundles.
-
-No further design choice is required before implementation planning.
-
-## 9. Risks and Mitigations
+## 10. Risks and Mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Qualitative capacity data becomes stale | Version registry changes, pin its hash, and require topic reapproval. |
-| Hook cannot observe active effort | Correlate the exact `turn/start.effort` request and state that this is request evidence, not independent observation. |
-| Concurrent runners consume the wrong handoff | Scope handoffs by inherited run ID, task sequence, and single-use atomic consumption. |
-| Shell classification permits mutation | Use a closed read-only allowlist; treat unknown commands as protected. |
-| Automatic runner advances after an incomplete turn | Require valid structured `complete`; never equate `turn/completed` with task completion. |
-| Portable history exposes sensitive context | Make export explicit, use mode `0600`, avoid internal/auth files, and leave transport to the user. |
-| App Server schema changes | Use documented methods and fields, strict response validation, and mocked compatibility tests. |
-| New hook weakens existing enforcement | Merge idempotently and test composition with every existing hook family. |
+| Shared registry change invalidates many projects | Hash pin and explicit manifest reapproval |
+| Wrong home symlink redirects policy | Exact target validation and idempotent repair |
+| Mixed commits create an unreviewed pair | One immutable commit per authority and one read per blob |
+| Cold start duplicates prior-machine work | Explicit new-run message and no resume claim |
+| Concurrent runs consume wrong evidence | Run namespace, sequence, request correlation, atomic consumption |
+| Runtime state leaks into Git | Keep `.codex-homes/` ignored and test secret/runtime exclusions |
+| Hook weakens existing enforcement | Idempotent composition and full existing-hook regression suite |
 
-## 10. Definition of Done
-
-The design is implemented when an approved task can select and start the first available
-sufficient profile through either explicit runner mode; the hook blocks mismatched or
-unknown protected execution; an unchanged LoEn tuple avoids repeated selection; a
-portable bundle reconstructs supported model-visible history on another machine; and
-focused plus full tests pass without weakening existing interactive launches or hook
-composition. Repository docs and the bound iwiki domain describe the verified behavior
-and pass lint.
+No further user decision is required before implementation planning once this checked
+spec is approved.
