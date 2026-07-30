@@ -55,7 +55,24 @@ hook_result() { # <payload> <run> <sequence> <request>
   local payload="$1" run_id="$2" sequence="$3" request_id="$4" code=0 stdout_file stderr_file
   stdout_file="$(mktemp "$tmp/hook-stdout.XXXXXX")"
   stderr_file="$(mktemp "$tmp/hook-stderr.XXXXXX")"
-  env ICODEX_PROFILE_RUN_ID="$run_id" \
+  env -i PATH=/usr/bin:/bin LC_ALL=C \
+    ICODEX_PROFILE_RUN_ID="$run_id" \
+    ICODEX_PROFILE_SEQUENCE="$sequence" \
+    ICODEX_PROFILE_REQUEST_ID="$request_id" \
+    ICODEX_ROOT="$ROOT" CODEX_HOME="$CODEX_HOME" \
+    python3 "$HOOK" <<<"$payload" >"$stdout_file" 2>"$stderr_file" || code=$?
+  printf '%s\n' "$code"
+  base64 -w0 < "$stdout_file"; printf '\n'
+  base64 -w0 < "$stderr_file"; printf '\n'
+}
+
+hook_result_with_env() { # <payload> <run> <sequence> <request> <name> <value>
+  local payload="$1" run_id="$2" sequence="$3" request_id="$4" name="$5" value="$6" code=0
+  local stdout_file stderr_file
+  stdout_file="$(mktemp "$tmp/hook-env-stdout.XXXXXX")"
+  stderr_file="$(mktemp "$tmp/hook-env-stderr.XXXXXX")"
+  env -i PATH=/usr/bin:/bin LC_ALL=C "$name=$value" \
+    ICODEX_PROFILE_RUN_ID="$run_id" \
     ICODEX_PROFILE_SEQUENCE="$sequence" \
     ICODEX_PROFILE_REQUEST_ID="$request_id" \
     ICODEX_ROOT="$ROOT" CODEX_HOME="$CODEX_HOME" \
@@ -145,12 +162,13 @@ assert_eq "rg --files allows before authorization" "0" "$(hook_code <<<"$result"
 assert_contains "routed discovery returns rewritten input" "$(hook_output <<<"$result")" '"updatedInput"'
 assert_eq "routed discovery rewrite keeps stderr empty" "" "$(hook_stderr <<<"$result")"
 
-bash_payload() { # <command>
-  python3 - "$1" <<'PY'
+bash_payload() { # <command> [cwd]
+  python3 - "$1" "${2:-$ROOT}" <<'PY'
 import json
 import sys
 print(json.dumps({
     "session_id": "discovery-probe",
+    "cwd": sys.argv[2],
     "model": "gpt-5.6-terra",
     "tool_name": "Bash",
     "tool_input": {"command": sys.argv[1]},
@@ -172,13 +190,68 @@ else:
 PY
 }
 
+allowed_command() { # <original-command> <hook-stdout-json>
+  python3 - "$1" "$2" <<'PY'
+import json
+import sys
+original = sys.argv[1]
+value = json.loads(sys.argv[2])
+output = value.get("hookSpecificOutput", {})
+if output.get("permissionDecision") == "allow":
+    print(output.get("updatedInput", {}).get("command", original))
+PY
+}
+
 approve_discovery() { # <command>
-  local command="$1" payload result stdout
-  payload="$(bash_payload "$command")"
+  local command="$1" cwd="${2:-$ROOT}" payload result stdout
+  payload="$(bash_payload "$command" "$cwd")"
   result="$(hook_result "$payload" discovery-probe-run 0 discovery-probe-request)"
   stdout="$(hook_output <<<"$result")"
   approved_command "$command" "$stdout"
 }
+
+# Shell startup variables are interpreted before a sanitized rewritten command
+# can run, so routed discovery must require authorization when they are visible.
+startup_original='sed -n p README.md'
+startup_payload="$(bash_payload "$startup_original" "$ROOT")"
+for startup_name in BASH_ENV ENV; do
+  startup_dir="$tmp/startup-$startup_name"
+  mkdir -p "$startup_dir"
+  startup_marker="$startup_dir/invoked"
+  startup_file="$startup_dir/startup"
+  printf 'printf invoked > %q\n' "$startup_marker" > "$startup_file"
+  result="$(hook_result_with_env "$startup_payload" startup-run 0 startup-request "$startup_name" "$startup_file")"
+  assert_eq "$startup_name preauth returns structured decision" "0" "$(hook_code <<<"$result")"
+  assert_contains "$startup_name preauth is denied" "$(hook_output <<<"$result")" '"permissionDecision": "deny"'
+  assert_eq "$startup_name preauth has no rewritten input" "0" "$(grep -c 'updatedInput' <<<"$(hook_output <<<"$result")")"
+  startup_command="$(allowed_command "$startup_original" "$(hook_output <<<"$result")")"
+  if [[ -n "$startup_command" && "$startup_name" == "BASH_ENV" ]]; then
+    env -i PATH=/usr/bin:/bin BASH_ENV="$startup_file" /bin/bash -c "$startup_command" >/dev/null 2>&1 || true
+  fi
+  assert_exit "$startup_name preauth never starts injected shell" 1 test -e "$startup_marker"
+done
+
+function_marker="$tmp/imported-function-invoked"
+function_value="() { printf invoked > '$function_marker'; }"
+result="$(hook_result_with_env "$startup_payload" function-run 0 function-request 'BASH_FUNC_rg%%' "$function_value")"
+assert_contains "imported shell function preauth is denied" "$(hook_output <<<"$result")" '"permissionDecision": "deny"'
+assert_eq "imported shell function preauth has no rewritten input" "0" "$(grep -c 'updatedInput' <<<"$(hook_output <<<"$result")")"
+assert_exit "imported shell function probe remains absent" 1 test -e "$function_marker"
+
+# Exact authorization permits the original command and its inherited startup behavior.
+authorized_startup_payload="${startup_payload/discovery-probe/authorized-startup}"
+authorized_startup_file="$tmp/authorized-startup"
+authorized_startup_marker="$tmp/authorized-startup-invoked"
+printf 'printf invoked > %q\n' "$authorized_startup_marker" > "$authorized_startup_file"
+create_handoff authorized-startup-run 0 authorized-startup-request demo-task "$hash_a"
+result="$(hook_result_with_env "$authorized_startup_payload" authorized-startup-run 0 authorized-startup-request BASH_ENV "$authorized_startup_file")"
+assert_contains "authorized startup command is allowed" "$(hook_output <<<"$result")" '"permissionDecision": "allow"'
+assert_eq "authorized startup command keeps original input" "0" "$(grep -c 'updatedInput' <<<"$(hook_output <<<"$result")")"
+startup_command="$(allowed_command "$startup_original" "$(hook_output <<<"$result")")"
+if [[ -n "$startup_command" ]]; then
+  env -i PATH=/usr/bin:/bin BASH_ENV="$authorized_startup_file" /bin/bash -c "$startup_command" >/dev/null 2>&1 || true
+fi
+assert_exit "authorized startup command may run original shell behavior" 0 test -e "$authorized_startup_marker"
 
 approved="$(approve_discovery 'rg --files *')"
 assert_contains "discovery rewrite uses fixed empty environment" "$approved" '/usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C'
@@ -202,6 +275,7 @@ assert_eq "quoted discovery argv prevents sed wildcard in-place mutation" "$sed_
 shadow_dir="$tmp/path-shadow"
 option_probe="$tmp/option-files"
 mkdir -p "$shadow_dir" "$option_probe"
+git -C "$option_probe" init -q
 for tool in rg find tree git; do
   printf '#!/usr/bin/env bash\nprintf invoked > %q\n' "$option_probe/$tool-shadowed" > "$shadow_dir/$tool"
   chmod +x "$shadow_dir/$tool"
@@ -211,7 +285,7 @@ printf '' > "$option_probe/-delete"
 printf '' > "$option_probe/-oPWNED"
 printf '' > "$option_probe/--show-signature"
 for command in 'rg --files *' 'find *' 'tree *' 'git status *'; do
-  approved="$(approve_discovery "$command")"
+  approved="$(approve_discovery "$command" "$option_probe")"
   assert_contains "$command rewrite keeps wildcard literal" "$approved" "'*'"
   (cd "$option_probe" && PATH="$shadow_dir:/usr/bin:/bin" /bin/bash -c "$approved" >/dev/null 2>&1) || true
 done
@@ -256,24 +330,24 @@ git -C "$git_probe" config diff.probe.textconv "$git_probe/textconv-helper"
 git -C "$git_probe" config core.fsmonitor "$git_probe/helper"
 git -C "$git_probe" config gpg.program "$git_probe/signature-helper"
 printf 'changed\n' >> "$git_probe/tracked.txt"
-approved="$(approve_discovery 'git diff')"
+approved="$(approve_discovery 'git diff' "$git_probe")"
 (cd "$git_probe" && PATH=/usr/bin:/bin /bin/bash -c "$approved" >/dev/null 2>&1) || true
 assert_exit "repo Git external/fsmonitor helpers not executed" 1 test -e "$git_probe/helper-invoked"
 
 git -C "$git_probe" config --unset diff.external
 git -C "$git_probe" config --unset core.fsmonitor
-approved="$(approve_discovery 'git diff')"
+approved="$(approve_discovery 'git diff' "$git_probe")"
 (cd "$git_probe" && PATH=/usr/bin:/bin /bin/bash -c "$approved" >/dev/null 2>&1) || true
 assert_exit "repo Git textconv helper not executed" 1 test -e "$git_probe/textconv-invoked"
 
-approved="$(approve_discovery 'git log -1')"
+approved="$(approve_discovery 'git log -1' "$git_probe")"
 (cd "$git_probe" && PATH=/usr/bin:/bin /bin/bash -c "$approved" >/dev/null 2>&1) || true
 assert_exit "repo Git signature helper not executed" 1 test -e "$git_probe/signature-invoked"
 
 printf '#!/usr/bin/env bash\nprintf invoked > %q\nexit 0\n' "$git_probe/global-invoked" > "$git_probe/global-helper"
 chmod +x "$git_probe/global-helper"
 printf '[diff]\n\texternal = %s\n' "$git_probe/global-helper" > "$global_home/.gitconfig"
-approved="$(approve_discovery 'git diff')"
+approved="$(approve_discovery 'git diff' "$git_probe")"
 (cd "$git_probe" && HOME="$global_home" PATH=/usr/bin:/bin /bin/bash -c "$approved" >/dev/null 2>&1) || true
 assert_exit "global Git external helper not executed" 1 test -e "$git_probe/global-invoked"
 
@@ -281,17 +355,77 @@ git -C "$git_probe" checkout -q -- tracked.txt
 sleep 1
 touch "$git_probe/tracked.txt"
 index_before="$(sha256sum "$git_probe/.git/index" | awk '{print $1}')"
-approved="$(approve_discovery 'git status --short')"
+approved="$(approve_discovery 'git status --short' "$git_probe")"
 (cd "$git_probe" && HOME="$global_home" PATH=/usr/bin:/bin /bin/bash -c "$approved" >/dev/null 2>&1) || true
 index_after="$(sha256sum "$git_probe/.git/index" | awk '{print $1}')"
 assert_eq "sanitized git status does not write index" "$index_before" "$index_after"
 
-approved="$(approve_discovery 'git diff --stat')"
+approved="$(approve_discovery 'git diff --stat' "$git_probe")"
 assert_contains "git rewrite disables optional locks" "$approved" '--no-optional-locks'
 assert_contains "git rewrite disables external diff" "$approved" '--no-ext-diff'
 assert_contains "git rewrite disables textconv" "$approved" '--no-textconv'
 assert_contains "git rewrite disables fsmonitor" "$approved" 'core.fsmonitor=false'
 assert_contains "git rewrite disables global/system config" "$approved" 'GIT_CONFIG_NOSYSTEM=1'
+
+# Local clean/process filters can execute helpers during working-tree diff/status.
+filter_probe="$tmp/git-filter-helpers"
+mkdir -p "$filter_probe"
+git -C "$filter_probe" init -q
+git -C "$filter_probe" config user.email test@example.com
+git -C "$filter_probe" config user.name Test
+printf '*.txt filter=probe\n' > "$filter_probe/.gitattributes"
+printf 'base\n' > "$filter_probe/tracked.txt"
+git -C "$filter_probe" add .gitattributes tracked.txt
+git -C "$filter_probe" commit -qm init
+filter_marker="$filter_probe/filter-invoked"
+printf '#!/usr/bin/env bash\nprintf invoked > %q\ncat\n' "$filter_marker" > "$filter_probe/clean-helper"
+printf '#!/usr/bin/env bash\nprintf invoked > %q\nexit 1\n' "$filter_marker" > "$filter_probe/process-helper"
+chmod +x "$filter_probe/clean-helper" "$filter_probe/process-helper"
+git -C "$filter_probe" config filter.probe.clean "$filter_probe/clean-helper"
+git -C "$filter_probe" config filter.probe.process "$filter_probe/process-helper"
+printf 'changed\n' >> "$filter_probe/tracked.txt"
+for command in 'git diff' 'git status --short'; do
+  rm -f "$filter_marker"
+  payload="$(bash_payload "$command" "$filter_probe")"
+  result="$(hook_result "$payload" filter-run 0 filter-request)"
+  assert_eq "$command local filter returns structured decision" "0" "$(hook_code <<<"$result")"
+  assert_contains "$command local filter is denied before authorization" "$(hook_output <<<"$result")" '"permissionDecision": "deny"'
+  assert_eq "$command local filter has no rewritten input" "0" "$(grep -c 'updatedInput' <<<"$(hook_output <<<"$result")")"
+  filter_command="$(allowed_command "$command" "$(hook_output <<<"$result")")"
+  if [[ -n "$filter_command" ]]; then
+    (cd "$filter_probe" && /bin/bash -c "$filter_command" >/dev/null 2>&1) || true
+  fi
+  assert_exit "$command denied path does not execute local filter" 1 test -e "$filter_marker"
+done
+
+linked_filter_probe="$tmp/git-filter-linked"
+git -C "$filter_probe" worktree add -q --no-checkout "$linked_filter_probe" HEAD
+payload="$(bash_payload 'git status --short' "$linked_filter_probe")"
+result="$(hook_result "$payload" linked-filter-run 0 linked-filter-request)"
+assert_contains "linked worktree inherits local filter denial" "$(hook_output <<<"$result")" '"permissionDecision": "deny"'
+git -C "$filter_probe" worktree remove --force "$linked_filter_probe"
+
+include_filter_probe="$tmp/git-filter-include"
+mkdir -p "$include_filter_probe"
+git -C "$include_filter_probe" init -q
+printf '[filter "probe"]\n\tclean = %s\n' "$filter_probe/clean-helper" > "$include_filter_probe/filter.inc"
+git -C "$include_filter_probe" config include.path "$include_filter_probe/filter.inc"
+payload="$(bash_payload 'git diff' "$include_filter_probe")"
+result="$(hook_result "$payload" include-filter-run 0 include-filter-request)"
+assert_contains "included local filter config is denied" "$(hook_output <<<"$result")" '"permissionDecision": "deny"'
+
+payload="$(bash_payload 'git diff' "$tmp/missing-git-cwd")"
+result="$(hook_result "$payload" bad-cwd-run 0 bad-cwd-request)"
+assert_contains "untrusted Git cwd fails closed" "$(hook_output <<<"$result")" '"permissionDecision": "deny"'
+
+no_filter_probe="$tmp/git-no-filter"
+mkdir -p "$no_filter_probe"
+git -C "$no_filter_probe" init -q
+for command in 'git diff' 'git status --short'; do
+  payload="$(bash_payload "$command" "$no_filter_probe")"
+  result="$(hook_result "$payload" no-filter-run 0 no-filter-request)"
+  assert_contains "$command without local filters remains sanitized preauth" "$(hook_output <<<"$result")" '"updatedInput"'
+done
 
 pattern_probe="$tmp/find-pattern"
 mkdir -p "$pattern_probe"
@@ -445,7 +579,8 @@ PY
 assert_eq "closed shell discovery classification" "0" "$?"
 
 assert_eq "hook never references transcript path" "0" "$(grep -c 'transcript_path' "$HOOK")"
-assert_eq "hook never imports network or subprocess clients" "0" "$(grep -Ec '(^|[[:space:]])(import|from)[[:space:]]+(socket|urllib|http|requests|subprocess)|curl|wget' "$HOOK")"
+assert_eq "hook never imports network clients" "0" "$(grep -Ec '(^|[[:space:]])(import|from)[[:space:]]+(socket|urllib|http|requests)|curl|wget' "$HOOK")"
+assert_eq "hook subprocess probe never invokes a shell" "0" "$(grep -c 'shell=True' "$HOOK")"
 assert_eq "hook never invokes model switch" "0" "$(grep -c '/model' "$HOOK")"
 
 finish

@@ -9,6 +9,7 @@ import os
 import re
 import shlex
 import stat
+import subprocess
 import sys
 from collections.abc import Mapping
 from contextlib import contextmanager
@@ -45,6 +46,7 @@ GIT_UNSAFE_OPTIONS = {
     "-o",
 }
 RG_EXEC_OPTIONS = {"--pre", "--hostname-bin"}
+SHELL_STARTUP_ENV = {"BASH_ENV", "ENV"}
 SYSTEM_EXECUTABLES = {
     "env": ("/usr/bin/env", "/bin/env"),
     "find": ("/usr/bin/find", "/bin/find"),
@@ -243,6 +245,12 @@ def is_protected(event: dict[str, object]) -> bool:
     return True
 
 
+def _has_shell_startup_environment(environ: Mapping[str, str]) -> bool:
+    return any(name in environ for name in SHELL_STARTUP_ENV) or any(
+        name.startswith("BASH_FUNC_") for name in environ
+    )
+
+
 def _trusted_executable(candidates: tuple[str, ...]) -> str:
     for candidate in candidates:
         path = Path(candidate)
@@ -264,6 +272,60 @@ def _managed_executable(environ: Mapping[str, str], name: str) -> str:
     if not root_value or not root.is_absolute():
         raise RuntimeError("ICODEX_ROOT must be absolute")
     return _trusted_executable((str(root / ".codex-isolated" / "bin" / name),))
+
+
+def _git_worktree_filters_safe(event: Mapping[str, object]) -> bool:
+    try:
+        argv = shlex.split(_command(event), posix=True)
+    except ValueError:
+        return False
+    if len(argv) < 2 or argv[0] != "git" or argv[1] not in {"diff", "status"}:
+        return True
+
+    cwd_value = event.get("cwd")
+    if not isinstance(cwd_value, str) or not cwd_value:
+        return False
+    cwd = Path(cwd_value)
+    try:
+        if not cwd.is_absolute():
+            return False
+        cwd = cwd.resolve(strict=True)
+        if not cwd.is_dir():
+            return False
+        git = _trusted_executable(SYSTEM_EXECUTABLES["git"])
+        completed = subprocess.run(
+            [
+                git,
+                "--no-pager",
+                "--no-optional-locks",
+                "-c",
+                "core.fsmonitor=false",
+                "config",
+                "--local",
+                "--includes",
+                "--get-regexp",
+                r"^filter\..*\.(clean|process|required)$",
+            ],
+            cwd=cwd,
+            env={
+                "PATH": "/usr/bin:/bin",
+                "LC_ALL": "C",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "/dev/null",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_PAGER": "cat",
+                "GIT_TERMINAL_PROMPT": "0",
+                "PAGER": "cat",
+            },
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+            check=False,
+        )
+    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+        return False
+    return completed.returncode == 1
 
 
 def _rewrite_discovery_command(
@@ -412,14 +474,19 @@ def validate_event(event: dict[str, object], environ: Mapping[str, str]) -> dict
         return {}
     if not all(present):
         return _deny("routed correlation environment is incomplete")
-    if not is_protected(event):
-        tool = event.get("tool_name", event.get("tool", event.get("name", "")))
-        if tool != "Bash":
-            return {}
-        try:
-            return _allow(_rewrite_discovery_command(event, environ))
-        except (KeyError, OSError, RuntimeError, ValueError):
-            pass
+    protected = is_protected(event)
+    tool = event.get("tool_name", event.get("tool", event.get("name", "")))
+    if not protected and tool != "Bash":
+        return {}
+    if not protected and tool == "Bash":
+        protected = _has_shell_startup_environment(environ)
+        if not protected:
+            protected = not _git_worktree_filters_safe(event)
+        if not protected:
+            try:
+                return _allow(_rewrite_discovery_command(event, environ))
+            except (KeyError, OSError, RuntimeError, ValueError):
+                pass
 
     run_id = environ["ICODEX_PROFILE_RUN_ID"]
     sequence_text = environ["ICODEX_PROFILE_SEQUENCE"]

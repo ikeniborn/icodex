@@ -157,4 +157,19 @@ assert_eq "invalid hooks JSON returns failure" "1" "$([[ "$invalid_code" -ne 0 ]
 assert_eq "invalid hooks JSON remains unchanged" "$invalid_before" "$(sha256sum "$invalid_home/hooks.json" | awk '{print $1}')"
 assert_eq "parser failure removes profile temp" "0" "$(find "$invalid_home" -maxdepth 1 -name 'hooks.json.profile.*' | wc -l)"
 
+# Profile temp cleanup must not replace a caller-owned RETURN trap.
+return_home="$tmp/return-home"
+return_marker="$tmp/caller-return-trap"
+return_before="$tmp/caller-return-before"
+return_after="$tmp/caller-return-after"
+mkdir -p "$return_home"
+printf '{"hooks":{}}\n' > "$return_home/hooks.json"
+export ICODEX_HOME_DIR="$return_home"
+trap 'printf preserved > "$return_marker"' RETURN
+trap -p RETURN > "$return_before"
+ensure_profile_wiring
+trap -p RETURN > "$return_after"
+trap - RETURN
+assert_exit "profile wiring restores exact caller RETURN trap" 0 cmp -s "$return_before" "$return_after"
+
 finish
