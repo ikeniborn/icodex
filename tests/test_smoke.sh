@@ -36,6 +36,8 @@ assert_eq "sources sandbox module" "1" \
   "$(grep -c 'config/sandbox' "$ROOT/icodex.sh")"
 assert_eq "sources profile wiring module" "1" \
   "$(grep -c 'profile/wiring' "$ROOT/icodex.sh")"
+assert_eq "sources profile runner module" "1" \
+  "$(grep -c 'profile/profile' "$ROOT/icodex.sh")"
 assert_eq "does not source iwiki plugin module" "0" \
   "$(grep -c 'plugin/iwiki' "$ROOT/icodex.sh")"
 assert_eq "calls wiring on launch" "1" \
@@ -56,6 +58,22 @@ assert_eq "calls ensure_project_trust on launch" "1" \
   "$(grep -Ec '^[[:space:]]*ensure_project_trust ' "$ROOT/icodex.sh")"
 assert_eq "calls optional pii launch wrapper" "1" \
   "$(grep -Ec '^[[:space:]]*launch_codex_with_optional_pii[[:space:]]' "$ROOT/icodex.sh")"
+assert_eq "dispatches explicit profile task" "1" \
+  "$(grep -Ec '^[[:space:]]*profile-run-task\)[[:space:]]*run_profile_task' "$ROOT/icodex.sh")"
+assert_eq "dispatches profile orchestrator" "1" \
+  "$(grep -Ec '^[[:space:]]*profile-orchestrate\)[[:space:]]*run_profile_orchestrator' "$ROOT/icodex.sh")"
+assert_eq "profile dispatch precedes interactive launch" "1" \
+  "$(awk '
+    /profile-run-task\)/ { dispatch = NR }
+    /^[[:space:]]*launch_codex_with_optional_pii[[:space:]]/ { launch = NR }
+    END { print (dispatch > 0 && launch > dispatch) ? 1 : 0 }
+  ' "$ROOT/icodex.sh")"
+assert_eq "profile commands reuse PII startup" "1" \
+  "$(grep -Ec '^[[:space:]]*start_pii_proxy_server \|\| exit 1[[:space:]]*$' "$ROOT/icodex.sh")"
+assert_eq "profile commands reuse PII cleanup" "1" \
+  "$(grep -Ec '^[[:space:]]*trap .stop_pii_proxy_server. EXIT INT TERM[[:space:]]*$' "$ROOT/icodex.sh")"
+assert_eq "profile commands pass exact PII base URL override" "1" \
+  "$(grep -Ec '^[[:space:]]*export ICODEX_APP_SERVER_OPENAI_BASE_URL="http://127\.0\.0\.1:\$\{PII_PROXY_ACTIVE_PORT\}/v1"[[:space:]]*$' "$ROOT/icodex.sh")"
 assert_eq "tracked config does not enable iwiki" "0" \
   "$(grep -c 'iwiki@ai-wiki' "$ROOT/.codex-isolated/config.toml")"
 launch_order_ok="$(awk '

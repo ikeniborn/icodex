@@ -16,7 +16,7 @@ export ICODEX_ROOT
 for m in core/logging core/init core/validation command/args \
          binary/detect binary/lockfile binary/install \
          config/isolated config/permissions config/sandbox config/env config/ca_trust proxy/proxy symlink/symlink \
-         plugin/superpowers plugin/loen caveman/caveman idd/idd iwiki/iwiki profile/wiring \
+         plugin/superpowers plugin/loen caveman/caveman idd/idd iwiki/iwiki profile/wiring profile/profile \
          pii-proxy/detect pii-proxy/install pii-proxy/status \
          telemetry/telemetry telemetry/otel telemetry/langfuse launcher/launch; do
   # shellcheck source=/dev/null
@@ -88,6 +88,27 @@ main() {
   fi
   sanitize_profile_hook_environment
   telemetry_setup "$ICODEX_HOME_DIR/config.toml" || exit 1
+  if [[ "$ICODEX_CMD" == "profile-run-task" || "$ICODEX_CMD" == "profile-orchestrate" ]]; then
+    local profile_rc=0 pii_started=false
+    if [[ "$ICODEX_USE_PII_PROXY_RESOLVED" == "true" ]]; then
+      start_pii_proxy_server || exit 1
+      pii_started=true
+      trap 'stop_pii_proxy_server' EXIT INT TERM
+      export ICODEX_APP_SERVER_OPENAI_BASE_URL="http://127.0.0.1:${PII_PROXY_ACTIVE_PORT}/v1"
+    fi
+    case "$ICODEX_CMD" in
+      profile-run-task) run_profile_task || profile_rc=$? ;;
+      profile-orchestrate) run_profile_orchestrator || profile_rc=$? ;;
+    esac
+    if [[ "$pii_started" == "true" ]]; then
+      stop_pii_proxy_server
+      trap - EXIT INT TERM
+    fi
+    if declare -F telemetry_cleanup >/dev/null 2>&1; then
+      telemetry_cleanup || true
+    fi
+    return "$profile_rc"
+  fi
   if [[ "${ICODEX_TELEMETRY:-off}" == "off" ]]; then
     launch_codex_with_optional_pii ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}
   else
