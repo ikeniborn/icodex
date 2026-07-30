@@ -21,7 +21,9 @@ resolve_codex_home() {
 _link_shared() { # <name>
   local name="$1"
   local target="$ICODEX_HOME_DIR/$name" src="$ICODEX_SHARED_DIR/$name"
-  [[ -L "$target" ]] && return 0
+  if [[ -L "$target" && "$(readlink "$target")" == "$src" ]]; then
+    return 0
+  fi
   rm -rf "$target" 2>/dev/null || true
   ln -s "$src" "$target"
 }
@@ -64,6 +66,7 @@ setup_codex_home() {
   resolve_codex_home
   mkdir -p "$ICODEX_HOME_DIR"
   _link_shared plugins
+  _link_shared profiles
   _link_shared hooks
   _link_shared hooks.json
   _link_shared auth.json

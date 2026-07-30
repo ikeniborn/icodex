@@ -6,6 +6,8 @@ ICODEX_SET_PROXY=""
 ICODEX_PASSTHROUGH=()
 ICODEX_FULL_ACCESS=0
 ICODEX_USE_PII_PROXY_FLAG=0
+ICODEX_PROFILE_TOPIC=""
+ICODEX_PROFILE_TASK=""
 
 parse_args() {
   while (( $# )); do
@@ -17,6 +19,23 @@ parse_args() {
       --pii-proxy) ICODEX_USE_PII_PROXY_FLAG=1; shift ;;
       --install-pii-proxy) ICODEX_CMD="install-pii-proxy"; shift ;;
       --check-pii-proxy) ICODEX_CMD="check-pii-proxy"; shift ;;
+      --run-task)
+        if (( $# != 3 )) || [[ -z "$2" || -z "$3" ]]; then
+          log_error "--run-task requires exactly <topic> <task-id>"
+          return 1
+        fi
+        ICODEX_CMD="profile-run-task"
+        ICODEX_PROFILE_TOPIC="$2"
+        ICODEX_PROFILE_TASK="$3"
+        shift 3 ;;
+      --orchestrate)
+        if (( $# != 2 )) || [[ -z "$2" ]]; then
+          log_error "--orchestrate requires exactly <topic>"
+          return 1
+        fi
+        ICODEX_CMD="profile-orchestrate"
+        ICODEX_PROFILE_TOPIC="$2"
+        shift 2 ;;
       --full-access) ICODEX_FULL_ACCESS=1; shift ;;
       --clear)    ICODEX_CMD="clear";   shift ;;
       --update)   ICODEX_CMD="update";  shift ;;
@@ -44,6 +63,10 @@ icodex flags:
                   Install/update PII proxy runtime and optional NLP models
   --check-pii-proxy
                   Show PII proxy installation and runtime status
+  --run-task <topic> <task-id>
+                  Run one explicitly routed task through Codex App Server
+  --orchestrate <topic>
+                  Run routed tasks from local orchestration state
   --full-access   Escalate sandbox to danger-full-access for this run (prints a warning)
   --clear         Remove the saved config file (.codex_config)
   --update        Update codex binary to latest, re-pin lockfile

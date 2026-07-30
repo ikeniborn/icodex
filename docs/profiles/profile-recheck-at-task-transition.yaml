@@ -1,0 +1,62 @@
+schema_version: 1
+topic: profile-recheck-at-task-transition
+status: approved
+registry:
+  authority: icodex-shared
+  path: profiles/registry.yaml
+  sha256: 7ef5c802e43fc96ecc23260e0460aa7a0df568c21dd369d86947d8e935d16a92
+context_inputs:
+  - docs/superpowers/intents/2026-07-29-profile-recheck-at-task-transition-intent.md
+  - docs/superpowers/specs/2026-07-29-profile-recheck-at-task-transition-design.md
+  - docs/superpowers/plans/2026-07-29-profile-recheck-at-task-transition.md
+tasks:
+  - id: shared-profile-home-wiring
+    requirements:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low
+    live_remaining_context: false
+    preferred_profiles:
+      - deep
+  - id: machine-local-routing-state
+    requirements:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low
+    live_remaining_context: false
+    preferred_profiles:
+      - deep
+  - id: transition-gate-hook-and-wiring
+    requirements:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low
+    live_remaining_context: false
+    preferred_profiles:
+      - deep
+  - id: app-server-task-runner
+    requirements:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low
+    live_remaining_context: false
+    preferred_profiles:
+      - deep
+  - id: documentation-verification-and-result-reconciliation
+    requirements:
+      capability: strongest
+      context: medium
+      latency: high
+      cost: high
+      throughput: low
+    live_remaining_context: false
+    preferred_profiles:
+      - deep

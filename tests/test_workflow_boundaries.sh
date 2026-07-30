@@ -37,6 +37,13 @@ if [[ -f "$agents" ]]; then
   assert_contains "direct skips plan execution skills" "$flat_agents_body" '`superpowers:subagent-driven-development`, or `superpowers:executing-plans`'
   assert_contains "finishing skill remains available" "$agents_body" '`superpowers:finishing-a-development-branch` remains available'
   assert_contains "LoEn gets model checkpoints" "$flat_agents_body" 'At LoEn loop start and after each check or review, classify the next work'
+  assert_contains "orchestrated transition branch" "$agents_body" "Orchestrated branch:"
+  assert_contains "orchestrated validates split policy" "$flat_agents_body" "runner validates shared registry and direct project manifest"
+  assert_contains "orchestrated accepts correlated local handoff" "$flat_agents_body" "hook accepts only correlated local handoff/session evidence"
+  assert_contains "orchestrated task bypass is scoped" "$flat_agents_body" "for that protected task only"
+  assert_contains "interactive transition branch" "$agents_body" "Interactive branch:"
+  assert_contains "interactive keeps manual model and status" "$flat_agents_body" '`/model` switch request, `/status` confirmation'
+  assert_contains "hook never selects model" "$flat_agents_body" "never selects or changes model"
   assert_contains "semantic route mechanical" "$agents_body" '`mechanical`'
   assert_contains "semantic route engineering" "$agents_body" '`engineering`'
   assert_contains "semantic route synthesis" "$agents_body" '`synthesis`'
@@ -72,6 +79,22 @@ if [[ -f "$readme_ru" ]]; then
   assert_contains "Russian README thread titles best effort" "$readme_ru_body" "Thread title — best-effort"
   assert_contains "Russian README documents three workflow routes" "$readme_ru_body" 'Маршрутизация workflow имеет три входа: `direct`, `chain` и `loen`.'
   assert_contains "Russian README documents chain continuation" "$readme_ru_body" 'После проверенного intent ветка `execute` сразу переходит к реализации, а `full` добавляет spec и plan.'
+  assert_contains "Russian README profile policy locations" "$readme_ru_body" '.codex-isolated/profiles/registry.yaml'
+  assert_contains "Russian README project manifest policy location" "$readme_ru_body" 'docs/profiles/<topic>.yaml'
+  assert_contains "Russian README shared profiles directory symlink" "$readme_ru_body" '.codex-homes/<проект>-<хеш>/profiles'
+  assert_contains "Russian README shared profiles symlink target" "$readme_ru_body" '.codex-isolated/profiles`'
+  assert_contains "Russian README manifest has independent approval commit" "$readme_ru_body" "отдельным коммитом"
+  assert_contains "Russian README registry has independent repin commit" "$readme_ru_body" "отдельным коммитом"
+  assert_contains "Russian README cold run command" "$readme_ru_body" './icodex.sh --run-task <topic> <task-id>'
+  assert_contains "Russian README cold orchestration command" "$readme_ru_body" './icodex.sh --orchestrate <topic>'
+  assert_contains "Russian README cold state never continues across machines" "$readme_ru_body" "новый cold run, а не продолжение с другой машины"
+  assert_contains "Russian README local state deletion recovery" "$readme_ru_body" "Удаление локального состояния"
+  assert_contains "Russian README dirty failure" "$readme_ru_body" "dirty"
+  assert_contains "Russian README hash failure" "$readme_ru_body" "hash"
+  assert_contains "Russian README path failure" "$readme_ru_body" "path"
+  assert_contains "Russian README model failure" "$readme_ru_body" "model"
+  assert_contains "Russian README no home manifest" "$readme_ru_body" "не хранит policy manifest"
+  assert_contains "Russian README portable history out of scope" "$readme_ru_body" "Переносимой истории сессий, export/import"
 fi
 
 if [[ -f "$loen_readme" ]]; then
