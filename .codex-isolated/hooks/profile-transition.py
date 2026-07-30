@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shlex
+import stat
 import sys
 from collections.abc import Mapping
 from contextlib import contextmanager
@@ -36,8 +37,20 @@ FIND_ACTIONS = {
     "-ok",
     "-okdir",
 }
-GIT_UNSAFE_OPTIONS = {"--ext-diff", "--output", "--textconv", "-o"}
+GIT_UNSAFE_OPTIONS = {
+    "--ext-diff",
+    "--output",
+    "--show-signature",
+    "--textconv",
+    "-o",
+}
 RG_EXEC_OPTIONS = {"--pre", "--hostname-bin"}
+SYSTEM_EXECUTABLES = {
+    "env": ("/usr/bin/env", "/bin/env"),
+    "find": ("/usr/bin/find", "/bin/find"),
+    "git": ("/usr/bin/git", "/bin/git"),
+    "sed": ("/usr/bin/sed", "/bin/sed"),
+}
 TREE_FLAG_OPTIONS = {
     "--device",
     "--dirsfirst",
@@ -150,12 +163,16 @@ def _safe_shell_discovery(command: str) -> bool:
         ["git", "log"],
         ["git", "rev-parse"],
     ):
-        return not any(
-            argument in GIT_UNSAFE_OPTIONS
-            or any(argument.startswith(option + "=") for option in GIT_UNSAFE_OPTIONS)
-            for argument in argv[2:]
-        )
+        return not any(_unsafe_git_argument(argument) for argument in argv[2:])
     return argv == ["git", "branch", "--show-current"]
+
+
+def _unsafe_git_argument(argument: str) -> bool:
+    return (
+        argument in GIT_UNSAFE_OPTIONS
+        or any(argument.startswith(option + "=") for option in GIT_UNSAFE_OPTIONS)
+        or "%G" in argument
+    )
 
 
 def _safe_tree(arguments: list[str]) -> bool:
@@ -226,6 +243,71 @@ def is_protected(event: dict[str, object]) -> bool:
     return True
 
 
+def _trusted_executable(candidates: tuple[str, ...]) -> str:
+    for candidate in candidates:
+        path = Path(candidate)
+        try:
+            metadata = path.lstat()
+            if path.is_symlink() or not stat.S_ISREG(metadata.st_mode):
+                continue
+            if path.resolve(strict=True) != path or not os.access(path, os.X_OK):
+                continue
+        except (OSError, RuntimeError):
+            continue
+        return str(path)
+    raise RuntimeError("trusted discovery executable is unavailable")
+
+
+def _managed_executable(environ: Mapping[str, str], name: str) -> str:
+    root_value = environ.get("ICODEX_ROOT", "")
+    root = Path(root_value)
+    if not root_value or not root.is_absolute():
+        raise RuntimeError("ICODEX_ROOT must be absolute")
+    return _trusted_executable((str(root / ".codex-isolated" / "bin" / name),))
+
+
+def _rewrite_discovery_command(
+    event: Mapping[str, object], environ: Mapping[str, str]
+) -> str:
+    argv = shlex.split(_command(event), posix=True)
+    env_binary = _trusted_executable(SYSTEM_EXECUTABLES["env"])
+    tool = argv[0]
+    prefix = [env_binary, "-i", "PATH=/usr/bin:/bin", "LC_ALL=C"]
+    if tool in {"rg", "tree"}:
+        executable = _managed_executable(environ, tool)
+    else:
+        executable = _trusted_executable(SYSTEM_EXECUTABLES[tool])
+
+    if tool == "rg":
+        command = [executable, "--no-config", *argv[1:]]
+    elif tool == "git":
+        git_environment = [
+            "GIT_CONFIG_NOSYSTEM=1",
+            "GIT_CONFIG_GLOBAL=/dev/null",
+            "GIT_OPTIONAL_LOCKS=0",
+            "GIT_PAGER=cat",
+            "GIT_TERMINAL_PROMPT=0",
+            "PAGER=cat",
+        ]
+        subcommand = argv[1]
+        arguments = argv[2:]
+        if subcommand in {"diff", "show", "log"}:
+            arguments = ["--no-ext-diff", "--no-textconv", *arguments]
+        prefix.extend(git_environment)
+        command = [
+            executable,
+            "--no-pager",
+            "--no-optional-locks",
+            "-c",
+            "core.fsmonitor=false",
+            subcommand,
+            *arguments,
+        ]
+    else:
+        command = [executable, *argv[1:]]
+    return shlex.join([*prefix, *command])
+
+
 def _load_state(environ: Mapping[str, str]) -> ModuleType:
     root_value = environ.get("ICODEX_ROOT", "")
     root = Path(root_value)
@@ -256,14 +338,14 @@ def _state_environment(environ: Mapping[str, str]):
                 os.environ[name] = value
 
 
-def _allow() -> dict[str, object]:
-    return {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "allow",
-            "permissionDecisionReason": "Matching routed profile evidence",
-        }
+def _allow(updated_command: str | None = None) -> dict[str, object]:
+    output: dict[str, object] = {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "allow",
     }
+    if updated_command is not None:
+        output["updatedInput"] = {"command": updated_command}
+    return {"hookSpecificOutput": output}
 
 
 def _remediation(topic: object = None, task_id: object = None) -> str:
@@ -331,7 +413,13 @@ def validate_event(event: dict[str, object], environ: Mapping[str, str]) -> dict
     if not all(present):
         return _deny("routed correlation environment is incomplete")
     if not is_protected(event):
-        return {}
+        tool = event.get("tool_name", event.get("tool", event.get("name", "")))
+        if tool != "Bash":
+            return {}
+        try:
+            return _allow(_rewrite_discovery_command(event, environ))
+        except (KeyError, OSError, RuntimeError, ValueError):
+            pass
 
     run_id = environ["ICODEX_PROFILE_RUN_ID"]
     sequence_text = environ["ICODEX_PROFILE_SEQUENCE"]
@@ -405,8 +493,7 @@ def main() -> int:
     if result:
         json.dump(result, sys.stdout)
         sys.stdout.write("\n")
-    decision = result.get("hookSpecificOutput", {}) if result else {}
-    return 2 if isinstance(decision, Mapping) and decision.get("permissionDecision") == "deny" else 0
+    return 0
 
 
 if __name__ == "__main__":

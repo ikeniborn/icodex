@@ -5,7 +5,8 @@ _profile_apply_hooks_json() {
   local home="$ICODEX_HOME_DIR/hooks.json" tmp
   [[ -e "$home" || -L "$home" ]] || return 0
   tmp="$(mktemp "${home}.profile.XXXXXX")"
-  python3 - "$home" > "$tmp" <<'PY'
+  trap 'rm -f -- "$tmp"; trap - RETURN' RETURN
+  if ! python3 - "$home" > "$tmp" <<'PY'
 import json
 import sys
 
@@ -39,8 +40,10 @@ hooks["PreToolUse"] = entries
 json.dump(config, sys.stdout, indent=2)
 sys.stdout.write("\n")
 PY
+  then
+    return 1
+  fi
   if [[ ! -L "$home" && -f "$home" ]] && cmp -s "$tmp" "$home"; then
-    rm -f "$tmp"
     return 0
   fi
   mv -f "$tmp" "$home"

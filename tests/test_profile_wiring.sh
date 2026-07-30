@@ -145,4 +145,16 @@ assert_contains "base redaction hook preserved" "$(cat "$hooks_file")" "redact-s
 assert_contains "actual caveman hook preserved" "$(cat "$hooks_file")" "caveman-hook.py"
 assert_contains "actual chain gate preserved" "$(cat "$hooks_file")" "chain-gate.py"
 
+# Parser failure must preserve the input and remove its same-directory temp.
+invalid_home="$tmp/invalid-home"
+mkdir -p "$invalid_home"
+printf '{invalid json\n' > "$invalid_home/hooks.json"
+invalid_before="$(sha256sum "$invalid_home/hooks.json" | awk '{print $1}')"
+export ICODEX_HOME_DIR="$invalid_home"
+invalid_code=0
+ensure_profile_wiring >/dev/null 2>&1 || invalid_code=$?
+assert_eq "invalid hooks JSON returns failure" "1" "$([[ "$invalid_code" -ne 0 ]] && echo 1 || echo 0)"
+assert_eq "invalid hooks JSON remains unchanged" "$invalid_before" "$(sha256sum "$invalid_home/hooks.json" | awk '{print $1}')"
+assert_eq "parser failure removes profile temp" "0" "$(find "$invalid_home" -maxdepth 1 -name 'hooks.json.profile.*' | wc -l)"
+
 finish
