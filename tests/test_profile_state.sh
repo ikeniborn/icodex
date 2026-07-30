@@ -902,6 +902,305 @@ with tempfile.TemporaryDirectory() as temporary:
     shutil.rmtree(malformed_cleanup_root, ignore_errors=True)
     check("explicit state deletion restores cold start", state.detect_cold_start(malformed_cleanup_root))
 
+    retire = getattr(state, "retire_attempt", None)
+    check("attempt retirement API exists", callable(retire))
+    if callable(retire):
+        retire_root = base / "attempt-retirement"
+        target_attempt = request(
+            Path(req["target_root"]),
+            run_id="retire-run",
+            sequence=1,
+            request_id=61,
+        )
+        later_attempt = request(
+            Path(req["target_root"]),
+            run_id="retire-run",
+            sequence=2,
+            request_id=62,
+        )
+        unrelated_attempt = request(
+            Path(req["target_root"]),
+            run_id="unrelated-run",
+            sequence=1,
+            request_id=63,
+        )
+        state.create_handoff(retire_root, target_attempt)
+        with correlated_env(target_attempt):
+            state.consume_handoff(
+                retire_root,
+                "retire-run",
+                1,
+                "retire-session",
+                str(target_attempt["model"]),
+            )
+        state.create_handoff(retire_root, later_attempt)
+        state.create_handoff(retire_root, unrelated_attempt)
+        state.save_selection_cache(retire_root, "retire-run", expected, "retire-session")
+        retire(retire_root, "retire-run", 1)
+        check(
+            "attempt retirement removes exact handoff and locks",
+            not (retire_root / "pending" / "retire-run.1.json").exists()
+            and not (retire_root / "consumed" / "retire-run.1.json").exists()
+            and not (retire_root / "locks" / "retire-run.1.slot.lock").exists()
+            and not (retire_root / "locks" / "retire-run.1.consume.lock").exists(),
+        )
+        check(
+            "attempt retirement removes attributable decision and session lock",
+            not (retire_root / "decisions" / "retire-session.json").exists()
+            and not (retire_root / "locks" / "session.retire-session.lock").exists(),
+        )
+        check(
+            "attempt retirement preserves later and unrelated attempts",
+            (retire_root / "pending" / "retire-run.2.json").is_file()
+            and (retire_root / "pending" / "unrelated-run.1.json").is_file(),
+        )
+        check(
+            "attempt retirement preserves selection cache",
+            state.load_selection_cache(retire_root, "retire-run") is not None,
+        )
+
+        race_root = base / "attempt-retirement-race"
+        race_attempt = request(
+            Path(req["target_root"]),
+            run_id="retire-race-run",
+            sequence=1,
+            request_id=64,
+        )
+        state.create_handoff(race_root, race_attempt)
+        race_decision_entered = threading.Event()
+        release_race_decision = threading.Event()
+        race_consume_errors: list[Exception] = []
+        race_retire_errors: list[Exception] = []
+        real_atomic_write = state.atomic_json_write
+
+        def block_race_decision(path, value):
+            if path.parent.name == "decisions":
+                race_decision_entered.set()
+                if not release_race_decision.wait(5):
+                    raise RuntimeError("timed out waiting to release retirement race")
+            return real_atomic_write(path, value)
+
+        def consume_race_attempt():
+            try:
+                state.consume_handoff(
+                    race_root,
+                    "retire-race-run",
+                    1,
+                    "retire-race-session",
+                    str(race_attempt["model"]),
+                )
+            except Exception as exc:
+                race_consume_errors.append(exc)
+
+        def retire_race_attempt():
+            try:
+                retire(race_root, "retire-race-run", 1)
+            except Exception as exc:
+                race_retire_errors.append(exc)
+
+        state.atomic_json_write = block_race_decision
+        with correlated_env(race_attempt):
+            consume_thread = threading.Thread(target=consume_race_attempt)
+            consume_thread.start()
+            check("attempt consumer reaches retirement race boundary", race_decision_entered.wait(5))
+            retire_thread = threading.Thread(target=retire_race_attempt)
+            retire_thread.start()
+            time.sleep(0.1)
+            check("attempt retirement waits for active consumer", retire_thread.is_alive())
+            release_race_decision.set()
+            consume_thread.join(5)
+            retire_thread.join(5)
+        state.atomic_json_write = real_atomic_write
+        check(
+            "attempt consume and retirement race finish cleanly",
+            not race_consume_errors and not race_retire_errors,
+        )
+        check(
+            "attempt retirement leaves no stale post-race evidence",
+            not list((race_root / "pending").glob("retire-race-run.1.json"))
+            and not list((race_root / "consumed").glob("retire-race-run.1.json"))
+            and not list((race_root / "decisions").glob("retire-race-session.json"))
+            and not list((race_root / "locks").glob("retire-race-run.1.*.lock"))
+            and not list((race_root / "locks").glob("session.retire-race-session.lock")),
+        )
+
+        for linked_directory in ("pending", "decisions"):
+            linked_root = base / f"retire-linked-{linked_directory}"
+            external = base / f"external-{linked_directory}"
+            external.mkdir()
+            victim = external / "victim.txt"
+            victim.write_text("preserve", encoding="utf-8")
+            linked_root.mkdir()
+            for name in state.STATE_DIRECTORIES:
+                if name == linked_directory:
+                    (linked_root / name).symlink_to(external, target_is_directory=True)
+                else:
+                    (linked_root / name).mkdir()
+            expect_state_error(
+                f"attempt retirement rejects symlinked {linked_directory} directory",
+                lambda root=linked_root: retire(root, "retire-run", 1),
+            )
+            check(
+                f"symlinked {linked_directory} victim survives attempt retirement",
+                victim.read_text(encoding="utf-8") == "preserve",
+            )
+
+        victim = base / "absolute-run-id-victim"
+        victim.write_text("preserve", encoding="utf-8")
+        expect_state_error(
+            "attempt retirement rejects absolute run id before path construction",
+            lambda: retire(retire_root, str(victim), 1),
+        )
+        expect_state_error(
+            "attempt retirement rejects traversal run id before path construction",
+            lambda: retire(retire_root, "../../absolute-run-id-victim", 1),
+        )
+        check(
+            "forged run id cannot remove external victim",
+            victim.read_text(encoding="utf-8") == "preserve",
+        )
+
+        malformed_root = base / "retire-malformed-attempt"
+        malformed_attempt = request(
+            Path(req["target_root"]),
+            run_id="malformed-retire-run",
+            sequence=1,
+            request_id=65,
+        )
+        state.create_handoff(malformed_root, malformed_attempt)
+        malformed_pending = malformed_root / "pending" / "malformed-retire-run.1.json"
+        malformed_pending.write_text("{invalid", encoding="utf-8")
+        malformed_pending.chmod(0o600)
+        expect_state_error(
+            "attempt retirement rejects malformed exact pending state",
+            lambda: retire(malformed_root, "malformed-retire-run", 1),
+        )
+        check(
+            "malformed attempt retirement fails without partial cleanup",
+            malformed_pending.exists()
+            and (malformed_root / "locks" / "malformed-retire-run.1.slot.lock").exists(),
+        )
+
+        fifo_root = base / "retire-fifo-attempt"
+        fifo_attempt = request(
+            Path(req["target_root"]),
+            run_id="fifo-retire-run",
+            sequence=1,
+            request_id=66,
+        )
+        state.create_handoff(fifo_root, fifo_attempt)
+        fifo_pending = fifo_root / "pending" / "fifo-retire-run.1.json"
+        fifo_pending.unlink()
+        os.mkfifo(fifo_pending, 0o600)
+        started = time.monotonic()
+        expect_state_error(
+            "attempt retirement rejects FIFO exact pending state",
+            lambda: retire(fifo_root, "fifo-retire-run", 1),
+        )
+        check(
+            "FIFO attempt retirement rejects without blocking",
+            time.monotonic() - started < 1 and fifo_pending.exists(),
+        )
+
+        linked_file_root = base / "retire-linked-files"
+        linked_attempt = request(
+            Path(req["target_root"]),
+            run_id="linked-retire-run",
+            sequence=1,
+            request_id=67,
+        )
+        state.create_handoff(linked_file_root, linked_attempt)
+        linked_pending = linked_file_root / "pending" / "linked-retire-run.1.json"
+        linked_pending.unlink()
+        pending_victim = base / "linked-pending-victim"
+        pending_victim.write_text("preserve", encoding="utf-8")
+        linked_pending.symlink_to(pending_victim)
+        expect_state_error(
+            "attempt retirement rejects symlinked exact pending file",
+            lambda: retire(linked_file_root, "linked-retire-run", 1),
+        )
+        check(
+            "symlinked exact pending victim survives retirement",
+            pending_victim.read_text(encoding="utf-8") == "preserve",
+        )
+
+        linked_decision_root = base / "retire-linked-decision"
+        linked_decision_attempt = request(
+            Path(req["target_root"]),
+            run_id="linked-decision-run",
+            sequence=1,
+            request_id=68,
+        )
+        state.create_handoff(linked_decision_root, linked_decision_attempt)
+        with correlated_env(linked_decision_attempt):
+            state.consume_handoff(
+                linked_decision_root,
+                "linked-decision-run",
+                1,
+                "linked-decision-session",
+                str(linked_decision_attempt["model"]),
+            )
+        linked_decision = linked_decision_root / "decisions" / "linked-decision-session.json"
+        linked_decision.unlink()
+        decision_victim = base / "linked-decision-victim"
+        decision_victim.write_text("preserve", encoding="utf-8")
+        linked_decision.symlink_to(decision_victim)
+        expect_state_error(
+            "attempt retirement rejects symlinked attributable decision",
+            lambda: retire(linked_decision_root, "linked-decision-run", 1),
+        )
+        check(
+            "symlinked decision victim survives retirement",
+            decision_victim.read_text(encoding="utf-8") == "preserve",
+        )
+
+        routing_hardlink_root = base / "routing-hardlink" / "profile-routing"
+        routing_hardlink_root.parent.mkdir()
+        routing_lock_victim = base / "routing-lock-victim"
+        routing_lock_victim.write_text("preserve", encoding="utf-8")
+        routing_lock_victim.chmod(0o640)
+        os.link(
+            routing_lock_victim,
+            routing_hardlink_root.parent / ".profile-routing.coordinator.lock",
+        )
+        expect_state_error(
+            "routing gate rejects hardlinked coordinator",
+            lambda: state.create_handoff(
+                routing_hardlink_root,
+                request(Path(req["target_root"]), run_id="routing-hardlink-run"),
+            ),
+        )
+        check(
+            "routing gate hardlink victim is unchanged",
+            routing_lock_victim.read_text(encoding="utf-8") == "preserve"
+            and stat.S_IMODE(routing_lock_victim.stat().st_mode) == 0o640,
+        )
+
+        run_hardlink_root = base / "run-hardlink"
+        state.create_handoff(
+            run_hardlink_root,
+            request(Path(req["target_root"]), run_id="layout-run", request_id=69),
+        )
+        run_lock_victim = base / "run-lock-victim"
+        run_lock_victim.write_text("preserve", encoding="utf-8")
+        run_lock_victim.chmod(0o640)
+        os.link(
+            run_lock_victim,
+            run_hardlink_root / "locks" / "linked-run.run.lock",
+        )
+        expect_state_error(
+            "run gate rejects hardlinked run lock",
+            lambda: state.create_handoff(
+                run_hardlink_root,
+                request(Path(req["target_root"]), run_id="linked-run", request_id=70),
+            ),
+        )
+        check(
+            "run gate hardlink victim is unchanged",
+            run_lock_victim.read_text(encoding="utf-8") == "preserve"
+            and stat.S_IMODE(run_lock_victim.stat().st_mode) == 0o640,
+        )
+
     shutil.rmtree(state_root)
     check("state deletion returns cold start", state.detect_cold_start(state_root))
     check("cold start infers no progress or history", not state_root.exists())

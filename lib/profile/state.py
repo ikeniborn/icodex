@@ -93,7 +93,7 @@ def _ensure_directory(path: Path) -> None:
         flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
         descriptor = os.open(path, flags)
         metadata = os.fstat(descriptor)
-        if not stat.S_ISDIR(metadata.st_mode):
+        if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid():
             raise StateError(f"state directory is not a regular directory: {path}")
         os.fchmod(descriptor, 0o700)
     except OSError as exc:
@@ -171,27 +171,46 @@ def _exclusive_file(path: Path) -> None:
 def _routing_gate(state_root: Path, *, exclusive: bool = False):
     """Coordinate root deletion through a stable lock outside the deleted tree."""
     parent = state_root.parent
+    parent_descriptor: int | None = None
     descriptor: int | None = None
     try:
         _ensure_directory(parent)
         path = parent / f".{state_root.name}.coordinator.lock"
+        parent_descriptor = os.open(
+            parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+        )
+        parent_metadata = os.fstat(parent_descriptor)
+        if not stat.S_ISDIR(parent_metadata.st_mode) or parent_metadata.st_uid != os.getuid():
+            raise StateError(f"routing state parent is not an owned directory: {parent}")
         descriptor = os.open(
-            path,
+            path.name,
             os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0),
             0o600,
+            dir_fd=parent_descriptor,
         )
         metadata = os.fstat(descriptor)
-        if not stat.S_ISREG(metadata.st_mode):
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or metadata.st_nlink != 1
+        ):
             raise StateError(f"routing coordinator is not a regular file: {path}")
         os.fchmod(descriptor, 0o600)
         fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        os.close(parent_descriptor)
+        parent_descriptor = None
     except OSError as exc:
         if descriptor is not None:
             os.close(descriptor)
+        if parent_descriptor is not None:
+            os.close(parent_descriptor)
         raise StateError(f"cannot lock routing state {state_root}: {exc}") from exc
     except Exception:
         if descriptor is not None:
             os.close(descriptor)
+        if parent_descriptor is not None:
+            os.close(parent_descriptor)
         raise
     try:
         yield
@@ -207,15 +226,51 @@ def _run_gate(state_root: Path, run_id: str, *, exclusive: bool = False):
     _ensure_layout(state_root)
     path = state_root / "locks" / f"{run_id}.run.lock"
     flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+    root_descriptor: int | None = None
+    locks_descriptor: int | None = None
     descriptor: int | None = None
     try:
-        descriptor = os.open(path, flags, 0o600)
+        directory_flags = (
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        )
+        root_descriptor = os.open(state_root, directory_flags)
+        root_metadata = os.fstat(root_descriptor)
+        if not stat.S_ISDIR(root_metadata.st_mode) or root_metadata.st_uid != os.getuid():
+            raise StateError("routing state root is not an owned directory")
+        locks_descriptor = os.open("locks", directory_flags, dir_fd=root_descriptor)
+        locks_metadata = os.fstat(locks_descriptor)
+        if not stat.S_ISDIR(locks_metadata.st_mode) or locks_metadata.st_uid != os.getuid():
+            raise StateError("routing lock namespace is not an owned directory")
+        descriptor = os.open(path.name, flags, 0o600, dir_fd=locks_descriptor)
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or metadata.st_nlink != 1
+        ):
+            raise StateError(f"routing run lock is not an owned regular file: {path}")
         os.fchmod(descriptor, 0o600)
         fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        os.close(locks_descriptor)
+        locks_descriptor = None
+        os.close(root_descriptor)
+        root_descriptor = None
     except OSError as exc:
         if descriptor is not None:
             os.close(descriptor)
+        if locks_descriptor is not None:
+            os.close(locks_descriptor)
+        if root_descriptor is not None:
+            os.close(root_descriptor)
         raise StateError(f"cannot lock routing run {run_id}: {exc}") from exc
+    except Exception:
+        if descriptor is not None:
+            os.close(descriptor)
+        if locks_descriptor is not None:
+            os.close(locks_descriptor)
+        if root_descriptor is not None:
+            os.close(root_descriptor)
+        raise
     try:
         yield path
     finally:
@@ -246,7 +301,11 @@ def _consumer_claim(path: Path, claim: Mapping[str, object]):
         except BlockingIOError as exc:
             raise StateError(f"handoff is being consumed: {path.name}") from exc
         metadata = os.fstat(descriptor)
-        if not stat.S_ISREG(metadata.st_mode):
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or metadata.st_nlink != 1
+        ):
             raise StateError(f"consume claim is not a regular file: {path}")
         os.fchmod(descriptor, 0o600)
         if created:
@@ -279,6 +338,11 @@ def _safe_identifier(value: object, label: str) -> str:
     return value
 
 
+def validate_run_id(value: object) -> str:
+    """Validate a run identifier before using it in any state path."""
+    return _safe_identifier(value, "run_id")
+
+
 def _slug(value: object, label: str) -> str:
     if not isinstance(value, str) or SLUG_RE.fullmatch(value) is None:
         raise StateError(f"{label} must be lowercase kebab-case")
@@ -301,6 +365,11 @@ def _sequence(value: object) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise StateError("sequence must be a non-negative integer")
     return value
+
+
+def validate_sequence(value: object) -> int:
+    """Validate an attempt sequence before using it in any state path."""
+    return _sequence(value)
 
 
 def _hash(value: object, label: str) -> str:
@@ -632,6 +701,228 @@ def cache_matches(
         and decision["authorized"] is True
         and decision["observed_model"] == selection_tuple.model
     )
+
+
+@contextmanager
+def _state_directory_descriptors(state_root: Path):
+    descriptors: dict[str, int] = {}
+    root_descriptor: int | None = None
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        root_descriptor = os.open(state_root, flags)
+        root_metadata = os.fstat(root_descriptor)
+        if not stat.S_ISDIR(root_metadata.st_mode) or root_metadata.st_uid != os.getuid():
+            raise StateError("routing state root is not an owned directory")
+        for name in STATE_DIRECTORIES:
+            descriptor = os.open(name, flags, dir_fd=root_descriptor)
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid():
+                os.close(descriptor)
+                raise StateError(f"state directory is not an owned directory: {name}")
+            os.fchmod(descriptor, 0o700)
+            descriptors[name] = descriptor
+        yield descriptors
+    except OSError as exc:
+        raise StateError(f"cannot open routing state directories: {exc}") from exc
+    finally:
+        for descriptor in descriptors.values():
+            os.close(descriptor)
+        if root_descriptor is not None:
+            os.close(root_descriptor)
+
+
+def _regular_token_at(directory: int, name: str) -> tuple[int, int] | None:
+    try:
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
+            dir_fd=directory,
+        )
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise StateError(f"cannot inspect routing state file {name}: {exc}") from exc
+    try:
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or metadata.st_nlink != 1
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+        ):
+            raise StateError(f"routing state file is not owner-only regular state: {name}")
+        return metadata.st_dev, metadata.st_ino
+    finally:
+        os.close(descriptor)
+
+
+def _json_at(directory: int, name: str) -> tuple[object, tuple[int, int]] | None:
+    try:
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
+            dir_fd=directory,
+        )
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise StateError(f"cannot inspect routing JSON {name}: {exc}") from exc
+    try:
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or metadata.st_nlink != 1
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+        ):
+            raise StateError(f"routing JSON is not owner-only regular state: {name}")
+        token = metadata.st_dev, metadata.st_ino
+        try:
+            with os.fdopen(os.dup(descriptor), "r", encoding="utf-8") as stream:
+                value = json.load(stream)
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise StateError(f"routing JSON is malformed: {name}") from exc
+        return value, token
+    finally:
+        os.close(descriptor)
+
+
+def _unlink_token_at(directory: int, name: str, token: tuple[int, int]) -> bool:
+    try:
+        metadata = os.stat(name, dir_fd=directory, follow_symlinks=False)
+    except FileNotFoundError:
+        return False
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or metadata.st_nlink != 1
+        or (metadata.st_dev, metadata.st_ino) != token
+    ):
+        raise StateError(f"routing state changed before retirement: {name}")
+    try:
+        os.unlink(name, dir_fd=directory)
+    except OSError as exc:
+        raise StateError(f"cannot retire routing state {name}: {exc}") from exc
+    return True
+
+
+def retire_attempt(state_root: Path, run_id: str, sequence: int) -> None:
+    """Retire one failed attempt after all active consumers have left its gates."""
+    run_id = validate_run_id(run_id)
+    sequence = validate_sequence(sequence)
+    attempt = _handoff_name(run_id, sequence)
+    with _routing_gate(state_root, exclusive=True):
+        if not state_root.exists():
+            return
+        if state_root.is_symlink() or not state_root.is_dir():
+            raise StateError("routing state root is not a regular directory")
+        with _run_gate(state_root, run_id, exclusive=True):
+            with _state_directory_descriptors(state_root) as directories:
+                removals: dict[str, dict[str, tuple[int, int]]] = {
+                    name: {} for name in STATE_DIRECTORIES
+                }
+                sessions: set[str] = set()
+
+                for namespace in ("pending", "consumed"):
+                    filename = f"{attempt}.json"
+                    loaded = _json_at(directories[namespace], filename)
+                    if loaded is None:
+                        continue
+                    value, token = loaded
+                    handoff = _validate_handoff(value)
+                    if handoff["run_id"] != run_id or handoff["sequence"] != sequence:
+                        raise StateError("attempt handoff namespace mismatch")
+                    removals[namespace][filename] = token
+
+                slot_name = f"{attempt}.slot.lock"
+                slot_token = _regular_token_at(directories["locks"], slot_name)
+                if slot_token is not None:
+                    removals["locks"][slot_name] = slot_token
+
+                consume_name = f"{attempt}.consume.lock"
+                consume_loaded = _json_at(directories["locks"], consume_name)
+                if consume_loaded is not None:
+                    value, token = consume_loaded
+                    claim = _validate_consumer_claim(value)
+                    if claim["run_id"] != run_id or claim["sequence"] != sequence:
+                        raise StateError("attempt consume claim namespace mismatch")
+                    sessions.add(str(claim["session_id"]))
+                    removals["locks"][consume_name] = token
+
+                for filename in os.listdir(directories["decisions"]):
+                    if not filename.endswith(".json"):
+                        continue
+                    try:
+                        loaded = _json_at(directories["decisions"], filename)
+                        if loaded is None:
+                            continue
+                        value, token = loaded
+                        decision = _validate_decision(value)
+                    except StateError:
+                        continue
+                    if (
+                        filename == f"{decision['session_id']}.json"
+                        and decision["run_id"] == run_id
+                        and decision["sequence"] == sequence
+                    ):
+                        sessions.add(str(decision["session_id"]))
+                        removals["decisions"][filename] = token
+
+                for filename in os.listdir(directories["locks"]):
+                    if not filename.startswith("session.") or not filename.endswith(".lock"):
+                        continue
+                    try:
+                        loaded = _json_at(directories["locks"], filename)
+                        if loaded is None:
+                            continue
+                        value, token = loaded
+                        claim = _validate_consumer_claim(value)
+                    except StateError:
+                        continue
+                    if (
+                        filename == f"session.{claim['session_id']}.lock"
+                        and claim["run_id"] == run_id
+                        and claim["sequence"] == sequence
+                    ):
+                        sessions.add(str(claim["session_id"]))
+                        removals["locks"][filename] = token
+
+                for session_id in sessions:
+                    decision_name = f"{session_id}.json"
+                    if decision_name not in removals["decisions"]:
+                        loaded = _json_at(directories["decisions"], decision_name)
+                        if loaded is not None:
+                            value, token = loaded
+                            decision = _validate_decision(value)
+                            if (
+                                decision["session_id"] != session_id
+                                or decision["run_id"] != run_id
+                                or decision["sequence"] != sequence
+                            ):
+                                raise StateError("attempt decision namespace mismatch")
+                            removals["decisions"][decision_name] = token
+                    session_name = f"session.{session_id}.lock"
+                    if session_name not in removals["locks"]:
+                        loaded = _json_at(directories["locks"], session_name)
+                        if loaded is not None:
+                            value, token = loaded
+                            claim = _validate_consumer_claim(value)
+                            if (
+                                claim["session_id"] != session_id
+                                or claim["run_id"] != run_id
+                                or claim["sequence"] != sequence
+                            ):
+                                raise StateError("attempt session claim namespace mismatch")
+                            removals["locks"][session_name] = token
+
+                for namespace, files in removals.items():
+                    changed = False
+                    for filename, token in files.items():
+                        changed = _unlink_token_at(
+                            directories[namespace], filename, token
+                        ) or changed
+                    if changed:
+                        os.fsync(directories[namespace])
 
 
 def _remove_namespaced_run_json(directory: Path, run_id: str) -> None:
