@@ -56,6 +56,89 @@ def expect_state_error(name: str, action) -> None:
         check(name, False)
 
 
+def check_loader_invalidation_linearization(
+    name: str,
+    state_root: Path,
+    run_id: str,
+    target_path: Path,
+    load,
+    expected: dict[str, object],
+) -> None:
+    read_entered = threading.Event()
+    release_read = threading.Event()
+    exclusive_attempted = threading.Event()
+    invalidation_finished = threading.Event()
+    load_results: list[dict[str, object] | None] = []
+    load_errors: list[Exception] = []
+    invalidation_errors: list[Exception] = []
+    loader_ident: list[int | None] = [None]
+    real_load_json = state._load_json
+    real_flock = state.fcntl.flock
+
+    def blocking_load_json(path):
+        value = real_load_json(path)
+        if path == target_path and threading.get_ident() == loader_ident[0]:
+            read_entered.set()
+            if not release_read.wait(5):
+                raise RuntimeError("timed out waiting to release routing state read")
+        return value
+
+    def observed_flock(descriptor, operation):
+        if operation == state.fcntl.LOCK_EX:
+            exclusive_attempted.set()
+        return real_flock(descriptor, operation)
+
+    def blocking_load():
+        loader_ident[0] = threading.get_ident()
+        try:
+            load_results.append(load())
+        except Exception as exc:
+            load_errors.append(exc)
+
+    def active_invalidate():
+        try:
+            state.invalidate_run(state_root, run_id)
+        except Exception as exc:
+            invalidation_errors.append(exc)
+        finally:
+            invalidation_finished.set()
+
+    state._load_json = blocking_load_json
+    state.fcntl.flock = observed_flock
+    load_thread = threading.Thread(target=blocking_load)
+    invalidate_thread = threading.Thread(target=active_invalidate)
+    try:
+        load_thread.start()
+        check(f"{name} loader reaches read boundary", read_entered.wait(5))
+        invalidate_thread.start()
+        check(f"{name} invalidation reaches exclusive gate", exclusive_attempted.wait(5))
+        check(
+            f"{name} invalidation waits for active loader",
+            not invalidation_finished.wait(0.2),
+        )
+        release_read.set()
+        load_thread.join(5)
+        invalidate_thread.join(5)
+    finally:
+        release_read.set()
+        load_thread.join(5)
+        if invalidate_thread.ident is not None:
+            invalidate_thread.join(5)
+        state._load_json = real_load_json
+        state.fcntl.flock = real_flock
+
+    check(
+        f"{name} loader may return pre-invalidation state",
+        not load_errors and load_results == [expected],
+    )
+    check(
+        f"{name} invalidation finishes cleanly after loader",
+        invalidation_finished.is_set() and not invalidation_errors,
+    )
+    check(f"{name} later loader misses invalidated state", load() is None)
+    check(f"{name} invalidation leaves cold root", state.detect_cold_start(state_root))
+
+
 def request(target: Path, run_id: str = "run-a", sequence: int = 1, **changes):
     value = {
         "run_id": run_id,
@@ -540,6 +623,42 @@ with tempfile.TemporaryDirectory() as temporary:
     decision_files[0].write_text("[]", encoding="utf-8")
     check("malformed decision load is absent", state.load_decision(state_root, "session-a") is None)
     check("missing decision load is absent", state.load_decision(state_root, "missing-session") is None)
+
+    decision_load_root = base / "decision-load-invalidation"
+    decision_load_request = request(
+        Path(req["target_root"]),
+        run_id="decision-load-run",
+        request_id=45,
+    )
+    state.create_handoff(decision_load_root, decision_load_request)
+    with correlated_env(decision_load_request):
+        decision_load_expected = state.consume_handoff(
+            decision_load_root,
+            str(decision_load_request["run_id"]),
+            int(decision_load_request["sequence"]),
+            "decision-load-session",
+            str(decision_load_request["model"]),
+        )
+    check_loader_invalidation_linearization(
+        "decision load",
+        decision_load_root,
+        str(decision_load_request["run_id"]),
+        decision_load_root / "decisions" / "decision-load-session.json",
+        lambda: state.load_decision(decision_load_root, "decision-load-session"),
+        decision_load_expected,
+    )
+
+    cache_load_root = base / "cache-load-invalidation"
+    state.save_selection_cache(cache_load_root, "cache-load-run", expected, "cache-load-session")
+    cache_load_expected = state.load_selection_cache(cache_load_root, "cache-load-run")
+    check_loader_invalidation_linearization(
+        "cache load",
+        cache_load_root,
+        "cache-load-run",
+        cache_load_root / "cache" / "cache-load-run.json",
+        lambda: state.load_selection_cache(cache_load_root, "cache-load-run"),
+        cache_load_expected,
+    )
 
     active_root = base / "active-invalidation"
     active = request(Path(req["target_root"]), run_id="active-run", request_id=40)

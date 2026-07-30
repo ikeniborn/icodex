@@ -540,13 +540,17 @@ def _validate_decision(value: object) -> dict[str, object]:
 def load_decision(state_root: Path, session_id: str) -> dict[str, object] | None:
     try:
         session_id = _safe_identifier(session_id, "session_id")
-        value = _load_json(state_root / "decisions" / f"{session_id}.json")
-        decision = _validate_decision(value)
     except StateError:
         return None
-    if decision["session_id"] != session_id:
-        raise StateError("decision session namespace mismatch")
-    return decision
+    with _routing_gate(state_root):
+        try:
+            value = _load_json(state_root / "decisions" / f"{session_id}.json")
+            decision = _validate_decision(value)
+        except StateError:
+            return None
+        if decision["session_id"] != session_id:
+            raise StateError("decision session namespace mismatch")
+        return decision
 
 
 def save_selection_cache(
@@ -593,13 +597,17 @@ def _validate_consumer_claim(value: object) -> dict[str, object]:
 def load_selection_cache(state_root: Path, run_id: str) -> dict[str, object] | None:
     try:
         run_id = _safe_identifier(run_id, "run_id")
-        value = _load_json(state_root / "cache" / f"{run_id}.json")
-        cache = _validate_cache(value)
     except StateError:
         return None
-    if cache["run_id"] != run_id:
-        raise StateError("selection cache run namespace mismatch")
-    return cache
+    with _routing_gate(state_root):
+        try:
+            value = _load_json(state_root / "cache" / f"{run_id}.json")
+            cache = _validate_cache(value)
+        except StateError:
+            return None
+        if cache["run_id"] != run_id:
+            raise StateError("selection cache run namespace mismatch")
+        return cache
 
 
 def cache_matches(
