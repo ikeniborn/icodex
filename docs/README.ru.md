@@ -113,6 +113,11 @@ Manifest утверждает профиль и фиксирует hash registry
 коммитом. Это делает review каждого изменения policy явным и не смешивает утверждение
 локальной задачи с обновлением общего набора профилей.
 
+При старте chain скилл `fix-intent` создаёт draft manifest для того же topic до
+`check-chain intent`. Первая task `intent-profile-selection` покрывает review intent и
+выбор маршрутизируемого profile. Manifest становится `approved` только при явном
+одобрении пользователя вместе с проверенным intent; до этого runner его не запускает.
+
 `./icodex.sh --run-task <topic> <task-id>` запускает один task с проверенной split policy:
 runner валидирует общий registry и прямой project manifest, а hook принимает только
 коррелированное локальное handoff/session evidence. `./icodex.sh --orchestrate <topic>`

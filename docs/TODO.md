@@ -26,3 +26,4 @@
 | loen-start-mode-gates | done | ✓ | ✓ | ✓ | OK | 2026-07-23 | 2026-07-24 | Strengthen LoEn start trust and close runtime, audit, and durable IDD vendor-gate blockers |
 | codex-model-routing | done | ✓ | n/a | n/a | OK | 2026-07-28 | 2026-07-28 | Added intent-backed execution, LoEn checkpoints, semantic model routes, aligned reports/docs, and focused tests; no spec, plan, TOML, or runtime model switching |
 | profile-recheck-at-task-transition | done | ✓ | ✓ | ✓ | OK | 2026-07-29 | 2026-07-30 | Split-authority routing complete; full suite, production policy validation, result audit, and wiki lint passed |
+| intent-profile-bootstrap | done | ✓ | n/a | n/a | OK | 2026-07-30 | 2026-07-30 | Bootstrap profile approved; IDD 54/0, policy 118/0, runner 98/0, wiki lint clean |

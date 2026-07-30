@@ -114,6 +114,39 @@ Fix any failures inline, then present.
 
 **File path:** `docs/superpowers/intents/YYYY-MM-DD-<topic>-intent.md`
 
+**Topic profile bootstrap:** Create the draft topic profile before validation, after
+writing the intent and before running `$check-chain intent`. Read the current shared
+registry hash with `sha256sum "$CODEX_HOME/profiles/registry.yaml" | awk '{print $1}'`.
+Write `docs/profiles/<topic>.yaml` with the following shape, replacing every
+angle-bracket value:
+
+```yaml
+schema_version: 1
+topic: <topic>
+status: draft
+registry:
+  authority: icodex-shared
+  path: profiles/registry.yaml
+  sha256: <current registry SHA-256>
+context_inputs:
+  - docs/superpowers/intents/YYYY-MM-DD-<topic>-intent.md
+tasks:
+  - id: intent-profile-selection
+    requirements:
+      capability: strong
+      context: medium
+      latency: medium
+      cost: medium
+      throughput: medium
+    live_remaining_context: false
+    preferred_profiles:
+      - engineering
+```
+
+This bootstrap task covers intent review and selection of the routed profile for the
+topic. The manifest remains `status: draft`; the profile runner must not execute it
+until the user has explicitly approved the checked intent and this manifest.
+
 **Validation-first user review gate:**
 
 1. Show a summary of the written document.
@@ -121,11 +154,14 @@ Fix any failures inline, then present.
    The check must update frontmatter and return `OK` before any approval request. If
    it returns `needs_work`, fix the markdown source first, rerun `$check-chain intent
    <path>`, and do not ask for approval yet.
-3. Present the checked intent summary and the markdown path for approval.
-   Ask: "Review the checked intent. Approve it or request changes."
+3. Present the checked intent summary, markdown path, and draft topic profile for
+   approval. Ask: "Review the checked intent and draft topic profile. Approve them or
+   request changes."
 4. On changes requested: edit the markdown source → rerun `$check-chain intent <path>`
-   → present the checked summary again → repeat.
-5. On approval, set `Status: approved`. Recommend `execute` or `full` from the checked
+   → update the draft topic profile when its context or routing selection changes →
+   present the checked summary again → repeat.
+5. On approval, set `Status: approved` and set the topic profile `status: approved`.
+   Recommend `execute` or `full` from the checked
    intent and repository evidence:
    - `execute` when implementation and verification are bounded and no unresolved
      design/planning trigger remains;
@@ -144,10 +180,10 @@ workflow:
 This records `workflow.route: chain` and the accepted
 `workflow.continuation: execute|full` without changing the intent body hash.
 
-7. Commit the approved intent and continuation once:
+7. Commit the approved intent, topic profile, and continuation once:
 
 ```bash
-git add docs/superpowers/intents/ && git commit -m "docs(idd): add intent doc for <topic>"
+git add docs/superpowers/intents/ docs/profiles/ && git commit -m "docs(idd): add intent profile for <topic>"
 ```
 
 8. For `execute`, hand off directly:
