@@ -603,6 +603,14 @@ with tempfile.TemporaryDirectory() as temporary:
     valid_keep = request(Path(req["target_root"]), run_id="valid-keep-run", sequence=1, request_id=52)
     state.create_handoff(malformed_cleanup_root, malformed_cleanup)
     state.create_handoff(malformed_cleanup_root, valid_keep)
+    with correlated_env(malformed_cleanup):
+        state.consume_handoff(
+            malformed_cleanup_root,
+            str(malformed_cleanup["run_id"]),
+            int(malformed_cleanup["sequence"]),
+            "target-malformed-session",
+            str(malformed_cleanup["model"]),
+        )
     with correlated_env(valid_keep):
         state.consume_handoff(
             malformed_cleanup_root,
@@ -615,7 +623,7 @@ with tempfile.TemporaryDirectory() as temporary:
         malformed_cleanup_root,
         str(malformed_cleanup["run_id"]),
         expected,
-        "malformed-cache-session",
+        "target-malformed-session",
     )
     state.save_selection_cache(
         malformed_cleanup_root,
@@ -623,22 +631,84 @@ with tempfile.TemporaryDirectory() as temporary:
         expected,
         "valid-keep-session",
     )
+    target_decision = state.load_decision(malformed_cleanup_root, "target-malformed-session")
     malformed_handoff_path = next(
         path
-        for path in (malformed_cleanup_root / "pending").glob("*.json")
+        for path in (malformed_cleanup_root / "consumed").glob("*.json")
         if "malformed-cleanup-run" in path.name
     )
     malformed_cache_path = malformed_cleanup_root / "cache" / "malformed-cleanup-run.json"
-    malformed_decision_path = malformed_cleanup_root / "decisions" / "unusable-session.json"
+    malformed_decision_path = malformed_cleanup_root / "decisions" / "target-malformed-session.json"
+    unrelated_decision_path = malformed_cleanup_root / "decisions" / "unrelated-malformed-session.json"
+    unrelated_session_lock = malformed_cleanup_root / "locks" / "session.unrelated-malformed-session.lock"
+    attributable_session_lock = malformed_cleanup_root / "locks" / "session.target-malformed-session.lock"
+    decision_source_path = malformed_cleanup_root / "decisions" / "misplaced-decision-source.json"
+    decision_poison_path = malformed_cleanup_root / "decisions" / "decision-poison-session.json"
+    session_source_lock = malformed_cleanup_root / "locks" / "session.misplaced-session-source.lock"
+    session_poison_lock = malformed_cleanup_root / "locks" / "session.session-poison-session.lock"
+    consume_source_lock = malformed_cleanup_root / "locks" / "malformed-cleanup-run.99.consume.lock"
+    consume_poison_decision = malformed_cleanup_root / "decisions" / "consume-poison-session.json"
     malformed_handoff_path.write_text("{invalid", encoding="utf-8")
     malformed_cache_path.write_text("[]", encoding="utf-8")
     malformed_decision_path.write_text("{invalid", encoding="utf-8")
-    os.chmod(malformed_decision_path, 0o600)
+    unrelated_decision_path.write_text("{invalid", encoding="utf-8")
+    unrelated_session_lock.write_text("{invalid", encoding="utf-8")
+    attributable_session_lock.write_text("{invalid", encoding="utf-8")
+    decision_source_path.write_text(
+        json.dumps({**target_decision, "session_id": "decision-poison-session"}),
+        encoding="utf-8",
+    )
+    decision_poison_path.write_text("{invalid", encoding="utf-8")
+    session_source_lock.write_text(
+        json.dumps(
+            {
+                "run_id": "malformed-cleanup-run",
+                "sequence": 1,
+                "session_id": "session-poison-session",
+                "request_id": "51",
+                "payload_model": str(malformed_cleanup["model"]),
+            }
+        ),
+        encoding="utf-8",
+    )
+    session_poison_lock.write_text("{invalid", encoding="utf-8")
+    consume_source_lock.write_text(
+        json.dumps(
+            {
+                "run_id": "malformed-cleanup-run",
+                "sequence": 100,
+                "session_id": "consume-poison-session",
+                "request_id": "51",
+                "payload_model": str(malformed_cleanup["model"]),
+            }
+        ),
+        encoding="utf-8",
+    )
+    consume_poison_decision.write_text("{invalid", encoding="utf-8")
+    for path in (
+        malformed_decision_path,
+        unrelated_decision_path,
+        unrelated_session_lock,
+        attributable_session_lock,
+        decision_source_path,
+        decision_poison_path,
+        session_source_lock,
+        session_poison_lock,
+        consume_source_lock,
+        consume_poison_decision,
+    ):
+        os.chmod(path, 0o600)
 
     state.invalidate_run(malformed_cleanup_root, "malformed-cleanup-run")
     check("invalidation removes malformed target handoff by namespace", not malformed_handoff_path.exists())
     check("invalidation removes malformed target cache by exact path", not malformed_cache_path.exists())
-    check("invalidation removes unusable malformed decision", not malformed_decision_path.exists())
+    check("invalidation removes attributable malformed target decision", not malformed_decision_path.exists())
+    check("invalidation preserves unrelated malformed decision", unrelated_decision_path.exists())
+    check("invalidation preserves unrelated malformed session lock", unrelated_session_lock.exists())
+    check("invalidation removes attributable malformed session lock", not attributable_session_lock.exists())
+    check("misplaced decision cannot attribute malformed victim", decision_poison_path.exists())
+    check("misplaced session claim cannot attribute malformed victim", session_poison_lock.exists())
+    check("misplaced consume claim cannot attribute malformed victim", consume_poison_decision.exists())
     check(
         "invalidation preserves unrelated valid decision",
         state.load_decision(malformed_cleanup_root, "valid-keep-session") is not None,
@@ -648,7 +718,9 @@ with tempfile.TemporaryDirectory() as temporary:
         state.load_selection_cache(malformed_cleanup_root, "valid-keep-run") is not None,
     )
     state.invalidate_run(malformed_cleanup_root, "valid-keep-run")
-    check("malformed cleanup permits final cold start", state.detect_cold_start(malformed_cleanup_root))
+    check("unattributable malformed state keeps routing root warm", not state.detect_cold_start(malformed_cleanup_root))
+    shutil.rmtree(malformed_cleanup_root, ignore_errors=True)
+    check("explicit state deletion restores cold start", state.detect_cold_start(malformed_cleanup_root))
 
     shutil.rmtree(state_root)
     check("state deletion returns cold start", state.detect_cold_start(state_root))

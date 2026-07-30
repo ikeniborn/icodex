@@ -40,6 +40,7 @@ HANDOFF_KEYS = {
 }
 DECISION_KEYS = HANDOFF_KEYS | {"session_id", "authorized", "observed_model"}
 CACHE_KEYS = {"run_id", "session_id", "selection"}
+CONSUMER_CLAIM_KEYS = {"run_id", "sequence", "session_id", "request_id", "payload_model"}
 SELECTION_KEYS = {
     "target_root",
     "topic",
@@ -574,6 +575,18 @@ def _validate_cache(value: object) -> dict[str, object]:
     return result
 
 
+def _validate_consumer_claim(value: object) -> dict[str, object]:
+    if not isinstance(value, Mapping) or set(value) != CONSUMER_CLAIM_KEYS:
+        raise StateError("consumer claim has an invalid schema")
+    result = dict(value)
+    _safe_identifier(result["run_id"], "run_id")
+    _sequence(result["sequence"])
+    _safe_identifier(result["session_id"], "session_id")
+    _request_id(result["request_id"])
+    _nonempty_string(result["payload_model"], "payload_model")
+    return result
+
+
 def load_selection_cache(state_root: Path, run_id: str) -> dict[str, object] | None:
     try:
         run_id = _safe_identifier(run_id, "run_id")
@@ -617,16 +630,58 @@ def _remove_namespaced_run_json(directory: Path, run_id: str) -> None:
             pass
 
 
-def _remove_decisions(directory: Path, run_id: str) -> None:
+def _collect_target_sessions(state_root: Path, run_id: str) -> set[str]:
+    sessions: set[str] = set()
+    cache = _load_json(state_root / "cache" / f"{run_id}.json")
+    try:
+        validated_cache = _validate_cache(cache)
+        if validated_cache["run_id"] == run_id:
+            sessions.add(str(validated_cache["session_id"]))
+    except StateError:
+        pass
+
+    decision_directory = state_root / "decisions"
+    if decision_directory.is_dir():
+        for path in decision_directory.glob("*.json"):
+            try:
+                decision = _validate_decision(_read_json(path))
+                if path.stem == decision["session_id"] and decision["run_id"] == run_id:
+                    sessions.add(str(decision["session_id"]))
+            except (OSError, UnicodeError, json.JSONDecodeError, StateError):
+                pass
+
+    lock_directory = state_root / "locks"
+    if lock_directory.is_dir():
+        for path in lock_directory.glob(f"{run_id}.*.consume.lock"):
+            try:
+                claim = _validate_consumer_claim(_read_json(path))
+                expected_name = f"{claim['run_id']}.{claim['sequence']}.consume.lock"
+                if path.name == expected_name and claim["run_id"] == run_id:
+                    sessions.add(str(claim["session_id"]))
+            except (OSError, UnicodeError, json.JSONDecodeError, StateError):
+                pass
+        for path in lock_directory.glob("session.*.lock"):
+            try:
+                claim = _validate_consumer_claim(_read_json(path))
+                expected_name = f"session.{claim['session_id']}.lock"
+                if path.name == expected_name and claim["run_id"] == run_id:
+                    sessions.add(str(claim["session_id"]))
+            except (OSError, UnicodeError, json.JSONDecodeError, StateError):
+                pass
+    return sessions
+
+
+def _remove_decisions(directory: Path, run_id: str, target_sessions: set[str]) -> None:
     if not directory.is_dir():
         return
     for path in directory.glob("*.json"):
-        remove = False
         try:
             decision = _validate_decision(_read_json(path))
-            remove = decision["run_id"] == run_id or path.stem != decision["session_id"]
+            if path.stem != decision["session_id"]:
+                raise StateError("decision filename and session mismatch")
+            remove = decision["run_id"] == run_id
         except (OSError, UnicodeError, json.JSONDecodeError, StateError):
-            remove = True
+            remove = path.stem in target_sessions
         if remove:
             try:
                 path.unlink()
@@ -634,12 +689,19 @@ def _remove_decisions(directory: Path, run_id: str) -> None:
                 pass
 
 
-def _remove_session_locks(directory: Path, run_id: str) -> None:
+def _remove_session_locks(directory: Path, run_id: str, target_sessions: set[str]) -> None:
     if not directory.is_dir():
         return
     for path in directory.glob("session.*.lock"):
-        claim = _load_json(path)
-        if not isinstance(claim, Mapping) or claim.get("run_id") == run_id:
+        session_id = path.name[len("session.") : -len(".lock")]
+        try:
+            claim = _validate_consumer_claim(_read_json(path))
+            if path.name != f"session.{claim['session_id']}.lock":
+                raise StateError("session lock filename and claim mismatch")
+            remove = claim["run_id"] == run_id
+        except (OSError, UnicodeError, json.JSONDecodeError, StateError):
+            remove = session_id in target_sessions
+        if remove:
             try:
                 path.unlink()
             except FileNotFoundError:
@@ -654,6 +716,7 @@ def invalidate_run(state_root: Path, run_id: str) -> None:
         if state_root.is_symlink() or not state_root.is_dir():
             raise StateError("routing state root is not a regular directory")
         with _run_gate(state_root, run_id, exclusive=True) as run_lock:
+            target_sessions = _collect_target_sessions(state_root, run_id)
             _remove_namespaced_run_json(state_root / "pending", run_id)
             _remove_namespaced_run_json(state_root / "consumed", run_id)
             cache_path = state_root / "cache" / f"{run_id}.json"
@@ -661,10 +724,10 @@ def invalidate_run(state_root: Path, run_id: str) -> None:
                 cache_path.unlink()
             except FileNotFoundError:
                 pass
-            _remove_decisions(state_root / "decisions", run_id)
+            _remove_decisions(state_root / "decisions", run_id, target_sessions)
             lock_directory = state_root / "locks"
             if lock_directory.is_dir():
-                _remove_session_locks(lock_directory, run_id)
+                _remove_session_locks(lock_directory, run_id, target_sessions)
                 for path in lock_directory.glob(f"{run_id}.*.lock"):
                     if path == run_lock:
                         continue
