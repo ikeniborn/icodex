@@ -1,7 +1,7 @@
 ---
 review:
-  plan_hash: 27f3c7cc799d856d
-  last_run: 2026-07-29
+  plan_hash: ff6e0e59b41639ce
+  last_run: 2026-07-30
   phases:
     structure: { status: passed }
     coverage: { status: passed }
@@ -704,7 +704,7 @@ def orchestrate(config: RunnerConfig, topic: str) -> int:
     """Start or continue only local run state and advance on structured complete."""
 ```
 
-Resolve manifest only as `target_root / "docs/profiles" / f"{topic}.yaml"`; resolve registry only as `codex_home / "profiles/registry.yaml"` plus exact shared-root check. On cache miss: call `load_policy`, call `model/list`, select first sufficient preferred profile, compute requirement fingerprint from canonical sorted JSON, and build the full `SelectionTuple`. On exact LoEn cache hit: reuse selection without policy reread or second `model/list`, but only with same run namespace and matching authorized session decision.
+Resolve manifest only as `target_root / "docs/profiles" / f"{topic}.yaml"`; resolve registry only as `codex_home / "profiles/registry.yaml"` plus exact shared-root check. Validate the sealed policy and current manifest task position before every orchestration attempt so mutable local state cannot select work before authority checks. On cache miss: call `model/list`, select first sufficient preferred profile, compute requirement fingerprint from canonical sorted JSON, and build the full `SelectionTuple`. On exact LoEn cache hit: reuse selection without a second `model/list`, but only when the freshly validated full tuple, same run namespace, and matching authorized session decision all agree.
 
 Allocate request ID first through `AppServerClient.request`; in `before_send`, write handoff containing SHA-256 of canonical exact request plus explicit model/effort/cwd. Export only run/sequence/request correlation variables to App Server child environment. A new state root always creates a fresh run ID. Never infer previous task completion from Git or manifest.
 
