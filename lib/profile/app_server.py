@@ -77,12 +77,19 @@ class AppServerClient:
 
     @staticmethod
     def _validate_notification(message: dict[str, object]) -> tuple[str, dict[str, object]]:
-        if set(message) != {"method", "params"}:
+        keys = set(message)
+        if not {"method", "params"}.issubset(keys) or not keys.issubset(
+            {"method", "params", "emittedAtMs"}
+        ):
             raise AppServerError("App Server notification has an invalid shape")
         method = message.get("method")
         params = message.get("params")
         if not isinstance(method, str) or not method or not isinstance(params, dict):
             raise AppServerError("App Server notification has invalid method or params")
+        if "emittedAtMs" in message and (
+            type(message["emittedAtMs"]) is not int or message["emittedAtMs"] < 0
+        ):
+            raise AppServerError("App Server notification has invalid emittedAtMs metadata")
         return method, params
 
     def notify(self, method: str, params: dict[str, object]) -> None:

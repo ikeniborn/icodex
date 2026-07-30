@@ -164,6 +164,11 @@ for line in sys.stdin:
         continue
     request_id = request["id"]
     if method == "initialize":
+        emit({
+            "method": "remoteControl/status/changed",
+            "params": {"status": "disabled"},
+            "emittedAtMs": 1785399248485,
+        })
         emit({"id": request_id, "result": {"userAgent": "fake"}})
     elif method == "model/list":
         emit({"id": request_id, "result": {"data": available, "nextCursor": None}})
@@ -190,7 +195,16 @@ for line in sys.stdin:
         decision_path.write_text(json.dumps(decision, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
         emit({"id": request_id, "result": {"turn": {"id": turn_id, "status": "inProgress", "items": [], "error": None}}})
         if mode == "interrupted":
-            emit({"method": "turn/completed", "params": {"turn": {"id": turn_id, "status": "interrupted", "items": [], "error": None}}})
+            emit({
+                "method": "turn/completed",
+                "params": {"turn": {
+                    "id": turn_id,
+                    "status": "interrupted",
+                    "items": [],
+                    "error": None,
+                }},
+                "emittedAtMs": 1785399248486,
+            })
             continue
         if mode == "malformed":
             text = '{"transition":"complete"}'
@@ -201,7 +215,7 @@ for line in sys.stdin:
             "status": "completed",
             "items": [{"type": "agentMessage", "id": "message-1", "text": text}],
             "error": None,
-        }}})
+        }}, "emittedAtMs": 1785399248487})
 '''
 
 
@@ -280,6 +294,30 @@ EXPECTED_SCHEMA = {
     "type": "object",
 }
 check("transition schema exact", runner.TRANSITION_SCHEMA == EXPECTED_SCHEMA)
+try:
+    accepted_metadata = app_server.AppServerClient._validate_notification(
+        {"method": "notice", "params": {}, "emittedAtMs": 1785399248485}
+    ) == ("notice", {})
+except app_server.AppServerError:
+    accepted_metadata = False
+check("notification accepts integer emittedAtMs metadata", accepted_metadata)
+for name, notification in (
+    (
+        "notification rejects non-integer emittedAtMs",
+        {"method": "notice", "params": {}, "emittedAtMs": "now"},
+    ),
+    (
+        "notification rejects unknown envelope metadata",
+        {"method": "notice", "params": {}, "unexpected": 1},
+    ),
+):
+    try:
+        app_server.AppServerClient._validate_notification(notification)
+    except app_server.AppServerError:
+        rejected = True
+    else:
+        rejected = False
+    check(name, rejected)
 
 with tempfile.TemporaryDirectory() as temporary:
     fixture = make_fixture(Path(temporary))
