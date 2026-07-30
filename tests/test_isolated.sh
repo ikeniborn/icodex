@@ -10,6 +10,8 @@ source "$ROOT/lib/config/isolated.sh"
 
 # Build a shared store fixture: plugins dir + config template
 mkdir -p "$ICODEX_SHARED_DIR/plugins"
+mkdir -p "$ICODEX_SHARED_DIR/profiles"
+printf 'schema_version: 1\n' > "$ICODEX_SHARED_DIR/profiles/registry.yaml"
 mkdir -p "$ICODEX_SHARED_DIR/skills"
 mkdir -p "$ICODEX_SHARED_DIR/hooks"
 printf 'sandbox_mode = "workspace-write"\n' > "$ICODEX_SHARED_DIR/config.toml"
@@ -44,6 +46,11 @@ assert_eq  "CODEX_HOME exported" "$ICODEX_HOME_DIR" "${CODEX_HOME:-}"
 assert_exit "home created"       0 test -d "$ICODEX_HOME_DIR"
 assert_exit "plugins symlink"    0 test -L "$ICODEX_HOME_DIR/plugins"
 assert_eq  "plugins -> shared"   "$ICODEX_SHARED_DIR/plugins" "$(readlink "$ICODEX_HOME_DIR/plugins")"
+assert_exit "profiles symlink"   0 test -L "$ICODEX_HOME_DIR/profiles"
+assert_eq "profiles exact target" "$ICODEX_SHARED_DIR/profiles" "$(readlink "$ICODEX_HOME_DIR/profiles")"
+assert_exit "home manifest absent" 1 test -e "$ICODEX_HOME_DIR/profiles/demo.yaml"
+profiles_link_target="$(readlink "$ICODEX_HOME_DIR/profiles")"
+profiles_link_stat="$(stat -c '%i:%Y' "$ICODEX_HOME_DIR/profiles")"
 assert_exit "skills symlink"     0 test -L "$ICODEX_HOME_DIR/skills"
 assert_eq  "skills -> shared"    "$ICODEX_SHARED_DIR/skills" "$(readlink "$ICODEX_HOME_DIR/skills")"
 assert_exit "hooks symlink"      0 test -L "$ICODEX_HOME_DIR/hooks"
@@ -70,6 +77,14 @@ printf 'edited = true\n' >> "$ICODEX_HOME_DIR/config.toml"
 before="$(cat "$ICODEX_HOME_DIR/config.toml")"
 setup_codex_home
 assert_eq "config not clobbered on re-run" "$before" "$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "profiles target stable on re-run" "$profiles_link_target" "$(readlink "$ICODEX_HOME_DIR/profiles")"
+assert_eq "profiles link identity stable on re-run" "$profiles_link_stat" "$(stat -c '%i:%Y' "$ICODEX_HOME_DIR/profiles")"
+
+# A wrong profiles symlink is repaired to the exact shared registry target.
+rm -f "$ICODEX_HOME_DIR/profiles"
+ln -s "$ICODEX_SHARED_DIR/plugins" "$ICODEX_HOME_DIR/profiles"
+setup_codex_home
+assert_eq "wrong profiles symlink repaired" "$ICODEX_SHARED_DIR/profiles" "$(readlink "$ICODEX_HOME_DIR/profiles")"
 
 # base region re-syncs when the shared AGENTS.md changes
 printf '# Base guidelines v2\nNew line.\n' > "$ICODEX_SHARED_DIR/AGENTS.md"
