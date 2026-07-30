@@ -448,6 +448,7 @@ def consume_handoff(
     pending = state_root / "pending" / f"{name}.json"
     consumed = state_root / "consumed" / f"{name}.json"
     consume_lock = state_root / "locks" / f"{name}.consume.lock"
+    session_lock = state_root / "locks" / f"session.{session_id}.lock"
     decision_path = state_root / "decisions" / f"{session_id}.json"
 
     with _routing_gate(state_root):
@@ -478,32 +479,49 @@ def consume_handoff(
                 "payload_model": payload_model,
             }
             with _consumer_claim(consume_lock, claim):
-                source = pending if pending.exists() else consumed
                 try:
-                    locked_handoff = _validate_handoff(_read_json(source))
-                except FileNotFoundError as exc:
-                    raise StateError("handoff is missing or already consumed") from exc
-                except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-                    raise StateError("handoff JSON is malformed") from exc
-                if locked_handoff != handoff:
-                    raise StateError("handoff changed during consumption")
-                if decision_path.exists() or decision_path.is_symlink():
-                    raise StateError("session already has a routing decision")
-                if source == pending:
-                    try:
-                        os.replace(pending, consumed)
-                        _fsync_directory(pending.parent)
-                        _fsync_directory(consumed.parent)
-                    except OSError as exc:
-                        raise StateError(f"cannot consume handoff atomically: {exc}") from exc
-                decision = {
-                    **handoff,
-                    "session_id": session_id,
-                    "authorized": True,
-                    "observed_model": payload_model,
-                }
-                atomic_json_write(decision_path, decision)
-                return decision
+                    with _consumer_claim(session_lock, claim):
+                        source = pending if pending.exists() else consumed
+                        try:
+                            locked_handoff = _validate_handoff(_read_json(source))
+                        except FileNotFoundError as exc:
+                            raise StateError("handoff is missing or already consumed") from exc
+                        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                            raise StateError("handoff JSON is malformed") from exc
+                        if locked_handoff != handoff:
+                            raise StateError("handoff changed during consumption")
+                        if decision_path.exists() or decision_path.is_symlink():
+                            try:
+                                session_lock.unlink()
+                            except FileNotFoundError:
+                                pass
+                            raise StateError("session already has a routing decision")
+                        if source == pending:
+                            try:
+                                os.replace(pending, consumed)
+                                _fsync_directory(pending.parent)
+                                _fsync_directory(consumed.parent)
+                            except OSError as exc:
+                                raise StateError(f"cannot consume handoff atomically: {exc}") from exc
+                        decision = {
+                            **handoff,
+                            "session_id": session_id,
+                            "authorized": True,
+                            "observed_model": payload_model,
+                        }
+                        atomic_json_write(decision_path, decision)
+                        try:
+                            session_lock.unlink()
+                        except FileNotFoundError:
+                            pass
+                        return decision
+                except StateError:
+                    if pending.exists():
+                        try:
+                            consume_lock.unlink()
+                        except FileNotFoundError:
+                            pass
+                    raise
 
 
 def _validate_decision(value: object) -> dict[str, object]:
@@ -576,23 +594,52 @@ def cache_matches(
         expected = _validate_selection(dataclasses.asdict(selection_tuple))
         cached = _validate_cache(cache)
         decision = _validate_decision(authorized_decision)
-        return (
-            cached["selection"] == expected
-            and cached["run_id"] == decision["run_id"]
-            and cached["session_id"] == decision["session_id"]
-            and decision["authorized"] is True
-            and decision["observed_model"] == selection_tuple.model
-        )
     except StateError:
         return False
+    if cached["run_id"] != decision["run_id"]:
+        raise StateError("cache and decision run correlation mismatch")
+    if cached["session_id"] != decision["session_id"]:
+        raise StateError("cache and decision session correlation mismatch")
+    return (
+        cached["selection"] == expected
+        and decision["authorized"] is True
+        and decision["observed_model"] == selection_tuple.model
+    )
 
 
-def _remove_run_json(directory: Path, run_id: str) -> None:
+def _remove_namespaced_run_json(directory: Path, run_id: str) -> None:
+    if not directory.is_dir():
+        return
+    for path in directory.glob(f"{run_id}.*.json"):
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _remove_decisions(directory: Path, run_id: str) -> None:
     if not directory.is_dir():
         return
     for path in directory.glob("*.json"):
-        value = _load_json(path)
-        if isinstance(value, Mapping) and value.get("run_id") == run_id:
+        remove = False
+        try:
+            decision = _validate_decision(_read_json(path))
+            remove = decision["run_id"] == run_id or path.stem != decision["session_id"]
+        except (OSError, UnicodeError, json.JSONDecodeError, StateError):
+            remove = True
+        if remove:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+
+
+def _remove_session_locks(directory: Path, run_id: str) -> None:
+    if not directory.is_dir():
+        return
+    for path in directory.glob("session.*.lock"):
+        claim = _load_json(path)
+        if not isinstance(claim, Mapping) or claim.get("run_id") == run_id:
             try:
                 path.unlink()
             except FileNotFoundError:
@@ -607,10 +654,17 @@ def invalidate_run(state_root: Path, run_id: str) -> None:
         if state_root.is_symlink() or not state_root.is_dir():
             raise StateError("routing state root is not a regular directory")
         with _run_gate(state_root, run_id, exclusive=True) as run_lock:
-            for name in ("pending", "consumed", "decisions", "cache"):
-                _remove_run_json(state_root / name, run_id)
+            _remove_namespaced_run_json(state_root / "pending", run_id)
+            _remove_namespaced_run_json(state_root / "consumed", run_id)
+            cache_path = state_root / "cache" / f"{run_id}.json"
+            try:
+                cache_path.unlink()
+            except FileNotFoundError:
+                pass
+            _remove_decisions(state_root / "decisions", run_id)
             lock_directory = state_root / "locks"
             if lock_directory.is_dir():
+                _remove_session_locks(lock_directory, run_id)
                 for path in lock_directory.glob(f"{run_id}.*.lock"):
                     if path == run_lock:
                         continue

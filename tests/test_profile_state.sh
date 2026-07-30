@@ -141,6 +141,32 @@ def consume_worker(state_root: str, req: dict[str, object], session: str, queue)
         queue.put("authorized")
 
 
+def slow_decision_worker(state_root: str, req: dict[str, object], session: str, queue) -> None:
+    os.environ["ICODEX_PROFILE_RUN_ID"] = str(req["run_id"])
+    os.environ["ICODEX_PROFILE_SEQUENCE"] = str(req["sequence"])
+    os.environ["ICODEX_PROFILE_REQUEST_ID"] = str(req["request_id"])
+    real_atomic_write = state.atomic_json_write
+
+    def slow_decision(path, value):
+        if path.parent.name == "decisions":
+            time.sleep(0.2)
+        return real_atomic_write(path, value)
+
+    state.atomic_json_write = slow_decision
+    try:
+        state.consume_handoff(
+            Path(state_root),
+            str(req["run_id"]),
+            int(req["sequence"]),
+            session,
+            str(req["model"]),
+        )
+    except state.StateError:
+        queue.put("rejected")
+    else:
+        queue.put("authorized")
+
+
 with tempfile.TemporaryDirectory() as temporary:
     base = Path(temporary)
     home = base / "home"
@@ -343,6 +369,51 @@ with tempfile.TemporaryDirectory() as temporary:
     isolated_results = sorted(queue.get(timeout=2) for _ in processes)
     check("concurrent runners consume only own handoffs", isolated_results == ["authorized", "authorized"])
 
+    same_session_root = base / "same-session"
+    same_session_first = request(Path(req["target_root"]), run_id="session-run-one", request_id=23)
+    same_session_second = request(Path(req["target_root"]), run_id="session-run-two", request_id=24)
+    state.create_handoff(same_session_root, same_session_first)
+    state.create_handoff(same_session_root, same_session_second)
+    queue = multiprocessing.Queue()
+    processes = [
+        multiprocessing.Process(
+            target=slow_decision_worker,
+            args=(str(same_session_root), candidate, "shared-session", queue),
+        )
+        for candidate in (same_session_first, same_session_second)
+    ]
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join(10)
+    same_session_results = sorted(queue.get(timeout=2) for _ in processes)
+    check("same session authorizes exactly one handoff", same_session_results == ["authorized", "rejected"])
+    same_session_decision = state.load_decision(same_session_root, "shared-session")
+    same_session_consumed = list((same_session_root / "consumed").glob("*.json"))
+    same_session_pending = list((same_session_root / "pending").glob("*.json"))
+    check(
+        "same session consumes only decided handoff",
+        same_session_decision is not None
+        and len(same_session_consumed) == 1
+        and len(same_session_pending) == 1
+        and json.loads(same_session_consumed[0].read_text())["run_id"] == same_session_decision["run_id"],
+    )
+    same_session_loser = (
+        same_session_second
+        if same_session_decision["run_id"] == same_session_first["run_id"]
+        else same_session_first
+    )
+    state.invalidate_run(same_session_root, str(same_session_decision["run_id"]))
+    with correlated_env(same_session_loser):
+        replacement_decision = state.consume_handoff(
+            same_session_root,
+            str(same_session_loser["run_id"]),
+            int(same_session_loser["sequence"]),
+            "replacement-session",
+            str(same_session_loser["model"]),
+        )
+    check("losing pending handoff remains usable by fresh session", replacement_decision["authorized"] is True)
+
     single_root = base / "single-consumer"
     single = request(Path(req["target_root"]), run_id="single-run", sequence=1, request_id=31)
     state.create_handoff(single_root, single)
@@ -389,13 +460,13 @@ with tempfile.TemporaryDirectory() as temporary:
         "unauthorized decision cache miss",
         not state.cache_matches(cache, expected, {**loaded_decision, "authorized": False}),
     )
-    check(
-        "cache run correlation required",
-        not state.cache_matches({**cache, "run_id": "other-run"}, expected, loaded_decision),
+    expect_state_error(
+        "cache run correlation mismatch raises",
+        lambda: state.cache_matches({**cache, "run_id": "other-run"}, expected, loaded_decision),
     )
-    check(
-        "cache session correlation required",
-        not state.cache_matches({**cache, "session_id": "other-session"}, expected, loaded_decision),
+    expect_state_error(
+        "cache session correlation mismatch raises",
+        lambda: state.cache_matches({**cache, "session_id": "other-session"}, expected, loaded_decision),
     )
 
     cache_files = list((state_root / "cache").glob("*.json"))
@@ -521,6 +592,63 @@ with tempfile.TemporaryDirectory() as temporary:
     check("partial invalidation remains warm", not state.detect_cold_start(invalidation_root))
     state.invalidate_run(invalidation_root, str(run_two["run_id"]))
     check("last-run invalidation returns cold start", state.detect_cold_start(invalidation_root))
+
+    malformed_cleanup_root = base / "malformed-cleanup"
+    malformed_cleanup = request(
+        Path(req["target_root"]),
+        run_id="malformed-cleanup-run",
+        sequence=1,
+        request_id=51,
+    )
+    valid_keep = request(Path(req["target_root"]), run_id="valid-keep-run", sequence=1, request_id=52)
+    state.create_handoff(malformed_cleanup_root, malformed_cleanup)
+    state.create_handoff(malformed_cleanup_root, valid_keep)
+    with correlated_env(valid_keep):
+        state.consume_handoff(
+            malformed_cleanup_root,
+            str(valid_keep["run_id"]),
+            int(valid_keep["sequence"]),
+            "valid-keep-session",
+            str(valid_keep["model"]),
+        )
+    state.save_selection_cache(
+        malformed_cleanup_root,
+        str(malformed_cleanup["run_id"]),
+        expected,
+        "malformed-cache-session",
+    )
+    state.save_selection_cache(
+        malformed_cleanup_root,
+        str(valid_keep["run_id"]),
+        expected,
+        "valid-keep-session",
+    )
+    malformed_handoff_path = next(
+        path
+        for path in (malformed_cleanup_root / "pending").glob("*.json")
+        if "malformed-cleanup-run" in path.name
+    )
+    malformed_cache_path = malformed_cleanup_root / "cache" / "malformed-cleanup-run.json"
+    malformed_decision_path = malformed_cleanup_root / "decisions" / "unusable-session.json"
+    malformed_handoff_path.write_text("{invalid", encoding="utf-8")
+    malformed_cache_path.write_text("[]", encoding="utf-8")
+    malformed_decision_path.write_text("{invalid", encoding="utf-8")
+    os.chmod(malformed_decision_path, 0o600)
+
+    state.invalidate_run(malformed_cleanup_root, "malformed-cleanup-run")
+    check("invalidation removes malformed target handoff by namespace", not malformed_handoff_path.exists())
+    check("invalidation removes malformed target cache by exact path", not malformed_cache_path.exists())
+    check("invalidation removes unusable malformed decision", not malformed_decision_path.exists())
+    check(
+        "invalidation preserves unrelated valid decision",
+        state.load_decision(malformed_cleanup_root, "valid-keep-session") is not None,
+    )
+    check(
+        "invalidation preserves unrelated valid cache",
+        state.load_selection_cache(malformed_cleanup_root, "valid-keep-run") is not None,
+    )
+    state.invalidate_run(malformed_cleanup_root, "valid-keep-run")
+    check("malformed cleanup permits final cold start", state.detect_cold_start(malformed_cleanup_root))
 
     shutil.rmtree(state_root)
     check("state deletion returns cold start", state.detect_cold_start(state_root))
