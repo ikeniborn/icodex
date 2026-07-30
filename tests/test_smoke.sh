@@ -2,6 +2,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/helpers.sh"
+source "$ROOT/lib/profile/profile.sh"
 
 # --help exits 0 and prints usage
 out="$("$ROOT/icodex.sh" --help)"; code=$?
@@ -59,21 +60,21 @@ assert_eq "calls ensure_project_trust on launch" "1" \
 assert_eq "calls optional pii launch wrapper" "1" \
   "$(grep -Ec '^[[:space:]]*launch_codex_with_optional_pii[[:space:]]' "$ROOT/icodex.sh")"
 assert_eq "dispatches explicit profile task" "1" \
-  "$(grep -Ec '^[[:space:]]*profile-run-task\)[[:space:]]*run_profile_task' "$ROOT/icodex.sh")"
+  "$(grep -Ec '^[[:space:]]*profile-run-task\)[[:space:]]*run_profile_task' "$ROOT/lib/profile/profile.sh")"
 assert_eq "dispatches profile orchestrator" "1" \
-  "$(grep -Ec '^[[:space:]]*profile-orchestrate\)[[:space:]]*run_profile_orchestrator' "$ROOT/icodex.sh")"
+  "$(grep -Ec '^[[:space:]]*profile-orchestrate\)[[:space:]]*run_profile_orchestrator' "$ROOT/lib/profile/profile.sh")"
 assert_eq "profile dispatch precedes interactive launch" "1" \
   "$(awk '
-    /profile-run-task\)/ { dispatch = NR }
+    /^[[:space:]]*run_profile_dispatch[[:space:]]*$/ { dispatch = NR }
     /^[[:space:]]*launch_codex_with_optional_pii[[:space:]]/ { launch = NR }
     END { print (dispatch > 0 && launch > dispatch) ? 1 : 0 }
   ' "$ROOT/icodex.sh")"
 assert_eq "profile commands reuse PII startup" "1" \
-  "$(grep -Ec '^[[:space:]]*start_pii_proxy_server \|\| exit 1[[:space:]]*$' "$ROOT/icodex.sh")"
+  "$(grep -Ec '^[[:space:]]*if ! start_pii_proxy_server; then[[:space:]]*$' "$ROOT/lib/profile/profile.sh")"
 assert_eq "profile commands reuse PII cleanup" "1" \
-  "$(grep -Ec '^[[:space:]]*trap .stop_pii_proxy_server. EXIT INT TERM[[:space:]]*$' "$ROOT/icodex.sh")"
+  "$(grep -Ec '^[[:space:]]*stop_pii_proxy_server[[:space:]]*$' "$ROOT/lib/profile/profile.sh")"
 assert_eq "profile commands pass exact PII base URL override" "1" \
-  "$(grep -Ec '^[[:space:]]*export ICODEX_APP_SERVER_OPENAI_BASE_URL="http://127\.0\.0\.1:\$\{PII_PROXY_ACTIVE_PORT\}/v1"[[:space:]]*$' "$ROOT/icodex.sh")"
+  "$(grep -Ec '^[[:space:]]*export ICODEX_APP_SERVER_OPENAI_BASE_URL="http://127\.0\.0\.1:\$\{PII_PROXY_ACTIVE_PORT\}/v1"[[:space:]]*$' "$ROOT/lib/profile/profile.sh")"
 assert_eq "tracked config does not enable iwiki" "0" \
   "$(grep -c 'iwiki@ai-wiki' "$ROOT/.codex-isolated/config.toml")"
 launch_order_ok="$(awk '
@@ -116,5 +117,79 @@ assert_eq "install branch skips profile wiring" "0" \
   "$(grep -E 'install\)|update\)' "$ROOT/icodex.sh" | grep -c ensure_profile_wiring)"
 assert_eq "install branch skips profile environment sanitizer" "0" \
   "$(grep -E 'install\)|update\)' "$ROOT/icodex.sh" | grep -c sanitize_profile_hook_environment)"
+
+profile_tmp="$(mktemp -d)"
+if ! declare -F run_profile_dispatch >/dev/null 2>&1; then
+  for name in \
+    "profile dispatch function exists" \
+    "profile dispatch preserves normal exit" \
+    "profile dispatch preserves error exit" \
+    "profile TERM forwards and reaps child" \
+    "profile cleanup runs on PII startup failure"; do
+    echo "FAIL [$name]"
+    FAIL=$((FAIL+1))
+  done
+else
+  echo "PASS [profile dispatch function exists]"
+  PASS=$((PASS+1))
+  profile_cleanup="$profile_tmp/cleanup"
+  telemetry_cleanup() { printf 'telemetry\n' >> "$profile_cleanup"; }
+  stop_pii_proxy_server() { printf 'pii\n' >> "$profile_cleanup"; }
+  start_pii_proxy_server() { PII_PROXY_ACTIVE_PORT=15432; return 0; }
+  run_profile_task() { return "${PROFILE_TEST_EXIT_CODE:-0}"; }
+  run_profile_orchestrator() { return "${PROFILE_TEST_EXIT_CODE:-0}"; }
+  ICODEX_CMD=profile-run-task
+  ICODEX_USE_PII_PROXY_RESOLVED=false
+  PROFILE_TEST_EXIT_CODE=0
+  run_profile_dispatch
+  assert_eq "profile dispatch preserves normal exit" "0" "$?"
+  PROFILE_TEST_EXIT_CODE=27
+  run_profile_dispatch
+  assert_eq "profile dispatch preserves error exit" "27" "$?"
+
+  profile_runner="$profile_tmp/runner"
+  profile_ready="$profile_tmp/ready"
+  profile_child_pid="$profile_tmp/child.pid"
+  cat > "$profile_runner" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$$" > "$PROFILE_TEST_CHILD_PID_FILE"
+printf ready > "$PROFILE_TEST_READY_FILE"
+trap 'exit 0' INT TERM
+while :; do sleep 0.05; done
+SH
+  chmod +x "$profile_runner"
+  run_profile_task() { exec "$profile_runner"; }
+  PROFILE_TEST_READY_FILE="$profile_ready"
+  PROFILE_TEST_CHILD_PID_FILE="$profile_child_pid"
+  export PROFILE_TEST_READY_FILE PROFILE_TEST_CHILD_PID_FILE
+  ICODEX_CMD=profile-run-task
+  ICODEX_USE_PII_PROXY_RESOLVED=true
+  run_profile_dispatch &
+  profile_wrapper_pid="$!"
+  for _ in {1..100}; do
+    [[ -f "$profile_ready" ]] && break
+    sleep 0.01
+  done
+  kill -TERM "$profile_wrapper_pid" 2>/dev/null || true
+  wait "$profile_wrapper_pid"
+  profile_term_rc="$?"
+  child_alive=0
+  if [[ -f "$profile_child_pid" ]]; then
+    kill -0 "$(cat "$profile_child_pid")" 2>/dev/null
+    child_alive="$?"
+  fi
+  assert_eq "profile TERM preserves conventional status" "143" "$profile_term_rc"
+  assert_eq "profile TERM forwards and reaps child" "1" "$child_alive"
+  assert_eq "profile TERM runs PII cleanup once" "1" "$(grep -c '^pii$' "$profile_cleanup")"
+
+  : > "$profile_cleanup"
+  start_pii_proxy_server() { return 1; }
+  ICODEX_USE_PII_PROXY_RESOLVED=true
+  PROFILE_TEST_EXIT_CODE=0
+  run_profile_dispatch
+  assert_eq "profile PII startup failure is nonzero" "1" "$?"
+  assert_eq "profile cleanup runs on PII startup failure" "1" "$(grep -c '^telemetry$' "$profile_cleanup")"
+fi
+rm -rf "$profile_tmp"
 
 finish
