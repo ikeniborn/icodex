@@ -83,7 +83,10 @@ ensure_profile_wiring() {
 
 sanitize_profile_hook_environment() {
   local declaration function_name
-  builtin unset BASH_ENV ENV
+  builtin export -n SHELLOPTS BASHOPTS 2>/dev/null || true
+  builtin unset \
+    BASH_ENV ENV BASH_XTRACEFD \
+    PS0 PS1 PS2 PS3 PS4 PROMPT_COMMAND
   while IFS= read -r declaration; do
     function_name="${declaration##* }"
     [[ -n "$function_name" ]] || continue

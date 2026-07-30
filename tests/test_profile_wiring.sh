@@ -248,6 +248,40 @@ assert_exit "sanitizer preserves normal sourced functions" 0 declare -F normal_s
 unset BASH_ENV ENV startup_function_marker
 unset -f python3 exported_profile_fixture normal_sourced_profile_fixture launch_environment_stub launch_configured_profile_hook
 
+# Readonly shell option variables can enable xtrace in a child before its command runs.
+trace_marker="$tmp/child-xtrace-invoked"
+trace_child_environment="$tmp/trace-child-environment"
+trace_child_bashpid_file="$tmp/trace-child-bashpid"
+trace_child_xtrace_file="$tmp/trace-child-xtrace"
+trace_parent_bashpid="$BASHPID"
+export TRACE_STAGE=parent
+export TRACE_MARKER="$trace_marker"
+export TRACE_CHILD_ENVIRONMENT="$trace_child_environment"
+export TRACE_CHILD_BASHPID_FILE="$trace_child_bashpid_file"
+export TRACE_CHILD_XTRACE_FILE="$trace_child_xtrace_file"
+export ICODEX_SANITIZER_NORMAL=preserved
+exec 9>/dev/null
+{
+  set -x
+  builtin export SHELLOPTS BASHOPTS
+  export PS4='$(if [[ "${TRACE_STAGE:-}" == child ]]; then printf invoked > "$TRACE_MARKER"; fi)'
+  export PS0=control-ps0 PS1=control-ps1 PS2=control-ps2 PS3=control-ps3
+  export PROMPT_COMMAND='printf prompt-control'
+  export BASH_XTRACEFD=9
+  sanitize_profile_hook_environment
+  /bin/bash -lc 'TRACE_STAGE=child; printf "%s\n" "$BASHPID" > "$TRACE_CHILD_BASHPID_FILE"; /usr/bin/env > "$TRACE_CHILD_ENVIRONMENT"; [[ "$-" == *x* ]] && printf xtrace > "$TRACE_CHILD_XTRACE_FILE"; :'
+  set +x
+} 2>/dev/null
+assert_exit "trace fixture records child BASHPID" 0 test -s "$trace_child_bashpid_file"
+assert_eq "trace fixture distinguishes wrapper and child BASHPID" "1" "$([[ "$trace_parent_bashpid" != "$(cat "$trace_child_bashpid_file")" ]] && echo 1 || echo 0)"
+assert_exit "sanitized child does not execute inherited PS4" 1 test -e "$trace_marker"
+assert_exit "sanitized child does not inherit xtrace" 1 test -e "$trace_child_xtrace_file"
+assert_eq "sanitized child has no shell trace or prompt control env" "0" "$(grep -Ec '^(SHELLOPTS|BASHOPTS|BASH_XTRACEFD|PS[0-4]|PROMPT_COMMAND)=' "$trace_child_environment")"
+assert_contains "sanitized child preserves ordinary environment" "$(cat "$trace_child_environment")" 'ICODEX_SANITIZER_NORMAL=preserved'
+builtin export -n SHELLOPTS BASHOPTS 2>/dev/null || true
+unset PS0 PS1 PS2 PS3 PS4 PROMPT_COMMAND BASH_XTRACEFD
+unset TRACE_STAGE TRACE_MARKER TRACE_CHILD_ENVIRONMENT TRACE_CHILD_BASHPID_FILE TRACE_CHILD_XTRACE_FILE ICODEX_SANITIZER_NORMAL
+
 # Parser failure must preserve the input and remove its same-directory temp.
 invalid_home="$tmp/invalid-home"
 mkdir -p "$invalid_home"
