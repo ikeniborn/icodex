@@ -16,7 +16,7 @@ export ICODEX_ROOT
 for m in core/logging core/init core/validation command/args \
          binary/detect binary/lockfile binary/install \
          config/isolated config/permissions config/sandbox config/env config/ca_trust proxy/proxy symlink/symlink \
-         plugin/superpowers plugin/loen caveman/caveman idd/idd iwiki/iwiki \
+         plugin/superpowers plugin/loen caveman/caveman idd/idd iwiki/iwiki profile/wiring \
          pii-proxy/detect pii-proxy/install pii-proxy/status \
          telemetry/telemetry telemetry/otel telemetry/langfuse launcher/launch; do
   # shellcheck source=/dev/null
@@ -75,6 +75,7 @@ main() {
   ensure_idd_wiring
   ensure_iwiki_wiring
   ensure_iwiki_binding
+  ensure_profile_wiring
   install_ensure || exit 1
   ensure_uv_dependency || exit 1
   ensure_cli_tools || exit 1
