@@ -27,6 +27,24 @@ source "$ROOT/lib/plugin/loen.sh"
 source "$ROOT/lib/iwiki/iwiki.sh"
 source "$MODULE"
 
+expected_python_launcher="$(command -p -v python3)"
+expected_python="$(env -i PATH=/usr/bin:/bin LC_ALL=C "$expected_python_launcher" - <<'PY'
+import os
+import sys
+from pathlib import Path
+
+path = Path(sys.executable).resolve(strict=True)
+assert path.is_absolute() and path.is_file() and os.access(path, os.X_OK) and not path.is_symlink()
+print(path)
+PY
+)"
+expected_command="$(python3 - "$expected_python" <<'PY'
+import shlex
+import sys
+print(f'{shlex.quote(sys.argv[1])} "$CODEX_HOME/hooks/profile-transition.py"')
+PY
+)"
+
 # Compose actual project wiring functions, then add profile wiring last.
 export ICODEX_CAVEMAN_MODE=full
 unset ICODEX_IDD || true
@@ -71,14 +89,27 @@ loen_hooks_before="$(sha256sum "$loen_hooks" | awk '{print $1}')"
 ensure_profile_wiring
 hooks_file="$ICODEX_HOME_DIR/hooks.json"
 assert_exit "profile-composed hooks are valid JSON" 0 python3 -c "import json; json.load(open('$hooks_file'))"
+configured_command="$(python3 - "$hooks_file" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    data = json.load(stream)
+for entry in data.get("hooks", {}).get("PreToolUse", []):
+    for hook in entry.get("hooks", []):
+        command = hook.get("command", "")
+        if command.endswith('"$CODEX_HOME/hooks/profile-transition.py"'):
+            print(command)
+            raise SystemExit
+PY
+)"
 
-profile_summary="$(python3 - "$hooks_file" <<'PY'
+profile_summary="$(python3 - "$hooks_file" "$expected_command" <<'PY'
 import json
 import sys
 
 with open(sys.argv[1], encoding="utf-8") as stream:
     data = json.load(stream)
-command = 'python3 "$CODEX_HOME/hooks/profile-transition.py"'
+command = sys.argv[2]
 matches = []
 for position, entry in enumerate(data.get("hooks", {}).get("PreToolUse", [])):
     for hook in entry.get("hooks", []):
@@ -102,12 +133,12 @@ assert_eq "profile hook type" "command" "$(sed -n '5p' <<<"$profile_summary")"
 assert_eq "profile hook timeout" "30" "$(sed -n '6p' <<<"$profile_summary")"
 assert_eq "profile hook status" "Checking routed profile evidence" "$(sed -n '7p' <<<"$profile_summary")"
 
-after_without_profile="$(python3 - "$hooks_file" <<'PY'
+after_without_profile="$(python3 - "$hooks_file" "$expected_command" <<'PY'
 import json
 import sys
 with open(sys.argv[1], encoding="utf-8") as stream:
     data = json.load(stream)
-command = 'python3 "$CODEX_HOME/hooks/profile-transition.py"'
+command = sys.argv[2]
 data["hooks"]["PreToolUse"] = [
     entry for entry in data["hooks"]["PreToolUse"]
     if not any(hook.get("command") == command for hook in entry.get("hooks", []))
@@ -115,12 +146,12 @@ data["hooks"]["PreToolUse"] = [
 print(json.dumps(data["hooks"], separators=(",", ":")))
 PY
 )"
-after_order_without_profile="$(python3 - "$hooks_file" <<'PY'
+after_order_without_profile="$(python3 - "$hooks_file" "$expected_command" <<'PY'
 import json
 import sys
 with open(sys.argv[1], encoding="utf-8") as stream:
     data = json.load(stream)
-command = 'python3 "$CODEX_HOME/hooks/profile-transition.py"'
+command = sys.argv[2]
 for event, entries in data["hooks"].items():
     kept = [entry for entry in entries if not any(
         hook.get("command") == command for hook in entry.get("hooks", [])
@@ -135,6 +166,27 @@ assert_eq "every actual existing hook entry keeps order" "$before_order" "$after
 assert_eq "profile wiring leaves LoEn and iwiki config bytes unchanged" "$config_before" "$(sha256sum "$ICODEX_HOME_DIR/config.toml" | awk '{print $1}')"
 assert_eq "profile wiring leaves actual LoEn hook registry unchanged" "$loen_hooks_before" "$(sha256sum "$loen_hooks" | awk '{print $1}')"
 
+assert_eq "profile hook uses canonical absolute interpreter" "$expected_command" "$configured_command"
+assert_eq "profile hook command has no bare interpreter" "0" "$(grep -c 'python3 \\"\$CODEX_HOME/hooks/profile-transition.py\\"' "$hooks_file")"
+
+# Existing bare profile hook entries are migrated, not duplicated.
+python3 - "$hooks_file" <<'PY'
+import json
+import sys
+path = sys.argv[1]
+with open(path, encoding="utf-8") as stream:
+    data = json.load(stream)
+data["hooks"]["PreToolUse"].append({
+    "matcher": "*",
+    "hooks": [{"type": "command", "command": 'python3 "$CODEX_HOME/hooks/profile-transition.py"'}],
+})
+with open(path, "w", encoding="utf-8") as stream:
+    json.dump(data, stream, indent=2)
+    stream.write("\n")
+PY
+ensure_profile_wiring
+assert_eq "legacy bare profile hook is removed" "0" "$(grep -c 'python3 \\"\$CODEX_HOME/hooks/profile-transition.py\\"' "$hooks_file")"
+
 before_hash="$(sha256sum "$hooks_file" | awk '{print $1}')"
 ensure_profile_wiring
 after_hash="$(sha256sum "$hooks_file" | awk '{print $1}')"
@@ -144,6 +196,57 @@ assert_contains "base secret hook preserved" "$(cat "$hooks_file")" "block-secre
 assert_contains "base redaction hook preserved" "$(cat "$hooks_file")" "redact-secrets.py"
 assert_contains "actual caveman hook preserved" "$(cat "$hooks_file")" "caveman-hook.py"
 assert_contains "actual chain gate preserved" "$(cat "$hooks_file")" "chain-gate.py"
+
+# Exercise the configured hook exactly through the shell boundary used by Codex.
+export CODEX_HOME="$ICODEX_HOME_DIR"
+hook_payload='{"session_id":"startup-shell","model":"gpt-5.6-terra","tool_name":"Read","tool_input":{"file_path":"README.md"}}'
+launch_configured_profile_hook() {
+  /bin/bash -lc "$configured_command" <<<"$hook_payload" >/dev/null 2>&1 || true
+}
+
+startup_bin="$tmp/startup-bin"
+startup_env_marker="$tmp/startup-env-invoked"
+startup_path_marker="$tmp/startup-path-invoked"
+mkdir -p "$startup_bin"
+printf '#!/usr/bin/env bash\nprintf invoked > %q\n' "$startup_path_marker" > "$startup_bin/python3"
+chmod +x "$startup_bin/python3"
+printf 'printf invoked > %q\nexport PATH=%q:$PATH\n' "$startup_env_marker" "$startup_bin" > "$tmp/startup-env"
+export BASH_ENV="$tmp/startup-env"
+if declare -F sanitize_profile_hook_environment >/dev/null; then
+  sanitize_profile_hook_environment
+fi
+launch_configured_profile_hook
+assert_exit "sanitized hook shell does not source BASH_ENV" 1 test -e "$startup_env_marker"
+assert_exit "configured hook ignores malicious python PATH" 1 test -e "$startup_path_marker"
+unset BASH_ENV
+
+startup_function_marker="$tmp/startup-function-invoked"
+export startup_function_marker
+python3() { printf invoked > "$startup_function_marker"; }
+export -f python3
+if declare -F sanitize_profile_hook_environment >/dev/null; then
+  sanitize_profile_hook_environment
+fi
+launch_configured_profile_hook
+assert_exit "configured hook ignores exported python3 function" 1 test -e "$startup_function_marker"
+
+# Launch stub observes the same environment inherited by Codex children.
+normal_sourced_profile_fixture() { :; }
+exported_profile_fixture() { :; }
+export -f exported_profile_fixture
+export BASH_ENV="$tmp/child-bash-env"
+export ENV="$tmp/child-env"
+child_environment="$tmp/child-environment"
+launch_environment_stub() { /usr/bin/env > "$child_environment"; }
+if declare -F sanitize_profile_hook_environment >/dev/null; then
+  sanitize_profile_hook_environment
+fi
+launch_environment_stub
+assert_eq "launch child has no shell startup variables" "0" "$(grep -Ec '^(BASH_ENV|ENV)=' "$child_environment")"
+assert_eq "launch child has no exported shell functions" "0" "$(grep -c '^BASH_FUNC_' "$child_environment")"
+assert_exit "sanitizer preserves normal sourced functions" 0 declare -F normal_sourced_profile_fixture
+unset BASH_ENV ENV startup_function_marker
+unset -f python3 exported_profile_fixture normal_sourced_profile_fixture launch_environment_stub launch_configured_profile_hook
 
 # Parser failure must preserve the input and remove its same-directory temp.
 invalid_home="$tmp/invalid-home"

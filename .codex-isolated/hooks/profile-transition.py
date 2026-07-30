@@ -293,39 +293,68 @@ def _git_worktree_filters_safe(event: Mapping[str, object]) -> bool:
         if not cwd.is_dir():
             return False
         git = _trusted_executable(SYSTEM_EXECUTABLES["git"])
-        completed = subprocess.run(
+        base_command = [
+            git,
+            "--no-pager",
+            "--no-optional-locks",
+            "-c",
+            "core.fsmonitor=false",
+        ]
+        probe_environment = {
+            "PATH": "/usr/bin:/bin",
+            "LC_ALL": "C",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_PAGER": "cat",
+            "GIT_TERMINAL_PROMPT": "0",
+            "PAGER": "cat",
+        }
+
+        def run_config(arguments: list[str], capture: bool = False):
+            return subprocess.run(
+                [*base_command, "config", *arguments],
+                cwd=cwd,
+                env=probe_environment,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=2,
+                check=False,
+                text=capture,
+            )
+
+        filter_pattern = r"^filter\..*\.(clean|process|required)$"
+        local_filters = run_config(
+            ["--local", "--includes", "--get-regexp", filter_pattern]
+        )
+        if local_filters.returncode != 1:
+            return False
+        worktree_extension = run_config(
             [
-                git,
-                "--no-pager",
-                "--no-optional-locks",
-                "-c",
-                "core.fsmonitor=false",
-                "config",
                 "--local",
                 "--includes",
-                "--get-regexp",
-                r"^filter\..*\.(clean|process|required)$",
+                "--type=bool",
+                "--get",
+                "extensions.worktreeConfig",
             ],
-            cwd=cwd,
-            env={
-                "PATH": "/usr/bin:/bin",
-                "LC_ALL": "C",
-                "GIT_CONFIG_NOSYSTEM": "1",
-                "GIT_CONFIG_GLOBAL": "/dev/null",
-                "GIT_OPTIONAL_LOCKS": "0",
-                "GIT_PAGER": "cat",
-                "GIT_TERMINAL_PROMPT": "0",
-                "PAGER": "cat",
-            },
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=2,
-            check=False,
+            capture=True,
         )
+        if worktree_extension.returncode == 1:
+            return True
+        if worktree_extension.returncode != 0:
+            return False
+        extension_value = worktree_extension.stdout.strip()
+        if extension_value == "false":
+            return True
+        if extension_value != "true":
+            return False
+        worktree_filters = run_config(
+            ["--worktree", "--includes", "--get-regexp", filter_pattern]
+        )
+        return worktree_filters.returncode == 1
     except (OSError, RuntimeError, subprocess.TimeoutExpired):
         return False
-    return completed.returncode == 1
 
 
 def _rewrite_discovery_command(

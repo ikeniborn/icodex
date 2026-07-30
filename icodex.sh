@@ -86,6 +86,7 @@ main() {
     validate_pii_config || exit 1
     detect_pii_proxy || { log_error "PII proxy not installed — run: ./icodex.sh --install-pii-proxy"; exit 1; }
   fi
+  sanitize_profile_hook_environment
   telemetry_setup "$ICODEX_HOME_DIR/config.toml" || exit 1
   if [[ "${ICODEX_TELEMETRY:-off}" == "off" ]]; then
     launch_codex_with_optional_pii ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}

@@ -46,6 +46,8 @@ assert_eq "calls iwiki binding on launch" "1" \
   "$(grep -Ec '^[[:space:]]*ensure_iwiki_binding[[:space:]]*$' "$ROOT/icodex.sh")"
 assert_eq "calls profile wiring on launch" "1" \
   "$(grep -Ec '^[[:space:]]*ensure_profile_wiring[[:space:]]*$' "$ROOT/icodex.sh")"
+assert_eq "calls profile environment sanitizer on launch" "1" \
+  "$(grep -Ec '^[[:space:]]*sanitize_profile_hook_environment[[:space:]]*$' "$ROOT/icodex.sh")"
 assert_eq "calls binary permission wiring on launch" "1" \
   "$(grep -Ec '^[[:space:]]*ensure_launcher_binary_permission[[:space:]]*$' "$ROOT/icodex.sh")"
 assert_eq "calls apply_mode on launch" "1" \
@@ -78,6 +80,14 @@ profile_wiring_order_ok="$(awk '
 ' "$ROOT/icodex.sh")"
 assert_eq "profile wiring follows existing hook wiring" "1" "$profile_wiring_order_ok"
 
+profile_sanitizer_order_ok="$(awk '
+  /^[[:space:]]*ensure_profile_wiring[[:space:]]*$/ { profile = NR }
+  /^[[:space:]]*sanitize_profile_hook_environment[[:space:]]*$/ { sanitize = NR }
+  /^[[:space:]]*telemetry_setup / { telemetry = NR }
+  END { print (profile > 0 && sanitize > profile && telemetry == sanitize + 1) ? 1 : 0 }
+' "$ROOT/icodex.sh")"
+assert_eq "profile environment sanitized immediately before telemetry" "1" "$profile_sanitizer_order_ok"
+
 # install/update branch must NOT call launch-time wiring: the single-line
 # install)/update) case branches must contain zero wiring calls.
 assert_eq "install branch skips binary permission wiring" "0" \
@@ -86,5 +96,7 @@ assert_eq "install branch skips superpowers wiring" "0" \
   "$(grep -E 'install\)|update\)' "$ROOT/icodex.sh" | grep -c ensure_superpowers_wiring)"
 assert_eq "install branch skips profile wiring" "0" \
   "$(grep -E 'install\)|update\)' "$ROOT/icodex.sh" | grep -c ensure_profile_wiring)"
+assert_eq "install branch skips profile environment sanitizer" "0" \
+  "$(grep -E 'install\)|update\)' "$ROOT/icodex.sh" | grep -c sanitize_profile_hook_environment)"
 
 finish

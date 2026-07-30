@@ -405,6 +405,44 @@ result="$(hook_result "$payload" linked-filter-run 0 linked-filter-request)"
 assert_contains "linked worktree inherits local filter denial" "$(hook_output <<<"$result")" '"permissionDecision": "deny"'
 git -C "$filter_probe" worktree remove --force "$linked_filter_probe"
 
+# Per-worktree filters live outside the common local config when worktreeConfig is enabled.
+worktree_scope_root="$tmp/git-worktree-scope-root"
+worktree_scope_linked="$tmp/git-worktree-scope-linked"
+mkdir -p "$worktree_scope_root"
+git -C "$worktree_scope_root" init -q
+git -C "$worktree_scope_root" config user.email test@example.com
+git -C "$worktree_scope_root" config user.name Test
+git -C "$worktree_scope_root" config extensions.worktreeConfig true
+printf '*.txt filter=probe\n' > "$worktree_scope_root/.gitattributes"
+printf 'base\n' > "$worktree_scope_root/tracked.txt"
+git -C "$worktree_scope_root" add .gitattributes tracked.txt
+git -C "$worktree_scope_root" commit -qm init
+git -C "$worktree_scope_root" worktree add -q "$worktree_scope_linked" HEAD
+worktree_filter_marker="$tmp/worktree-filter-invoked"
+printf '#!/usr/bin/env bash\nprintf invoked > %q\ncat\n' "$worktree_filter_marker" > "$tmp/worktree-clean-helper"
+printf '#!/usr/bin/env bash\nprintf invoked > %q\nexit 1\n' "$worktree_filter_marker" > "$tmp/worktree-process-helper"
+chmod +x "$tmp/worktree-clean-helper" "$tmp/worktree-process-helper"
+git -C "$worktree_scope_linked" config --worktree filter.probe.clean "$tmp/worktree-clean-helper"
+git -C "$worktree_scope_linked" config --worktree filter.probe.process "$tmp/worktree-process-helper"
+printf 'changed\n' >> "$worktree_scope_linked/tracked.txt"
+for command in 'git diff' 'git status --short'; do
+  rm -f "$worktree_filter_marker"
+  payload="$(bash_payload "$command" "$worktree_scope_linked")"
+  result="$(hook_result "$payload" worktree-filter-run 0 worktree-filter-request)"
+  assert_contains "$command worktree-scope filter is denied" "$(hook_output <<<"$result")" '"permissionDecision": "deny"'
+  worktree_command="$(allowed_command "$command" "$(hook_output <<<"$result")")"
+  if [[ -n "$worktree_command" ]]; then
+    (cd "$worktree_scope_linked" && /bin/bash -c "$worktree_command" >/dev/null 2>&1) || true
+  fi
+  assert_exit "$command denied path skips worktree filter" 1 test -e "$worktree_filter_marker"
+done
+git -C "$worktree_scope_linked" config --worktree --unset filter.probe.clean
+git -C "$worktree_scope_linked" config --worktree --unset filter.probe.process
+payload="$(bash_payload 'git status --short' "$worktree_scope_linked")"
+result="$(hook_result "$payload" clean-worktree-run 0 clean-worktree-request)"
+assert_contains "clean linked worktree retains sanitized preauth" "$(hook_output <<<"$result")" '"updatedInput"'
+git -C "$worktree_scope_root" worktree remove --force "$worktree_scope_linked"
+
 include_filter_probe="$tmp/git-filter-include"
 mkdir -p "$include_filter_probe"
 git -C "$include_filter_probe" init -q
