@@ -36,8 +36,65 @@ FIND_ACTIONS = {
     "-ok",
     "-okdir",
 }
-GIT_WRITE_OPTIONS = {"--output", "-o"}
+GIT_UNSAFE_OPTIONS = {"--ext-diff", "--output", "--textconv", "-o"}
 RG_EXEC_OPTIONS = {"--pre", "--hostname-bin"}
+TREE_FLAG_OPTIONS = {
+    "--device",
+    "--dirsfirst",
+    "--du",
+    "--fflinks",
+    "--filesfirst",
+    "--fromfile",
+    "--gitignore",
+    "--help",
+    "--ignore-case",
+    "--inodes",
+    "--info",
+    "--matchdirs",
+    "--metafirst",
+    "--nolinks",
+    "--noreport",
+    "--prune",
+    "--si",
+    "--version",
+    "-C",
+    "-D",
+    "-F",
+    "-J",
+    "-U",
+    "-X",
+    "-a",
+    "-c",
+    "-d",
+    "-f",
+    "-g",
+    "-h",
+    "-i",
+    "-l",
+    "-n",
+    "-p",
+    "-r",
+    "-s",
+    "-t",
+    "-u",
+    "-v",
+    "-x",
+}
+TREE_VALUE_OPTIONS = {
+    "--charset",
+    "--filelimit",
+    "--sort",
+    "--timefmt",
+    "-H",
+    "-I",
+    "-L",
+    "-P",
+    "-T",
+}
+SED_ADDRESS = r"(?:[0-9]+|\$|/(?:\\.|[^/])*/)"
+SED_PRINT_PROGRAM_RE = re.compile(
+    rf"(?:{SED_ADDRESS}(?:,{SED_ADDRESS})?)?(?:p|P|=)\Z"
+)
 
 
 def _tool_input(event: Mapping[str, object]) -> object:
@@ -81,17 +138,9 @@ def _safe_shell_discovery(command: str) -> bool:
             for argument in argv[1:]
         )
     if argv[0] == "tree":
-        return not any(
-            argument in {"-o", "--output"} or argument.startswith("--output=")
-            for argument in argv[1:]
-        )
+        return _safe_tree(argv[1:])
     if argv[:2] == ["sed", "-n"]:
-        if any(argument == "-i" or argument.startswith("--in-place") for argument in argv[2:]):
-            return False
-        return not any(
-            re.search(r"(?:^|[0-9$/,;])[we](?:\s|$)", argument)
-            for argument in argv[2:]
-        )
+        return _safe_sed(argv[2:])
     if argv[0] == "find":
         return not any(argument in FIND_ACTIONS for argument in argv[1:])
     if argv[:2] in (
@@ -102,15 +151,70 @@ def _safe_shell_discovery(command: str) -> bool:
         ["git", "rev-parse"],
     ):
         return not any(
-            argument in GIT_WRITE_OPTIONS or argument.startswith("--output=")
+            argument in GIT_UNSAFE_OPTIONS
+            or any(argument.startswith(option + "=") for option in GIT_UNSAFE_OPTIONS)
             for argument in argv[2:]
         )
     return argv == ["git", "branch", "--show-current"]
 
 
+def _safe_tree(arguments: list[str]) -> bool:
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument == "--":
+            return True
+        if argument in TREE_FLAG_OPTIONS:
+            index += 1
+            continue
+        if argument in TREE_VALUE_OPTIONS:
+            if index + 1 >= len(arguments):
+                return False
+            index += 2
+            continue
+        if any(argument.startswith(option + "=") for option in TREE_VALUE_OPTIONS if option.startswith("--")):
+            index += 1
+            continue
+        if any(
+            argument.startswith(option)
+            and len(argument) > len(option)
+            for option in TREE_VALUE_OPTIONS
+            if option.startswith("-") and not option.startswith("--")
+        ):
+            index += 1
+            continue
+        if argument.startswith("-"):
+            return False
+        index += 1
+    return True
+
+
+def _safe_sed(arguments: list[str]) -> bool:
+    if not arguments:
+        return False
+    programs: list[str] = []
+    index = 0
+    if arguments[0] == "-e":
+        while index < len(arguments) and arguments[index] == "-e":
+            if index + 1 >= len(arguments):
+                return False
+            programs.append(arguments[index + 1])
+            index += 2
+    else:
+        if arguments[0].startswith("-"):
+            return False
+        programs.append(arguments[0])
+        index = 1
+    if any(argument.startswith("-") for argument in arguments[index:]):
+        return False
+    return all(SED_PRINT_PROGRAM_RE.fullmatch(program) is not None for program in programs)
+
+
 def is_protected(event: dict[str, object]) -> bool:
     """Return false only for a closed read-only discovery allowlist."""
     tool = event.get("tool_name", event.get("tool", event.get("name", "")))
+    if not isinstance(tool, str):
+        return True
     if tool in MUTATING_TOOLS:
         return True
     if tool in READ_ONLY_TOOLS:

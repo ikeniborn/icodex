@@ -13,41 +13,37 @@ fi
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 export ICODEX_ROOT="$ROOT"
-export ICODEX_SHARED_DIR="$tmp/shared"
+export ICODEX_SHARED_DIR="$ROOT/.codex-isolated"
 export ICODEX_HOME_DIR="$tmp/home"
-mkdir -p "$ICODEX_SHARED_DIR/caveman" "$ICODEX_HOME_DIR"
-
-cp "$ROOT/.codex-isolated/hooks.json" "$ICODEX_SHARED_DIR/hooks.json"
-printf 'Active mode: **__CAVEMAN_MODE__**.\n' > "$ICODEX_SHARED_DIR/caveman/agents-block.md"
-python3 - "$ICODEX_SHARED_DIR/hooks.json" <<'PY'
-import json
-import sys
-
-path = sys.argv[1]
-with open(path, encoding="utf-8") as stream:
-    data = json.load(stream)
-hooks = data.setdefault("hooks", {})
-hooks.setdefault("PreToolUse", []).append({
-    "matcher": "Bash|Read|Grep|Glob|apply_patch|Edit|Write",
-    "hooks": [{"type": "command", "command": "python3 loen-tool-guard.py", "timeout": 30}],
-})
-hooks.setdefault("PostToolUse", []).append({
-    "matcher": "Write|Edit", "hooks": [{"type": "command", "command": "python3 iwiki-update.py"}],
-})
-with open(path, "w", encoding="utf-8") as stream:
-    json.dump(data, stream, indent=2)
-    stream.write("\n")
-PY
+export ICODEX_PROJECT_ROOT="$tmp/project"
+mkdir -p "$ICODEX_HOME_DIR" "$ICODEX_PROJECT_ROOT" "$tmp/bin" "$tmp/wiki-base"
 ln -s "$ICODEX_SHARED_DIR/hooks.json" "$ICODEX_HOME_DIR/hooks.json"
+printf 'model = "gpt-test"\n' > "$ICODEX_HOME_DIR/config.toml"
 
+source "$ROOT/lib/core/logging.sh"
 source "$ROOT/lib/caveman/caveman.sh"
 source "$ROOT/lib/idd/idd.sh"
+source "$ROOT/lib/plugin/loen.sh"
+source "$ROOT/lib/iwiki/iwiki.sh"
 source "$MODULE"
 
+# Compose actual project wiring functions, then add profile wiring last.
 export ICODEX_CAVEMAN_MODE=full
 unset ICODEX_IDD || true
+export ICODEX_LOEN_MODE=strict
+export ICODEX_IWIKI_COMMAND="$tmp/bin/iwiki-mcp"
+export ICODEX_IWIKI_BASE_DIR="$tmp/wiki-base"
+export ICODEX_IWIKI_LLM_BASE_URL="http://test-llm.invalid/v1"
+export ICODEX_IWIKI_LLM_KEY="test-key"
 ensure_caveman_wiring
 ensure_idd_wiring
+ensure_loen_wiring
+ensure_iwiki_wiring
+ensure_iwiki_binding
+
+assert_contains "actual LoEn wiring composed" "$(cat "$ICODEX_HOME_DIR/config.toml")" '[plugins."loen@ikeniborn"]'
+assert_contains "actual iwiki wiring composed" "$(cat "$ICODEX_HOME_DIR/config.toml")" '[mcp_servers.iwiki]'
+assert_exit "actual iwiki binding composed" 0 test -L "$ICODEX_HOME_DIR/.iwiki.toml"
 
 before_entries="$(python3 - "$ICODEX_HOME_DIR/hooks.json" <<'PY'
 import json
@@ -57,18 +53,20 @@ with open(sys.argv[1], encoding="utf-8") as stream:
 print(json.dumps(data["hooks"], separators=(",", ":")))
 PY
 )"
-loen_before="$(python3 - "$ICODEX_HOME_DIR/hooks.json" <<'PY'
-import json, sys
-data = json.load(open(sys.argv[1], encoding="utf-8"))
-print(json.dumps(next(e for e in data["hooks"]["PreToolUse"] if "loen-tool-guard.py" in str(e)), separators=(",", ":")))
+before_order="$(python3 - "$ICODEX_HOME_DIR/hooks.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    data = json.load(stream)
+for event, entries in data["hooks"].items():
+    for position, entry in enumerate(entries):
+        commands = [hook.get("command", "") for hook in entry.get("hooks", [])]
+        print(json.dumps([event, position, entry.get("matcher"), commands], separators=(",", ":")))
 PY
 )"
-iwiki_before="$(python3 - "$ICODEX_HOME_DIR/hooks.json" <<'PY'
-import json, sys
-data = json.load(open(sys.argv[1], encoding="utf-8"))
-print(json.dumps(next(e for e in data["hooks"]["PostToolUse"] if "iwiki-update.py" in str(e)), separators=(",", ":")))
-PY
-)"
+config_before="$(sha256sum "$ICODEX_HOME_DIR/config.toml" | awk '{print $1}')"
+loen_hooks="$(_loen_cache_dir)/hooks/hooks.json"
+loen_hooks_before="$(sha256sum "$loen_hooks" | awk '{print $1}')"
 
 ensure_profile_wiring
 hooks_file="$ICODEX_HOME_DIR/hooks.json"
@@ -82,13 +80,15 @@ with open(sys.argv[1], encoding="utf-8") as stream:
     data = json.load(stream)
 command = 'python3 "$CODEX_HOME/hooks/profile-transition.py"'
 matches = []
-for entry in data.get("hooks", {}).get("PreToolUse", []):
+for position, entry in enumerate(data.get("hooks", {}).get("PreToolUse", [])):
     for hook in entry.get("hooks", []):
         if hook.get("command") == command:
-            matches.append((entry, hook))
+            matches.append((position, entry, hook))
 print(len(matches))
 if matches:
-    entry, hook = matches[0]
+    position, entry, hook = matches[0]
+    print(position)
+    print(len(data["hooks"]["PreToolUse"]) - 1)
     print(entry.get("matcher", ""))
     print(hook.get("type", ""))
     print(hook.get("timeout", ""))
@@ -96,10 +96,11 @@ if matches:
 PY
 )"
 assert_eq "exactly one profile hook" "1" "$(sed -n '1p' <<<"$profile_summary")"
-assert_eq "profile hook matcher is wildcard" "*" "$(sed -n '2p' <<<"$profile_summary")"
-assert_eq "profile hook type" "command" "$(sed -n '3p' <<<"$profile_summary")"
-assert_eq "profile hook timeout" "30" "$(sed -n '4p' <<<"$profile_summary")"
-assert_eq "profile hook status" "Checking routed profile evidence" "$(sed -n '5p' <<<"$profile_summary")"
+assert_eq "profile hook appended last" "$(sed -n '3p' <<<"$profile_summary")" "$(sed -n '2p' <<<"$profile_summary")"
+assert_eq "profile hook matcher is wildcard" "*" "$(sed -n '4p' <<<"$profile_summary")"
+assert_eq "profile hook type" "command" "$(sed -n '5p' <<<"$profile_summary")"
+assert_eq "profile hook timeout" "30" "$(sed -n '6p' <<<"$profile_summary")"
+assert_eq "profile hook status" "Checking routed profile evidence" "$(sed -n '7p' <<<"$profile_summary")"
 
 after_without_profile="$(python3 - "$hooks_file" <<'PY'
 import json
@@ -114,31 +115,34 @@ data["hooks"]["PreToolUse"] = [
 print(json.dumps(data["hooks"], separators=(",", ":")))
 PY
 )"
-assert_eq "every existing hook entry preserved" "$before_entries" "$after_without_profile"
-
-loen_after="$(python3 - "$hooks_file" <<'PY'
-import json, sys
-data = json.load(open(sys.argv[1], encoding="utf-8"))
-print(json.dumps(next(e for e in data["hooks"]["PreToolUse"] if "loen-tool-guard.py" in str(e)), separators=(",", ":")))
+after_order_without_profile="$(python3 - "$hooks_file" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    data = json.load(stream)
+command = 'python3 "$CODEX_HOME/hooks/profile-transition.py"'
+for event, entries in data["hooks"].items():
+    kept = [entry for entry in entries if not any(
+        hook.get("command") == command for hook in entry.get("hooks", [])
+    )]
+    for position, entry in enumerate(kept):
+        commands = [hook.get("command", "") for hook in entry.get("hooks", [])]
+        print(json.dumps([event, position, entry.get("matcher"), commands], separators=(",", ":")))
 PY
 )"
-iwiki_after="$(python3 - "$hooks_file" <<'PY'
-import json, sys
-data = json.load(open(sys.argv[1], encoding="utf-8"))
-print(json.dumps(next(e for e in data["hooks"]["PostToolUse"] if "iwiki-update.py" in str(e)), separators=(",", ":")))
-PY
-)"
-assert_eq "LoEn hook entry byte-equivalent" "$loen_before" "$loen_after"
-assert_eq "iwiki hook entry byte-equivalent" "$iwiki_before" "$iwiki_after"
+assert_eq "every actual existing hook entry remains byte-equivalent" "$before_entries" "$after_without_profile"
+assert_eq "every actual existing hook entry keeps order" "$before_order" "$after_order_without_profile"
+assert_eq "profile wiring leaves LoEn and iwiki config bytes unchanged" "$config_before" "$(sha256sum "$ICODEX_HOME_DIR/config.toml" | awk '{print $1}')"
+assert_eq "profile wiring leaves actual LoEn hook registry unchanged" "$loen_hooks_before" "$(sha256sum "$loen_hooks" | awk '{print $1}')"
 
 before_hash="$(sha256sum "$hooks_file" | awk '{print $1}')"
 ensure_profile_wiring
 after_hash="$(sha256sum "$hooks_file" | awk '{print $1}')"
-assert_eq "profile wiring idempotent bytes" "$before_hash" "$after_hash"
+assert_eq "profile wiring idempotent full bytes" "$before_hash" "$after_hash"
 assert_eq "profile command remains unique" "1" "$(grep -c 'profile-transition.py' "$hooks_file")"
-assert_contains "secret hook preserved" "$(cat "$hooks_file")" "block-secrets.py"
-assert_contains "redaction hook preserved" "$(cat "$hooks_file")" "redact-secrets.py"
-assert_contains "caveman hook preserved" "$(cat "$hooks_file")" "caveman-hook.py"
-assert_contains "chain gate preserved" "$(cat "$hooks_file")" "chain-gate.py"
+assert_contains "base secret hook preserved" "$(cat "$hooks_file")" "block-secrets.py"
+assert_contains "base redaction hook preserved" "$(cat "$hooks_file")" "redact-secrets.py"
+assert_contains "actual caveman hook preserved" "$(cat "$hooks_file")" "caveman-hook.py"
+assert_contains "actual chain gate preserved" "$(cat "$hooks_file")" "chain-gate.py"
 
 finish

@@ -139,6 +139,40 @@ unknown_shell='{"session_id":"shell","model":"gpt-5.6-terra","tool_name":"Bash",
 result="$(hook_result "$unknown_shell" discovery-run 0 discovery-request)"
 assert_eq "unknown shell command denies" "2" "$(hook_code <<<"$result")"
 
+assert_shell_denied() { # <description> <command>
+  local description="$1" command="$2" payload result
+  payload="$(python3 - "$command" <<'PY'
+import json
+import sys
+print(json.dumps({
+    "session_id": "unsafe-shell",
+    "model": "gpt-5.6-terra",
+    "tool_name": "Bash",
+    "tool_input": {"command": sys.argv[1]},
+}))
+PY
+)"
+  result="$(hook_result "$payload" unsafe-shell-run 0 unsafe-shell-request)"
+  assert_eq "$description" "2" "$(hook_code <<<"$result")"
+  assert_contains "$description returns standard deny" "$(hook_output <<<"$result")" '"permissionDecision": "deny"'
+}
+
+assert_shell_denied "tree attached short output denies" "tree -oFILE docs"
+assert_shell_denied "tree equals short output denies" "tree -o=FILE docs"
+assert_shell_denied "tree split short output denies" "tree -o FILE docs"
+assert_shell_denied "tree split long output denies" "tree --output FILE docs"
+assert_shell_denied "tree equals long output denies" "tree --output=FILE docs"
+assert_shell_denied "sed attached lowercase write denies" "sed -n 'wFILE' README.md"
+assert_shell_denied "sed attached uppercase write denies" "sed -n 'WFILE' README.md"
+assert_shell_denied "sed separated lowercase write denies" "sed -n 'w FILE' README.md"
+assert_shell_denied "sed separated uppercase write denies" "sed -n 'W FILE' README.md"
+assert_shell_denied "sed execute command denies" "sed -n 'e id' README.md"
+assert_shell_denied "sed substitution execute flag denies" "sed -n 's/x/y/e' README.md"
+assert_shell_denied "git external diff denies" "git diff --ext-diff"
+assert_shell_denied "git textconv helper denies" "git diff --textconv"
+assert_shell_denied "git show textconv helper denies" "git show --textconv HEAD"
+assert_shell_denied "git output file denies" "git log --output=FILE"
+
 skill_read='{"session_id":"skill","model":"gpt-5.6-terra","tool_name":"Read","tool_input":{"file_path":"/repo/.codex/skills/executing-plans/SKILL.md"}}'
 result="$(hook_result "$skill_read" discovery-run 0 discovery-request)"
 assert_eq "execution skill SKILL.md read is protected" "2" "$(hook_code <<<"$result")"
@@ -153,6 +187,18 @@ interactive_output="$(env -u ICODEX_PROFILE_RUN_ID -u ICODEX_PROFILE_SEQUENCE -u
 interactive_code=$?
 assert_eq "ordinary interactive work without routed env allows" "0" "$interactive_code"
 assert_eq "ordinary interactive allow claims no routed authorization" "0" "$(grep -c 'permissionDecision\|authorized' <<<"$interactive_output")"
+
+for malformed_tool in '[]' '{}' '7' 'null'; do
+  malformed_payload="$(printf '{"session_id":"malformed","model":"gpt-5.6-terra","tool_name":%s,"tool_input":{}}' "$malformed_tool")"
+  result="$(hook_result "$malformed_payload" malformed-run 0 malformed-request)"
+  assert_eq "non-string routed tool $malformed_tool denies" "2" "$(hook_code <<<"$result")"
+  assert_contains "non-string routed tool $malformed_tool standard deny" "$(hook_output <<<"$result")" '"permissionDecision": "deny"'
+  malformed_interactive="$(env -u ICODEX_PROFILE_RUN_ID -u ICODEX_PROFILE_SEQUENCE -u ICODEX_PROFILE_REQUEST_ID \
+    ICODEX_ROOT="$ROOT" CODEX_HOME="$CODEX_HOME" python3 "$HOOK" <<<"$malformed_payload" 2>&1)"
+  malformed_interactive_code=$?
+  assert_eq "non-string interactive tool $malformed_tool allows" "0" "$malformed_interactive_code"
+  assert_eq "non-string interactive tool $malformed_tool claims nothing" "" "$malformed_interactive"
+done
 
 python3 - "$HOOK" <<'PY' >/dev/null 2>&1
 import importlib.util
@@ -173,16 +219,25 @@ for command in (
     "find . -exec printf x ;", "sed README.md", "git branch --delete old",
     "rg --pre formatter --files", "sed -n '1w out' README.md", "tree -o out docs",
     "git diff --output=out", "git show --output out HEAD", "git log --output=out",
+    "tree -oFILE docs", "tree -o=FILE docs", "tree --output FILE docs", "tree --output=FILE docs",
+    "sed -n 'wFILE' README.md", "sed -n 'WFILE' README.md",
+    "sed -n 'w FILE' README.md", "sed -n 'W FILE' README.md",
+    "sed -n 'e id' README.md", "sed -n 's/x/y/e' README.md",
+    "git diff --ext-diff", "git diff --textconv", "git show --textconv HEAD",
 ):
     assert hook.is_protected(bash(command)), command
 for command in (
     "rg --files", "sed -n 1,10p README.md", "git status --short", "git diff --stat",
     "git show HEAD", "git log -1", "git branch --show-current", "git rev-parse --show-toplevel",
-    "tree -L 2 docs", "find docs -maxdepth 2 -type f",
+    "tree -L 2 docs", "tree -a --dirsfirst docs", "find docs -maxdepth 2 -type f",
+    "sed -n '/needle/p' README.md", "sed -n -e 1p README.md",
+    "git diff --no-ext-diff --no-textconv", "git show --no-textconv HEAD",
 ):
     assert not hook.is_protected(bash(command)), command
 assert hook.READ_ONLY_TOOLS == {"Read", "Glob", "Grep"}
 assert hook.MUTATING_TOOLS == {"Write", "Edit", "apply_patch"}
+for tool in ([], {}, 7, None):
+    assert hook.is_protected({"tool_name": tool, "tool_input": {}})
 PY
 assert_eq "closed shell discovery classification" "0" "$?"
 
