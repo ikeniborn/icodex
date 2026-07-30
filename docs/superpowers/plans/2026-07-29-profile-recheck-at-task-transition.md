@@ -1,6 +1,6 @@
 ---
 review:
-  plan_hash: ff6e0e59b41639ce
+  plan_hash: b3b290977f3067fd
   last_run: 2026-07-30
   phases:
     structure: { status: passed }
@@ -610,7 +610,9 @@ git commit -m "feat(profile): enforce routed task evidence"
 - Create: `lib/profile/app_server.py`
 - Create: `lib/profile/runner.py`
 - Create: `lib/profile/profile.sh`
+- Modify: `lib/profile/state.py`
 - Create: `tests/test_profile_runner.sh`
+- Modify: `tests/test_profile_state.sh`
 - Modify: `lib/command/args.sh`
 - Modify: `icodex.sh`
 - Modify: `tests/test_args.sh`
@@ -640,6 +642,8 @@ Create `tests/test_profile_runner.sh`. Fake executable reads newline-delimited J
 Test: cold `--run-task` starts only requested task with fresh run ID; cold `--orchestrate` prints `Starting new run from first task: <id>` and starts first declared task; `complete` advances exactly once; `needs_input`, `blocked`, malformed output, interruption, or server error never advances. Verify no home manifest is read or created.
 
 For LoEn reuse, seed an authorized session decision and exact cache tuple. Assert second same-run iteration makes zero additional `model/list` requests. Change each tuple field one at a time, delete state, change run ID, and change observed model; each case must add one `model/list` request and create a new handoff.
+
+Test orchestration-state safety directly: same-topic concurrent starts allow only one executor, while different topics retain independent restrictive progress files and resume independently. A failed warm attempt keeps its task position, increments the attempt sequence, and retires only its own handoff, decision, and locks through the hardened state API. Symlink, FIFO, hardlink, malformed-state, absolute-ID, traversal-ID, and consume-versus-retire races must fail closed without deleting external or unrelated state.
 
 - [ ] **Step 3: Run CLI and runner tests and verify red state**
 
@@ -704,7 +708,7 @@ def orchestrate(config: RunnerConfig, topic: str) -> int:
     """Start or continue only local run state and advance on structured complete."""
 ```
 
-Resolve manifest only as `target_root / "docs/profiles" / f"{topic}.yaml"`; resolve registry only as `codex_home / "profiles/registry.yaml"` plus exact shared-root check. Validate the sealed policy and current manifest task position before every orchestration attempt so mutable local state cannot select work before authority checks. On cache miss: call `model/list`, select first sufficient preferred profile, compute requirement fingerprint from canonical sorted JSON, and build the full `SelectionTuple`. On exact LoEn cache hit: reuse selection without a second `model/list`, but only when the freshly validated full tuple, same run namespace, and matching authorized session decision all agree.
+Resolve manifest only as `target_root / "docs/profiles" / f"{topic}.yaml"`; resolve registry only as `codex_home / "profiles/registry.yaml"` plus exact shared-root check. Validate the sealed policy and current manifest task position before every orchestration attempt so mutable local state cannot select work before authority checks. Store progress in restrictive per-topic local files so independent topics cannot overwrite each other. On cache miss: call `model/list`, select first sufficient preferred profile, compute requirement fingerprint from canonical sorted JSON, and build the full `SelectionTuple`. On exact LoEn cache hit: reuse selection without a second `model/list`, but only when the freshly validated full tuple, same run namespace, and matching authorized session decision all agree. Failed attempts retain the current task with a new sequence and retire exact correlated evidence only through an exclusive, descriptor-anchored state operation that is linearized with hook consumption.
 
 Allocate request ID first through `AppServerClient.request`; in `before_send`, write handoff containing SHA-256 of canonical exact request plus explicit model/effort/cwd. Export only run/sequence/request correlation variables to App Server child environment. A new state root always creates a fresh run ID. Never infer previous task completion from Git or manifest.
 
@@ -729,6 +733,7 @@ Parse exact arity in `lib/command/args.sh`. Source `profile/profile` in `icodex.
 ```bash
 bash tests/test_args.sh
 bash tests/test_profile_runner.sh
+bash tests/test_profile_state.sh
 bash tests/test_smoke.sh
 ```
 
@@ -737,7 +742,7 @@ Expected: all exit 0 with `FAIL=0`; fake request log proves exact one-shot/orche
 - [ ] **Step 8: Commit explicit task runner**
 
 ```bash
-git add lib/profile/app_server.py lib/profile/runner.py lib/profile/profile.sh lib/command/args.sh icodex.sh tests/test_args.sh tests/test_profile_runner.sh tests/test_smoke.sh
+git add lib/profile/app_server.py lib/profile/runner.py lib/profile/profile.sh lib/profile/state.py lib/command/args.sh icodex.sh tests/test_args.sh tests/test_profile_runner.sh tests/test_profile_state.sh tests/test_smoke.sh
 git commit -m "feat(profile): orchestrate App Server tasks"
 ```
 
