@@ -237,7 +237,15 @@ A task-scoped recommendation expires when that task reaches review or completion
 when execution moves to another plan task. Never assume that the active session profile
 or the recommendation for the previous task is suitable for the next task.
 
-Before any execution on each next task:
+**Orchestrated branch:** the runner validates shared registry and direct project manifest,
+then the hook accepts only correlated local handoff/session evidence. Matching
+routed evidence replaces manual `/status` confirmation for that protected task only. The
+hook validates evidence; it never selects or changes model.
+
+**Interactive branch:** retain route classification, `/model` switch request, `/status`
+confirmation, downgrade/escalation handling, and critical-migration rules.
+
+For interactive work, before any execution on each next task:
 
 1. Identify the next work and classify its execution route independently from current
    evidence.

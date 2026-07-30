@@ -8,6 +8,16 @@ source "$ROOT/lib/profile/profile.sh"
 out="$("$ROOT/icodex.sh" --help)"; code=$?
 assert_eq       "help exit 0" "0" "$code"
 assert_contains "help usage"  "$out" "Usage:"
+assert_contains "help run task profile command" "$out" "--run-task <topic> <task-id>"
+assert_contains "help orchestrate profile command" "$out" "--orchestrate <topic>"
+assert_eq "help documents only profile wrapper commands" "2" "$(printf '%s\n' "$out" | grep -Ec '^[[:space:]]+--(run-task|orchestrate)([[:space:]]|$)')"
+profile_help_flags="$(printf '%s\n' "$out" | awk '
+  /^[[:space:]]+--/ {
+    flag = $1
+    if (flag == "--run-task" || flag == "--orchestrate" || flag ~ /(profile|task|orchestrat|export|import|resume)/) print flag
+  }
+')"
+assert_eq "help has no extra profile wrapper commands" $'--run-task\n--orchestrate' "$profile_help_flags"
 
 # --version exits 0 and names icodex even when codex isn't installed
 out="$("$ROOT/icodex.sh" --version 2>/dev/null)"; code=$?
@@ -77,6 +87,10 @@ assert_eq "profile commands pass exact PII base URL override" "1" \
   "$(grep -Ec '^[[:space:]]*export ICODEX_APP_SERVER_OPENAI_BASE_URL="http://127\.0\.0\.1:\$\{PII_PROXY_ACTIVE_PORT\}/v1"[[:space:]]*$' "$ROOT/lib/profile/profile.sh")"
 assert_eq "tracked config does not enable iwiki" "0" \
   "$(grep -c 'iwiki@ai-wiki' "$ROOT/.codex-isolated/config.toml")"
+assert_eq "no tracked codex homes" "" "$(git -C "$ROOT" ls-files .codex-homes)"
+assert_eq "no tracked auth, SQLite, raw session, runtime cache, or temp state" "" \
+  "$(git -C "$ROOT" ls-files '.codex-isolated/auth.json' '.codex-isolated/state/**' '.codex-isolated/sessions/**' '.codex-isolated/cache/**' '.codex-isolated/tmp/**' '*.sqlite' '*.sqlite3')"
+assert_eq "no stale project registry path" "" "$(git -C "$ROOT" ls-files docs/profiles/registry.yaml)"
 launch_order_ok="$(awk '
   /# default: run/ { inblock = 1; step = 0; next }
   inblock && /^[[:space:]]*setup_codex_home[[:space:]]*$/ && step == 0 { step = 1; next }

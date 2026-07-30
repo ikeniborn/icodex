@@ -88,6 +88,8 @@ icodex хранит состояние Codex в двух слоях:
     ./icodex.sh --clear         # удалить сохранённый файл конфига (.codex_config)
     ./icodex.sh --version       # версии icodex + codex
     ./icodex.sh --help          # полный список флагов
+    ./icodex.sh --run-task <topic> <task-id>  # один проверенный task через App Server
+    ./icodex.sh --orchestrate <topic>         # первый и следующие task локального маршрута
 
 Всё после первого не-флагового аргумента (или после `--`) передаётся прямо в `codex`.
 На `--install`/`--update` симлинк `icodex` создаётся в `ICODEX_LINK_DIR`. `--install` и
@@ -96,6 +98,41 @@ icodex хранит состояние Codex в двух слоях:
 извлечение не запускается, lockfile не перезаписывается. Когда есть новая версия,
 `--update` печатает каждую стадию сети/установки с прогресс-баром скачивания curl. Плагин
 Superpowers и скиллы едут через git и обновляются только мейнтейнерскими скриптами.
+
+## Маршрутизируемые профили задач
+
+Маршрутизируемая работа отделяет общую policy от решения для конкретного репозитория.
+Единственный общий registry находится в `.codex-isolated/profiles/registry.yaml`; home
+подключает каталог `.codex-homes/<проект>-<хеш>/profiles` симлинком на
+`.codex-isolated/profiles`, где находится registry. Для topic
+в целевом репозитории единственным manifest остаётся
+`<target-repository>/docs/profiles/<topic>.yaml`; home не хранит policy manifest.
+
+Manifest утверждает профиль и фиксирует hash registry отдельным коммитом в целевом
+репозитории. Когда общий registry меняется, manifest репинится вторым, независимым
+коммитом. Это делает review каждого изменения policy явным и не смешивает утверждение
+локальной задачи с обновлением общего набора профилей.
+
+`./icodex.sh --run-task <topic> <task-id>` запускает один task с проверенной split policy:
+runner валидирует общий registry и прямой project manifest, а hook принимает только
+коррелированное локальное handoff/session evidence. `./icodex.sh --orchestrate <topic>`
+можно запускать и на первом task: оркестратор строит локальный handoff для каждого
+следующего task. Обычная интерактивная работа остаётся ручной: классификация маршрута,
+`/model` и подтверждение `/status` обязательны. Hook только валидирует evidence, никогда
+не выбирает и не меняет model.
+
+Если локального состояния нет, это новый cold run, а не продолжение с другой машины.
+Удаление локального состояния безопасно как recovery: снова запустите
+`./icodex.sh --run-task <topic> <task-id>` для одного task или
+`./icodex.sh --orchestrate <topic>` с первого task. Переносимой истории сессий, export/import
+и cross-machine continuation нет.
+
+Ошибки намеренно останавливают запуск с actionable причиной: `dirty` означает, что bytes
+registry, manifest или context отличаются от committed HEAD; несвязанные правки worktree
+этому не мешают. `hash` требует новый одобренный manifest/repin, `path` — manifest ровно в
+`docs/profiles/<topic>.yaml`, `model` — profile из проверенного registry. Не переносите
+в home manifest, историю, raw session, cache или временные файлы: `.codex-homes/` полностью
+игнорируется git.
 
 ## Переменные конфигурации
 
