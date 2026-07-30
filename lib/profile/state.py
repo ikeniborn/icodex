@@ -87,15 +87,20 @@ def detect_cold_start(state_root: Path) -> bool:
 
 
 def _ensure_directory(path: Path) -> None:
+    descriptor: int | None = None
     try:
-        if path.exists() or path.is_symlink():
-            if path.is_symlink() or not path.is_dir():
-                raise StateError(f"state directory is not a regular directory: {path}")
-        else:
-            path.mkdir(parents=True, mode=0o700)
-        os.chmod(path, 0o700)
+        path.mkdir(parents=True, mode=0o700, exist_ok=True)
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise StateError(f"state directory is not a regular directory: {path}")
+        os.fchmod(descriptor, 0o700)
     except OSError as exc:
         raise StateError(f"cannot prepare state directory {path}: {exc}") from exc
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
 
 
 def _ensure_layout(state_root: Path) -> None:
@@ -168,12 +173,7 @@ def _routing_gate(state_root: Path, *, exclusive: bool = False):
     parent = state_root.parent
     descriptor: int | None = None
     try:
-        if parent.exists() or parent.is_symlink():
-            if parent.is_symlink() or not parent.is_dir():
-                raise StateError(f"state parent is not a regular directory: {parent}")
-        else:
-            parent.mkdir(parents=True, mode=0o700)
-            os.chmod(parent, 0o700)
+        _ensure_directory(parent)
         path = parent / f".{state_root.name}.coordinator.lock"
         descriptor = os.open(
             path,
@@ -224,8 +224,23 @@ def _run_gate(state_root: Path, run_id: str, *, exclusive: bool = False):
         os.close(descriptor)
 
 
+def _write_all(descriptor: int, encoded: bytes) -> None:
+    remaining = memoryview(encoded)
+    while remaining:
+        written = os.write(descriptor, remaining)
+        if written == 0:
+            raise OSError("state write made no progress")
+        remaining = remaining[written:]
+
+
 @contextmanager
-def _consumer_claim(path: Path, claim: Mapping[str, object]):
+def _consumer_claim(
+    path: Path,
+    claim: Mapping[str, object],
+    *,
+    pending: Path,
+    decision: Path,
+):
     """Create or resume one session-bound consume claim while holding its flock."""
     flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
     created = False
@@ -249,15 +264,25 @@ def _consumer_claim(path: Path, claim: Mapping[str, object]):
         if not stat.S_ISREG(metadata.st_mode):
             raise StateError(f"consume claim is not a regular file: {path}")
         os.fchmod(descriptor, 0o600)
+        encoded = (json.dumps(dict(claim), sort_keys=True, separators=(",", ":")) + "\n").encode()
         if created:
-            encoded = (json.dumps(dict(claim), sort_keys=True, separators=(",", ":")) + "\n").encode()
-            os.write(descriptor, encoded)
+            _write_all(descriptor, encoded)
             os.fsync(descriptor)
             _fsync_directory(path.parent)
         else:
-            os.lseek(descriptor, 0, os.SEEK_SET)
-            with os.fdopen(os.dup(descriptor), "r", encoding="utf-8") as stream:
-                existing = json.load(stream)
+            try:
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                with os.fdopen(os.dup(descriptor), "r", encoding="utf-8") as stream:
+                    existing = json.load(stream)
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                if not pending.exists() or pending.is_symlink() or decision.exists() or decision.is_symlink():
+                    raise
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                os.ftruncate(descriptor, 0)
+                _write_all(descriptor, encoded)
+                os.fsync(descriptor)
+                _fsync_directory(path.parent)
+                existing = dict(claim)
             if existing != dict(claim):
                 raise StateError("handoff is already bound to another session or correlation")
         yield
@@ -479,9 +504,9 @@ def consume_handoff(
                 "request_id": request_id,
                 "payload_model": payload_model,
             }
-            with _consumer_claim(consume_lock, claim):
+            with _consumer_claim(consume_lock, claim, pending=pending, decision=decision_path):
                 try:
-                    with _consumer_claim(session_lock, claim):
+                    with _consumer_claim(session_lock, claim, pending=pending, decision=decision_path):
                         source = pending if pending.exists() else consumed
                         try:
                             locked_handoff = _validate_handoff(_read_json(source))
@@ -541,9 +566,12 @@ def load_decision(state_root: Path, session_id: str) -> dict[str, object] | None
     try:
         session_id = _safe_identifier(session_id, "session_id")
         value = _load_json(state_root / "decisions" / f"{session_id}.json")
-        return _validate_decision(value)
+        decision = _validate_decision(value)
     except StateError:
         return None
+    if decision["session_id"] != session_id:
+        return None
+    return decision
 
 
 def save_selection_cache(
@@ -591,9 +619,12 @@ def load_selection_cache(state_root: Path, run_id: str) -> dict[str, object] | N
     try:
         run_id = _safe_identifier(run_id, "run_id")
         value = _load_json(state_root / "cache" / f"{run_id}.json")
-        return _validate_cache(value)
+        cache = _validate_cache(value)
     except StateError:
         return None
+    if cache["run_id"] != run_id:
+        return None
+    return cache
 
 
 def cache_matches(
@@ -628,6 +659,23 @@ def _remove_namespaced_run_json(directory: Path, run_id: str) -> None:
             path.unlink()
         except FileNotFoundError:
             pass
+
+
+def _remove_atomic_temps(directory: Path, destination_pattern: str) -> None:
+    if not directory.is_dir():
+        return
+    temp_pattern = re.compile(rf"\.(?:{destination_pattern})\.[0-9]+\.[0-9a-f]{{16}}\.tmp\Z")
+    removed = False
+    for path in directory.iterdir():
+        if temp_pattern.fullmatch(path.name) is None:
+            continue
+        try:
+            path.unlink()
+            removed = True
+        except FileNotFoundError:
+            pass
+    if removed:
+        _fsync_directory(directory)
 
 
 def _collect_target_sessions(state_root: Path, run_id: str) -> set[str]:
@@ -717,6 +765,13 @@ def invalidate_run(state_root: Path, run_id: str) -> None:
             raise StateError("routing state root is not a regular directory")
         with _run_gate(state_root, run_id, exclusive=True) as run_lock:
             target_sessions = _collect_target_sessions(state_root, run_id)
+            run_name = re.escape(run_id)
+            _remove_atomic_temps(state_root / "pending", rf"{run_name}\.[0-9]+\.json")
+            _remove_atomic_temps(state_root / "consumed", rf"{run_name}\.[0-9]+\.json")
+            _remove_atomic_temps(state_root / "cache", rf"{run_name}\.json")
+            if target_sessions:
+                session_names = "|".join(re.escape(session_id) for session_id in sorted(target_sessions))
+                _remove_atomic_temps(state_root / "decisions", rf"(?:{session_names})\.json")
             _remove_namespaced_run_json(state_root / "pending", run_id)
             _remove_namespaced_run_json(state_root / "consumed", run_id)
             cache_path = state_root / "cache" / f"{run_id}.json"

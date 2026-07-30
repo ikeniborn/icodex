@@ -16,7 +16,6 @@ import stat
 import sys
 import tempfile
 import threading
-import time
 from pathlib import Path
 
 
@@ -141,18 +140,48 @@ def consume_worker(state_root: str, req: dict[str, object], session: str, queue)
         queue.put("authorized")
 
 
-def slow_decision_worker(state_root: str, req: dict[str, object], session: str, queue) -> None:
+def cold_create_worker(state_root: str, req: dict[str, object], barrier, queue) -> None:
+    cold_parent = Path(state_root).parent
+    real_mkdir = Path.mkdir
+    synchronized = False
+
+    def synchronized_mkdir(path, *args, **kwargs):
+        nonlocal synchronized
+        if path == cold_parent and not synchronized:
+            synchronized = True
+            barrier.wait(timeout=5)
+        return real_mkdir(path, *args, **kwargs)
+
+    Path.mkdir = synchronized_mkdir
+    try:
+        created = state.create_handoff(Path(state_root), req)
+    except Exception as exc:
+        queue.put(f"error:{type(exc).__name__}:{exc}")
+    else:
+        queue.put(f"created:{created.name}")
+
+
+def blocked_decision_worker(
+    state_root: str,
+    req: dict[str, object],
+    session: str,
+    decision_entered,
+    release_decision,
+    queue,
+) -> None:
     os.environ["ICODEX_PROFILE_RUN_ID"] = str(req["run_id"])
     os.environ["ICODEX_PROFILE_SEQUENCE"] = str(req["sequence"])
     os.environ["ICODEX_PROFILE_REQUEST_ID"] = str(req["request_id"])
     real_atomic_write = state.atomic_json_write
 
-    def slow_decision(path, value):
+    def block_decision(path, value):
         if path.parent.name == "decisions":
-            time.sleep(0.2)
+            decision_entered.set()
+            if not release_decision.wait(5):
+                raise RuntimeError("timed out waiting to release decision writer")
         return real_atomic_write(path, value)
 
-    state.atomic_json_write = slow_decision
+    state.atomic_json_write = block_decision
     try:
         state.consume_handoff(
             Path(state_root),
@@ -165,6 +194,71 @@ def slow_decision_worker(state_root: str, req: dict[str, object], session: str, 
         queue.put("rejected")
     else:
         queue.put("authorized")
+
+
+def crash_claim_worker(
+    state_root: str,
+    req: dict[str, object],
+    session: str,
+    crash_write_number: int,
+) -> None:
+    os.environ["ICODEX_PROFILE_RUN_ID"] = str(req["run_id"])
+    os.environ["ICODEX_PROFILE_SEQUENCE"] = str(req["sequence"])
+    os.environ["ICODEX_PROFILE_REQUEST_ID"] = str(req["request_id"])
+    real_write = state.os.write
+    writes = 0
+
+    def crash_during_claim(descriptor, encoded):
+        nonlocal writes
+        writes += 1
+        if writes == crash_write_number:
+            os._exit(71 + crash_write_number)
+        return real_write(descriptor, encoded)
+
+    state.os.write = crash_during_claim
+    state.consume_handoff(
+        Path(state_root),
+        str(req["run_id"]),
+        int(req["sequence"]),
+        session,
+        str(req["model"]),
+    )
+
+
+def crash_atomic_write_worker(
+    state_root: str,
+    req: dict[str, object],
+    session: str,
+    category: str,
+) -> None:
+    real_replace = state.os.replace
+
+    def crash_before_publish(source, destination):
+        if Path(destination).parent.name == category:
+            os._exit(80)
+        return real_replace(source, destination)
+
+    state.os.replace = crash_before_publish
+    if category == "pending":
+        state.create_handoff(Path(state_root), req)
+    elif category == "cache":
+        state.save_selection_cache(
+            Path(state_root),
+            str(req["run_id"]),
+            selection(Path(str(req["target_root"]))),
+            session,
+        )
+    else:
+        os.environ["ICODEX_PROFILE_RUN_ID"] = str(req["run_id"])
+        os.environ["ICODEX_PROFILE_SEQUENCE"] = str(req["sequence"])
+        os.environ["ICODEX_PROFILE_REQUEST_ID"] = str(req["request_id"])
+        state.consume_handoff(
+            Path(state_root),
+            str(req["run_id"]),
+            int(req["sequence"]),
+            session,
+            str(req["model"]),
+        )
 
 
 with tempfile.TemporaryDirectory() as temporary:
@@ -189,6 +283,31 @@ with tempfile.TemporaryDirectory() as temporary:
         "handoff JSON mode 0600",
         len(json_files) == 1 and stat.S_IMODE(json_files[0].stat().st_mode) == 0o600,
     )
+
+    cold_root = base / "cold-shared" / "profile-routing"
+    cold_first = request(Path(req["target_root"]), run_id="cold-run-one", request_id=11)
+    cold_second = request(Path(req["target_root"]), run_id="cold-run-two", request_id=12)
+    cold_barrier = multiprocessing.Barrier(2)
+    cold_queue = multiprocessing.Queue()
+    cold_processes = [
+        multiprocessing.Process(
+            target=cold_create_worker,
+            args=(str(cold_root), candidate, cold_barrier, cold_queue),
+        )
+        for candidate in (cold_first, cold_second)
+    ]
+    check("concurrent cold creators begin before routing directories exist", not cold_root.parent.exists())
+    for process in cold_processes:
+        process.start()
+    for process in cold_processes:
+        process.join(10)
+    cold_results = sorted(cold_queue.get(timeout=2) for _ in cold_processes)
+    check("concurrent cold creators both succeed", all(result.startswith("created:") for result in cold_results))
+    cold_handoffs = [json.loads(path.read_text()) for path in (cold_root / "pending").glob("*.json")]
+    check(
+        "concurrent cold creators remain isolated",
+        sorted(value["run_id"] for value in cold_handoffs) == ["cold-run-one", "cold-run-two"],
+    )
     handoff = json.loads(json_files[0].read_text(encoding="utf-8"))
     check("handoff exact schema", set(handoff) == set(req))
     forbidden = {"prompt", "response", "transcript", "auth_path", "session_history", "tool_output"}
@@ -212,6 +331,70 @@ with tempfile.TemporaryDirectory() as temporary:
     check("atomic replace publishes complete JSON", json.loads(atomic_path.read_text()) == {"generation": 2})
     check("atomic replacement file mode 0600", stat.S_IMODE(atomic_path.stat().st_mode) == 0o600)
     atomic_path.unlink()
+
+    parent_race_base = base / "parent-race"
+    parent_race_roots = [parent_race_base / "routing-one", parent_race_base / "routing-two"]
+    parent_race_requests = [
+        request(Path(req["target_root"]), run_id="parent-race-one", request_id=101),
+        request(Path(req["target_root"]), run_id="parent-race-two", request_id=102),
+    ]
+    parent_mkdir_barrier = threading.Barrier(2)
+    parent_race_errors: list[Exception] = []
+    real_path_mkdir = Path.mkdir
+
+    def barrier_parent_mkdir(path, *args, **kwargs):
+        if path == parent_race_base:
+            parent_mkdir_barrier.wait(5)
+        return real_path_mkdir(path, *args, **kwargs)
+
+    def parent_race_create(index: int) -> None:
+        try:
+            state.create_handoff(parent_race_roots[index], parent_race_requests[index])
+        except Exception as exc:
+            parent_race_errors.append(exc)
+
+    Path.mkdir = barrier_parent_mkdir
+    try:
+        parent_race_threads = [threading.Thread(target=parent_race_create, args=(index,)) for index in range(2)]
+        for thread in parent_race_threads:
+            thread.start()
+        for thread in parent_race_threads:
+            thread.join(10)
+    finally:
+        Path.mkdir = real_path_mkdir
+    check("concurrent cold coordinator parents are race-safe", not parent_race_errors)
+
+    layout_race_parent = base / "layout-race-parent"
+    layout_race_parent.mkdir(mode=0o700)
+    layout_race_root = layout_race_parent / "profile-routing"
+    layout_race_requests = [
+        request(Path(req["target_root"]), run_id="layout-race-one", request_id=103),
+        request(Path(req["target_root"]), run_id="layout-race-two", request_id=104),
+    ]
+    layout_mkdir_barrier = threading.Barrier(2)
+    layout_race_errors: list[Exception] = []
+
+    def barrier_layout_mkdir(path, *args, **kwargs):
+        if path == layout_race_root:
+            layout_mkdir_barrier.wait(5)
+        return real_path_mkdir(path, *args, **kwargs)
+
+    def layout_race_create(index: int) -> None:
+        try:
+            state.create_handoff(layout_race_root, layout_race_requests[index])
+        except Exception as exc:
+            layout_race_errors.append(exc)
+
+    Path.mkdir = barrier_layout_mkdir
+    try:
+        layout_race_threads = [threading.Thread(target=layout_race_create, args=(index,)) for index in range(2)]
+        for thread in layout_race_threads:
+            thread.start()
+        for thread in layout_race_threads:
+            thread.join(10)
+    finally:
+        Path.mkdir = real_path_mkdir
+    check("concurrent cold routing layouts are race-safe", not layout_race_errors)
 
     expect_state_error(
         "handoff rejects caller extras",
@@ -296,6 +479,12 @@ with tempfile.TemporaryDirectory() as temporary:
         "decision JSON mode 0600",
         len(decision_files) == 1 and stat.S_IMODE(decision_files[0].stat().st_mode) == 0o600,
     )
+    decision_files[0].write_text(json.dumps({**decision, "session_id": "other-session"}), encoding="utf-8")
+    check(
+        "decision load binds payload session to requested key",
+        state.load_decision(state_root, "session-a") is None,
+    )
+    decision_files[0].write_text(json.dumps(decision), encoding="utf-8")
     check("consumed handoff removed from pending", not list((state_root / "pending").glob("*.json")))
     check("consumed evidence retained outside pending", len(list((state_root / "consumed").glob("*.json"))) == 1)
     with correlated_env(req):
@@ -342,6 +531,86 @@ with tempfile.TemporaryDirectory() as temporary:
         )
     check("same session recovers consumed evidence", recovered_decision["authorized"] is True)
 
+    handoff_claim_root = base / "handoff-claim-crash"
+    handoff_claim = request(Path(req["target_root"]), run_id="handoff-claim-crash", request_id=105)
+    state.create_handoff(handoff_claim_root, handoff_claim)
+    handoff_claim_crash = multiprocessing.Process(
+        target=crash_claim_worker,
+        args=(str(handoff_claim_root), handoff_claim, "handoff-claim-session", 1),
+    )
+    handoff_claim_crash.start()
+    handoff_claim_crash.join(10)
+    check("handoff claim writer crashes before completing claim", handoff_claim_crash.exitcode == 72)
+    try:
+        with correlated_env(handoff_claim):
+            recovered_handoff_claim = state.consume_handoff(
+                handoff_claim_root,
+                str(handoff_claim["run_id"]),
+                int(handoff_claim["sequence"]),
+                "handoff-claim-session",
+                str(handoff_claim["model"]),
+            )
+    except state.StateError:
+        recovered_handoff_claim = None
+    check(
+        "retry recovers incomplete per-handoff claim",
+        recovered_handoff_claim is not None and recovered_handoff_claim["authorized"] is True,
+    )
+
+    session_claim_root = base / "session-claim-crash"
+    session_claim = request(Path(req["target_root"]), run_id="session-claim-crash", request_id=106)
+    state.create_handoff(session_claim_root, session_claim)
+    session_claim_crash = multiprocessing.Process(
+        target=crash_claim_worker,
+        args=(str(session_claim_root), session_claim, "session-claim-session", 2),
+    )
+    session_claim_crash.start()
+    session_claim_crash.join(10)
+    check("session claim writer crashes before completing claim", session_claim_crash.exitcode == 73)
+    try:
+        with correlated_env(session_claim):
+            recovered_session_claim = state.consume_handoff(
+                session_claim_root,
+                str(session_claim["run_id"]),
+                int(session_claim["sequence"]),
+                "session-claim-session",
+                str(session_claim["model"]),
+            )
+    except state.StateError:
+        recovered_session_claim = None
+    check(
+        "retry recovers incomplete per-session claim",
+        recovered_session_claim is not None and recovered_session_claim["authorized"] is True,
+    )
+
+    partial_claim_root = base / "partial-claim-write"
+    partial_claim = request(Path(req["target_root"]), run_id="partial-claim-write", request_id=109)
+    state.create_handoff(partial_claim_root, partial_claim)
+    real_os_write = state.os.write
+    partial_writes = 0
+
+    def partial_os_write(descriptor, encoded):
+        global partial_writes
+        partial_writes += 1
+        return real_os_write(descriptor, encoded[:7])
+
+    state.os.write = partial_os_write
+    try:
+        with correlated_env(partial_claim):
+            partial_claim_decision = state.consume_handoff(
+                partial_claim_root,
+                str(partial_claim["run_id"]),
+                int(partial_claim["sequence"]),
+                "partial-claim-session",
+                str(partial_claim["model"]),
+            )
+    finally:
+        state.os.write = real_os_write
+    check(
+        "claim writes complete after partial os.write calls",
+        partial_claim_decision["authorized"] is True and partial_writes > 2,
+    )
+
     malformed_req = request(Path(req["target_root"]), run_id="malformed-run", sequence=2, request_id=9)
     state.create_handoff(state_root, malformed_req)
     malformed_path = next(path for path in (state_root / "pending").glob("*.json") if "malformed-run" in path.name)
@@ -375,18 +644,31 @@ with tempfile.TemporaryDirectory() as temporary:
     state.create_handoff(same_session_root, same_session_first)
     state.create_handoff(same_session_root, same_session_second)
     queue = multiprocessing.Queue()
+    same_session_decision_entered = multiprocessing.Event()
+    release_same_session_decision = multiprocessing.Event()
     processes = [
         multiprocessing.Process(
-            target=slow_decision_worker,
-            args=(str(same_session_root), candidate, "shared-session", queue),
+            target=blocked_decision_worker,
+            args=(
+                str(same_session_root),
+                candidate,
+                "shared-session",
+                same_session_decision_entered,
+                release_same_session_decision,
+                queue,
+            ),
         )
         for candidate in (same_session_first, same_session_second)
     ]
     for process in processes:
         process.start()
+    check("one same-session consumer reaches decision boundary", same_session_decision_entered.wait(5))
+    first_same_session_result = queue.get(timeout=5)
+    check("active session claim rejects competing consumer", first_same_session_result == "rejected")
+    release_same_session_decision.set()
     for process in processes:
         process.join(10)
-    same_session_results = sorted(queue.get(timeout=2) for _ in processes)
+    same_session_results = sorted([first_same_session_result, queue.get(timeout=2)])
     check("same session authorizes exactly one handoff", same_session_results == ["authorized", "rejected"])
     same_session_decision = state.load_decision(same_session_root, "shared-session")
     same_session_consumed = list((same_session_root / "consumed").glob("*.json"))
@@ -433,6 +715,13 @@ with tempfile.TemporaryDirectory() as temporary:
     state.save_selection_cache(state_root, str(req["run_id"]), expected, "session-a")
     cache = state.load_selection_cache(state_root, str(req["run_id"]))
     check("cache stores full tuple", cache["selection"] == dataclasses.asdict(expected))
+    cache_path = state_root / "cache" / f"{req['run_id']}.json"
+    cache_path.write_text(json.dumps({**cache, "run_id": "other-run"}), encoding="utf-8")
+    check(
+        "cache load binds payload run to requested key",
+        state.load_selection_cache(state_root, str(req["run_id"])) is None,
+    )
+    cache_path.write_text(json.dumps(cache), encoding="utf-8")
     check("exact tuple cache hit", state.cache_matches(cache, expected, loaded_decision))
     for field in dataclasses.fields(expected):
         old = getattr(expected, field.name)
@@ -469,6 +758,25 @@ with tempfile.TemporaryDirectory() as temporary:
         lambda: state.cache_matches({**cache, "session_id": "other-session"}, expected, loaded_decision),
     )
 
+    substituted_decision_path = state_root / "decisions" / "substituted-session.json"
+    substituted_decision_path.write_text(json.dumps(loaded_decision), encoding="utf-8")
+    os.chmod(substituted_decision_path, 0o600)
+    check(
+        "decision namespace mismatch is absent",
+        state.load_decision(state_root, "substituted-session") is None,
+    )
+    substituted_cache_path = state_root / "cache" / "substituted-run.json"
+    substituted_cache_path.write_text(json.dumps(cache), encoding="utf-8")
+    os.chmod(substituted_cache_path, 0o600)
+    substituted_cache = state.load_selection_cache(state_root, "substituted-run")
+    check("cache namespace mismatch is absent", substituted_cache is None)
+    check(
+        "cache namespace substitution cannot hit",
+        not state.cache_matches(substituted_cache, expected, loaded_decision),
+    )
+    substituted_decision_path.unlink()
+    substituted_cache_path.unlink()
+
     cache_files = list((state_root / "cache").glob("*.json"))
     check(
         "cache JSON mode 0600",
@@ -487,6 +795,8 @@ with tempfile.TemporaryDirectory() as temporary:
     release_decision = threading.Event()
     consume_errors: list[Exception] = []
     invalidate_errors: list[Exception] = []
+    invalidate_lock_attempted = threading.Event()
+    invalidate_finished = threading.Event()
     real_atomic_write = state.atomic_json_write
 
     def block_decision(path, value):
@@ -513,19 +823,33 @@ with tempfile.TemporaryDirectory() as temporary:
             state.invalidate_run(active_root, str(active["run_id"]))
         except Exception as exc:
             invalidate_errors.append(exc)
+        finally:
+            invalidate_finished.set()
 
     state.atomic_json_write = block_decision
     with correlated_env(active):
         consume_thread = threading.Thread(target=active_consume)
         consume_thread.start()
         check("consumer reached decision boundary", decision_entered.wait(5))
-        invalidate_thread = threading.Thread(target=active_invalidate)
-        invalidate_thread.start()
-        time.sleep(0.1)
-        check("invalidation waits for active consumer", invalidate_thread.is_alive())
-        release_decision.set()
-        consume_thread.join(5)
-        invalidate_thread.join(5)
+        real_flock = state.fcntl.flock
+
+        def observe_invalidate_flock(descriptor, operation):
+            if threading.current_thread().name == "active-invalidate" and operation & state.fcntl.LOCK_EX:
+                invalidate_lock_attempted.set()
+            return real_flock(descriptor, operation)
+
+        state.fcntl.flock = observe_invalidate_flock
+        try:
+            invalidate_thread = threading.Thread(target=active_invalidate, name="active-invalidate")
+            invalidate_thread.start()
+            check("invalidation attempts exclusive coordinator acquisition", invalidate_lock_attempted.wait(5))
+            check("invalidation waits for active consumer", not invalidate_finished.is_set())
+            release_decision.set()
+            consume_thread.join(5)
+            invalidate_thread.join(5)
+        finally:
+            release_decision.set()
+            state.fcntl.flock = real_flock
     state.atomic_json_write = real_atomic_write
     check("active consume and invalidation finish cleanly", not consume_errors and not invalidate_errors)
     check("post-consume invalidation returns cold start", state.detect_cold_start(active_root))
@@ -538,6 +862,8 @@ with tempfile.TemporaryDirectory() as temporary:
     release_cleanup = threading.Event()
     gate_invalidate_errors: list[Exception] = []
     gate_create_errors: list[Exception] = []
+    gate_create_lock_attempted = threading.Event()
+    gate_create_finished = threading.Event()
     real_path_unlink = Path.unlink
     expected_run_lock = gate_root / "locks" / "gate-run.run.lock"
 
@@ -560,20 +886,32 @@ with tempfile.TemporaryDirectory() as temporary:
             state.create_handoff(gate_root, gate_new)
         except Exception as exc:
             gate_create_errors.append(exc)
+        finally:
+            gate_create_finished.set()
 
     Path.unlink = pausing_unlink
+    real_flock = state.fcntl.flock
+
+    def observe_gate_create_flock(descriptor, operation):
+        if threading.current_thread().name == "gate-create" and operation & state.fcntl.LOCK_SH:
+            gate_create_lock_attempted.set()
+        return real_flock(descriptor, operation)
+
+    state.fcntl.flock = observe_gate_create_flock
     try:
         gate_invalidate_thread = threading.Thread(target=gate_invalidate)
         gate_invalidate_thread.start()
         check("invalidation reached unlinked run-lock boundary", run_lock_unlinked.wait(5))
-        gate_create_thread = threading.Thread(target=gate_create)
+        gate_create_thread = threading.Thread(target=gate_create, name="gate-create")
         gate_create_thread.start()
-        time.sleep(0.1)
-        check("stable coordinator blocks entrant after run-lock unlink", gate_create_thread.is_alive())
+        check("later entrant attempts shared coordinator acquisition", gate_create_lock_attempted.wait(5))
+        check("stable coordinator blocks entrant after run-lock unlink", not gate_create_finished.is_set())
         release_cleanup.set()
         gate_invalidate_thread.join(5)
         gate_create_thread.join(5)
     finally:
+        release_cleanup.set()
+        state.fcntl.flock = real_flock
         Path.unlink = real_path_unlink
     check("invalidation and later entrant finish cleanly", not gate_invalidate_errors and not gate_create_errors)
     check("post-invalidation entrant creates fresh local state", not state.detect_cold_start(gate_root))
@@ -592,6 +930,65 @@ with tempfile.TemporaryDirectory() as temporary:
     check("partial invalidation remains warm", not state.detect_cold_start(invalidation_root))
     state.invalidate_run(invalidation_root, str(run_two["run_id"]))
     check("last-run invalidation returns cold start", state.detect_cold_start(invalidation_root))
+
+    orphan_temp_root = base / "orphan-temps"
+    orphan_temp_handoff = request(
+        Path(req["target_root"]),
+        run_id="orphan-temp-run",
+        sequence=1,
+        request_id=107,
+    )
+    orphan_temp_decision = request(
+        Path(req["target_root"]),
+        run_id="orphan-temp-run",
+        sequence=2,
+        request_id=108,
+    )
+    state.create_handoff(orphan_temp_root, orphan_temp_decision)
+    orphan_writers = [
+        multiprocessing.Process(
+            target=crash_atomic_write_worker,
+            args=(str(orphan_temp_root), orphan_temp_handoff, "orphan-temp-session", "pending"),
+        ),
+        multiprocessing.Process(
+            target=crash_atomic_write_worker,
+            args=(str(orphan_temp_root), orphan_temp_handoff, "orphan-temp-session", "cache"),
+        ),
+        multiprocessing.Process(
+            target=crash_atomic_write_worker,
+            args=(str(orphan_temp_root), orphan_temp_decision, "orphan-temp-session", "decisions"),
+        ),
+    ]
+    for process in orphan_writers:
+        process.start()
+        process.join(10)
+    check("writers crash after fsync before atomic publish", all(process.exitcode == 80 for process in orphan_writers))
+    target_handoff_temps = list((orphan_temp_root / "pending").glob(".orphan-temp-run.1.json.*.tmp"))
+    target_cache_temps = list((orphan_temp_root / "cache").glob(".orphan-temp-run.json.*.tmp"))
+    target_decision_temps = list((orphan_temp_root / "decisions").glob(".orphan-temp-session.json.*.tmp"))
+    check(
+        "crashed writers leave target handoff cache and decision temps",
+        len(target_handoff_temps) == len(target_cache_temps) == len(target_decision_temps) == 1,
+    )
+    unrelated_handoff_temp = orphan_temp_root / "pending" / ".unrelated-run.1.json.999.0123456789abcdef.tmp"
+    unrelated_cache_temp = orphan_temp_root / "cache" / ".unrelated-run.json.999.0123456789abcdef.tmp"
+    unattributable_decision_temp = (
+        orphan_temp_root / "decisions" / ".unattributable-session.json.999.0123456789abcdef.tmp"
+    )
+    for path in (unrelated_handoff_temp, unrelated_cache_temp, unattributable_decision_temp):
+        path.write_text("orphan", encoding="utf-8")
+        os.chmod(path, 0o600)
+
+    state.invalidate_run(orphan_temp_root, "orphan-temp-run")
+    check("invalidation removes exact target handoff temp namespace", not target_handoff_temps[0].exists())
+    check("invalidation removes exact target cache temp namespace", not target_cache_temps[0].exists())
+    check("invalidation removes trusted target-session decision temp", not target_decision_temps[0].exists())
+    check(
+        "invalidation preserves unrelated and unattributable temps",
+        unrelated_handoff_temp.exists()
+        and unrelated_cache_temp.exists()
+        and unattributable_decision_temp.exists(),
+    )
 
     malformed_cleanup_root = base / "malformed-cleanup"
     malformed_cleanup = request(
