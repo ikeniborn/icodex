@@ -5,12 +5,16 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import fcntl
 import hashlib
 import json
 import os
+import re
 import secrets
+import stat
 import sys
 from collections.abc import Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -43,6 +47,9 @@ TRANSITION_SCHEMA = {
 
 class RunnerError(Exception):
     pass
+
+
+TOPIC_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 
 
 @dataclass(frozen=True)
@@ -161,14 +168,37 @@ def _selection_from_state(value: object) -> SelectionTuple | None:
 
 
 def _read_run(state_root: Path) -> dict[str, object] | None:
-    path = state_root / "run.json"
+    directory: int | None = None
+    descriptor: int | None = None
     try:
-        with path.open(encoding="utf-8") as stream:
+        directory = os.open(
+            state_root,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+        )
+        descriptor = os.open(
+            "run.json",
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
+            dir_fd=directory,
+        )
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+        ):
+            raise RunnerError("local orchestration state must be an owner-only regular file")
+        with os.fdopen(descriptor, encoding="utf-8") as stream:
+            descriptor = None
             value = json.load(stream)
     except FileNotFoundError:
         return None
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise RunnerError(f"local orchestration state is malformed: {exc}") from exc
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if directory is not None:
+            os.close(directory)
     required = {"run_id", "sequence", "topic", "task_index", "task_id", "selection", "session_id"}
     if not isinstance(value, dict) or set(value) != required:
         raise RunnerError("local orchestration state has an invalid schema")
@@ -186,6 +216,86 @@ def _read_run(state_root: Path) -> dict[str, object] | None:
     ):
         raise RunnerError("local orchestration state has invalid fields")
     return value
+
+
+@contextmanager
+def _orchestrator_lock(config: RunnerConfig, topic: str):
+    if not TOPIC_RE.fullmatch(topic):
+        raise RunnerError("topic must be canonical lowercase kebab-case")
+    home_descriptor: int | None = None
+    state_descriptor: int | None = None
+    coordinator_descriptor: int | None = None
+    lock_descriptor: int | None = None
+    try:
+        home_descriptor = os.open(
+            config.codex_home,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+        )
+        try:
+            os.mkdir("state", mode=0o700, dir_fd=home_descriptor)
+        except FileExistsError:
+            pass
+        state_descriptor = os.open(
+            "state",
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=home_descriptor,
+        )
+        state_metadata = os.fstat(state_descriptor)
+        if not stat.S_ISDIR(state_metadata.st_mode) or state_metadata.st_uid != os.getuid():
+            raise RunnerError("profile routing state parent must be an owned directory")
+        os.fchmod(state_descriptor, 0o700)
+        try:
+            os.mkdir("profile-routing-coordinator", mode=0o700, dir_fd=state_descriptor)
+        except FileExistsError:
+            pass
+        coordinator_descriptor = os.open(
+            "profile-routing-coordinator",
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=state_descriptor,
+        )
+        coordinator_metadata = os.fstat(coordinator_descriptor)
+        if (
+            not stat.S_ISDIR(coordinator_metadata.st_mode)
+            or coordinator_metadata.st_uid != os.getuid()
+        ):
+            raise RunnerError("profile routing coordinator must be an owned directory")
+        os.fchmod(coordinator_descriptor, 0o700)
+        lock_descriptor = os.open(
+            f"{topic}.orchestrator.lock",
+            os.O_RDWR
+            | os.O_CREAT
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_NONBLOCK", 0),
+            0o600,
+            dir_fd=coordinator_descriptor,
+        )
+        lock_metadata = os.fstat(lock_descriptor)
+        if not stat.S_ISREG(lock_metadata.st_mode) or lock_metadata.st_uid != os.getuid():
+            raise RunnerError("orchestrator lock must be an owned regular file")
+        os.fchmod(lock_descriptor, 0o600)
+        try:
+            fcntl.flock(lock_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RunnerError(f"orchestration is already active for topic {topic}") from exc
+        for descriptor in (coordinator_descriptor, state_descriptor, home_descriptor):
+            os.close(descriptor)
+        coordinator_descriptor = state_descriptor = home_descriptor = None
+    except OSError as exc:
+        raise RunnerError(f"cannot lock orchestration lifecycle: {exc}") from exc
+    except RunnerError:
+        raise
+    finally:
+        for descriptor in (coordinator_descriptor, state_descriptor, home_descriptor):
+            if descriptor is not None:
+                os.close(descriptor)
+        if sys.exc_info()[0] is not None and lock_descriptor is not None:
+            os.close(lock_descriptor)
+    try:
+        yield
+    finally:
+        assert lock_descriptor is not None
+        fcntl.flock(lock_descriptor, fcntl.LOCK_UN)
+        os.close(lock_descriptor)
 
 
 def _write_run(
@@ -219,6 +329,7 @@ def _cached_selection(
     config: RunnerConfig,
     topic: str,
     task_id: str,
+    policy: ValidatedPolicy,
 ) -> SelectionTuple | None:
     selection = _selection_from_state(run.get("selection"))
     session_id = run.get("session_id")
@@ -232,14 +343,58 @@ def _cached_selection(
         or selection.task_id != task_id
     ):
         return None
+    profiles = policy.registry.get("profiles")
+    if not isinstance(profiles, Mapping):
+        return None
+    profile = profiles.get(selection.profile)
+    if (
+        not isinstance(profile, Mapping)
+        or profile.get("model") != selection.model
+        or profile.get("effort") != selection.effort
+    ):
+        return None
+    expected = _selection_tuple(
+        policy,
+        task_id,
+        {"profile": selection.profile, "model": selection.model, "effort": selection.effort},
+    )
+    if selection != expected:
+        return None
     cache = load_selection_cache(state_root, run_id)
     decision = load_decision(state_root, session_id)
     if cache is None or decision is None:
         return None
     try:
-        return selection if cache_matches(cache, selection, decision) else None
+        return expected if cache_matches(cache, expected, decision) else None
     except StateError:
         return None
+
+
+def _retire_attempt(state_root: Path, run_id: str, sequence: int) -> None:
+    name = f"{run_id}.{sequence}"
+    for directory in ("pending", "consumed"):
+        try:
+            (state_root / directory / f"{name}.json").unlink()
+        except FileNotFoundError:
+            pass
+    for suffix in ("slot.lock", "consume.lock"):
+        try:
+            (state_root / "locks" / f"{name}.{suffix}").unlink()
+        except FileNotFoundError:
+            pass
+    decision_directory = state_root / "decisions"
+    if decision_directory.is_dir():
+        for path in decision_directory.glob("*.json"):
+            try:
+                with path.open(encoding="utf-8") as stream:
+                    decision = json.load(stream)
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                continue
+            if decision.get("run_id") == run_id and decision.get("sequence") == sequence:
+                session_id = decision.get("session_id")
+                path.unlink(missing_ok=True)
+                if isinstance(session_id, str):
+                    (state_root / "locks" / f"session.{session_id}.lock").unlink(missing_ok=True)
 
 
 def _app_server_launch(
@@ -331,11 +486,15 @@ def _run_one(
     task_id: str,
     run_id: str,
     sequence: int,
+    policy: ValidatedPolicy,
     run: Mapping[str, object] | None = None,
-    policy: ValidatedPolicy | None = None,
 ) -> _TaskResult:
     state_root = routing_root(config.codex_home)
-    cached = _cached_selection(state_root, run, config, topic, task_id) if run is not None else None
+    cached = (
+        _cached_selection(state_root, run, config, topic, task_id, policy)
+        if run is not None
+        else None
+    )
     model_list_required = cached is None
     expected_turn_request_id = 4 if model_list_required else 3
 
@@ -348,10 +507,9 @@ def _run_one(
         client.notify("initialized", {})
         selection = cached
         if selection is None:
-            current_policy = policy if policy is not None else _load_policy(config, topic)
             available = _model_list(client)
-            selected = select_validated_profile(current_policy, task_id, available)
-            selection = _selection_tuple(current_policy, task_id, selected)
+            selected = select_validated_profile(policy, task_id, available)
+            selection = _selection_tuple(policy, task_id, selected)
         thread_result = client.request(
             "thread/start",
             {"cwd": str(config.target_root), "model": selection.model},
@@ -406,7 +564,9 @@ def run_task(config: RunnerConfig, topic: str, task_id: str) -> int:
     """Start exactly one explicit task and return without selecting a successor."""
     run_id = secrets.token_hex(16)
     try:
-        result = _run_one(config, topic, task_id, run_id, 1)
+        policy = _load_policy(config, topic)
+        _task(policy, task_id)
+        result = _run_one(config, topic, task_id, run_id, 1, policy=policy)
     except (AppServerError, PolicyError, RunnerError, StateError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -418,74 +578,103 @@ def orchestrate(config: RunnerConfig, topic: str) -> int:
     """Start or continue only local run state and advance on structured complete."""
     state_root = routing_root(config.codex_home)
     try:
-        run = _read_run(state_root)
-        initial_policy: ValidatedPolicy | None = None
-        if run is None or run.get("topic") != topic:
-            initial_policy = _load_policy(config, topic)
-            declared = _tasks(initial_policy)
-            if not declared:
-                raise RunnerError("topic has no declared tasks")
-            run = {
-                "run_id": secrets.token_hex(16),
-                "sequence": 1,
-                "topic": topic,
-                "task_index": 0,
-                "task_id": declared[0]["id"],
-                "selection": None,
-                "session_id": None,
-            }
-            print(f"Starting new run from first task: {run['task_id']}")
+        with _orchestrator_lock(config, topic):
+            policy = _load_policy(config, topic)
+            declared = _tasks(policy)
+            run = _read_run(state_root)
+            if run is None or run.get("topic") != topic:
+                if not declared:
+                    raise RunnerError("topic has no declared tasks")
+                run = {
+                    "run_id": secrets.token_hex(16),
+                    "sequence": 1,
+                    "topic": topic,
+                    "task_index": 0,
+                    "task_id": declared[0]["id"],
+                    "selection": None,
+                    "session_id": None,
+                }
+                _write_run(
+                    state_root,
+                    run_id=str(run["run_id"]),
+                    sequence=1,
+                    topic=topic,
+                    task_index=0,
+                    task_id=str(run["task_id"]),
+                    selection=None,
+                    session_id=None,
+                )
+                print(f"Starting new run from first task: {run['task_id']}")
 
-        while run.get("task_id") is not None:
-            run_id = str(run["run_id"])
-            sequence = int(run["sequence"])
-            task_index = int(run["task_index"])
-            task_id = str(run["task_id"])
-            result = _run_one(
-                config,
-                topic,
-                task_id,
-                run_id,
-                sequence,
-                run=run,
-                policy=initial_policy,
-            )
-            initial_policy = None
-            if result.transition != "complete":
+            while run.get("task_id") is not None:
+                policy = _load_policy(config, topic)
+                declared = _tasks(policy)
+                run_id = str(run["run_id"])
+                sequence = int(run["sequence"])
+                task_index = int(run["task_index"])
+                task_id = str(run["task_id"])
+                if (
+                    task_index >= len(declared)
+                    or declared[task_index]["id"] != task_id
+                ):
+                    raise RunnerError("local task position no longer matches approved policy")
+                try:
+                    result = _run_one(
+                        config,
+                        topic,
+                        task_id,
+                        run_id,
+                        sequence,
+                        run=run,
+                        policy=policy,
+                    )
+                except (AppServerError, PolicyError, RunnerError, StateError):
+                    _retire_attempt(state_root, run_id, sequence)
+                    _write_run(
+                        state_root,
+                        run_id=run_id,
+                        sequence=sequence + 1,
+                        topic=topic,
+                        task_index=task_index,
+                        task_id=task_id,
+                        selection=_selection_from_state(run.get("selection")),
+                        session_id=(
+                            str(run["session_id"])
+                            if isinstance(run.get("session_id"), str)
+                            else None
+                        ),
+                    )
+                    raise
+                if result.transition != "complete":
+                    _write_run(
+                        state_root,
+                        run_id=run_id,
+                        sequence=sequence + 1,
+                        topic=topic,
+                        task_index=task_index,
+                        task_id=task_id,
+                        selection=result.selection,
+                        session_id=result.session_id,
+                    )
+                    print(result.summary)
+                    return 1
+
+                next_index = task_index + 1
+                next_task = str(declared[next_index]["id"]) if next_index < len(declared) else None
                 _write_run(
                     state_root,
                     run_id=run_id,
                     sequence=sequence + 1,
                     topic=topic,
-                    task_index=task_index,
-                    task_id=task_id,
-                    selection=result.selection,
-                    session_id=result.session_id,
+                    task_index=next_index,
+                    task_id=next_task,
+                    selection=None,
+                    session_id=None,
                 )
-                print(result.summary)
-                return 1
-
-            policy = _load_policy(config, topic)
-            declared = _tasks(policy)
-            if task_index >= len(declared) or declared[task_index]["id"] != task_id:
-                raise RunnerError("local task position no longer matches approved policy")
-            next_index = task_index + 1
-            next_task = str(declared[next_index]["id"]) if next_index < len(declared) else None
-            _write_run(
-                state_root,
-                run_id=run_id,
-                sequence=sequence + 1,
-                topic=topic,
-                task_index=next_index,
-                task_id=next_task,
-                selection=None,
-                session_id=None,
-            )
-            run = _read_run(state_root)
-            if run is None:
-                raise RunnerError("local orchestration state disappeared")
-            initial_policy = policy
-        return 0
+                run = _read_run(state_root)
+                if run is None:
+                    raise RunnerError("local orchestration state disappeared")
+            return 0
     except (AppServerError, PolicyError, RunnerError, StateError) as exc:
         print(str(exc), file=sys.stderr)
         return 1

@@ -97,6 +97,32 @@ class AppServerClient:
             raise AppServerError("invalid App Server notification")
         self._send({"method": method, "params": params})
 
+    @staticmethod
+    def _validate_server_request(message: dict[str, object]) -> tuple[str | int, str]:
+        if set(message) != {"id", "method", "params"}:
+            raise AppServerError("App Server request has an invalid shape")
+        request_id = message.get("id")
+        method = message.get("method")
+        params = message.get("params")
+        if (
+            (type(request_id) is not int and not isinstance(request_id, str))
+            or isinstance(request_id, str) and not request_id
+            or not isinstance(method, str)
+            or not method
+            or not isinstance(params, dict)
+        ):
+            raise AppServerError("App Server request has invalid id, method, or params")
+        return request_id, method
+
+    def _decline_server_request(self, message: dict[str, object]) -> None:
+        request_id, _ = self._validate_server_request(message)
+        self._send(
+            {
+                "id": request_id,
+                "error": {"code": -32601, "message": "Unsupported server request"},
+            }
+        )
+
     def request(
         self,
         method: str,
@@ -117,6 +143,9 @@ class AppServerClient:
             if "id" not in message:
                 self._validate_notification(message)
                 continue
+            if "method" in message:
+                self._decline_server_request(message)
+                continue
             if message.get("id") != request_id:
                 raise AppServerError("App Server response ID does not match the request")
             if set(message) == {"id", "result"} and isinstance(message.get("result"), dict):
@@ -136,6 +165,9 @@ class AppServerClient:
         while True:
             message = self._read_message()
             if "id" in message:
+                if "method" in message:
+                    self._decline_server_request(message)
+                    continue
                 raise AppServerError("unexpected App Server response while waiting for a turn")
             method, params = self._validate_notification(message)
             if method != "turn/completed":
