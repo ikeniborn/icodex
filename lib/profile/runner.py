@@ -23,13 +23,15 @@ from policy import PolicyError, ValidatedPolicy, load_policy, select_validated_p
 from state import (
     SelectionTuple,
     StateError,
-    atomic_json_write,
     cache_matches,
     create_handoff,
     load_decision,
     load_selection_cache,
+    retire_attempt,
     routing_root,
     save_selection_cache,
+    validate_run_id,
+    validate_sequence,
 )
 
 
@@ -167,53 +169,130 @@ def _selection_from_state(value: object) -> SelectionTuple | None:
         return None
 
 
-def _read_run(state_root: Path) -> dict[str, object] | None:
-    directory: int | None = None
+@contextmanager
+def _orchestration_directory(state_root: Path, *, create: bool):
+    parent_descriptor: int | None = None
+    root_descriptor: int | None = None
+    orchestration_descriptor: int | None = None
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    missing = False
+    try:
+        parent_descriptor = os.open(state_root.parent, flags)
+        if create:
+            try:
+                os.mkdir(state_root.name, mode=0o700, dir_fd=parent_descriptor)
+            except FileExistsError:
+                pass
+        root_descriptor = os.open(state_root.name, flags, dir_fd=parent_descriptor)
+        root_metadata = os.fstat(root_descriptor)
+        if not stat.S_ISDIR(root_metadata.st_mode) or root_metadata.st_uid != os.getuid():
+            raise RunnerError("profile routing state must be an owned directory")
+        os.fchmod(root_descriptor, 0o700)
+        if create:
+            try:
+                os.mkdir("orchestration", mode=0o700, dir_fd=root_descriptor)
+            except FileExistsError:
+                pass
+        orchestration_descriptor = os.open(
+            "orchestration", flags, dir_fd=root_descriptor
+        )
+        metadata = os.fstat(orchestration_descriptor)
+        if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid():
+            raise RunnerError("orchestration state must be an owned directory")
+        os.fchmod(orchestration_descriptor, 0o700)
+    except FileNotFoundError:
+        if create:
+            for descriptor in (orchestration_descriptor, root_descriptor, parent_descriptor):
+                if descriptor is not None:
+                    os.close(descriptor)
+            raise
+        missing = True
+    except OSError as exc:
+        for descriptor in (orchestration_descriptor, root_descriptor, parent_descriptor):
+            if descriptor is not None:
+                os.close(descriptor)
+        raise RunnerError(f"cannot open orchestration state: {exc}") from exc
+    except Exception:
+        for descriptor in (orchestration_descriptor, root_descriptor, parent_descriptor):
+            if descriptor is not None:
+                os.close(descriptor)
+        raise
+    if missing:
+        try:
+            yield None
+        finally:
+            for descriptor in (
+                orchestration_descriptor,
+                root_descriptor,
+                parent_descriptor,
+            ):
+                if descriptor is not None:
+                    os.close(descriptor)
+        return
+    try:
+        yield orchestration_descriptor
+    finally:
+        for descriptor in (
+            orchestration_descriptor,
+            root_descriptor,
+            parent_descriptor,
+        ):
+            if descriptor is not None:
+                os.close(descriptor)
+
+
+def _read_run(state_root: Path, topic: str) -> dict[str, object] | None:
+    if TOPIC_RE.fullmatch(topic) is None:
+        raise RunnerError("topic must be canonical lowercase kebab-case")
     descriptor: int | None = None
     try:
-        directory = os.open(
-            state_root,
-            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
-        )
-        descriptor = os.open(
-            "run.json",
-            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
-            dir_fd=directory,
-        )
-        metadata = os.fstat(descriptor)
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or metadata.st_uid != os.getuid()
-            or stat.S_IMODE(metadata.st_mode) != 0o600
-        ):
-            raise RunnerError("local orchestration state must be an owner-only regular file")
-        with os.fdopen(descriptor, encoding="utf-8") as stream:
-            descriptor = None
-            value = json.load(stream)
-    except FileNotFoundError:
-        return None
+        with _orchestration_directory(state_root, create=False) as directory:
+            if directory is None:
+                return None
+            try:
+                descriptor = os.open(
+                    f"{topic}.json",
+                    os.O_RDONLY
+                    | getattr(os, "O_NOFOLLOW", 0)
+                    | getattr(os, "O_NONBLOCK", 0),
+                    dir_fd=directory,
+                )
+            except FileNotFoundError:
+                return None
+            metadata = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.getuid()
+                or metadata.st_nlink != 1
+                or stat.S_IMODE(metadata.st_mode) != 0o600
+            ):
+                raise RunnerError("local orchestration state must be an owner-only regular file")
+            with os.fdopen(descriptor, encoding="utf-8") as stream:
+                descriptor = None
+                value = json.load(stream)
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise RunnerError(f"local orchestration state is malformed: {exc}") from exc
     finally:
         if descriptor is not None:
             os.close(descriptor)
-        if directory is not None:
-            os.close(directory)
     required = {"run_id", "sequence", "topic", "task_index", "task_id", "selection", "session_id"}
     if not isinstance(value, dict) or set(value) != required:
         raise RunnerError("local orchestration state has an invalid schema")
     if (
-        not isinstance(value["run_id"], str)
-        or not value["run_id"]
-        or type(value["sequence"]) is not int
-        or value["sequence"] < 1
-        or not isinstance(value["topic"], str)
+        value["topic"] != topic
         or type(value["task_index"]) is not int
         or value["task_index"] < 0
         or value["task_id"] is not None and not isinstance(value["task_id"], str)
         or value["selection"] is not None and not isinstance(value["selection"], dict)
         or value["session_id"] is not None and not isinstance(value["session_id"], str)
     ):
+        raise RunnerError("local orchestration state has invalid fields")
+    try:
+        validate_run_id(value["run_id"])
+        sequence = validate_sequence(value["sequence"])
+    except StateError as exc:
+        raise RunnerError("local orchestration state has invalid fields") from exc
+    if sequence < 1:
         raise RunnerError("local orchestration state has invalid fields")
     return value
 
@@ -270,7 +349,11 @@ def _orchestrator_lock(config: RunnerConfig, topic: str):
             dir_fd=coordinator_descriptor,
         )
         lock_metadata = os.fstat(lock_descriptor)
-        if not stat.S_ISREG(lock_metadata.st_mode) or lock_metadata.st_uid != os.getuid():
+        if (
+            not stat.S_ISREG(lock_metadata.st_mode)
+            or lock_metadata.st_uid != os.getuid()
+            or lock_metadata.st_nlink != 1
+        ):
             raise RunnerError("orchestrator lock must be an owned regular file")
         os.fchmod(lock_descriptor, 0o600)
         try:
@@ -309,18 +392,71 @@ def _write_run(
     selection: SelectionTuple | None,
     session_id: str | None,
 ) -> None:
-    atomic_json_write(
-        state_root / "run.json",
-        {
-            "run_id": run_id,
-            "sequence": sequence,
-            "topic": topic,
-            "task_index": task_index,
-            "task_id": task_id,
-            "selection": dataclasses.asdict(selection) if selection is not None else None,
-            "session_id": session_id,
-        },
-    )
+    if TOPIC_RE.fullmatch(topic) is None:
+        raise RunnerError("topic must be canonical lowercase kebab-case")
+    try:
+        run_id = validate_run_id(run_id)
+        sequence = validate_sequence(sequence)
+    except StateError as exc:
+        raise RunnerError("local orchestration state has invalid fields") from exc
+    if sequence < 1 or task_index < 0:
+        raise RunnerError("local orchestration state has invalid fields")
+    value = {
+        "run_id": run_id,
+        "sequence": sequence,
+        "topic": topic,
+        "task_index": task_index,
+        "task_id": task_id,
+        "selection": dataclasses.asdict(selection) if selection is not None else None,
+        "session_id": session_id,
+    }
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
+    temporary = f".{topic}.json.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+    descriptor: int | None = None
+    with _orchestration_directory(state_root, create=True) as directory:
+        assert directory is not None
+        try:
+            try:
+                existing = os.stat(
+                    f"{topic}.json", dir_fd=directory, follow_symlinks=False
+                )
+            except FileNotFoundError:
+                existing = None
+            if existing is not None and (
+                not stat.S_ISREG(existing.st_mode)
+                or existing.st_uid != os.getuid()
+                or existing.st_nlink != 1
+                or stat.S_IMODE(existing.st_mode) != 0o600
+            ):
+                raise RunnerError("local orchestration state must be an owner-only regular file")
+            descriptor = os.open(
+                temporary,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+                dir_fd=directory,
+            )
+            with os.fdopen(descriptor, "wb") as stream:
+                descriptor = None
+                stream.write(encoded)
+                stream.flush()
+                os.fsync(stream.fileno())
+                os.fchmod(stream.fileno(), 0o600)
+            os.replace(
+                temporary,
+                f"{topic}.json",
+                src_dir_fd=directory,
+                dst_dir_fd=directory,
+            )
+            os.fsync(directory)
+        except OSError as exc:
+            raise RunnerError(f"cannot write local orchestration state: {exc}") from exc
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+            try:
+                os.unlink(temporary, dir_fd=directory)
+            except FileNotFoundError:
+                pass
 
 
 def _cached_selection(
@@ -368,33 +504,6 @@ def _cached_selection(
         return expected if cache_matches(cache, expected, decision) else None
     except StateError:
         return None
-
-
-def _retire_attempt(state_root: Path, run_id: str, sequence: int) -> None:
-    name = f"{run_id}.{sequence}"
-    for directory in ("pending", "consumed"):
-        try:
-            (state_root / directory / f"{name}.json").unlink()
-        except FileNotFoundError:
-            pass
-    for suffix in ("slot.lock", "consume.lock"):
-        try:
-            (state_root / "locks" / f"{name}.{suffix}").unlink()
-        except FileNotFoundError:
-            pass
-    decision_directory = state_root / "decisions"
-    if decision_directory.is_dir():
-        for path in decision_directory.glob("*.json"):
-            try:
-                with path.open(encoding="utf-8") as stream:
-                    decision = json.load(stream)
-            except (OSError, UnicodeError, json.JSONDecodeError):
-                continue
-            if decision.get("run_id") == run_id and decision.get("sequence") == sequence:
-                session_id = decision.get("session_id")
-                path.unlink(missing_ok=True)
-                if isinstance(session_id, str):
-                    (state_root / "locks" / f"session.{session_id}.lock").unlink(missing_ok=True)
 
 
 def _app_server_launch(
@@ -581,8 +690,8 @@ def orchestrate(config: RunnerConfig, topic: str) -> int:
         with _orchestrator_lock(config, topic):
             policy = _load_policy(config, topic)
             declared = _tasks(policy)
-            run = _read_run(state_root)
-            if run is None or run.get("topic") != topic:
+            run = _read_run(state_root, topic)
+            if run is None:
                 if not declared:
                     raise RunnerError("topic has no declared tasks")
                 run = {
@@ -629,7 +738,7 @@ def orchestrate(config: RunnerConfig, topic: str) -> int:
                         policy=policy,
                     )
                 except (AppServerError, PolicyError, RunnerError, StateError):
-                    _retire_attempt(state_root, run_id, sequence)
+                    retire_attempt(state_root, run_id, sequence)
                     _write_run(
                         state_root,
                         run_id=run_id,
@@ -671,7 +780,7 @@ def orchestrate(config: RunnerConfig, topic: str) -> int:
                     selection=None,
                     session_id=None,
                 )
-                run = _read_run(state_root)
+                run = _read_run(state_root, topic)
                 if run is None:
                     raise RunnerError("local orchestration state disappeared")
             return 0

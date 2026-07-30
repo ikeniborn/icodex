@@ -108,7 +108,7 @@ profiles:
 """
 
 
-def manifest(registry_hash: str) -> str:
+def manifest(registry_hash: str, topic: str = "demo") -> str:
     task = """    requirements:
       capability: strong
       context: medium
@@ -120,7 +120,7 @@ def manifest(registry_hash: str) -> str:
       - engineering
 """
     return f"""schema_version: 1
-topic: demo
+topic: {topic}
 status: approved
 registry:
   authority: icodex-shared
@@ -160,14 +160,25 @@ def emit(value):
 
 for line in sys.stdin:
     request = json.loads(line)
+    method = request.get("method")
+    run_state_exists = False
+    if method == "turn/start":
+        prompt = request["params"]["input"][0]["text"]
+        topic = prompt.rsplit("topic ", 1)[-1].removesuffix(".")
+        run_state_exists = (
+            Path(os.environ["FAKE_CODEX_HOME"])
+            / "state"
+            / "profile-routing"
+            / "orchestration"
+            / f"{topic}.json"
+        ).is_file()
     with record.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps({
             "request": request,
             "environment": {key: os.environ.get(key) for key in sorted(os.environ) if key.startswith("ICODEX_PROFILE_")},
             "argv": sys.argv[1:],
-            "runStateExists": (Path(os.environ["FAKE_CODEX_HOME"]) / "state" / "profile-routing" / "run.json").is_file(),
+            "runStateExists": run_state_exists,
         }, sort_keys=True, separators=(",", ":")) + "\n")
-    method = request.get("method")
     if method is None:
         continue
     if method == "initialized":
@@ -307,6 +318,10 @@ def methods(fixture: Fixture) -> list[str]:
         for item in requests(fixture)
         if isinstance(item.get("request"), dict) and "method" in item["request"]
     ]
+
+
+def orchestration_run_path(state_root: Path, topic: str = "demo") -> Path:
+    return state_root / "orchestration" / f"{topic}.json"
 
 
 def configure_fake(fixture: Fixture, transitions: list[str]) -> None:
@@ -586,7 +601,7 @@ with tempfile.TemporaryDirectory() as temporary:
     state_root = fixture.home / "state" / "profile-routing"
     baseline_root = Path(temporary) / "baseline-state"
     shutil.copytree(state_root, baseline_root)
-    run_path = state_root / "run.json"
+    run_path = orchestration_run_path(state_root)
     baseline_run = json.loads(run_path.read_text(encoding="utf-8"))
     selection_fields = list(baseline_run["selection"])
     for index, field in enumerate(selection_fields):
@@ -623,7 +638,7 @@ with tempfile.TemporaryDirectory() as temporary:
     config = runner.RunnerConfig(fixture.target, fixture.home, fixture.shared_root, fixture.binary)
     runner.orchestrate(config, "demo")
     state_root = fixture.home / "state" / "profile-routing"
-    run_path = state_root / "run.json"
+    run_path = orchestration_run_path(state_root)
     run_state = json.loads(run_path.read_text(encoding="utf-8"))
     cache_path = next((state_root / "cache").glob("*.json"))
     cache = json.loads(cache_path.read_text(encoding="utf-8"))
@@ -644,6 +659,10 @@ with tempfile.TemporaryDirectory() as temporary:
 
 def orchestrate_worker(config, queue) -> None:
     queue.put(runner.orchestrate(config, "demo"))
+
+
+def orchestrate_topic_worker(config, topic: str, queue) -> None:
+    queue.put((topic, runner.orchestrate(config, topic)))
 
 
 with tempfile.TemporaryDirectory() as temporary:
@@ -680,6 +699,77 @@ with tempfile.TemporaryDirectory() as temporary:
         "cold run ownership persists before turn start",
         len(turn_records) == 1 and turn_records[0]["runStateExists"] is True,
     )
+    state_root = fixture.home / "state" / "profile-routing"
+    run_path = orchestration_run_path(state_root)
+    check(
+        "per-topic orchestration namespace is restrictive",
+        stat.S_IMODE(run_path.parent.stat().st_mode) == 0o700
+        and stat.S_IMODE(run_path.stat().st_mode) == 0o600
+        and not (state_root / "run.json").exists(),
+    )
+
+with tempfile.TemporaryDirectory() as temporary:
+    fixture = make_fixture(Path(temporary))
+    registry_hash = hashlib.sha256(REGISTRY.encode()).hexdigest()
+    for topic in ("alpha", "beta"):
+        (fixture.target / "docs" / "profiles" / f"{topic}.yaml").write_text(
+            manifest(registry_hash, topic),
+            encoding="utf-8",
+        )
+    git(fixture.target, "add", "docs/profiles/alpha.yaml", "docs/profiles/beta.yaml")
+    git(fixture.target, "commit", "-qm", "two topics")
+    configure_fake(fixture, ["blocked"])
+    os.environ["FAKE_APP_SERVER_DELAY"] = "0.3"
+    config = runner.RunnerConfig(fixture.target, fixture.home, fixture.shared_root, fixture.binary)
+    context = multiprocessing.get_context("fork")
+    queue = context.Queue()
+    processes = [
+        context.Process(target=orchestrate_topic_worker, args=(config, topic, queue))
+        for topic in ("alpha", "beta")
+    ]
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join(5)
+        if process.is_alive():
+            process.terminate()
+            process.join()
+    results = dict(queue.get(timeout=1) for _ in range(2)) if queue.qsize() == 2 else {}
+    orchestration = fixture.home / "state" / "profile-routing" / "orchestration"
+    topic_states = {
+        topic: json.loads((orchestration / f"{topic}.json").read_text(encoding="utf-8"))
+        for topic in ("alpha", "beta")
+        if (orchestration / f"{topic}.json").is_file()
+    }
+    check(
+        "different topics execute concurrently and keep separate state",
+        set(results) == {"alpha", "beta"}
+        and all(code != 0 for code in results.values())
+        and set(topic_states) == {"alpha", "beta"}
+        and topic_states["alpha"]["run_id"] != topic_states["beta"]["run_id"],
+    )
+    first_positions = {
+        topic: (value["run_id"], value["task_id"], value["sequence"])
+        for topic, value in topic_states.items()
+    }
+    os.environ.pop("FAKE_APP_SERVER_DELAY", None)
+    for topic in ("alpha", "beta"):
+        runner.orchestrate(config, topic)
+    resumed_states = {
+        topic: json.loads((orchestration / f"{topic}.json").read_text(encoding="utf-8"))
+        for topic in ("alpha", "beta")
+        if (orchestration / f"{topic}.json").is_file()
+    }
+    check(
+        "each topic resumes its own run and task position",
+        set(resumed_states) == {"alpha", "beta"}
+        and all(
+            resumed_states[topic]["run_id"] == first_positions[topic][0]
+            and resumed_states[topic]["task_id"] == first_positions[topic][1]
+            and resumed_states[topic]["sequence"] == first_positions[topic][2] + 1
+            for topic in ("alpha", "beta")
+        ),
+    )
 
 for failure_mode, evidence_directory in (
     ("server_error", "pending"),
@@ -692,7 +782,7 @@ for failure_mode, evidence_directory in (
         config = runner.RunnerConfig(fixture.target, fixture.home, fixture.shared_root, fixture.binary)
         first_code = runner.orchestrate(config, "demo")
         state_root = fixture.home / "state" / "profile-routing"
-        run_path = state_root / "run.json"
+        run_path = orchestration_run_path(state_root)
         first_run = json.loads(run_path.read_text()) if run_path.is_file() else None
         failed_evidence = (
             state_root
@@ -734,7 +824,7 @@ with tempfile.TemporaryDirectory() as temporary:
     config = runner.RunnerConfig(fixture.target, fixture.home, fixture.shared_root, fixture.binary)
     runner.orchestrate(config, "demo")
     state_root = fixture.home / "state" / "profile-routing"
-    run_path = state_root / "run.json"
+    run_path = orchestration_run_path(state_root)
     run_state = json.loads(run_path.read_text())
     selection = run_state["selection"]
     runner.create_handoff(
@@ -775,7 +865,7 @@ with tempfile.TemporaryDirectory() as temporary:
     config = runner.RunnerConfig(fixture.target, fixture.home, fixture.shared_root, fixture.binary)
     runner.orchestrate(config, "demo")
     state_root = fixture.home / "state" / "profile-routing"
-    run_path = state_root / "run.json"
+    run_path = orchestration_run_path(state_root)
     baseline = json.loads(run_path.read_text())
     baseline_state = Path(temporary) / "position-baseline"
     shutil.copytree(state_root, baseline_state)
@@ -809,10 +899,30 @@ with tempfile.TemporaryDirectory() as temporary:
     runner.orchestrate(config, "demo")
     check("forged cached selection forces policy model recheck", methods(fixture).count("model/list") == before_models + 1)
 
+    shutil.rmtree(state_root)
+    shutil.copytree(baseline_state, state_root)
+    forged = json.loads(run_path.read_text())
+    external_stem = Path(temporary) / "forged-run-victim"
+    victim = Path(f"{external_stem}.{forged['sequence']}.json")
+    victim.write_text("preserve", encoding="utf-8")
+    forged["run_id"] = str(external_stem)
+    run_path.write_text(json.dumps(forged, sort_keys=True, separators=(",", ":")) + "\n")
+    before = methods(fixture).count("turn/start")
+    code = runner.orchestrate(config, "demo")
+    check(
+        "forged absolute run id fails before execution",
+        code != 0 and methods(fixture).count("turn/start") == before,
+    )
+    check(
+        "forged absolute run id cannot retire external victim",
+        victim.is_file() and victim.read_text(encoding="utf-8") == "preserve",
+    )
+
 with tempfile.TemporaryDirectory() as temporary:
     base = Path(temporary)
     state_root = base / "routing"
     state_root.mkdir()
+    (state_root / "orchestration").mkdir()
     valid = {
         "run_id": "secure-run",
         "sequence": 1,
@@ -824,33 +934,34 @@ with tempfile.TemporaryDirectory() as temporary:
     }
     target = base / "target.json"
     target.write_text(json.dumps(valid), encoding="utf-8")
-    (state_root / "run.json").symlink_to(target)
+    run_path = orchestration_run_path(state_root)
+    run_path.symlink_to(target)
     try:
-        runner._read_run(state_root)
+        runner._read_run(state_root, "demo")
     except runner.RunnerError:
         symlink_rejected = True
     else:
         symlink_rejected = False
     check("run state symlink rejected", symlink_rejected)
 
-    (state_root / "run.json").unlink()
-    shutil.copy2(target, state_root / "run.json")
-    (state_root / "run.json").chmod(0o644)
+    run_path.unlink()
+    shutil.copy2(target, run_path)
+    run_path.chmod(0o644)
     try:
-        runner._read_run(state_root)
+        runner._read_run(state_root, "demo")
     except runner.RunnerError:
         permissive_rejected = True
     else:
         permissive_rejected = False
     check("permissive run state rejected", permissive_rejected)
 
-    (state_root / "run.json").unlink()
-    os.mkfifo(state_root / "run.json")
+    run_path.unlink()
+    os.mkfifo(run_path)
     queue = multiprocessing.get_context("fork").Queue()
 
     def read_fifo() -> None:
         try:
-            runner._read_run(state_root)
+            runner._read_run(state_root, "demo")
         except runner.RunnerError:
             queue.put("rejected")
         else:
@@ -865,6 +976,41 @@ with tempfile.TemporaryDirectory() as temporary:
         process.join()
     result = queue.get(timeout=1) if not queue.empty() else "blocked"
     check("FIFO run state rejected without blocking", not fifo_blocked and result == "rejected")
+
+with tempfile.TemporaryDirectory() as temporary:
+    fixture = make_fixture(Path(temporary))
+    orchestration = fixture.home / "state" / "profile-routing" / "orchestration"
+    orchestration.mkdir(parents=True)
+    external = Path(temporary) / "external-run-hardlink"
+    external.write_text(
+        json.dumps(
+            {
+                "run_id": "hardlink-run",
+                "sequence": 1,
+                "topic": "demo",
+                "task_index": 0,
+                "task_id": "build",
+                "selection": None,
+                "session_id": None,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ) + "\n",
+        encoding="utf-8",
+    )
+    external.chmod(0o600)
+    os.link(external, orchestration / "demo.json")
+    configure_fake(fixture, ["blocked"])
+    config = runner.RunnerConfig(fixture.target, fixture.home, fixture.shared_root, fixture.binary)
+    code = runner.orchestrate(config, "demo")
+    check(
+        "per-topic state rejects hardlinked file without external mutation",
+        code != 0
+        and methods(fixture).count("turn/start") == 0
+        and external.read_text(encoding="utf-8").endswith("\n")
+        and stat.S_IMODE(external.stat().st_mode) == 0o600
+        and external.stat().st_nlink == 2,
+    )
 
 with tempfile.TemporaryDirectory() as temporary:
     fixture = make_fixture(Path(temporary))
@@ -892,6 +1038,25 @@ with tempfile.TemporaryDirectory() as temporary:
     config = runner.RunnerConfig(fixture.target, fixture.home, fixture.shared_root, fixture.binary)
     code = runner.orchestrate(config, "demo")
     check("coordinator rejects symlink lock", code != 0 and methods(fixture).count("turn/start") == 0)
+
+with tempfile.TemporaryDirectory() as temporary:
+    fixture = make_fixture(Path(temporary))
+    coordinator = fixture.home / "state" / "profile-routing-coordinator"
+    coordinator.mkdir(parents=True)
+    external = Path(temporary) / "external-hardlink-lock"
+    external.write_text("preserve", encoding="utf-8")
+    external.chmod(0o640)
+    os.link(external, coordinator / "demo.orchestrator.lock")
+    configure_fake(fixture, ["blocked"])
+    config = runner.RunnerConfig(fixture.target, fixture.home, fixture.shared_root, fixture.binary)
+    code = runner.orchestrate(config, "demo")
+    check(
+        "coordinator rejects hardlinked lock without external mutation",
+        code != 0
+        and methods(fixture).count("turn/start") == 0
+        and external.read_text(encoding="utf-8") == "preserve"
+        and stat.S_IMODE(external.stat().st_mode) == 0o640,
+    )
 
 with tempfile.TemporaryDirectory() as temporary:
     fixture = make_fixture(Path(temporary))
