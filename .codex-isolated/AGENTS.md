@@ -119,6 +119,10 @@ as acceptance. After intent validation, report `execute` or `full` with evidence
 before starting `full`. Prefer `execute` when no full trigger is evidenced.
 
 Direct work creates no formal intent, spec, plan, `check-chain`, or chain TODO artifacts.
+The exception is an explicit direct topic: `@topic <kebab-case-topic>` is a user approval
+to create `docs/profiles/<topic>.yaml` with the initial `engineering` profile and bind it
+to the current local session. The next user prompt is the continuation confirmation;
+its wording is not a protocol field. This does not alter the chain/App Server profile path.
 Direct work must not invoke `fix-intent`, `superpowers:brainstorming`,
 `superpowers:writing-plans`, `superpowers:subagent-driven-development`, or
 `superpowers:executing-plans`. Scoped systematic debugging, TDD, and verification remain

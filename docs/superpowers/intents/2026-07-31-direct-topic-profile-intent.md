@@ -1,6 +1,6 @@
 ---
 review:
-  intent_hash: 9c5997a2c54d26fd
+  intent_hash: b8beeefc0274ae59
   last_run: 2026-07-31
   phases:
     structure: { status: passed }
@@ -12,6 +12,13 @@ review:
 workflow:
   route: chain
   continuation: execute
+result_check:
+  verdict: OK
+  source: intent
+  intent_hash: b8beeefc0274ae59
+  last_run: 2026-07-31
+  reviewed: true
+  docs_checked: true
 ---
 
 # Intent: direct-topic-profile
@@ -57,8 +64,7 @@ Codex session without repeating profile selection.
 ### Steering
 
 - `@topic <slug>` is the sole direct-topic authority and the user's explicit approval of
-  the initial `engineering` profile; the thread title is a synchronized user-interface
-  hint only.
+  the initial `engineering` profile; the thread title is a user-interface hint only.
 - A new or resumed session uses the same `@topic <slug>` command.
 - A direct topic profile lives at `docs/profiles/<topic>.yaml`.
 - The first user prompt after a manual profile switch is the user's confirmation; its
@@ -76,8 +82,8 @@ Codex session without repeating profile selection.
 
 - Full autonomy: accept a valid `@topic <slug>`, persist a local `session_id` to topic
   mapping, and create its user-approved initial `engineering` profile.
-- Guarded: synchronize a thread title, compare the active model on the next user prompt,
-  and add concise hook context without parsing the prompt wording.
+- Guarded: compare the active model on the next user prompt and add concise hook context
+  without parsing the prompt wording.
 - Proposal-first: change the shared registry, approve a manifest automatically, or alter
   full-chain/App Server semantics.
 - No autonomy: read transcripts, SQLite, or logs; change a model automatically; create a
