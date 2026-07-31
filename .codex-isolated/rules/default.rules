@@ -60,3 +60,4 @@ for cmd in [
     "reboot",
 ]:
     prefix_rule(pattern = [cmd], decision = "forbidden")
+prefix_rule(pattern=["command", "-v", "uv"], decision="allow")
