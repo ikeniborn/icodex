@@ -123,6 +123,8 @@ The exception is an explicit direct topic: `@topic <kebab-case-topic>` is a user
 to create `docs/profiles/<topic>.yaml` with the initial `engineering` profile and bind it
 to the current local session. The next user prompt is the continuation confirmation;
 its wording is not a protocol field. This does not alter the chain/App Server profile path.
+`@topic` is submitted as plain prompt text, not selected from Codex autocomplete: when
+the `@` menu opens, press `Esc`, finish `@topic <kebab-case-topic>`, then press Enter.
 Direct work must not invoke `fix-intent`, `superpowers:brainstorming`,
 `superpowers:writing-plans`, `superpowers:subagent-driven-development`, or
 `superpowers:executing-plans`. Scoped systematic debugging, TDD, and verification remain
