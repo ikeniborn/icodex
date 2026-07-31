@@ -27,4 +27,4 @@
 | codex-model-routing | done | ✓ | n/a | n/a | OK | 2026-07-28 | 2026-07-28 | Added intent-backed execution, LoEn checkpoints, semantic model routes, aligned reports/docs, and focused tests; no spec, plan, TOML, or runtime model switching |
 | profile-recheck-at-task-transition | done | ✓ | ✓ | ✓ | OK | 2026-07-29 | 2026-07-30 | Split-authority routing complete; full suite, production policy validation, result audit, and wiki lint passed |
 | intent-profile-bootstrap | done | ✓ | n/a | n/a | OK | 2026-07-30 | 2026-07-30 | Bootstrap profile approved; IDD 54/0, policy 118/0, runner 98/0, wiki lint clean |
-| direct-topic-profile | in-progress | ✓ | – | – | – | 2026-07-31 |  | Direct topic profile; any next prompt confirms a matching switched model |
+| direct-topic-profile | in-progress | ✓ | – | – | – | 2026-07-31 |  | Direct topic command explicitly approves the initial engineering profile |

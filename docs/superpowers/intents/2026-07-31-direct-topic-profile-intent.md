@@ -1,6 +1,6 @@
 ---
 review:
-  intent_hash: def638ed5a37cdc5
+  intent_hash: 9c5997a2c54d26fd
   last_run: 2026-07-31
   phases:
     structure: { status: passed }
@@ -27,7 +27,8 @@ Codex session without repeating profile selection.
 
 ## Desired Outcomes
 
-- A direct task accepts one canonical topic through `@topic <slug>` in the active session.
+- A direct task accepts one canonical topic through `@topic <slug>` in the active session
+  and creates its approved initial `engineering` profile.
 - A direct topic has `docs/profiles/<topic>.yaml` as its durable profile authority.
 - An unchanged, matching profile allows work without a switch.
 - After the user switches to the required profile, the next user prompt continues
@@ -55,8 +56,9 @@ Codex session without repeating profile selection.
 
 ### Steering
 
-- `@topic <slug>` is the sole direct-topic authority; the thread title is a synchronized
-  user-interface hint only.
+- `@topic <slug>` is the sole direct-topic authority and the user's explicit approval of
+  the initial `engineering` profile; the thread title is a synchronized user-interface
+  hint only.
 - A new or resumed session uses the same `@topic <slug>` command.
 - A direct topic profile lives at `docs/profiles/<topic>.yaml`.
 - The first user prompt after a manual profile switch is the user's confirmation; its
@@ -73,7 +75,7 @@ Codex session without repeating profile selection.
 ## Autonomy Zones
 
 - Full autonomy: accept a valid `@topic <slug>`, persist a local `session_id` to topic
-  mapping, and create a draft direct topic profile.
+  mapping, and create its user-approved initial `engineering` profile.
 - Guarded: synchronize a thread title, compare the active model on the next user prompt,
   and add concise hook context without parsing the prompt wording.
 - Proposal-first: change the shared registry, approve a manifest automatically, or alter
