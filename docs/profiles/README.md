@@ -9,6 +9,12 @@ At chain start, `fix-intent` creates a draft manifest for the new topic. Its fir
 manifest remains a draft until the user explicitly approves it with the checked intent;
 the profile runner accepts only the resulting approved manifest.
 
+For direct work, the user sends `@topic <kebab-case-topic>` in the active session. That
+explicit command creates an approved initial `engineering` manifest at
+`docs/profiles/<topic>.yaml` and binds the topic only to the current local session.
+The next user prompt is checked against that profile's model; its wording is not part of
+the protocol. This interactive path does not change the full-chain App Server runner.
+
 Never copy the shared registry or runtime routing state into this directory. Runtime
 state is local and disposable; it does not alter approved policy.
 

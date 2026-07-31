@@ -30,6 +30,8 @@ if interpreter.is_symlink() or not stat.S_ISREG(metadata.st_mode) or not os.acce
     raise RuntimeError("profile hook interpreter must be a canonical executable")
 script = "$CODEX_HOME/hooks/profile-transition.py"
 command = f'{shlex.quote(str(interpreter))} "{script}"'
+direct_script = "$CODEX_HOME/hooks/direct-topic.py"
+direct_command = f'{shlex.quote(str(interpreter))} "{direct_script}"'
 
 def is_profile_command(value):
     if not isinstance(value, str):
@@ -41,6 +43,19 @@ def is_profile_command(value):
     return (
         len(arguments) == 2
         and arguments[1] == script
+        and (arguments[0] == "python3" or Path(arguments[0]).is_absolute())
+    )
+
+def is_direct_command(value):
+    if not isinstance(value, str):
+        return False
+    try:
+        arguments = shlex.split(value, posix=True)
+    except ValueError:
+        return False
+    return (
+        len(arguments) == 2
+        and arguments[1] == direct_script
         and (arguments[0] == "python3" or Path(arguments[0]).is_absolute())
     )
 
@@ -64,6 +79,27 @@ entries.append({
     }],
 })
 hooks["PreToolUse"] = entries
+
+entries = []
+for entry in hooks.get("UserPromptSubmit", []):
+    kept_hooks = [hook for hook in entry.get("hooks", []) if not is_direct_command(hook.get("command"))]
+    if kept_hooks:
+        if len(kept_hooks) == len(entry.get("hooks", [])):
+            entries.append(entry)
+        else:
+            replacement = dict(entry)
+            replacement["hooks"] = kept_hooks
+            entries.append(replacement)
+entries.append({
+    "matcher": "*",
+    "hooks": [{
+        "type": "command",
+        "command": direct_command,
+        "timeout": 30,
+        "statusMessage": "Checking direct topic profile",
+    }],
+})
+hooks["UserPromptSubmit"] = entries
 
 json.dump(config, sys.stdout, indent=2)
 sys.stdout.write("\n")

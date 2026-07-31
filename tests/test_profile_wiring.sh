@@ -133,6 +133,22 @@ assert_eq "profile hook type" "command" "$(sed -n '5p' <<<"$profile_summary")"
 assert_eq "profile hook timeout" "30" "$(sed -n '6p' <<<"$profile_summary")"
 assert_eq "profile hook status" "Checking routed profile evidence" "$(sed -n '7p' <<<"$profile_summary")"
 
+direct_hook_count="$(python3 - "$hooks_file" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    data = json.load(stream)
+count = 0
+for entry in data.get("hooks", {}).get("UserPromptSubmit", []):
+    for hook in entry.get("hooks", []):
+        if hook.get("command", "").endswith('"$CODEX_HOME/hooks/direct-topic.py"'):
+            count += 1
+print(count)
+PY
+)"
+assert_eq "exactly one direct topic hook" "1" "$direct_hook_count"
+assert_contains "direct topic hook status" "$(cat "$hooks_file")" "Checking direct topic profile"
+
 after_without_profile="$(python3 - "$hooks_file" "$expected_command" <<'PY'
 import json
 import sys
@@ -142,6 +158,10 @@ command = sys.argv[2]
 data["hooks"]["PreToolUse"] = [
     entry for entry in data["hooks"]["PreToolUse"]
     if not any(hook.get("command") == command for hook in entry.get("hooks", []))
+]
+data["hooks"]["UserPromptSubmit"] = [
+    entry for entry in data["hooks"]["UserPromptSubmit"]
+    if not any(hook.get("command", "").endswith('"$CODEX_HOME/hooks/direct-topic.py"') for hook in entry.get("hooks", []))
 ]
 print(json.dumps(data["hooks"], separators=(",", ":")))
 PY
@@ -154,7 +174,9 @@ with open(sys.argv[1], encoding="utf-8") as stream:
 command = sys.argv[2]
 for event, entries in data["hooks"].items():
     kept = [entry for entry in entries if not any(
-        hook.get("command") == command for hook in entry.get("hooks", [])
+        hook.get("command") == command
+        or hook.get("command", "").endswith('"$CODEX_HOME/hooks/direct-topic.py"')
+        for hook in entry.get("hooks", [])
     )]
     for position, entry in enumerate(kept):
         commands = [hook.get("command", "") for hook in entry.get("hooks", [])]

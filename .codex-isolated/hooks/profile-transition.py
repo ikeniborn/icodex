@@ -414,6 +414,35 @@ def _load_state(environ: Mapping[str, str]) -> ModuleType:
     return module
 
 
+def _direct_topic(environ: Mapping[str, str], event: Mapping[str, object]) -> Mapping[str, str] | None:
+    root_value = environ.get("ICODEX_ROOT", "")
+    root = Path(root_value)
+    if not root_value or not root.is_absolute():
+        return None
+    path = root / ".codex-isolated" / "hooks" / "direct-topic.py"
+    spec = importlib.util.spec_from_file_location("icodex_direct_topic", path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    value = module.active_topic(event, environ)
+    return value if isinstance(value, Mapping) else None
+
+
+def _direct_deny(topic: str, model: str) -> dict[str, object]:
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": (
+                f"Direct topic {topic} requires model {model}. "
+                "Switch the model, then send any next prompt."
+            ),
+        }
+    }
+
+
 @contextmanager
 def _state_environment(environ: Mapping[str, str]):
     previous = {name: os.environ.get(name) for name in CORRELATION_ENV}
@@ -500,6 +529,15 @@ def validate_event(event: dict[str, object], environ: Mapping[str, str]) -> dict
     """Consume the correlated handoff or validate its persisted session decision."""
     present = [bool(environ.get(name)) for name in CORRELATION_ENV]
     if not any(present):
+        direct = _direct_topic(environ, event)
+        model = event.get("model")
+        if (
+            direct is not None
+            and is_protected(event)
+            and isinstance(model, str)
+            and direct.get("model") != model
+        ):
+            return _direct_deny(str(direct.get("topic")), str(direct.get("model")))
         return {}
     if not all(present):
         return _deny("routed correlation environment is incomplete")
