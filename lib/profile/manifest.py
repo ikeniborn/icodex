@@ -293,6 +293,13 @@ def expand(args: argparse.Namespace) -> None:
     except OSError as error:
         raise ManifestError(f"cannot read topic manifest {path}: {error}") from None
     existing = {task["id"] for task in manifest["tasks"]}
+    if args.route == "full":
+        if args.authorization != "full":
+            raise ManifestError("full expansion requires --authorization full")
+        if manifest["status"] != "approved":
+            raise ManifestError("full expansion requires an approved manifest")
+        if "intent-profile-selection" not in existing or "direct-work" in existing:
+            raise ManifestError("full expansion requires a chain bootstrap manifest")
     for task_id in ROUTES[args.route]:
         if task_id not in existing:
             manifest["tasks"].append(_task(task_id))
@@ -314,6 +321,7 @@ def main() -> int:
     expand_parser.add_argument("--registry", required=True)
     expand_parser.add_argument("--topic", required=True)
     expand_parser.add_argument("--route", choices=tuple(ROUTES), required=True)
+    expand_parser.add_argument("--authorization", choices=("full",))
     args = parser.parse_args()
     try:
         if args.command == "bootstrap":
