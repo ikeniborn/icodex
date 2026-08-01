@@ -17,6 +17,7 @@ from typing import Mapping
 SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 SESSION_RE = re.compile(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*\Z")
 TOPIC_PROMPT_RE = re.compile(r"@topic\s+([a-z0-9]+(?:-[a-z0-9]+)*)\s*\Z")
+MANIFEST_TIMEOUT_SECONDS = 5
 
 
 def _output(value: Mapping[str, object]) -> None:
@@ -89,28 +90,77 @@ def _atomic_write(path: Path, value: str, mode: int) -> None:
             pass
 
 
-def _profile_text(topic: str, registry_hash: str) -> str:
-    return f"""schema_version: 1
-topic: {topic}
-status: approved
-registry:
-  authority: icodex-shared
-  path: profiles/registry.yaml
-  sha256: {registry_hash}
-context_inputs:
-  - docs/profiles/README.md
-tasks:
-  - id: direct-work
-    requirements:
-      capability: strong
-      context: medium
-      latency: medium
-      cost: medium
-      throughput: medium
-    live_remaining_context: false
-    preferred_profiles:
-      - engineering
-"""
+def _safe_diagnostic(value: str) -> str:
+    normalized = " ".join(value.split())
+    normalized = re.sub(r"[^A-Za-z0-9 .,:;_()/-]", "?", normalized)
+    return normalized[:240].rstrip()
+
+
+def _run_manifest(command: list[str], action: str) -> None:
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=MANIFEST_TIMEOUT_SECONDS,
+            env={"PATH": "/usr/bin:/bin", "LC_ALL": "C", "LANG": "C"},
+        )
+    except OSError as error:
+        raise ValueError(f"shared manifest helper is unavailable: {_safe_diagnostic(str(error))}") from None
+    except subprocess.TimeoutExpired:
+        raise ValueError(f"shared manifest helper {action} timed out after {MANIFEST_TIMEOUT_SECONDS} seconds") from None
+    if result.returncode != 0:
+        raise ValueError(f"shared manifest helper {action} failed with exit code {result.returncode}")
+
+
+def _update_manifest(home: Path, root: Path, topic: str, exists: bool, environ: Mapping[str, str]) -> None:
+    root_text = environ.get("ICODEX_ROOT", "")
+    helper_root = Path(root_text)
+    if not root_text or not helper_root.is_absolute():
+        raise ValueError("ICODEX_ROOT must be absolute")
+    installed_root = Path(__file__).resolve().parents[2]
+    if helper_root.resolve() != installed_root:
+        raise ValueError("ICODEX_ROOT does not match installed hook location")
+    helper = helper_root / "lib" / "profile" / "manifest.py"
+    if not helper.is_file():
+        raise ValueError("shared manifest helper is unavailable")
+    registry = home / "profiles" / "registry.yaml"
+    if not exists:
+        command = [
+            sys.executable,
+            str(helper),
+            "bootstrap",
+            "--project-root",
+            str(root),
+            "--registry",
+            str(registry),
+            "--topic",
+            topic,
+            "--intent",
+            "docs/profiles/README.md",
+            "--status",
+            "approved",
+            "--route",
+            "direct",
+        ]
+        _run_manifest(command, "bootstrap")
+    else:
+        command = [
+            sys.executable,
+            str(helper),
+            "expand",
+            "--project-root",
+            str(root),
+            "--registry",
+            str(registry),
+            "--topic",
+            topic,
+            "--route",
+            "direct",
+        ]
+        _run_manifest(command, "expansion")
 
 
 def _mapping_path(home: Path, session_id: str) -> Path:
@@ -175,10 +225,9 @@ def handle(event: Mapping[str, object], environ: Mapping[str, str]) -> dict[str,
         topic_match = TOPIC_PROMPT_RE.fullmatch(prompt)
         if topic_match is not None:
             topic = topic_match.group(1)
-            registry_hash, required_model, effort = _registry_profile(home)
+            _, required_model, effort = _registry_profile(home)
             profile = root / "docs" / "profiles" / f"{topic}.yaml"
-            if not profile.exists():
-                _atomic_write(profile, _profile_text(topic, registry_hash), 0o644)
+            _update_manifest(home, root, topic, profile.exists(), environ)
             _save_topic(home, session_id, root, topic, required_model, effort)
             return _context(
                 f"Direct topic {topic} is active. Its explicit @topic command approved "
@@ -196,8 +245,12 @@ def handle(event: Mapping[str, object], environ: Mapping[str, str]) -> dict[str,
             f"Direct topic {current['topic']} is active with matching model {model}. "
             "The user confirmed the selected reasoning effort by continuing this session."
         )
-    except (OSError, ValueError):
-        return _block("Direct topic state is unavailable. Send @topic <lowercase-kebab-case-topic>.")
+    except (OSError, ValueError) as error:
+        return _block(
+            f"Direct topic state is unavailable: {_safe_diagnostic(str(error))}. "
+            "Verify ICODEX_ROOT, the shared registry, and docs/profiles/README.md, then send "
+            "@topic <lowercase-kebab-case-topic>."
+        )
 
 
 def main() -> int:

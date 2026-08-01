@@ -105,11 +105,28 @@ profiles:
       latency: low
       cost: low
       throughput: high
+  synthesis:
+    model: gpt-synthesis
+    effort: medium
+    capacities:
+      capability: strong
+      context: medium
+      latency: low
+      cost: low
+      throughput: high
 """
 
 
-def manifest(registry_hash: str, topic: str = "demo") -> str:
-    task = """    requirements:
+def manifest(
+    registry_hash: str,
+    topic: str = "demo",
+    tasks: list[tuple[str, str]] | None = None,
+) -> str:
+    if tasks is None:
+        tasks = [("build", "engineering"), ("review", "engineering")]
+    task_blocks = "".join(
+        f"""  - id: {task_id}
+    requirements:
       capability: strong
       context: medium
       latency: high
@@ -117,8 +134,10 @@ def manifest(registry_hash: str, topic: str = "demo") -> str:
       throughput: low
     live_remaining_context: false
     preferred_profiles:
-      - engineering
+      - {profile}
 """
+        for task_id, profile in tasks
+    )
     return f"""schema_version: 1
 topic: {topic}
 status: approved
@@ -129,9 +148,7 @@ registry:
 context_inputs:
   - docs/context.md
 tasks:
-  - id: build
-{task}  - id: review
-{task}"""
+{task_blocks}"""
 
 
 FAKE_SERVER = r'''#!/usr/bin/env python3
@@ -149,6 +166,10 @@ delay = float(os.environ.get("FAKE_APP_SERVER_DELAY", "0"))
 available = [{
     "id": "gpt-engineering",
     "model": "gpt-engineering",
+    "supportedReasoningEfforts": [{"reasoningEffort": "medium"}],
+}, {
+    "id": "gpt-synthesis",
+    "model": "gpt-synthesis",
     "supportedReasoningEfforts": [{"reasoningEffort": "medium"}],
 }]
 turn_number = int(os.environ["ICODEX_PROFILE_SEQUENCE"]) - 1
@@ -558,6 +579,47 @@ with tempfile.TemporaryDirectory() as temporary:
     check("orchestrate starts first declared task", "build" in turn_requests[0]["request"]["params"]["input"][0]["text"])
     check("cold orchestrate announces first task", "Starting new run from first task: build" in output.getvalue())
     check("orchestrate advances to successor", "review" in turn_requests[1]["request"]["params"]["input"][0]["text"])
+
+with tempfile.TemporaryDirectory() as temporary:
+    fixture = make_fixture(Path(temporary))
+    full_chain_tasks = [
+        ("intent-profile-selection", "engineering"),
+        ("spec-design", "synthesis"),
+        ("plan-writing", "synthesis"),
+        ("implementation", "engineering"),
+        ("result-reconciliation", "engineering"),
+    ]
+    registry_hash = hashlib.sha256(REGISTRY.encode()).hexdigest()
+    (fixture.target / "docs" / "profiles" / "demo.yaml").write_text(
+        manifest(registry_hash, tasks=full_chain_tasks), encoding="utf-8"
+    )
+    git(fixture.target, "add", "docs/profiles/demo.yaml")
+    git(fixture.target, "commit", "-qm", "full chain manifest")
+    configure_fake(fixture, ["complete"] * len(full_chain_tasks))
+    config = runner.RunnerConfig(fixture.target, fixture.home, fixture.shared_root, fixture.binary)
+    code = runner.orchestrate(config, "demo")
+    turn_requests = [
+        item["request"] for item in requests(fixture)
+        if isinstance(item.get("request"), dict) and item["request"].get("method") == "turn/start"
+    ]
+    observed_task_ids = [
+        request["params"]["input"][0]["text"].split("task ", 1)[1].split(" for topic", 1)[0]
+        for request in turn_requests
+    ]
+    expected_models = {
+        "engineering": ("gpt-engineering", "medium"),
+        "synthesis": ("gpt-synthesis", "medium"),
+    }
+    observed_profiles = [
+        (request["params"]["model"], request["params"]["effort"])
+        for request in turn_requests
+    ]
+    check("full chain succeeds", code == 0)
+    check("full chain follows YAML task declaration order", observed_task_ids == [task_id for task_id, _ in full_chain_tasks])
+    check(
+        "full chain selects each declared profile model and effort",
+        observed_profiles == [expected_models[profile] for _, profile in full_chain_tasks],
+    )
 
 for mode in ("needs_input", "blocked", "malformed", "interrupted", "server_error"):
     with tempfile.TemporaryDirectory() as temporary:

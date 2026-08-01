@@ -115,36 +115,20 @@ Fix any failures inline, then present.
 **File path:** `docs/superpowers/intents/YYYY-MM-DD-<topic>-intent.md`
 
 **Topic profile bootstrap:** Create the draft topic profile before validation, after
-writing the intent and before running `$check-chain intent`. Read the current shared
-registry hash with `sha256sum "$CODEX_HOME/profiles/registry.yaml" | awk '{print $1}'`.
-Write `docs/profiles/<topic>.yaml` with the following shape, replacing every
-angle-bracket value:
+writing the intent and before running `$check-chain intent`. Use the manifest helper;
+do not write profile YAML inline:
 
-```yaml
-schema_version: 1
-topic: <topic>
-status: draft
-registry:
-  authority: icodex-shared
-  path: profiles/registry.yaml
-  sha256: <current registry SHA-256>
-context_inputs:
-  - docs/superpowers/intents/YYYY-MM-DD-<topic>-intent.md
-tasks:
-  - id: intent-profile-selection
-    requirements:
-      capability: strong
-      context: medium
-      latency: medium
-      cost: medium
-      throughput: medium
-    live_remaining_context: false
-    preferred_profiles:
-      - engineering
+```bash
+topic="your-topic-slug"
+intent_path="docs/superpowers/intents/$(date +%F)-${topic}-intent.md"
+helper="$ICODEX_ROOT/lib/profile/manifest.py"
+project_root="$(git rev-parse --show-toplevel)"
+registry_path="$CODEX_HOME/profiles/registry.yaml"
+python3 "$helper" bootstrap --project-root "$project_root" --registry "$registry_path" --topic "$topic" --intent "$intent_path" --status draft
 ```
 
-This bootstrap task covers intent review and selection of the routed profile for the
-topic. The manifest remains `status: draft`; the profile runner must not execute it
+The helper creates the single `intent-profile-selection` task for intent review and
+selection of the routed profile. The manifest remains `status: draft`; the profile runner must not execute it
 until the user has explicitly approved the checked intent and this manifest.
 
 **Validation-first user review gate:**
@@ -180,13 +164,32 @@ workflow:
 This records `workflow.route: chain` and the accepted
 `workflow.continuation: execute|full` without changing the intent body hash.
 
-7. Commit the approved intent, topic profile, and continuation once:
+7. For an accepted `full` continuation, after the approved manifest and
+   `workflow.continuation: full` are recorded, expand it with the helper before any
+   spec or plan work. This block can run in a fresh shell: replace
+   `your-topic-slug` with the approved topic slug.
 
 ```bash
-git add docs/superpowers/intents/ docs/profiles/ && git commit -m "docs(idd): add intent profile for <topic>"
+topic="your-topic-slug"
+helper="$ICODEX_ROOT/lib/profile/manifest.py"
+project_root="$(git rev-parse --show-toplevel)"
+registry_path="$CODEX_HOME/profiles/registry.yaml"
+python3 "$helper" expand --project-root "$project_root" --registry "$registry_path" --topic "$topic" --route full --authorization full
 ```
 
-8. For `execute`, hand off directly:
+   This produces the canonical ordered tasks: `intent-profile-selection`, `spec-design`,
+   `plan-writing`, `implementation`, and `result-reconciliation`. The helper must not add
+   future spec or plan paths until those files exist. For `execute`, do not expand the
+   manifest: it does not add spec or plan tasks.
+
+8. Commit the approved intent, topic profile, and continuation once:
+
+```bash
+git add docs/superpowers/intents/ docs/profiles/
+git commit -m "docs(idd): add intent profile for $topic"
+```
+
+9. For `execute`, hand off directly:
 
 ```text
 Intent doc approved at <path> (Status: approved; continuation: execute).
@@ -195,7 +198,7 @@ Desired Outcomes, Health Metrics, Hard Constraints, and Stop Rules, using scoped
 implementation skills. Finish with $check-chain result <path>.
 ```
 
-9. For `full`, hand off with this message:
+10. For `full`, hand off with this message:
 
 ```text
 Intent doc approved at <path> (Status: approved).

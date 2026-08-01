@@ -30,6 +30,7 @@ if [[ -f "$agents" ]]; then
   assert_contains "workflow has three external routes" "$agents_body" 'Workflow recommendation: direct | chain | loen'
   assert_contains "chain branches after intent" "$agents_body" 'Continuation after intent: execute | full | n/a'
   assert_contains "chain execute skips spec and plan" "$flat_agents_body" 'implements directly from the approved intent and marks Spec and Plan n/a'
+  assert_contains "direct avoids full App Server orchestration" "$flat_agents_body" 'Direct work creates no formal intent, spec, plan, `check-chain`, or chain TODO artifacts.'
   assert_contains "full continuation needs evidence" "$flat_agents_body" 'Recommend `full` only with an enumerated trigger'
   assert_contains "direct skips fix-intent" "$agents_body" 'Direct work must not invoke `fix-intent`'
   assert_contains "direct skips brainstorming" "$agents_body" '`superpowers:brainstorming`'

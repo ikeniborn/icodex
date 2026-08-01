@@ -114,9 +114,23 @@ Manifest утверждает профиль и фиксирует hash registry
 локальной задачи с обновлением общего набора профилей.
 
 При старте chain скилл `fix-intent` создаёт draft manifest для того же topic до
-`check-chain intent`. Первая task `intent-profile-selection` покрывает review intent и
-выбор маршрутизируемого profile. Manifest становится `approved` только при явном
-одобрении пользователя вместе с проверенным intent; до этого runner его не запускает.
+`check-chain intent`. Bootstrap намеренно содержит одну task:
+`intent-profile-selection` покрывает review intent и выбор маршрутизируемого profile.
+Manifest становится `approved` только при явном одобрении пользователя вместе с
+проверенным intent; до этого runner его не запускает.
+
+После выбора continuation manifest расширяется только по выбранному маршруту. Если
+direct-topic hook должен bootstrap отсутствующий manifest, он создаёт утверждённый
+direct-work-only manifest, который не входит в full-chain App Server orchestration.
+Обычный `expand --route direct` вместо этого добавляет `direct-work` к существующему
+valid manifest. Для `full` lifecycle `fix-intent` сначала записывает
+`workflow.continuation: full`, затем расширяет утверждённый chain manifest. Helper не
+читает intent frontmatter: он проверяет явную full authorization и approved
+chain-manifest shape. Фиксированный порядок full task: `intent-profile-selection`,
+`spec-design`, `plan-writing`, `implementation`, `result-reconciliation`. Требования к
+profile — проверенная policy manifest, а не runtime inference. Будущие context artifact
+для spec или plan не добавляются, пока соответствующий artifact не существует и не
+отслеживается.
 
 `./icodex.sh --run-task <topic> <task-id>` запускает один task с проверенной split policy:
 runner валидирует общий registry и прямой project manifest, а hook принимает только
