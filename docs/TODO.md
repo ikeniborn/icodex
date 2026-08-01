@@ -28,4 +28,4 @@
 | profile-recheck-at-task-transition | done | ✓ | ✓ | ✓ | OK | 2026-07-29 | 2026-07-30 | Split-authority routing complete; full suite, production policy validation, result audit, and wiki lint passed |
 | intent-profile-bootstrap | done | ✓ | n/a | n/a | OK | 2026-07-30 | 2026-07-30 | Bootstrap profile approved; IDD 54/0, policy 118/0, runner 98/0, wiki lint clean |
 | direct-topic-profile | done | ✓ | n/a | n/a | OK | 2026-07-31 | 2026-07-31 | `@topic` profile, local session binding, and model-only continuation guard; focused checks pass |
-| profile-full-chain-manifest | in-progress | ✓ | – | – | – | 2026-08-01 |  | Expand topic manifests after direct/full workflow selection |
+| profile-full-chain-manifest | in-progress | ✓ | ✓ | – | – | 2026-08-01 |  | Expand topic manifests after direct/full workflow selection |
