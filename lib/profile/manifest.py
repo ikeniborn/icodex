@@ -258,13 +258,21 @@ def bootstrap(args: argparse.Namespace) -> None:
     path = _manifest_path(args.project_root, args.topic)
     if path.exists():
         raise ManifestError(f"topic manifest already exists: {path}")
+    if args.route == "direct":
+        if args.status != "approved":
+            raise ManifestError("direct bootstrap status must be approved")
+        if args.intent != "docs/profiles/README.md":
+            raise ManifestError("direct bootstrap intent must be docs/profiles/README.md")
+        task_ids = ("direct-work",)
+    else:
+        task_ids = ("intent-profile-selection",)
     manifest = {
         "schema_version": 1,
         "topic": args.topic,
         "status": args.status,
         "registry": {"authority": "icodex-shared", "path": "profiles/registry.yaml", "sha256": registry_hash},
         "context_inputs": [args.intent],
-        "tasks": [_task("intent-profile-selection")],
+        "tasks": [_task(task_id) for task_id in task_ids],
     }
     _replace_if_changed(path, _render(manifest))
 
@@ -300,6 +308,7 @@ def main() -> int:
     bootstrap_parser.add_argument("--topic", required=True)
     bootstrap_parser.add_argument("--intent", required=True)
     bootstrap_parser.add_argument("--status", choices=("draft", "approved"), required=True)
+    bootstrap_parser.add_argument("--route", choices=("bootstrap", "direct"), default="bootstrap")
     expand_parser = commands.add_parser("expand")
     expand_parser.add_argument("--project-root", required=True)
     expand_parser.add_argument("--registry", required=True)

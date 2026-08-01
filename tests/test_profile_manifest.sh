@@ -48,6 +48,13 @@ PY
 assert_eq "quoted intent parses without YAML changes" "$special_intent" "$special_context"
 assert_exit "quoted intent manifest validates strict YAML" 0 env PYTHONPATH="$ROOT/lib/profile" python3 -c 'from pathlib import Path; from policy import parse_yaml_subset; import sys; parse_yaml_subset(Path(sys.argv[1]).read_text())' "$special_manifest"
 
+printf '%s\n' '# Profile contexts' > "$project/docs/profiles/README.md"
+assert_exit "direct bootstrap creates direct-only manifest" 0 python3 "$HELPER" bootstrap --project-root "$project" --registry "$registry" --topic direct-bootstrap --intent docs/profiles/README.md --status approved --route direct
+direct_bootstrap_manifest="$project/docs/profiles/direct-bootstrap.yaml"
+assert_eq "direct bootstrap has only direct work" "direct-work" "$(awk '/^  - id: / { print $3 }' "$direct_bootstrap_manifest")"
+assert_contains "direct bootstrap is approved" "$(cat "$direct_bootstrap_manifest")" 'status: approved'
+assert_contains "direct bootstrap uses README context" "$(cat "$direct_bootstrap_manifest")" '  - docs/profiles/README.md'
+
 assert_exit "bootstrap writes full manifest" 0 bootstrap full-profile approved
 full_manifest="$project/docs/profiles/full-profile.yaml"
 assert_exit "expand full route" 0 expand full-profile full
