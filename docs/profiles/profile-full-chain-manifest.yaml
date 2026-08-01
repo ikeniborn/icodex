@@ -18,3 +18,43 @@ tasks:
     live_remaining_context: false
     preferred_profiles:
       - engineering
+  - id: spec-design
+    requirements:
+      capability: strong
+      context: medium
+      latency: medium
+      cost: medium
+      throughput: medium
+    live_remaining_context: false
+    preferred_profiles:
+      - synthesis
+  - id: plan-writing
+    requirements:
+      capability: strong
+      context: medium
+      latency: medium
+      cost: medium
+      throughput: medium
+    live_remaining_context: false
+    preferred_profiles:
+      - synthesis
+  - id: implementation
+    requirements:
+      capability: strong
+      context: medium
+      latency: medium
+      cost: medium
+      throughput: medium
+    live_remaining_context: false
+    preferred_profiles:
+      - engineering
+  - id: result-reconciliation
+    requirements:
+      capability: strong
+      context: medium
+      latency: medium
+      cost: medium
+      throughput: medium
+    live_remaining_context: false
+    preferred_profiles:
+      - engineering

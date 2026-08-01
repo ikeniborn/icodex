@@ -12,6 +12,13 @@ review:
     verifiability: { status: passed }
     consistency: { status: passed }
   findings: []
+result_check:
+  verdict: OK
+  source: plan
+  plan_hash: 5ce5954794725d4e
+  last_run: 2026-08-01
+  reviewed: true
+  docs_checked: true
 ---
 
 # Profile Full-Chain Manifest Implementation Plan
