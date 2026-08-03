@@ -28,10 +28,13 @@ if [[ -f "$agents" ]]; then
   assert_contains "thread title is best effort" "$agents_body" "Thread title is best-effort only"
   assert_contains "inaccessible thread title is not blocking" "$flat_agents_body" "Do not treat an inaccessible UI thread title as a blocking artifact"
   assert_contains "workflow has three external routes" "$agents_body" 'Workflow recommendation: direct | chain | loen'
+  assert_contains "workflow requires routing discovery" "$flat_agents_body" 'Before selecting a workflow, perform bounded routing discovery'
+  assert_contains "missing evidence does not select chain" "$flat_agents_body" 'Absence of evidence is not evidence for chain'
   assert_contains "chain branches after intent" "$agents_body" 'Continuation after intent: execute | full | n/a'
   assert_contains "chain execute skips spec and plan" "$flat_agents_body" 'implements directly from the approved intent and marks Spec and Plan n/a'
   assert_contains "direct avoids full App Server orchestration" "$flat_agents_body" 'Direct work creates no formal intent, spec, plan, `check-chain`, or chain TODO artifacts.'
-  assert_contains "full continuation needs evidence" "$flat_agents_body" 'Recommend `full` only with an enumerated trigger'
+  assert_contains "full continuation needs evidence" "$flat_agents_body" 'Recommend `full` only when both an enumerated design-risk category'
+  assert_contains "full requires an unresolved decision" "$flat_agents_body" 'named unresolved design decision'
   assert_contains "direct skips fix-intent" "$agents_body" 'Direct work must not invoke `fix-intent`'
   assert_contains "direct skips brainstorming" "$agents_body" '`superpowers:brainstorming`'
   assert_contains "direct skips writing plans" "$agents_body" '`superpowers:writing-plans`'
@@ -69,7 +72,7 @@ if [[ -f "$readme" ]]; then
   assert_contains "README LoEn no Superpowers requirement" "$flat_readme_body" "a LoEn loop does not require \`fix-intent\`, \`superpowers:*\`, or"
   assert_contains "README thread titles best effort" "$readme_body" "Thread titles are best-effort only"
   assert_contains "README documents three workflow routes" "$flat_readme_body" 'Workflow routing has three entries: `direct`, `chain`, and `loen`.'
-  assert_contains "README documents chain continuation" "$flat_readme_body" 'After the checked intent, `execute` goes directly to implementation while `full` adds spec and plan.'
+  assert_contains "README documents chain continuation" "$flat_readme_body" '`execute` is the default; `full` needs both a design-risk category and a named unresolved design decision.'
 fi
 
 if [[ -f "$readme_ru" ]]; then
@@ -79,7 +82,7 @@ if [[ -f "$readme_ru" ]]; then
   assert_contains "Russian README LoEn no Superpowers requirement" "$readme_ru_body" "активный LoEn loop сам по себе не требует \`fix-intent\`, \`superpowers:*\` или"
   assert_contains "Russian README thread titles best effort" "$readme_ru_body" "Thread title — best-effort"
   assert_contains "Russian README documents three workflow routes" "$readme_ru_body" 'Маршрутизация workflow имеет три входа: `direct`, `chain` и `loen`.'
-  assert_contains "Russian README documents chain continuation" "$readme_ru_body" 'После проверенного intent ветка `execute` сразу переходит к реализации, а `full` добавляет spec и plan.'
+  assert_contains "Russian README documents chain continuation" "$readme_ru_body" '`execute` выбирается по умолчанию; для `full` одновременно нужны категория design-risk и явно названное нерешённое design decision.'
   assert_contains "Russian README profile policy locations" "$readme_ru_body" '.codex-isolated/profiles/registry.yaml'
   assert_contains "Russian README project manifest policy location" "$readme_ru_body" 'docs/profiles/<topic>.yaml'
   assert_contains "Russian README shared profiles directory symlink" "$readme_ru_body" '.codex-homes/<проект>-<хеш>/profiles'

@@ -38,7 +38,7 @@ Always use the iwiki MCP tools (`wiki_status`, `wiki_bind`, `wiki_search`, `wiki
 
 ## Task Log (docs/TODO.md)
 
-**Every task that enters the `chain` workflow is tracked as one row in `docs/TODO.md`:
+**Every task that enters the `chain` or LoEn workflow is tracked as one row in `docs/TODO.md`:
 opened at intent validation and closed after result reconciliation.**
 
 Purpose: a single human-readable index of what is being worked on and what is done — **one row per chain `<topic>`** (the shared chain key the `check-chain` skill converges on; in Codex, invoke it as `$check-chain`), never per finding or per step.
@@ -52,7 +52,7 @@ Purpose: a single human-readable index of what is being worked on and what is do
   - `Notes`: optional one-line context.
 - **Upsert, never duplicate.** Keyed by `<topic>`: update the matching row in place if it exists, otherwise append a new one.
 - **Lifecycle (driven by the `check-chain` skill via `$check-chain` in Codex):**
-  - The first `$check-chain <stage>` run for a topic **opens** the row (`Opened: <today>`, `Status: in-progress`). Normally that is `$check-chain intent`; if there is no intent, `$check-chain spec` opens it and marks `Intent: n/a`.
+  - The first `$check-chain intent` run for a chain topic **opens** the row (`Opened: <today>`, `Status: in-progress`).
   - After intent passes, `workflow.continuation: execute` marks `Spec: n/a` and
     `Plan: n/a`; `workflow.continuation: full` leaves them open for their checks.
   - `$check-chain spec` / `$check-chain plan` mark their own stage cell `✓` and keep `Status: in-progress`.
@@ -91,24 +91,32 @@ creating chain artifacts. Superpowers skills are selected tools; using an applic
 scoped skill does not by itself select `chain`. This rule overrides generic Superpowers
 wording that treats every behavior change as requiring brainstorming.
 
-Recommend **direct** execution when all are true: the requested outcome is explicit,
-the change is bounded to existing behavior, no unresolved design choice remains, the
-verification path is known, and no public contract, schema, migration, security
-boundary, concurrency/transaction rule, or data invariant changes. Typical examples:
-known-cause local fixes, typos, formatting, focused tests for existing behavior, and
-mechanical config or documentation edits.
+Before selecting a workflow, perform bounded routing discovery: read the request,
+relevant documentation, affected code entrypoints, contracts, and available tests. This
+discovery creates no chain artifacts and is not implementation. It may use safe,
+non-mutating inspection or reproduction. The interactive model-switch gate applies
+before implementation or durable artifact creation, not before routing discovery.
 
-Recommend **chain** when outcomes, constraints, or acceptance evidence need a formal
-approved intent, or when the user explicitly requests it. Chain does not imply spec and
-plan: that decision occurs only after `$check-chain intent` returns `OK`.
+Absence of evidence is not evidence for chain. Recommend **direct** when discovery shows
+the request or diagnosis is bounded, no chain trigger is evidenced, and a verification
+or next discovery step is known. Unknown defect cause alone starts scoped debugging, not
+chain. Typical examples: known-cause local fixes, typos, formatting, focused tests for
+existing behavior, mechanical configuration or documentation edits, and read-only review.
 
-After intent validation, recommend `execute` when implementation is bounded, its
-verification is known, and no unresolved design or planning decision remains. It
-implements directly from the approved intent and marks Spec and Plan n/a. Recommend
-`full` only with an enumerated trigger: a new capability or module needs design, a public
-contract changes, architecture must be chosen, schema/migration/security/concurrency/
-transaction/data-integrity behavior changes, or coupled subsystem design is required.
-General uncertainty, task size, or the word "non-trivial" are not triggers.
+Recommend **chain** only when the user explicitly requests it or discovery shows that a
+durable approved intent is needed for a new capability or module, a public contract,
+schema or migration, security/concurrency/transaction/data-invariant behavior, or coupled
+subsystem work. Chain does not imply spec and plan: that decision occurs only after
+`$check-chain intent` returns `OK`.
+
+After intent validation, perform intent-scoped repository analysis and recommend
+`execute` by default when implementation and verification are bounded. It implements
+directly from the approved intent and marks Spec and Plan n/a. Recommend `full` only when
+both an enumerated design-risk category and a named unresolved design decision are present:
+a new module boundary, public compatibility strategy, architecture choice,
+schema/migration/security/concurrency/transaction/data-integrity invariant, or coupled
+subsystem design. Merely touching one of these areas is insufficient. General uncertainty,
+task size, or the word "non-trivial" are not triggers.
 
 Recommend **loen** only for tasks that operate a durable LoEn workspace through its own
 loop lifecycle.
@@ -400,7 +408,7 @@ Test: every changed line must trace directly to the user's request.
 **Don't commit to main. Develop on a branch. Merge back only via PR.**
 
 - Never commit work directly to the main branch (`master` / `main` / `prod`), and never merge or push to it directly — close every branch through a PR into main.
-- **Branch naming is mandatory: `dev-<name>`, created from the up-to-date main branch.** Words inside `<name>` are joined with `-` (e.g. `dev-fix-phase1`). No exceptions.
+- **Branch naming is mandatory: `dev-<name>`, created from the selected up-to-date base branch (main by default).** Words inside `<name>` are joined with `-` (e.g. `dev-route-policy`). No exceptions.
 - **If the project has long-lived branches beyond `master` / `main` / `prod`** (e.g. `dev`, `develop`, `staging`, `release/*`), always ask first — which branch to base the new `dev-*` off, and which branch to open the PR against. Don't assume.
 - **When creating a `dev-*` branch, check existing local `dev-*` branches first.**
   - **No existing `dev-*` branch** → do not offer or create a worktree; create the branch in the main worktree.
@@ -408,7 +416,7 @@ Test: every changed line must trace directly to the user's request.
     - **Yes** → create the branch in a sibling worktree at `../<project>-<branch>` and do all the work there.
     - **No** → create the branch in place and keep working in the main worktree.
 - For parallel work on several tasks, create one git worktree per branch.
-- **Worktree naming is mandatory: `../<project>-<branch>`** — a sibling directory named with the project basename and the full branch name. Example: project `icodex`, branch `dev-fix-phase1` → sibling worktree `../icodex-dev-fix-phase1`.
+- **Worktree naming is mandatory: `../<project>-<branch>`** — a sibling directory named with the project basename and the full branch name. Example: project `icodex`, branch `dev-route-policy` → sibling worktree `../icodex-dev-route-policy`.
 
 ### Git Worktrees and VS Code
 

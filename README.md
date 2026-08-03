@@ -14,10 +14,12 @@ IDD->SDD/Superpowers and LoEn are separate workflow systems. Non-trivial
 work does not select a workflow by itself. Workflow routing has three entries: `direct`,
 `chain`, and `loen`.
 
-- `direct` executes a bounded request without formal intent/spec/plan artifacts.
-- `chain` starts with `fix-intent -> check-chain intent`. After the checked intent,
-  `execute` goes directly to implementation while `full` adds spec and plan. Both end
-  with `check-chain result`, using the intent or plan as the result source.
+- Before selecting a route, bounded discovery reads the request, relevant docs, affected
+  code, and available tests; missing evidence alone does not select `chain`.
+- `direct` executes a bounded request or diagnosis without formal intent/spec/plan artifacts.
+- `chain` starts with `fix-intent -> check-chain intent`. After intent-scoped analysis,
+  `execute` is the default; `full` needs both a design-risk category and a named unresolved
+  design decision. Both end with `check-chain result`, using the intent or plan as source.
 - `loen` uses `loen:loop-*` skills and artifacts under `docs/loen/<topic>/`; a LoEn loop
   does not require `fix-intent`, `superpowers:*`, or `$check-chain` unless the user
   explicitly chooses chain for a separate non-LoEn change.
