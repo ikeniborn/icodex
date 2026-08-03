@@ -26,8 +26,9 @@
 IDD -> SDD/Superpowers и LoEn — отдельные workflow. Нетри­виальная работа через
 Superpowers сама по себе не выбирает полную цепочку. Маршрутизация workflow имеет три входа: `direct`, `chain` и `loen`.
 
-- `direct` выполняет ограниченную задачу без формальных intent/spec/plan.
-- `chain` начинается с `fix-intent -> check-chain intent`. После проверенного intent ветка `execute` сразу переходит к реализации, а `full` добавляет spec и plan. Обе завершаются через `check-chain result` с intent или plan как source.
+- Перед выбором маршрута выполняется ограниченный анализ запроса, docs, затронутого кода и тестов; нехватка данных сама по себе не выбирает `chain`.
+- `direct` выполняет ограниченную задачу или диагностику без формальных intent/spec/plan.
+- `chain` начинается с `fix-intent -> check-chain intent`. После intent-scoped анализа `execute` выбирается по умолчанию; для `full` одновременно нужны категория design-risk и явно названное нерешённое design decision. Обе ветки завершаются через `check-chain result` с intent или plan как source.
 - `loen` использует навыки `loen:loop-*` и артефакты в `docs/loen/<topic>/`; активный LoEn loop сам по себе не требует `fix-intent`, `superpowers:*` или `$check-chain`, если пользователь явно не выбирает chain для отдельного не-LoEn изменения.
 
 Именование задач использует один canonical kebab-case `<topic>` для управляемых

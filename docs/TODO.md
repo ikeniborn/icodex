@@ -29,3 +29,4 @@
 | intent-profile-bootstrap | done | ✓ | n/a | n/a | OK | 2026-07-30 | 2026-07-30 | Bootstrap profile approved; IDD 54/0, policy 118/0, runner 98/0, wiki lint clean |
 | direct-topic-profile | done | ✓ | n/a | n/a | OK | 2026-07-31 | 2026-07-31 | `@topic` profile, local session binding, and model-only continuation guard; focused checks pass |
 | profile-full-chain-manifest | done | ✓ | ✓ | ✓ | OK | 2026-08-01 | 2026-08-01 | Full direct/full profile manifests, focused/full verification, and result reconciliation passed |
+| workflow-route-discovery-policy | done | ✓ | n/a | n/a | OK | 2026-08-03 | 2026-08-03 | Route discovery and default-execute policy validated. |
