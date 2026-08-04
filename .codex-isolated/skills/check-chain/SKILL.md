@@ -43,6 +43,11 @@ Parse `$ARGUMENTS`:
   `specs/`→spec, `plans/`→plan). `result` is never inferred from a path (it shares
   `plans/` with `plan`); it must be named explicitly.
 
+### Availability
+
+When the current turn's `Available skills` catalog lists `check-chain`, this skill is
+available through its catalog source locator. Do not use filesystem scans to decide whether this skill is available. Report it unavailable only when it is absent from the catalog or its listed source cannot be read.
+
 ## Shared core (applied by every stage)
 
 ### Canonical hashing (MANDATORY)

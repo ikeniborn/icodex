@@ -8,6 +8,13 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 **Load docs before exploring code — they encode decisions invisible in raw code.**
 
+## Skill Availability
+
+The `Available skills` catalog injected into the current turn is authoritative.
+Never mark a listed skill unavailable because a filesystem scan, `find`, or `rg` did
+not locate its `SKILL.md`; use the catalog source locator instead. Report a skill as
+unavailable only when it is absent from that catalog or its listed source cannot be read.
+
 At the start of any task in an unfamiliar area, or after a gap of more than 1 day:
 
 1. **If the iwiki MCP server is connected**, call `wiki_status`. If it reports a domain bound to this project (convention: domain name == project basename), `wiki_bind(read=[<domain>], write=<domain>)`, then `wiki_search "<task topic>"` → retrieve relevant sections; `wiki_lint` → check doc health. (No server / no project domain → skip; iwiki is not set up for this project.)

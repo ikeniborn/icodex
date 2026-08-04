@@ -4,6 +4,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/helpers.sh"
 
 SK="$ROOT/.codex-isolated/skills"
+AGENTS="$SK/../AGENTS.md"
 export ICODEX_ROOT="$ROOT"
 export ICODEX_SHARED_DIR="$ROOT/.codex-isolated"
 source "$ROOT/lib/core/logging.sh"
@@ -70,6 +71,20 @@ if [[ -f "$CC" ]]; then
   assert_contains "check-chain covers result stage" "$body" "result_check"
   assert_contains "check-chain approval requires OK first" "$body" 'Human approval is requested only after this stage returns `OK`'
   assert_exit "check-chain frontmatter parses" 0 parse_frontmatter "$CC"
+fi
+
+# Skill availability: the injected catalog is authoritative over ad-hoc filesystem scans.
+assert_exit "shared AGENTS.md exists" 0 test -f "$AGENTS"
+if [[ -f "$AGENTS" ]]; then
+  body="$(cat "$AGENTS")"
+  assert_contains "available skills catalog is authoritative" "$body" "\`Available skills\` catalog injected into the current turn is authoritative"
+  assert_contains "filesystem scan cannot mark a listed skill unavailable" "$body" "Never mark a listed skill unavailable because a filesystem scan"
+fi
+
+if [[ -f "$CC" ]]; then
+  body="$(cat "$CC")"
+  assert_contains "check-chain trusts available skills catalog" "$body" "the current turn's \`Available skills\` catalog lists \`check-chain\`"
+  assert_contains "check-chain forbids filesystem availability probes" "$body" "Do not use filesystem scans to decide whether this skill is available"
 fi
 
 # fix-intent: intent capture skill.
