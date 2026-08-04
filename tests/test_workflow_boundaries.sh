@@ -46,7 +46,8 @@ if [[ -f "$agents" ]]; then
   assert_contains "orchestrated accepts correlated local handoff" "$flat_agents_body" "hook accepts only correlated local handoff/session evidence"
   assert_contains "orchestrated task bypass is scoped" "$flat_agents_body" "for that protected task only"
   assert_contains "interactive transition branch" "$agents_body" "Interactive branch:"
-  assert_contains "interactive keeps manual model and status" "$flat_agents_body" '`/model` switch request, `/status` confirmation'
+  assert_contains "interactive accepts platform switch confirmation" "$flat_agents_body" 'A platform-reported successful model switch is sufficient confirmation for that switch.'
+  assert_contains "interactive uses status only when switch is not observed" "$flat_agents_body" 'Request `/status` only when no successful platform switch event is available'
   assert_contains "hook never selects model" "$flat_agents_body" "never selects or changes model"
   assert_contains "semantic route mechanical" "$agents_body" '`mechanical`'
   assert_contains "semantic route engineering" "$agents_body" '`engineering`'
