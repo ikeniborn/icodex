@@ -263,21 +263,24 @@ then the hook accepts only correlated local handoff/session evidence. Matching
 routed evidence replaces manual `/status` confirmation for that protected task only. The
 hook validates evidence; it never selects or changes model.
 
-**Interactive branch:** retain route classification, `/model` switch request, `/status`
-confirmation, downgrade/escalation handling, and critical-migration rules.
+**Interactive branch:** retain route classification, `/model` switch request,
+downgrade/escalation handling, and critical-migration rules. A platform-reported successful
+model switch is sufficient confirmation for that switch. Request `/status` only when no
+successful platform switch event is available.
 
 For interactive work, before any execution on each next task:
 
 1. Identify the next work and classify its execution route independently from current
    evidence.
 2. Resolve the recommended exact model and effort through the current catalog mapping.
-3. Establish the active exact model and effort from the latest `/status`. If that mapping
-   is unavailable, or its confirmation predates a requested switch, ask the user to run
-   `/status` and stop before starting the task.
+3. Establish the active exact model and effort from either a successful platform switch
+   event after the requested switch or the latest `/status`. If neither is available, ask
+   the user to run `/status` and stop before starting the task.
 4. Compare the active and recommended mappings. If they differ, report
    `Switch required: yes`, ask the user to switch with `/model`, and stop before the task.
-5. Resume only after the user confirms that `/status` shows the recommended mapping, or
-   explicitly declines the switch under the downgrade or escalation rules below.
+5. Resume after a successful platform switch event or after the user confirms that
+   `/status` shows the recommended mapping; the user may instead explicitly decline the
+   switch under the downgrade or escalation rules below.
 
 Apply the same gate when a scope change or newly discovered invariant reclassifies work
 inside an active task. A matching active mapping uses `Decision: keep` and does not
@@ -323,11 +326,11 @@ Use `keep`, `downgrade`, `escalate`, or `separate-run` (`parallel-audit`). If th
 mapping is unknown, ask the user to check `/status`, mark switch confirmation `pending`,
 and stop before the next task; never guess or inherit the previous task's recommendation.
 
-Wait when switching is required. After requesting a switch, resume only when the user
-confirms the resulting `/status`. A declined downgrade may continue with the extra cost
-recorded and switch confirmation marked `declined`. A declined escalation stops the next
-work until explicit risk acceptance, also recorded as `declined`. Critical-migration
-final review cannot be waived.
+Wait when switching is required. A successful platform switch event confirms the resulting
+mapping; request `/status` only when that event is unavailable. A declined downgrade may
+continue with the extra cost recorded and switch confirmation marked `declined`. A declined
+escalation stops the next work until explicit risk acceptance, also recorded as `declined`.
+Critical-migration final review cannot be waived.
 
 ```text
 Workflow: direct | chain | loen
