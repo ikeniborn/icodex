@@ -268,19 +268,24 @@ downgrade/escalation handling, and critical-migration rules. A platform-reported
 model switch is sufficient confirmation for that switch. Request `/status` only when no
 successful platform switch event is available.
 
-For interactive work, before any execution on each next task:
+For interactive work, before a task that requires a model switch:
 
 1. Identify the next work and classify its execution route independently from current
    evidence.
 2. Resolve the recommended exact model and effort through the current catalog mapping.
 3. Establish the active exact model and effort from either a successful platform switch
-   event after the requested switch or the latest `/status`. If neither is available, ask
-   the user to run `/status` and stop before starting the task.
+   event after the requested switch or the latest `/status`. If neither is available,
+   request `/status` before asking the user to switch.
 4. Compare the active and recommended mappings. If they differ, report
    `Switch required: yes`, ask the user to switch with `/model`, and stop before the task.
 5. Resume after a successful platform switch event or after the user confirms that
    `/status` shows the recommended mapping; the user may instead explicitly decline the
    switch under the downgrade or escalation rules below.
+
+For `direct` work on the `mechanical` or `engineering` route, report the recommended
+mapping but continue when the active mapping is unknown. Do not request `/status` unless
+the user asks to change models or evidence reclassifies the task to `synthesis`, `deep`,
+or `escalation`.
 
 Apply the same gate when a scope change or newly discovered invariant reclassifies work
 inside an active task. A matching active mapping uses `Decision: keep` and does not
@@ -359,6 +364,8 @@ Switch confirmation: n/a | pending | confirmed | declined
   - `docs/TODO.md` says a stage passed (`✓` / `Result: OK`) but the wiki still describes the old behavior, or `wiki_lint` flags the topic's page as stale/orphan.
   - Status, dates, or scope disagree between the two.
 - **No silent reconciliation.** Report discrepancies; do not fix `docs/TODO.md` or the wiki as a side effect of a status request. If none exist, state "TODO and wiki agree" explicitly.
+- **Age signal.** List every `in-progress` row opened more than 14 days ago separately;
+  this flags stalled work without changing its status or closing it automatically.
 
 ## Language Rules
 
@@ -430,52 +437,20 @@ Test: every changed line must trace directly to the user's request.
 
 ### Git Worktrees and VS Code
 
-When a `dev-*` task must run in a worktree, create it so both Git and VS Code can discover it reliably:
+When a `dev-*` task uses a worktree, create it atomically from the selected base branch in the mandatory sibling path. Open that folder directly in VS Code if needed; do not create linked worktrees inside the repository root.
 
-- Prefer VS Code's native worktree flow when work starts from VS Code: Source Control → Source Control Repositories → repository menu (`...`) → Worktrees → Create Worktree. Worktrees created this way appear in VS Code immediately.
-- For CLI-created worktrees, place them next to the main checkout as sibling folders named `../<project>-<branch>`. Do not place linked worktrees inside the repository root unless the project already has an ignored worktree directory and the user explicitly wants that layout. Project-prefixed sibling folders avoid nested-repository status noise, avoid name collisions across repositories, and are easy to open as separate VS Code windows.
-- Create the branch and worktree atomically from the up-to-date base branch; do not first check out the new `dev-*` branch in the main checkout and then try to add a worktree for the same branch.
-  ```bash
-  base="<base-branch>"
-  branch="dev-<topic>"
-  root="$(git rev-parse --show-toplevel)"
-  project="$(basename "$root")"
-  parent="$(dirname "$root")"
-  git fetch origin "$base"
-  git worktree add -b "$branch" "$parent/$project-$branch" "origin/$base"
-  code --new-window "$parent/$project-$branch"
-  ```
-- If the `dev-*` branch already exists and is not checked out in any worktree, attach it to the canonical path:
-  ```bash
-  branch="dev-<topic>"
-  root="$(git rev-parse --show-toplevel)"
-  project="$(basename "$root")"
-  parent="$(dirname "$root")"
-  git worktree add "$parent/$project-$branch" "$branch"
-  code --new-window "$parent/$project-$branch"
-  ```
-- If worktrees were created outside VS Code and do not appear there, enable the repository explorer and worktree detection in VS Code settings:
-  ```json
-  {
-    "scm.repositories.explorer": true,
-    "git.detectWorktrees": true,
-    "git.detectWorktreesLimit": 50
-  }
-  ```
-- Verify both layers before working: `git worktree list --porcelain` shows the path and branch; VS Code Source Control Repositories shows the worktree under the repository's Worktrees node. If VS Code still misses it, run `Git: Open Worktree in New Window` or open the `<project>-dev-*` folder directly.
-- To inspect multiple worktrees together, use a multi-root workspace and add each `<project>-dev-*` folder as a separate root; Source Control then shows each root as its own provider.
-- To copy ignored local-only files into VS Code-created worktrees, configure `git.worktreeIncludeFiles` with explicit glob patterns. Keep secrets out of tracked files.
-- Remove worktrees only through Git, never by deleting the folder directly:
-  ```bash
-  branch="dev-<topic>"
-  root="$(git rev-parse --show-toplevel)"
-  project="$(basename "$root")"
-  parent="$(dirname "$root")"
-  git worktree remove "$parent/$project-$branch"
-  git worktree prune
-  ```
+```bash
+base="<base-branch>"
+branch="dev-<topic>"
+root="$(git rev-parse --show-toplevel)"
+project="$(basename "$root")"
+parent="$(dirname "$root")"
+git fetch origin "$base"
+git worktree add -b "$branch" "$parent/$project-$branch" "origin/$base"
+code --new-window "$parent/$project-$branch"
+```
 
-- After the PR is created, remove the branch's worktree — don't leave stale worktrees around.
+If the branch already exists, attach it at the same path. Verify with `git worktree list --porcelain`. After creating its PR, remove the worktree through Git and run `git worktree prune`.
 
 Use **@skill:git-workflow** for commit messages and PR creation.
 
