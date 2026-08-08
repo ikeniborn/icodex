@@ -1,2 +1,3 @@
 read = ["icodex", "iclaude", "iwiki-mcp"]
-write = "icodex"
+write = ["icodex", "iclaude"]
+primary = "icodex"
