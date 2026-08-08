@@ -16,7 +16,7 @@ _IWIKI_REGION_END="# icodex:iwiki:end"
 
 # Optional IWIKI_* server vars (each has a server-side default). Written only when
 # the matching ICODEX_IWIKI_<NAME> is set. Extend this list to expose new vars.
-_IWIKI_OPTIONAL_VARS="EMBED_MODEL EMBED_DIMENSIONS TOP_K SCORE_THRESHOLD SEARCH_MODE RERANK_MODEL GRAPH_DEPTH SEED_TOP_K BFS_TOP_K SEED_THRESHOLD WRITE_SEED_THRESHOLD CHAT_MODEL CHUNK_SIZE CHUNK_OVERLAP SUMMARY_MAX_CHARS"
+_IWIKI_OPTIONAL_VARS="EMBED_MODEL EMBED_DIMENSIONS TOP_K SCORE_THRESHOLD SEARCH_MODE RERANK_MODEL IDLE_TIMEOUT_SECONDS GRAPH_DEPTH SEED_TOP_K BFS_TOP_K SEED_THRESHOLD WRITE_SEED_THRESHOLD CHAT_MODEL CHUNK_SIZE CHUNK_OVERLAP SUMMARY_MAX_CHARS"
 
 # Emit the [mcp_servers.iwiki] block (without the region markers) from resolved
 # values. command/env_vars precede the [.env] subtable header so they bind to the

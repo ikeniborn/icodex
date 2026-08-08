@@ -129,7 +129,7 @@ interactively — asks whether to continue without the proxy (default yes) or ex
 without a TTY it continues without the proxy. Use `--no-proxy` to skip the proxy (and
 the probe) entirely.
 
-> `ICODEX_*` keys reserved for the iwiki plugin (e.g. `ICODEX_IWIKI_*`) are intentionally
+> `ICODEX_IWIKI_*` keys configure the iwiki MCP server. Other iwiki settings are
 > ignored by the wrapper config.
 
 On hosts whose curl is linked against an OpenSSL build that cannot decode every CA in the
