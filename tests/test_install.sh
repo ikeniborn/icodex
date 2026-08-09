@@ -22,11 +22,12 @@ setup_case() {
   ICODEX_REPO="openai/codex"
   mkdir -p "$ICODEX_HOME_DIR/bin"
   _sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum|awk '{print $1}'; else shasum -a 256|awk '{print $1}'; fi; }
-  # Build a fixture tarball containing an executable `codex`
+  # Build a fixture archive containing executable CLI and Code Mode host binaries.
   local stage="$tmp/stage"; mkdir -p "$stage"
   printf '#!/bin/sh\necho codex-fixture 0.0.0\n' > "$stage/codex"; chmod +x "$stage/codex"
+  printf '#!/bin/sh\necho host-fixture 0.0.0\n' > "$stage/codex-code-mode-host-x86_64-unknown-linux-musl"; chmod +x "$stage/codex-code-mode-host-x86_64-unknown-linux-musl"
   FIXTURE_TAR="$tmp/fixture.tar.gz"
-  tar -czf "$FIXTURE_TAR" -C "$stage" codex
+  tar -czf "$FIXTURE_TAR" -C "$stage" codex codex-code-mode-host-x86_64-unknown-linux-musl
   FIXTURE_SHA="$(_sha256 < "$FIXTURE_TAR")"
   DL_CALLS=0
 }
@@ -85,6 +86,7 @@ _download() { DL_CALLS=$((DL_CALLS+1)); cp "$FIXTURE_TAR" "$2"; }   # offline se
 lockfile_write "$ICODEX_LOCKFILE" "rust-v9.9.9" "codex-x86_64-unknown-linux-musl.tar.gz" "$FIXTURE_SHA"
 assert_exit "install succeeds" 0 install_ensure
 assert_exit "binary installed & executable" 0 test -x "$ICODEX_BIN"
+assert_exit "code-mode host installed & executable" 0 test -x "$ICODEX_HOME_DIR/bin/codex-code-mode-host"
 assert_eq   "stamp == pinned tag" "rust-v9.9.9" "$(cat "$ICODEX_STAMP")"
 rm -rf "$tmp"
 
@@ -96,6 +98,18 @@ install_ensure >/dev/null 2>&1
 before="$DL_CALLS"
 install_ensure >/dev/null 2>&1
 assert_eq "no second download" "$before" "$DL_CALLS"
+rm -rf "$tmp"
+
+# --- Case B2: a missing host repairs an otherwise complete pinned install ---
+setup_case
+_download() { DL_CALLS=$((DL_CALLS+1)); cp "$FIXTURE_TAR" "$2"; }
+lockfile_write "$ICODEX_LOCKFILE" "rust-v9.9.9" "codex-x86_64-unknown-linux-musl.tar.gz" "$FIXTURE_SHA"
+install_ensure >/dev/null 2>&1
+rm -f "$ICODEX_HOME_DIR/bin/codex-code-mode-host"
+before="$DL_CALLS"
+assert_exit "missing host triggers repair" 0 install_ensure
+assert_exit "missing host is restored" 0 test -x "$ICODEX_HOME_DIR/bin/codex-code-mode-host"
+assert_eq "repair downloads CLI and host" "$((before + 2))" "$DL_CALLS"
 rm -rf "$tmp"
 
 # --- Case C: sha mismatch stops install (tamper guard) ---
@@ -134,6 +148,7 @@ _resolve_latest() { echo "rust-v1.2.3"; }
 out="$(install_ensure --update 2>&1)"
 assert_contains "update logs resolve" "$out" "resolving latest codex release"
 assert_contains "update logs download" "$out" "downloading codex-x86_64-unknown-linux-musl.tar.gz"
+assert_contains "update logs host download" "$out" "downloading codex-code-mode-host-x86_64-unknown-linux-musl.tar.gz"
 assert_contains "update logs verify" "$out" "verifying sha256"
 assert_contains "update logs extract" "$out" "extracting codex binary"
 assert_contains "update logs lockfile" "$out" "writing lockfile"
@@ -147,6 +162,7 @@ _bump_count() { local path="$1" n; n="$(cat "$path")"; printf '%s\n' "$((n+1))" 
 _download() { _bump_count "$tmp/download-count"; cp "$FIXTURE_TAR" "$2"; }
 _resolve_latest() { _bump_count "$tmp/resolve-count"; echo "rust-v1.2.3"; }
 printf '#!/bin/sh\necho codex-fixture 0.0.0\n' > "$ICODEX_BIN"; chmod +x "$ICODEX_BIN"
+printf '#!/bin/sh\necho host-fixture 0.0.0\n' > "$ICODEX_HOME_DIR/bin/codex-code-mode-host"; chmod +x "$ICODEX_HOME_DIR/bin/codex-code-mode-host"
 printf '%s\n' "rust-v1.2.3" > "$ICODEX_STAMP"
 lockfile_write "$ICODEX_LOCKFILE" "rust-v1.2.3" "codex-x86_64-unknown-linux-musl.tar.gz" "old_sha"
 out="$(install_ensure --update 2>&1)"

@@ -140,32 +140,40 @@ ensure_uv_dependency() {
   _export_uv_bin "$target"
 }
 
-_extract_codex() { # <tarball> -> installs $ICODEX_BIN
-  local tarball="$1" tmpd found install_tmp
+_extract_release_binary() { # <tarball> <archive-name-pattern> <name> <destination>
+  local tarball="$1" pattern="$2" name="$3" destination="$4" tmpd found install_tmp
   tmpd="$(mktemp -d)"
   if ! tar -xzf "$tarball" -C "$tmpd"; then
     log_error "failed to extract $tarball"; rm -rf "$tmpd"; return 1
   fi
-  found="$(find "$tmpd" -type f -name 'codex*' ! -name '*.tar*' ! -name '*.sigstore' | head -1)"
+  found="$(find "$tmpd" -type f -name "$pattern" | head -1)"
   if [[ -z "$found" ]]; then
-    log_error "codex binary not found inside archive"; rm -rf "$tmpd"; return 1
+    log_error "$name binary not found inside archive"; rm -rf "$tmpd"; return 1
   fi
-  mkdir -p "$ICODEX_SHARED_DIR/bin"
-  install_tmp="$ICODEX_SHARED_DIR/bin/.codex.new.$$"
+  mkdir -p "$(dirname "$destination")"
+  install_tmp="$(dirname "$destination")/.${name}.new.$$"
   if ! cp "$found" "$install_tmp"; then
-    log_error "failed to stage codex binary at $install_tmp"
+    log_error "failed to stage $name binary at $install_tmp"
     rm -f "$install_tmp"; rm -rf "$tmpd"; return 1
   fi
   if ! chmod +x "$install_tmp"; then
-    log_error "failed to mark codex binary executable: $install_tmp"
+    log_error "failed to mark $name binary executable: $install_tmp"
     rm -f "$install_tmp"; rm -rf "$tmpd"; return 1
   fi
-  if ! mv -f "$install_tmp" "$ICODEX_BIN"; then
-    log_error "failed to replace codex binary at $ICODEX_BIN"
+  if ! mv -f "$install_tmp" "$destination"; then
+    log_error "failed to replace $name binary at $destination"
     rm -f "$install_tmp"; rm -rf "$tmpd"; return 1
   fi
   rm -rf "$tmpd"
   return 0
+}
+
+_extract_codex() {
+  _extract_release_binary "$1" codex codex "$ICODEX_BIN"
+}
+
+_extract_code_mode_host() {
+  _extract_release_binary "$1" 'codex-code-mode-host-*' code-mode-host "$ICODEX_SHARED_DIR/bin/codex-code-mode-host"
 }
 
 # install_ensure [--update]
@@ -173,13 +181,16 @@ install_ensure() {
   local update=0
   [[ "${1:-}" == "--update" ]] && update=1
 
-  local asset; asset="$(detect_asset)" || return 1
+  local asset host_asset host_bin
+  asset="$(detect_asset)" || return 1
+  host_asset="$(detect_code_mode_host_asset)" || return 1
+  host_bin="$ICODEX_SHARED_DIR/bin/codex-code-mode-host"
   local want_version want_sha
   want_version="$(lockfile_get "$ICODEX_LOCKFILE" version 2>/dev/null || true)"
   want_sha="$(lockfile_get "$ICODEX_LOCKFILE" sha256 2>/dev/null || true)"
 
   # Idempotency: stamp matches pinned tag and binary present -> done.
-  if (( ! update )) && [[ -x "$ICODEX_BIN" && -f "$ICODEX_STAMP" && -n "$want_version" ]]; then
+  if (( ! update )) && [[ -x "$ICODEX_BIN" && -x "$host_bin" && -f "$ICODEX_STAMP" && -n "$want_version" ]]; then
     if [[ "$(cat "$ICODEX_STAMP")" == "$want_version" ]]; then
       return 0
     fi
@@ -192,36 +203,48 @@ install_ensure() {
   fi
   [[ -n "$tag" ]] || { log_error "no codex version pinned and latest unresolved"; return 1; }
 
-  if (( update )) && [[ -x "$ICODEX_BIN" && -f "$ICODEX_STAMP" && -n "$want_version" ]]; then
+  if (( update )) && [[ -x "$ICODEX_BIN" && -x "$host_bin" && -f "$ICODEX_STAMP" && -n "$want_version" ]]; then
     if [[ "$tag" == "$want_version" && "$(cat "$ICODEX_STAMP")" == "$tag" ]]; then
       log_info "codex already at latest $tag; skipping download"
       return 0
     fi
   fi
 
-  local url tarball sha
+  local url host_url tarball host_tarball sha
   url="$(_release_url "$tag" "$asset")"
+  host_url="$(_release_url "$tag" "$host_asset")"
   tarball="$(mktemp)"
+  host_tarball="$(mktemp)"
   (( update )) && log_info "downloading $asset from $tag..."
   if ! _download "$url" "$tarball" "$update"; then
     log_error "download failed: $url"
     log_error "manual: fetch $asset from https://github.com/$ICODEX_REPO/releases/tag/$tag"
-    rm -f "$tarball"; return 1
+    rm -f "$tarball" "$host_tarball"; return 1
+  fi
+  (( update )) && log_info "downloading $host_asset from $tag..."
+  if ! _download "$host_url" "$host_tarball" "$update"; then
+    log_error "download failed: $host_url"
+    log_error "manual: fetch $host_asset from https://github.com/$ICODEX_REPO/releases/tag/$tag"
+    rm -f "$tarball" "$host_tarball"; return 1
   fi
   (( update )) && log_info "verifying sha256..."
   sha="$(_sha256 < "$tarball")"
 
   if (( ! update )) && [[ -n "$want_sha" && "$want_sha" != "$sha" ]]; then
     log_error "sha256 mismatch (tamper guard): pinned '$want_sha' got '$sha'"
-    rm -f "$tarball"; return 1
+    rm -f "$tarball" "$host_tarball"; return 1
   fi
 
   (( update )) && log_info "extracting codex binary..."
   if ! _extract_codex "$tarball"; then
-    rm -f "$tarball"; return 1
+    rm -f "$tarball" "$host_tarball"; return 1
+  fi
+  (( update )) && log_info "extracting code-mode host..."
+  if ! _extract_code_mode_host "$host_tarball"; then
+    rm -f "$tarball" "$host_tarball"; return 1
   fi
   printf '%s\n' "$tag" > "$ICODEX_STAMP"
-  rm -f "$tarball"
+  rm -f "$tarball" "$host_tarball"
 
   if (( update )); then
     log_info "writing lockfile..."
