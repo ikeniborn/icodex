@@ -16,3 +16,10 @@ detect_asset() {
   esac
   printf 'codex-%s-%s.tar.gz\n' "$arch" "$os"
 }
+
+# Code Mode host is distributed separately, but uses the same platform suffix.
+detect_code_mode_host_asset() {
+  local asset
+  asset="$(detect_asset)" || return 1
+  printf '%s\n' "${asset/#codex-/codex-code-mode-host-}"
+}
