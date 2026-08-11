@@ -268,6 +268,14 @@ downgrade/escalation handling, and critical-migration rules. A platform-reported
 model switch is sufficient confirmation for that switch. Request `/status` only when no
 successful platform switch event is available.
 
+**Delegated-agent branch:** when delegation is explicitly authorized, resolve the
+subtask's semantic execution route independently before spawning. Pass the exact mapped
+`model` and `reasoning_effort` to `spawn_agent` with `fork_turns` set to `none` or a
+positive value. Do not request `/status` or user switch confirmation for the child agent;
+the parent records the route, evidence, and resolved mapping in its delegation request.
+Do not inherit the parent route automatically. Reclassify before every follow-up task
+whose scope or evidence changes.
+
 For interactive work, before a task that requires a model switch:
 
 1. Identify the next work and classify its execution route independently from current
