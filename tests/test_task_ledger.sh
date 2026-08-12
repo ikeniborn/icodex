@@ -49,7 +49,7 @@ done
 for lifecycle in in-progress blocked completion-pending done; do
   assert_contains "lifecycle: $lifecycle" "$body" "\`$lifecycle\`"
 done
-for kind in open route dispatch return decision blocker verification close; do
+for kind in open route dispatch return decision blocker verification gate close; do
   assert_contains "event kind: $kind" "$body" "\`$kind\`"
 done
 
@@ -304,5 +304,10 @@ PY
 remaining_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["events"][0]["event_id"])' <<<"$after_ack")"
 assert_exit "acknowledge final event" 0 python3 "$helper" ack --codex-home "$tmp/home" --project icodex --topic wiki-task-tracking --event-id "$remaining_id"
 assert_exit "empty queue file removed" 1 test -e "$tmp/home/state/iwiki-task-spool/icodex/wiki-task-tracking.json"
+
+gate_event='{"kind":"gate","occurred_at":"2026-08-12T12:04:00Z","actor":"root","summary":"chain gate passed","evidence":{"paths":["docs/superpowers/intents/2026-08-12-wiki-task-tracking-intent.md"],"checks":[{"name":"intent","status":"passed","exit_code":0}],"hashes":{"intent":"0123456789abcdef"}}}'
+assert_exit "enqueue gate event" 0 bash -c 'printf "%s" "$1" | python3 "$2" enqueue --codex-home "$3" --project icodex --topic chain-gate-event' _ "$gate_event" "$helper" "$tmp/home"
+gate_queue="$(python3 "$helper" list --codex-home "$tmp/home" --project icodex --topic chain-gate-event)"
+assert_eq "list preserves gate event" "gate" "$(python3 -c 'import json,sys; print(json.load(sys.stdin)["events"][0]["kind"])' <<<"$gate_queue")"
 
 finish

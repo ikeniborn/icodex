@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 VALID_KINDS = {
-    "open", "route", "dispatch", "return", "decision", "blocker", "verification", "close",
+    "open", "route", "dispatch", "return", "decision", "blocker", "verification", "gate", "close",
 }
 _SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _HASH = re.compile(r"^[0-9a-f]{16,64}$")
