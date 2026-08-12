@@ -37,6 +37,9 @@ assert_contains "helper never calls MCP" "$body" "never call MCP"
 assert_contains "helper never syncs" "$body" "wiki_sync"
 assert_contains "context includes task page" "$context_body" 'task_page_slug'
 assert_contains "context includes pending delivery" "$context_body" 'task_delivery_pending'
+assert_contains "context checks Codex home spool" "$context_body" '$CODEX_HOME/state/iwiki-task-spool/<project>/<topic>.json'
+assert_contains "context checks spool without iwiki" "$context_body" 'even when iwiki is unavailable or the project domain is absent'
+assert_contains "context maps queue presence to pending" "$context_body" 'task_delivery_pending: true when that queue file exists'
 for lifecycle in in-progress blocked completion-pending done; do
   assert_contains "lifecycle: $lifecycle" "$body" "\`$lifecycle\`"
 done

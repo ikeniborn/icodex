@@ -82,9 +82,13 @@ JavaScript:
 адресуется доменами). Единственный источник документационного контекста проекта.
 
 ```
+1. Когда известны canonical topic и basename проекта, всегда проверить `$CODEX_HOME/state/iwiki-task-spool/<project>/<topic>.json`, even when iwiki is unavailable or the project domain is absent. Установить
+   `task_delivery_pending: true when that queue file exists`; очередь не является
+   durable status.
+
 IF MCP-сервер iwiki подключён:
-  1. wiki_status → project_dir, список `domains`, текущая привязка read/write
-  2. Если домен проекта присутствует в `domains` (имя == basename проекта):
+  2. wiki_status → project_dir, список `domains`, текущая привязка read/write
+  3. Если домен проекта присутствует в `domains` (имя == basename проекта):
        - не привязан → wiki_bind(read=[<domain>], write=<domain>)
        - wiki_summary ← wiki_read_page(domain, "overview") (если есть)
          либо wiki_search('ключевые компоненты и архитектура проекта')
@@ -97,7 +101,7 @@ IF MCP-сервер iwiki подключён:
        task_page_found: true|false
        task_lifecycle: "in-progress|blocked|completion-pending|done" | null
        task_delivery_pending: true|false
-  3. Если домена проекта нет:
+  4. Если домена проекта нет:
        wiki_initialized: false
        wiki_domain: null
        wiki_summary: null
@@ -120,9 +124,9 @@ ELSE (сервер не подключён):
 
 После привязки домена Phase 0 выводит точный контекст task page: определяет
 канонический topic из запроса или уже контролируемых артефактов, читает
-`reference/tasks/<topic>`, если topic известен, и проверяет наличие локальной
-очереди `state/iwiki-task-spool/<project>/<topic>.json`. Очередь показывает только
-`task_delivery_pending`; она не является durable status. Создание страницы остаётся
+`reference/tasks/<topic>`, если topic известен. Независимо от доступности iwiki он
+проверяет `$CODEX_HOME/state/iwiki-task-spool/<project>/<topic>.json`; очередь показывает
+только `task_delivery_pending`, она не является durable status. Создание страницы остаётся
 интерактивным действием parent agent по `task-ledger`, не действием context-awareness.
 
 **Назначение:** Централизует проверку доступности документационного графа —

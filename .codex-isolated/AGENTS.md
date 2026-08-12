@@ -82,12 +82,12 @@ creating chain artifacts. Superpowers skills are selected tools; using an applic
 scoped skill does not by itself select `chain`. This rule overrides generic Superpowers
 wording that treats every behavior change as requiring brainstorming.
 
-Before selecting a workflow, perform bounded routing discovery: read the request,
-relevant documentation, affected code entrypoints, contracts, and available tests. This
-discovery creates no chain artifacts and is not implementation. It may use safe,
-non-mutating inspection or reproduction. Resolve the wiki task page before durable work.
-The interactive model-switch gate applies before implementation or durable artifact creation,
-not before routing discovery.
+Before selecting a workflow, perform bounded routing discovery from only the request and
+project signals strictly necessary to derive domain, topic, and route. It creates no chain
+artifacts and is not implementation; it must not perform task-specific analysis, reproduction,
+or test execution before the task page is resolved. Resolve the wiki task page before any
+task-specific analysis or durable work. The interactive model-switch gate applies before
+implementation or durable artifact creation, not before routing discovery.
 
 Absence of evidence is not evidence for chain. Recommend **direct** when discovery shows
 the request or diagnosis is bounded, no chain trigger is evidenced, and a verification

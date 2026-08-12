@@ -38,6 +38,7 @@ if [[ -f "$agents" ]]; then
   assert_contains "outage is fail-open execution" "$agents_body" "execution may continue"
   assert_contains "outage is fail-closed completion" "$agents_body" 'must not report `done`'
   assert_exit "no live repository task log" 1 grep -qF "Task Log (docs/TODO.md)" "$agents"
+  assert_contains "routing discovery excludes task-specific analysis" "$flat_agents_body" 'must not perform task-specific analysis, reproduction, or test execution before the task page is resolved'
   assert_contains "direct creates no chain artifacts but resolves a task page" "$flat_agents_body" 'Direct work creates no formal intent, spec, plan, or `check-chain` artifact, but always resolves a wiki task page.'
   assert_contains "full continuation needs evidence" "$flat_agents_body" 'Recommend `full` only when both an enumerated design-risk category'
   assert_contains "full requires an unresolved decision" "$flat_agents_body" 'named unresolved design decision'
