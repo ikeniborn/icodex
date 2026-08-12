@@ -8,8 +8,10 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -20,9 +22,13 @@ VALID_KINDS = {
 _SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _HASH = re.compile(r"^[0-9a-f]{16,64}$")
 _SECRET = re.compile(
-    r"(?:\b(?:token|password|secret|api_key|authorization)\b\s*[:=]|\bBearer\s+\S+)", re.I
+    r"(?:\b(?:[a-z0-9_]*(?:api_key|token|secret|access_key|client_secret|private_key)|"
+    r"authorization|password|credential)\b\s*[:=]|\bBearer\s+\S+)", re.I
 )
 _RFC3339_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+_PATH_SECRET_COMPONENT = re.compile(
+    r"(?:auth|token|credential|private[-_]?key|access[-_]?key|client[-_]?secret)", re.I
+)
 
 
 def _require_slug(value: str, label: str) -> None:
@@ -36,8 +42,10 @@ def _require_keys(value: dict[str, Any], keys: set[str], label: str) -> None:
 
 
 def _safe_text(value: object, label: str, maximum: int = 250) -> str:
-    if not isinstance(value, str) or not value or len(value) > maximum or "\n" in value:
+    if not isinstance(value, str) or not value or len(value) > maximum:
         raise ValueError(f"{label} must be a short single-line string")
+    if any(unicodedata.category(char).startswith("C") or char in {"\u2028", "\u2029"} for char in value):
+        raise ValueError(f"{label} contains a control character")
     if _SECRET.search(value):
         raise ValueError(f"{label} contains sensitive data")
     return value
@@ -50,7 +58,7 @@ def validate_event(value: object, topic: str) -> dict[str, object]:
         raise ValueError("event must be an object")
     _require_keys(value, {"kind", "occurred_at", "actor", "summary", "evidence"}, "event")
     kind = value["kind"]
-    if kind not in VALID_KINDS:
+    if not isinstance(kind, str) or kind not in VALID_KINDS:
         raise ValueError("invalid event kind")
     occurred_at = value["occurred_at"]
     if not isinstance(occurred_at, str) or not _RFC3339_Z.fullmatch(occurred_at):
@@ -72,10 +80,14 @@ def validate_event(value: object, topic: str) -> dict[str, object]:
         raise ValueError("invalid evidence fields")
     valid_paths: list[str] = []
     for path in paths:
-        if not isinstance(path, str) or not path or path.startswith("/") or "\\" in path:
+        if not isinstance(path, str) or not path or len(path) > 512 or path.startswith("/") or "\\" in path:
             raise ValueError("paths must be repository-relative")
         parts = path.split("/")
-        if any(part in {"", ".", ".."} for part in parts) or _SECRET.search(path):
+        if (
+            any(part in {"", ".", ".."} or part.startswith(".env") or _PATH_SECRET_COMPONENT.search(part) for part in parts)
+            or _SECRET.search(path)
+            or any(unicodedata.category(char).startswith("C") or char in {"\u2028", "\u2029"} for char in path)
+        ):
             raise ValueError("paths must be safe repository-relative paths")
         valid_paths.append(path)
     valid_checks: list[dict[str, object]] = []
@@ -126,14 +138,57 @@ def _queue_path(codex_home: Path, project: str, topic: str) -> Path:
     return codex_home / "state" / "iwiki-task-spool" / project / f"{topic}.json"
 
 
+def _ensure_queue_parent(path: Path) -> None:
+    """Create and validate only real directories from CODEX_HOME to queue parent."""
+    current = path.parents[3]
+    for component in (current, current / "state", current / "state" / "iwiki-task-spool", path.parent):
+        try:
+            mode = os.lstat(component).st_mode
+        except FileNotFoundError:
+            component.mkdir(mode=0o700)
+            mode = os.lstat(component).st_mode
+        if not os.path.isdir(component) or os.path.islink(component) or not stat.S_ISDIR(mode):
+            raise ValueError("spool directory must be a real directory")
+
+
+def _validate_queue_parent(path: Path) -> None:
+    current = path.parents[3]
+    for component in (current, current / "state", current / "state" / "iwiki-task-spool", path.parent):
+        try:
+            mode = os.lstat(component).st_mode
+        except FileNotFoundError:
+            return
+        if not os.path.isdir(component) or os.path.islink(component) or not stat.S_ISDIR(mode):
+            raise ValueError("spool directory must be a real directory")
+
+
+def _validate_target(path: Path) -> None:
+    try:
+        mode = os.lstat(path).st_mode
+    except FileNotFoundError:
+        return
+    if os.path.islink(path) or not stat.S_ISREG(mode):
+        raise ValueError("spool target must be a regular file")
+
+
+def _fsync_directory(directory: Path) -> None:
+    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 def _load(path: Path, project: str, topic: str) -> dict[str, object]:
+    _validate_queue_parent(path)
+    _validate_target(path)
     if not path.exists():
         return {"schema_version": 1, "project": project, "topic": topic, "events": []}
     with path.open(encoding="utf-8") as stream:
         queue = json.load(stream)
     if not isinstance(queue, dict) or set(queue) != {"schema_version", "project", "topic", "events"}:
         raise ValueError("invalid spool queue")
-    if queue["schema_version"] != 1 or queue["project"] != project or queue["topic"] != topic:
+    if type(queue["schema_version"]) is not int or queue["schema_version"] != 1 or queue["project"] != project or queue["topic"] != topic:
         raise ValueError("spool queue identity mismatch")
     if not isinstance(queue["events"], list):
         raise ValueError("invalid spool events")
@@ -153,7 +208,8 @@ def _load(path: Path, project: str, topic: str) -> dict[str, object]:
 
 
 def _write(path: Path, queue: dict[str, object]) -> None:
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    _ensure_queue_parent(path)
+    _validate_target(path)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         os.fchmod(fd, 0o600)
@@ -162,6 +218,7 @@ def _write(path: Path, queue: dict[str, object]) -> None:
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
+        _fsync_directory(path.parent)
     except BaseException:
         try:
             os.unlink(temporary)
@@ -205,7 +262,9 @@ def acknowledge(codex_home: Path, project: str, topic: str, acknowledged_id: str
         queue["events"] = kept
         _write(path, queue)
     else:
+        _validate_target(path)
         path.unlink()
+        _fsync_directory(path.parent)
 
 
 def main() -> int:
@@ -231,7 +290,7 @@ def main() -> int:
             if not args.event_id:
                 raise ValueError("ack requires --event-id")
             acknowledge(home, args.project, args.topic, args.event_id)
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
         print(f"task_spool: {exc}", file=sys.stderr)
         return 2
     return 0

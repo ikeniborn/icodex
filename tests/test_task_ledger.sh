@@ -102,6 +102,88 @@ print("OK")
 PY
 )"
 
+assert_eq "schema rejects controls and sensitive paths" "OK" "$(python3 - "$helper" <<'PY'
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("task_spool", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+base = {
+    "kind": "verification",
+    "occurred_at": "2026-08-12T12:00:00Z",
+    "actor": "root",
+    "summary": "safe summary",
+    "evidence": {"paths": ["tests/test_task_ledger.sh"], "checks": [{"name": "suite", "status": "passed", "exit_code": 0}], "hashes": {"fixture": "0123456789abcdef"}},
+}
+for field, value in (("actor", "root\r"), ("summary", "bad\u2028text")):
+    candidate = dict(base); candidate[field] = value
+    try: module.validate_event(candidate, "wiki-task-tracking")
+    except ValueError: continue
+    raise SystemExit("control character accepted")
+for path in (".env", "config/.env.local", "auth/token.txt", "credentials/file", "private-key.pem", "a" * 1025):
+    candidate = dict(base); candidate["evidence"] = dict(base["evidence"], paths=[path])
+    try: module.validate_event(candidate, "wiki-task-tracking")
+    except ValueError: continue
+    raise SystemExit("unsafe path accepted")
+for summary in ("SERVICE_API_KEY=abc", "CLIENT_TOKEN: abc", "access_key=abc", "private_key=abc"):
+    candidate = dict(base); candidate["summary"] = summary
+    try: module.validate_event(candidate, "wiki-task-tracking")
+    except ValueError: continue
+    raise SystemExit("secret assignment accepted")
+print("OK")
+PY
+)"
+
+assert_eq "CLI invalid inputs are controlled" "OK" "$(python3 - "$helper" "$tmp/home" <<'PY'
+import json
+import subprocess
+import sys
+
+helper, home = sys.argv[1:]
+base = {"kind": "verification", "occurred_at": "2026-08-12T12:00:00Z", "actor": "root", "summary": "safe", "evidence": {"paths": [], "checks": [], "hashes": {}}}
+for value in ({**base, "kind": None}, {**base, "kind": ["verification"]}, ["not", "an", "event"]):
+    result = subprocess.run([sys.executable, helper, "enqueue", "--codex-home", home, "--project", "icodex", "--topic", "wiki-task-tracking"], input=json.dumps(value), text=True, capture_output=True)
+    if result.returncode != 2 or "task_spool:" not in result.stderr or "Traceback" in result.stderr:
+        raise SystemExit("CLI validation leaked traceback")
+print("OK")
+PY
+)"
+
+assert_eq "queue boundary rejects symlinks and bad schema type" "OK" "$(python3 - "$helper" "$tmp/home" <<'PY'
+import importlib.util
+import json
+import os
+import sys
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("task_spool", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+home = Path(sys.argv[2])
+queue = home / "state/iwiki-task-spool/icodex/boundary-test.json"
+queue.parent.mkdir(parents=True, exist_ok=True)
+queue.write_text(json.dumps({"schema_version": True, "project": "icodex", "topic": "wiki-task-tracking", "events": []}))
+try: module.list_events(home, "icodex", "boundary-test")
+except ValueError: pass
+else: raise SystemExit("boolean schema version accepted")
+queue.unlink()
+target = home / "outside.json"; target.write_text("outside")
+queue.symlink_to(target)
+event = {"kind": "verification", "occurred_at": "2026-08-12T12:00:00Z", "actor": "root", "summary": "safe", "evidence": {"paths": [], "checks": [], "hashes": {}}}
+try: module.enqueue(home, "icodex", "boundary-test", event)
+except ValueError: pass
+else: raise SystemExit("symlink queue accepted")
+if target.read_text() != "outside": raise SystemExit("symlink target changed")
+queue.unlink()
+print("OK")
+PY
+)"
+
 assert_eq "replace failure preserves valid queue" "OK" "$(python3 - "$helper" "$tmp/home" <<'PY'
 import importlib.util
 import sys
