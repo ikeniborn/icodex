@@ -49,6 +49,14 @@ assert_contains "check-chain final report records obtained result" "$CC" "what r
 assert_contains "check-chain final report requires process diagrams when needed" "$CC" "Add process diagrams when workflow"
 assert_contains "check-chain cached non-result stays markdown-only" "$CC" 'Cached quick-exit runs for `intent`, `spec`, and `plan` do not regenerate HTML'
 assert_before "check-chain writes current result state before report offer" "$CC" 'Write state into the selected source' 'Optional report offer'
+assert_contains "check-chain report reads task lifecycle" "$CC" "task-page lifecycle, evidence, subtasks, and changelog"
+assert_contains "chain-report receives task lifecycle" "$CR" "task-page lifecycle, evidence, subtasks, and changelog"
+assert_not_contains "check-chain has no live TODO contract" "$CC" "docs/TODO.md"
+assert_not_contains "chain-report has no live TODO contract" "$CR" "docs/TODO.md"
+assert_not_contains "check-chain has no TODO row ownership" "$CC" "TODO row"
+assert_not_contains "chain-report has no TODO row ownership" "$CR" "TODO row"
+assert_not_contains "check-chain has no TODO cell ownership" "$CC" "TODO cell"
+assert_not_contains "chain-report has no TODO cell ownership" "$CR" "TODO cell"
 assert_contains "html-report documents result-only chain mode" "$HR" 'In `mode: chain`, the caller is the `result` stage'
 assert_contains "html-report supports intent-backed n/a stages" "$HR" 'intent-backed payload marks spec and plan `n/a`'
 assert_contains "chain-report documents result-only offer" "$CR" 'The HTML report may be offered only at `check-chain result`'

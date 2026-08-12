@@ -70,7 +70,28 @@ if [[ -f "$CC" ]]; then
   assert_contains "check-chain writes result to source" "$body" 'Before offering the optional report, write `result_check` into the selected source'
   assert_contains "check-chain covers result stage" "$body" "result_check"
   assert_contains "check-chain approval requires OK first" "$body" 'Human approval is requested only after this stage returns `OK`'
+  assert_contains "check-chain keeps task-page writes in main context" "$body" "Main context keeps task-page and changelog writes."
+  assert_contains "check-chain skips duplicate cached events" "$body" "Cached intent/spec/plan checks do not append a duplicate gate event."
+  assert_contains "check-chain records execute n/a stages in task page" "$body" "execute records Spec and Plan as n/a in the task page."
+  assert_contains "check-chain persists evidence before close" "$body" "result writes final evidence before the close event."
+  assert_contains "check-chain keeps pending completion during delivery" "$body" "completion-pending is used while spool events remain."
+  assert_not_contains "check-chain has no repository task table" "$body" "docs/TODO.md"
+  assert_not_contains "check-chain has no TODO row ownership" "$body" "TODO row"
+  assert_not_contains "check-chain has no TODO cell ownership" "$body" "TODO cell"
   assert_exit "check-chain frontmatter parses" 0 parse_frontmatter "$CC"
+fi
+
+# chain auditor: read-only task-page review.
+AUDITOR="$ROOT/.codex-isolated/agents/chain-auditor.toml"
+assert_exit "chain auditor exists" 0 test -f "$AUDITOR"
+if [[ -f "$AUDITOR" ]]; then
+  auditor_body="$(cat "$AUDITOR")"
+  assert_contains "chain auditor checks task-page readiness" "$auditor_body" "task-page readiness"
+  assert_contains "chain auditor keeps MCP writes in main context" "$auditor_body" "every MCP write"
+  assert_contains "chain auditor keeps spool acknowledgments in main context" "$auditor_body" "spool acknowledgment"
+  assert_not_contains "chain auditor has no repository task table" "$auditor_body" "docs/TODO.md"
+  assert_not_contains "chain auditor has no TODO row ownership" "$auditor_body" "TODO row"
+  assert_not_contains "chain auditor has no TODO cell ownership" "$auditor_body" "TODO cell"
 fi
 
 # Skill availability: the injected catalog is authoritative over ad-hoc filesystem scans.

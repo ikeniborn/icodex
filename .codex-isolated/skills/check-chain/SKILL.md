@@ -12,9 +12,9 @@ former `check-intent`, `check-spec`, `check-plan`, `check-result` commands.
 
 Agent: `chain-auditor`
 
-Use a subagent when phase scans, section-hash evidence, result diff reconciliation, or report/task-log update checks would pollute the main context with large intermediate output.
+Use a subagent when phase scans, section-hash evidence, result diff reconciliation, or task-page readiness checks would pollute the main context with large intermediate output.
 
-Stay in the main context for user confirmations, final verdict handling, frontmatter writes, the final result report, task-log row updates, and downstream chain stop/go decisions.
+Stay in the main context for user confirmations, final verdict handling, frontmatter writes, the final result report, task-page and changelog writes, and downstream chain stop/go decisions.
 
 Return summary:
 - decision: `OK`, `needs_work`, or `uncertain`
@@ -22,7 +22,7 @@ Return summary:
 - risks: CRITICAL findings, stale hashes, missing artifacts, unresolved verdicts, or uncertainty
 - next_action: the smallest main-context action required
 
-Stop rule: any CRITICAL finding, hash mismatch uncertainty, missing artifact, or result reconciliation uncertainty halts downstream stages until the main context resolves it. Main context keeps confirmations, final verdicts, frontmatter writes, report merges, task-log row updates, and downstream stop/go decisions.
+Stop rule: any CRITICAL finding, hash mismatch uncertainty, missing artifact, or result reconciliation uncertainty halts downstream stages until the main context resolves it. Main context keeps task-page and changelog writes. It also keeps confirmations, final verdicts, frontmatter writes, report merges, and downstream chain stop/go decisions.
 
 ## Invocation & argument parsing
 
@@ -275,7 +275,7 @@ During `plan`, describe expected outcomes only; actual implementation evidence b
 ### Step 5 — Result-only optional HTML report
 
 Intermediate stages (`intent`, `spec`, `plan`) do not invoke `html-report`; they update
-frontmatter and `docs/TODO.md` only. Cached quick-exit runs for `intent`, `spec`, and `plan` do not regenerate HTML. This removes per-step HTML work from the IDD→SDD chain.
+frontmatter and the shared task page only. Cached quick-exit runs for `intent`, `spec`, and `plan` do not regenerate HTML. This removes per-step HTML work from the IDD→SDD chain.
 
 HTML report generation is optional even at `result`. Ask the user in Russian whether to generate the HTML report after the result verdict is known. If the user declines, do not invoke `html-report`, do not create or refresh `docs/superpowers/reports/<topic>-results.html`, and finish with the terminal result summary only.
 
@@ -288,7 +288,7 @@ strip a trailing `-intent` or `-plan` suffix if present; fallback to the bare ba
 
 When generated, the final report is built from the selected source and every available
 linked artifact, result reconciliation, review findings, verification evidence,
-documentation evidence, and TODO row state. For intent-backed execution, absent spec and
+documentation evidence, and task-page lifecycle, evidence, subtasks, and changelog. For intent-backed execution, absent spec and
 plan content is explicitly `n/a`; never invent it. The report is one self-contained
 Russian HTML file: all visible report text must be Russian-only except technical terms,
 paths, code identifiers, stage keys, hash keys, and short source fragments. It may use
@@ -424,14 +424,23 @@ report. If the user accepts, regenerate the same full enriched report from the c
 source artifacts, stored frontmatter, and `result_check`, not a thinner status-only
 report.
 
-### Step 6 — TODO.md upsert
+### Step 6 — Task-page persistence
 
-After the verdict, upsert the chain's row in `docs/TODO.md` keyed by `<topic>` (see the
-Task Log convention in `CLAUDE.md`). Create the file with the header row if absent. Mark
-this stage's cell `✓` on `OK` (`–` if it still needs work); `intent` opens the row, a
-missing upstream stage is `n/a`; `result` on `OK` closes the row (`Result: OK`,
-`Status: done`, `Closed: <today>`). For `workflow.continuation: execute`, result must
-mark `Spec: n/a` and `Plan: n/a`; for `full`, preserve their checked state.
+After frontmatter is persisted, the parent agent uses `task-ledger` to read
+`reference/tasks/<topic>`, update `Current State`, `TODO`, `Evidence`, and `Changelog`,
+then append the idempotent stage event. Never let a subagent write MCP state or
+acknowledge spool events.
+
+Stage events are `gate / intent / OK|needs_work / <body-hash>`,
+`gate / spec / OK|needs_work / <body-hash>`, and
+`gate / plan / OK|needs_work / <body-hash>`. For `result`, persist the final verification
+evidence first, then append `close` only when `result_check` is `OK`. Cached intent/spec/plan checks do not append a duplicate gate event.
+
+For `workflow.continuation: execute`, mark `Spec: n/a` and `Plan: n/a` in the task page. execute records Spec and Plan as n/a in the task page.
+For `full`, preserve all stage states. If MCP delivery fails, enqueue the redacted event
+through `task-ledger`; completion-pending is used while spool events remain, even when
+code verification passed. A task becomes `done` only after final evidence, empty spool,
+successful wiki write, and `wiki_lint` pass without a new task-page finding. result writes final evidence before the close event. completion-pending is used while spool events remain.
 
 ## Rules (prohibited)
 
@@ -694,7 +703,7 @@ through the chain before result can pass:
    describes the implementation that actually shipped, including the reason for the
    decision change.
 2. Rerun the affected upstream `check-chain <stage>` validations so their frontmatter
-   hashes, findings, and TODO cells match the revised source.
+   hashes, findings, and task-page gate events match the revised source.
 3. Update repository docs and iwiki pages that present the old decision.
 4. Rerun `check-chain result <source>` after those updates, using the same intent or plan
    source mode and the new diff evidence.
@@ -787,17 +796,17 @@ requested, build it from the current markdown artifacts and result evidence.
    - legacy plan-backed runs every available upstream stage, then `[plan, result(plan)]`;
    - an unrelated artifact absent from the selected route is `n/a`;
    - Step 0 quick-exit passes → `✓ cached`, continue;
-   - else run the stage's full Step 1–6 (findings → verdicts → frontmatter → TODO cell; only `result` may offer the optional final HTML report);
+   - else run the stage's full Step 1–6 (findings → verdicts → frontmatter → task-page event; only `result` may offer the optional final HTML report);
    - stage ends `needs_work` (open CRITICAL) → STOP: «chain остановлен на `<stage>`,
      почини и перезапусти». Do not run downstream stages.
 5. `result` needs a `git diff`. Reached with an empty diff → emit INFO
    «result pending implementation», chain verdict `OK up to intent` for `execute` or
-   `OK up to plan` for plan-backed, and leave the TODO `Result` cell `–` (not `done`).
-   Non-empty diff → reconcile; on `OK` close the row.
+   `OK up to plan` for plan-backed, and keep the task lifecycle `in-progress` (not `done`).
+   Non-empty diff → reconcile; on `OK` persist final evidence before the close event.
 6. Print the chain summary and, when `result` ran and the user accepted the report, the path to the final HTML report.
 
 ### Single stage — `$check-chain <stage> [path]`
 
 Run Step 0–6 for exactly that one stage. `intent`, `spec`, and `plan` write validation
-frontmatter plus the TODO cell and do not generate HTML. `result` additionally offers
+frontmatter plus the task-page gate event and do not generate HTML. `result` additionally offers
 the optional single final report for the completed task.
