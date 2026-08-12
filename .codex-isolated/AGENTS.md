@@ -43,40 +43,24 @@ Skip only when: familiar area, same session.
 
 Always use the iwiki MCP tools (`wiki_status`, `wiki_bind`, `wiki_search`, `wiki_related`, `wiki_read_page`, `wiki_list_domains`, `wiki_list_pages`, `wiki_write_page`, `wiki_update_page`, `wiki_delete_page`, `wiki_index`, `wiki_create_domain`, `wiki_lint`, `wiki_sync`) — never the old plugin skills or the `iwiki_engine` CLI.
 
-## Task Log (docs/TODO.md)
+## Wiki Task Ledger
 
-**Every task that enters the `chain` or LoEn workflow is tracked as one row in `docs/TODO.md`:
-opened at intent validation and closed after result reconciliation.**
+**Every direct, chain, and LoEn task, including read-only analysis, has one task-tagged iwiki page at `reference/tasks/<topic>`. It is the sole durable task index.**
 
-Purpose: a single human-readable index of what is being worked on and what is done — **one row per chain `<topic>`** (the shared chain key the `check-chain` skill converges on; in Codex, invoke it as `$check-chain`), never per finding or per step.
-
-- **One file, one table.** `docs/TODO.md` holds a single Markdown table, one row per `<topic>`.
-- **Columns:** `Topic | Status | Intent | Spec | Plan | Result | Opened | Closed | Notes`.
-  - `Status`: `in-progress` while any selected stage is open; `done` once `$check-chain result` returns `OK` against the selected intent or plan source.
-  - Stage cells (`Intent` / `Spec` / `Plan`): `✓` once that stage's `$check-chain <stage>` passes (verdict `OK`, including a cached quick-exit); `–` if not reached yet; `n/a` if the stage does not exist for this topic (e.g. no intent).
-  - `Result`: `OK` / `needs_work` / `–`.
-  - `Opened` / `Closed`: ISO date (`YYYY-MM-DD`). `Closed` stays empty until the task is `done`.
-  - `Notes`: optional one-line context.
-- **Upsert, never duplicate.** Keyed by `<topic>`: update the matching row in place if it exists, otherwise append a new one.
-- **Lifecycle (driven by the `check-chain` skill via `$check-chain` in Codex):**
-  - The first `$check-chain intent` run for a chain topic **opens** the row (`Opened: <today>`, `Status: in-progress`).
-  - After intent passes, `workflow.continuation: execute` marks `Spec: n/a` and
-    `Plan: n/a`; `workflow.continuation: full` leaves them open for their checks.
-  - `$check-chain spec` / `$check-chain plan` mark their own stage cell `✓` and keep `Status: in-progress`.
-  - `$check-chain result` **closes** the row on verdict `OK` against the intent for
-    `execute` or the plan for `full` (`Result: OK`, `Status: done`, `Closed: <today>`);
-    on `needs_work` it leaves the row open.
-- **Create on demand.** If `docs/TODO.md` is absent, the first `$check-chain <stage>` run creates it with the header row, then appends.
-- **Manual rows are allowed.** A task may be added by hand before any `$check-chain <stage>` run; the skill then updates the matching `<topic>` row instead of duplicating it.
+- Bounded discovery may derive domain, topic, and route without a page. Before durable implementation or task-specific read-only analysis, parent creates or resolves the page through `task-ledger`.
+- Parent agent is the sole writer: it serializes page creation, lifecycle changes, durable evidence, and `Changelog` events. Before delegation record `dispatch`; each subagent returns its ID, role, outcome, changed paths, checks, blockers, and proposed changelog text; parent records `return` before the next transition.
+- Task pages use lifecycle `in-progress`, `blocked`, `completion-pending`, or `done`. `TODO` stays workflow-specific; chain gate outcomes and LoEn milestones are appended to `Changelog`, never stored as repository table cells.
+- On iwiki MCP outage, execution may continue with redacted local spool evidence. Durable status is unavailable, spool state is non-authoritative, and the task must not report `done` until replay, successful page write, empty spool, and clean task-page lint.
+- Do not add direct hooks that write wiki. MCP operations remain interactive parent actions. `task_spool.py` never calls MCP.
 
 ## Task Topic and Thread Title
 
-**Every task must define one canonical `<topic>` before work starts for the
+**Every task must define one canonical `<topic>` before durable work starts for the
 workflow artifacts the agent can control.**
 
 - `<topic>` is a semantic, English, lowercase kebab-case slug: words joined by hyphens, e.g. `thread-title-task-naming-policy`.
 - Use the same `<topic>` across applicable controlled surfaces:
-  - `docs/TODO.md` `Topic`;
+  - iwiki task-page slug `reference/tasks/<topic>`;
   - Superpowers chain topic, for IDD->SDD work;
   - LoEn topic directory, for LoEn loop work;
   - git branch suffix: `dev-<topic>`.
@@ -87,7 +71,7 @@ workflow artifacts the agent can control.**
 - Do not use vague topics such as `fix`, `update`, `work`, `misc`, `phase1`, or `changes`.
 - Prefer topics that describe the task domain and intended outcome, not just the implementation step.
 - If a branch already exists, derive `<topic>` from the branch suffix unless it is vague.
-- If controlled artifacts such as TODO topic, chain/LoEn topic, and branch name
+- If controlled artifacts such as task-page slug, chain/LoEn topic, and branch name
   disagree, stop and normalize them to one `<topic>` before continuing. Do not
   treat an inaccessible UI thread title as a blocking artifact.
 
@@ -101,8 +85,9 @@ wording that treats every behavior change as requiring brainstorming.
 Before selecting a workflow, perform bounded routing discovery: read the request,
 relevant documentation, affected code entrypoints, contracts, and available tests. This
 discovery creates no chain artifacts and is not implementation. It may use safe,
-non-mutating inspection or reproduction. The interactive model-switch gate applies
-before implementation or durable artifact creation, not before routing discovery.
+non-mutating inspection or reproduction. Resolve the wiki task page before durable work.
+The interactive model-switch gate applies before implementation or durable artifact creation,
+not before routing discovery.
 
 Absence of evidence is not evidence for chain. Recommend **direct** when discovery shows
 the request or diagnosis is bounded, no chain trigger is evidenced, and a verification
@@ -133,7 +118,7 @@ start chain until the user accepts that recommendation; an explicit chain reques
 as acceptance. After intent validation, report `execute` or `full` with evidence and wait
 before starting `full`. Prefer `execute` when no full trigger is evidenced.
 
-Direct work creates no formal intent, spec, plan, `check-chain`, or chain TODO artifacts.
+Direct work creates no formal intent, spec, plan, or `check-chain` artifact, but always resolves a wiki task page.
 The exception is an explicit direct topic: `@topic <kebab-case-topic>` is a user approval
 to create `docs/profiles/<topic>.yaml` with the initial `engineering` profile and bind it
 to the current local session. The next user prompt is the continuation confirmation;
@@ -163,10 +148,10 @@ govern durable LoEn workspaces through `loen:loop-*` skills use the LoEn lifecyc
 only. Do not run `fix-intent`, `superpowers:brainstorming`,
 `superpowers:writing-plans`, `superpowers:subagent-driven-development`,
 `superpowers:executing-plans`, `superpowers:finishing-a-development-branch`, or
-`$check-chain` merely because a LoEn loop is active. LoEn task state lives in
-`docs/loen/<topic>/` and the global `docs/TODO.md` row uses LoEn stage cells
-(`Intent: n/a`, `Spec: n/a`, `Plan: n/a`) unless the user explicitly chooses the
-IDD->SDD chain for a separate non-LoEn change.
+`$check-chain` merely because a LoEn loop is active. LoEn loop artifacts live in
+`docs/loen/<topic>/`; parent mirrors material lifecycle evidence to the shared task
+page `TODO` and `Changelog` unless the user explicitly chooses the IDD->SDD chain for a
+separate non-LoEn change.
 
 1. `fix-intent` creates or updates `docs/superpowers/intents/*-intent.md`.
 2. `$check-chain intent` validates the intent.
@@ -362,18 +347,11 @@ Switch confirmation: n/a | pending | confirmed | declined
 
 ## Project Status Reports
 
-**When the user asks for project status, progress, or "what's the state of X", build the answer from two sources together — never one alone: `docs/TODO.md` (what is being worked on) and the project's iwiki domain (what is documented as true).**
+**When the user asks for project status, progress, or "what's the state of X", read task-tagged iwiki pages only.**
 
-- **Read both first.** Read `docs/TODO.md` for the task index; if the iwiki MCP server reports a domain bound to this project (`wiki_status`), `wiki_bind` then `wiki_search`/`wiki_read_page` for the topic. If iwiki is not set up, report from `docs/TODO.md` alone and say so.
-- **Report shape:** lead with overall state (counts of `in-progress` vs `done` rows, or the specific topic's row), then per-topic detail (stage cells `Intent`/`Spec`/`Plan`/`Result`), then a **Discrepancies** section.
-- **Reconcile the two sources and surface every mismatch.** Examples of discrepancies to flag:
-  - Topic is `done` in `docs/TODO.md` but the wiki has no page (or a stale page) covering it.
-  - Wiki documents a feature/behavior that has no matching `<topic>` row in `docs/TODO.md`.
-  - `docs/TODO.md` says a stage passed (`✓` / `Result: OK`) but the wiki still describes the old behavior, or `wiki_lint` flags the topic's page as stale/orphan.
-  - Status, dates, or scope disagree between the two.
-- **No silent reconciliation.** Report discrepancies; do not fix `docs/TODO.md` or the wiki as a side effect of a status request. If none exist, state "TODO and wiki agree" explicitly.
-- **Age signal.** List every `in-progress` row opened more than 14 days ago separately;
-  this flags stalled work without changing its status or closing it automatically.
+- Bind the project domain, search task-tagged pages, and read relevant pages. Lead with lifecycle counts or requested topic; report lifecycle, `TODO`, pending delivery, evidence, and task-page lint findings.
+- Report `completion-pending` explicitly. List every `in-progress` task opened more than 14 days ago.
+- If iwiki is unavailable, say durable status is unavailable. Local spool evidence is non-authoritative; do not infer status from repository files or silently reconcile it.
 
 ## Language Rules
 

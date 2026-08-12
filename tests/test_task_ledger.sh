@@ -6,12 +6,15 @@ source "$ROOT/tests/helpers.sh"
 
 skill="$ROOT/.codex-isolated/skills/task-ledger/SKILL.md"
 helper="$ROOT/.codex-isolated/skills/task-ledger/scripts/task_spool.py"
+context_skill="$ROOT/.codex-isolated/skills/context-awareness/SKILL.md"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 assert_exit "task-ledger skill exists" 0 test -f "$skill"
 assert_exit "task spool helper exists" 0 test -f "$helper"
+assert_exit "context-awareness skill exists" 0 test -f "$context_skill"
 body="$(cat "$skill" 2>/dev/null || true)"
+context_body="$(cat "$context_skill" 2>/dev/null || true)"
 assert_contains "all tasks tracked" "$body" "direct, chain, and LoEn"
 assert_contains "read-only tasks tracked" "$body" "read-only"
 assert_contains "parent sole writer" "$body" "parent agent is the sole writer"
@@ -32,6 +35,8 @@ assert_contains "TODO does not impose chain stages" "$body" "direct or LoEn"
 assert_contains "page read before replay" "$body" "Read or create"
 assert_contains "helper never calls MCP" "$body" "never call MCP"
 assert_contains "helper never syncs" "$body" "wiki_sync"
+assert_contains "context includes task page" "$context_body" 'task_page_slug'
+assert_contains "context includes pending delivery" "$context_body" 'task_delivery_pending'
 for lifecycle in in-progress blocked completion-pending done; do
   assert_contains "lifecycle: $lifecycle" "$body" "\`$lifecycle\`"
 done

@@ -32,7 +32,13 @@ if [[ -f "$agents" ]]; then
   assert_contains "missing evidence does not select chain" "$flat_agents_body" 'Absence of evidence is not evidence for chain'
   assert_contains "chain branches after intent" "$agents_body" 'Continuation after intent: execute | full | n/a'
   assert_contains "chain execute skips spec and plan" "$flat_agents_body" 'implements directly from the approved intent and marks Spec and Plan n/a'
-  assert_contains "direct avoids full App Server orchestration" "$flat_agents_body" 'Direct work creates no formal intent, spec, plan, `check-chain`, or chain TODO artifacts.'
+  assert_contains "task page precedes every task" "$agents_body" "Every direct, chain, and LoEn task"
+  assert_contains "read-only work tracked" "$agents_body" "including read-only analysis"
+  assert_contains "wiki is sole durable status" "$agents_body" "sole durable task index"
+  assert_contains "outage is fail-open execution" "$agents_body" "execution may continue"
+  assert_contains "outage is fail-closed completion" "$agents_body" 'must not report `done`'
+  assert_exit "no live repository task log" 1 grep -qF "Task Log (docs/TODO.md)" "$agents"
+  assert_contains "direct creates no chain artifacts but resolves a task page" "$flat_agents_body" 'Direct work creates no formal intent, spec, plan, or `check-chain` artifact, but always resolves a wiki task page.'
   assert_contains "full continuation needs evidence" "$flat_agents_body" 'Recommend `full` only when both an enumerated design-risk category'
   assert_contains "full requires an unresolved decision" "$flat_agents_body" 'named unresolved design decision'
   assert_contains "direct skips fix-intent" "$agents_body" 'Direct work must not invoke `fix-intent`'
