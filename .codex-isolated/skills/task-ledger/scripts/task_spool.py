@@ -22,12 +22,15 @@ VALID_KINDS = {
 _SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _HASH = re.compile(r"^[0-9a-f]{16,64}$")
 _SECRET = re.compile(
-    r"(?:\b(?:[a-z0-9_]*(?:api_key|token|secret|access_key|client_secret|private_key)|"
+    r"(?:\b(?:[a-z0-9_-]*(?:api[-_]?key|token|secret|access[-_]?key|client[-_]?secret|private[-_]?key)|"
     r"authorization|password|credential)\b\s*[:=]|\bBearer\s+\S+)", re.I
 )
 _RFC3339_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
-_PATH_SECRET_COMPONENT = re.compile(
-    r"(?:auth|token|credential|private[-_]?key|access[-_]?key|client[-_]?secret)", re.I
+_SECRET_PATH_COMPONENTS = {"auth", "authentication", "token", "tokens", "credential", "credentials"}
+_SECRET_FILE_COMPONENT = re.compile(
+    r"^(?:auth(?:entication)?|token|tokens|credential|credentials)\.(?:json|ya?ml|txt|conf|ini)$|"
+    r"^(?:private[-_]?key|access[-_]?key|access[-_]?token|client[-_]?secret)(?:\.[a-z0-9]+)?$",
+    re.I,
 )
 
 
@@ -84,7 +87,13 @@ def validate_event(value: object, topic: str) -> dict[str, object]:
             raise ValueError("paths must be repository-relative")
         parts = path.split("/")
         if (
-            any(part in {"", ".", ".."} or part.startswith(".env") or _PATH_SECRET_COMPONENT.search(part) for part in parts)
+            any(
+                part in {"", ".", ".."}
+                or part.lower().startswith(".env")
+                or part.lower() in _SECRET_PATH_COMPONENTS
+                or _SECRET_FILE_COMPONENT.fullmatch(part) is not None
+                for part in parts
+            )
             or _SECRET.search(path)
             or any(unicodedata.category(char).startswith("C") or char in {"\u2028", "\u2029"} for char in path)
         ):
@@ -147,7 +156,13 @@ def _ensure_queue_parent(path: Path) -> None:
         except FileNotFoundError:
             component.mkdir(mode=0o700)
             mode = os.lstat(component).st_mode
-        if not os.path.isdir(component) or os.path.islink(component) or not stat.S_ISDIR(mode):
+        if (
+            not os.path.isdir(component)
+            or os.path.islink(component)
+            or not stat.S_ISDIR(mode)
+            or os.lstat(component).st_uid != os.getuid()
+            or mode & 0o077
+        ):
             raise ValueError("spool directory must be a real directory")
 
 
@@ -158,7 +173,13 @@ def _validate_queue_parent(path: Path) -> None:
             mode = os.lstat(component).st_mode
         except FileNotFoundError:
             return
-        if not os.path.isdir(component) or os.path.islink(component) or not stat.S_ISDIR(mode):
+        if (
+            not os.path.isdir(component)
+            or os.path.islink(component)
+            or not stat.S_ISDIR(mode)
+            or os.lstat(component).st_uid != os.getuid()
+            or mode & 0o077
+        ):
             raise ValueError("spool directory must be a real directory")
 
 
@@ -188,7 +209,9 @@ def _load(path: Path, project: str, topic: str) -> dict[str, object]:
         queue = json.load(stream)
     if not isinstance(queue, dict) or set(queue) != {"schema_version", "project", "topic", "events"}:
         raise ValueError("invalid spool queue")
-    if type(queue["schema_version"]) is not int or queue["schema_version"] != 1 or queue["project"] != project or queue["topic"] != topic:
+    if type(queue["schema_version"]) is not int or queue["schema_version"] != 1:
+        raise ValueError("schema_version must be integer 1")
+    if queue["project"] != project or queue["topic"] != topic:
         raise ValueError("spool queue identity mismatch")
     if not isinstance(queue["events"], list):
         raise ValueError("invalid spool events")

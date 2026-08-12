@@ -128,11 +128,14 @@ for path in (".env", "config/.env.local", "auth/token.txt", "credentials/file", 
     try: module.validate_event(candidate, "wiki-task-tracking")
     except ValueError: continue
     raise SystemExit("unsafe path accepted")
-for summary in ("SERVICE_API_KEY=abc", "CLIENT_TOKEN: abc", "access_key=abc", "private_key=abc"):
+for summary in ("SERVICE_API_KEY=abc", "CLIENT_TOKEN: abc", "access_key=abc", "private_key=abc", "x-api-key=abc", "api-key: abc", "access-token=abc", "client-secret: abc"):
     candidate = dict(base); candidate["summary"] = summary
     try: module.validate_event(candidate, "wiki-task-tracking")
     except ValueError: continue
     raise SystemExit("secret assignment accepted")
+for path in ("src/auth.py", "lib/tokenizer.py", "docs/credential-format.md"):
+    candidate = dict(base); candidate["evidence"] = dict(base["evidence"], paths=[path])
+    module.validate_event(candidate, "wiki-task-tracking")
 print("OK")
 PY
 )"
@@ -167,7 +170,7 @@ spec.loader.exec_module(module)
 home = Path(sys.argv[2])
 queue = home / "state/iwiki-task-spool/icodex/boundary-test.json"
 queue.parent.mkdir(parents=True, exist_ok=True)
-queue.write_text(json.dumps({"schema_version": True, "project": "icodex", "topic": "wiki-task-tracking", "events": []}))
+queue.write_text(json.dumps({"schema_version": True, "project": "icodex", "topic": "boundary-test", "events": []}))
 try: module.list_events(home, "icodex", "boundary-test")
 except ValueError: pass
 else: raise SystemExit("boolean schema version accepted")
@@ -181,6 +184,46 @@ else: raise SystemExit("symlink queue accepted")
 if target.read_text() != "outside": raise SystemExit("symlink target changed")
 queue.unlink()
 print("OK")
+PY
+)"
+
+assert_eq "schema version CLI error is controlled" "OK" "$(python3 - "$helper" "$tmp/home" <<'PY'
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+helper, home = sys.argv[1:]
+queue = Path(home) / "state/iwiki-task-spool/icodex/schema-version-test.json"
+queue.parent.mkdir(parents=True, exist_ok=True)
+queue.write_text(json.dumps({"schema_version": True, "project": "icodex", "topic": "schema-version-test", "events": []}))
+result = subprocess.run([sys.executable, helper, "list", "--codex-home", home, "--project", "icodex", "--topic", "schema-version-test"], text=True, capture_output=True)
+if result.returncode != 2 or "schema_version" not in result.stderr or "Traceback" in result.stderr:
+    raise SystemExit("schema version error was not controlled")
+queue.unlink()
+print("OK")
+PY
+)"
+
+assert_eq "unsafe preexisting spool directory rejected" "OK" "$(python3 - "$helper" "$tmp" <<'PY'
+import importlib.util
+import os
+import sys
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("task_spool", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+home = Path(sys.argv[2]) / "unsafe-home"
+unsafe = home / "state" / "iwiki-task-spool"
+unsafe.mkdir(parents=True)
+unsafe.chmod(0o755)
+event = {"kind": "verification", "occurred_at": "2026-08-12T12:00:00Z", "actor": "root", "summary": "safe", "evidence": {"paths": [], "checks": [], "hashes": {}}}
+try: module.enqueue(home, "icodex", "unsafe-dir", event)
+except ValueError: print("OK")
+else: raise SystemExit("unsafe directory accepted")
 PY
 )"
 
