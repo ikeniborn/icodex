@@ -37,6 +37,9 @@ if [[ -f "$agents" ]]; then
   assert_contains "wiki is sole durable status" "$agents_body" "sole durable task index"
   assert_contains "outage is fail-open execution" "$agents_body" "execution may continue"
   assert_contains "outage is fail-closed completion" "$agents_body" 'must not report `done`'
+  assert_contains "missing task domain is fail-open execution" "$agents_body" "When iwiki is connected but the project domain is absent, execution may continue"
+  assert_contains "missing task domain uses completion pending" "$agents_body" 'lifecycle is `completion-pending`'
+  assert_contains "missing task domain is fail-closed completion" "$agents_body" 'must not report `done` until the domain and task page are available'
   assert_exit "no live repository task log" 1 grep -qF "Task Log (docs/TODO.md)" "$agents"
   assert_contains "routing discovery excludes task-specific analysis" "$flat_agents_body" 'must not perform task-specific analysis, reproduction, or test execution before the task page is resolved'
   assert_contains "direct creates no chain artifacts but resolves a task page" "$flat_agents_body" 'Direct work creates no formal intent, spec, plan, or `check-chain` artifact, but always resolves a wiki task page.'

@@ -51,6 +51,7 @@ Always use the iwiki MCP tools (`wiki_status`, `wiki_bind`, `wiki_search`, `wiki
 - Parent agent is the sole writer: it serializes page creation, lifecycle changes, durable evidence, and `Changelog` events. Before delegation record `dispatch`; each subagent returns its ID, role, outcome, changed paths, checks, blockers, and proposed changelog text; parent records `return` before the next transition.
 - Task pages use lifecycle `in-progress`, `blocked`, `completion-pending`, or `done`. `TODO` stays workflow-specific; chain gate outcomes and LoEn milestones are appended to `Changelog`, never stored as repository table cells.
 - On iwiki MCP outage, execution may continue with redacted local spool evidence. Durable status is unavailable, spool state is non-authoritative, and the task must not report `done` until replay, successful page write, empty spool, and clean task-page lint.
+- When iwiki is connected but the project domain is absent, execution may continue with redacted local spool evidence; normal page resolution cannot occur. Durable status is unavailable, lifecycle is `completion-pending`, and the task must not report `done` until the domain and task page are available, replay succeeds, the spool is empty, and task-page lint is clean.
 - Do not add direct hooks that write wiki. MCP operations remain interactive parent actions. `task_spool.py` never calls MCP.
 
 ## Task Topic and Thread Title
