@@ -40,6 +40,12 @@ assert_contains "context includes pending delivery" "$context_body" 'task_delive
 assert_contains "context checks Codex home spool" "$context_body" '$CODEX_HOME/state/iwiki-task-spool/<project>/<topic>.json'
 assert_contains "context checks spool without iwiki" "$context_body" 'even when iwiki is unavailable or the project domain is absent'
 assert_contains "context maps queue presence to pending" "$context_body" 'task_delivery_pending: true when that queue file exists'
+no_domain_branch="$(sed -n '/4\. Если домена проекта нет:/,/ELSE (сервер не подключён):/p' "$context_skill")"
+outage_branch="$(sed -n '/ELSE (сервер не подключён):/,/```/p' "$context_skill")"
+for branch in "$no_domain_branch" "$outage_branch"; do
+  assert_contains "known-topic outage preserves spool result" "$branch" 'task_delivery_pending: <spool result when topic known; otherwise false>'
+  assert_eq "known-topic outage has no hard-coded false" "false" "$([[ "$branch" == *'task_delivery_pending: false'* ]] && echo true || echo false)"
+done
 for lifecycle in in-progress blocked completion-pending done; do
   assert_contains "lifecycle: $lifecycle" "$body" "\`$lifecycle\`"
 done

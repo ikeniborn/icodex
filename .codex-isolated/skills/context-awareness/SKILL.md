@@ -109,7 +109,7 @@ IF MCP-сервер iwiki подключён:
        task_page_slug: "reference/tasks/<topic>" | null
        task_page_found: false
        task_lifecycle: null
-       task_delivery_pending: false
+       task_delivery_pending: <spool result when topic known; otherwise false>
 
 ELSE (сервер не подключён):
   wiki_initialized: false
@@ -119,7 +119,7 @@ ELSE (сервер не подключён):
   task_page_slug: "reference/tasks/<topic>" | null
   task_page_found: false
   task_lifecycle: null
-  task_delivery_pending: false
+  task_delivery_pending: <spool result when topic known; otherwise false>
 ```
 
 После привязки домена Phase 0 выводит точный контекст task page: определяет
