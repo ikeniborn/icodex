@@ -150,35 +150,33 @@ def _queue_path(codex_home: Path, project: str, topic: str) -> Path:
 def _ensure_queue_parent(path: Path) -> None:
     """Create and validate only real directories from CODEX_HOME to queue parent."""
     current = path.parents[3]
-    for component in (current, current / "state", current / "state" / "iwiki-task-spool", path.parent):
+    components = (current, current / "state", current / "state" / "iwiki-task-spool", path.parent)
+    for index, component in enumerate(components):
         try:
             mode = os.lstat(component).st_mode
         except FileNotFoundError:
             component.mkdir(mode=0o700)
             mode = os.lstat(component).st_mode
         if (
-            not os.path.isdir(component)
-            or os.path.islink(component)
-            or not stat.S_ISDIR(mode)
-            or os.lstat(component).st_uid != os.getuid()
-            or mode & 0o077
+            not stat.S_ISDIR(mode)
+            or stat.S_ISLNK(mode)
+            or (index >= 2 and (os.lstat(component).st_uid != os.getuid() or mode & 0o077))
         ):
             raise ValueError("spool directory must be a real directory")
 
 
 def _validate_queue_parent(path: Path) -> None:
     current = path.parents[3]
-    for component in (current, current / "state", current / "state" / "iwiki-task-spool", path.parent):
+    components = (current, current / "state", current / "state" / "iwiki-task-spool", path.parent)
+    for index, component in enumerate(components):
         try:
             mode = os.lstat(component).st_mode
         except FileNotFoundError:
             return
         if (
-            not os.path.isdir(component)
-            or os.path.islink(component)
-            or not stat.S_ISDIR(mode)
-            or os.lstat(component).st_uid != os.getuid()
-            or mode & 0o077
+            not stat.S_ISDIR(mode)
+            or stat.S_ISLNK(mode)
+            or (index >= 2 and (os.lstat(component).st_uid != os.getuid() or mode & 0o077))
         ):
             raise ValueError("spool directory must be a real directory")
 

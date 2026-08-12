@@ -227,6 +227,29 @@ else: raise SystemExit("unsafe directory accepted")
 PY
 )"
 
+assert_eq "trusted launcher Codex home supports spool" "OK" "$(python3 - "$helper" "$tmp" <<'PY'
+import importlib.util
+import sys
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("task_spool", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+home = Path(sys.argv[2]) / "launcher-home"
+home.mkdir()
+home.chmod(0o775)
+event = {"kind": "verification", "occurred_at": "2026-08-12T12:00:00Z", "actor": "root", "summary": "safe", "evidence": {"paths": [], "checks": [], "hashes": {}}}
+if module.list_events(home, "icodex", "launcher-home")["events"] != []:
+    raise SystemExit("new queue is not empty")
+module.enqueue(home, "icodex", "launcher-home", event)
+if len(module.list_events(home, "icodex", "launcher-home")["events"]) != 1:
+    raise SystemExit("trusted launcher home could not enqueue")
+print("OK")
+PY
+)"
+
 assert_eq "replace failure preserves valid queue" "OK" "$(python3 - "$helper" "$tmp/home" <<'PY'
 import importlib.util
 import sys
