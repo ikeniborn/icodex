@@ -423,9 +423,11 @@ and `*.pyc`.
 
 ## Boundaries
 
-LoEn is self-contained and does not depend on other workflow plugins. It writes
-loop state only under `docs/loen/<topic>/` and updates `docs/TODO.md` as the
-global task index. The LoEn lifecycle is complete on its own; cross-workflow
+LoEn is self-contained and does not depend on other workflow plugins. Loop
+artifacts remain authoritative for loop execution under `docs/loen/<topic>/`.
+Before a loop starts, the parent resolves or creates the shared
+`reference/tasks/<topic>` page, then mirrors material lifecycle evidence there.
+Hooks remain MCP-free. The LoEn lifecycle is complete on its own; cross-workflow
 validation is opt-in for separate work. Auto-merge stays disabled by default;
 only approved
 `merge-release` policy may set `governance.auto_merge: true`. LoEn does not

@@ -27,7 +27,7 @@ flowchart LR
     subgraph runtime["Repository runtime state"]
         Topic["docs/loen/&lt;topic&gt;/"]
         TopicAudit["docs/loen/&lt;topic&gt;/audit.html"]
-        Todo["docs/TODO.md"]
+        SharedTask["reference/tasks/&lt;topic&gt; (parent-owned)"]
     end
 
     Manifest --> Vendor
@@ -40,7 +40,7 @@ flowchart LR
     Vendor --> CacheDocs
     CacheSkills --> Topic
     Topic --> TopicAudit
-    CacheSkills --> Todo
+    CacheSkills --> SharedTask
 
     classDef source fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec,stroke-width:2px
     classDef process fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
@@ -116,8 +116,10 @@ state so the loop can continue across context compaction, new threads,
 subagents, reviews, and later automation.
 
 `loop.yaml` is the machine-readable contract for one topic. The audit writer
-regenerates `docs/loen/<topic>/audit.html` from repository artifacts and updates
-the matching `docs/TODO.md` row without creating duplicate rows.
+regenerates `docs/loen/<topic>/audit.html` from repository artifacts. Loop
+artifacts remain authoritative for loop execution; before the loop starts, the
+parent resolves or creates `reference/tasks/<topic>` and mirrors material
+lifecycle evidence to that shared task page. Hooks remain MCP-free.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
@@ -202,8 +204,9 @@ flowchart TD
     GovernancePolicy --> HumanReview
     HumanReview --> AuditHtml
     Evidence --> AuditHtml
-    Result --> TodoRow["docs/TODO.md row"]
-    AuditHtml --> TodoRow
+    Result --> ParentMirror["Parent mirrors material lifecycle evidence"]
+    AuditHtml --> ParentMirror
+    ParentMirror --> SharedTask["reference/tasks/&lt;topic&gt;"]
 
     classDef artifact fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec
     classDef contract fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
@@ -215,7 +218,7 @@ flowchart TD
     class LoopStart,LoopRun,DeliveryState governance
     class GovernanceRun,ReportOnly,AutoFix,MergeRelease governance
     class GoalContextGate,StartModeChoice,StartSubtypeSelect,ModeChoice,SubtypeChoice,RunPreflight,LaunchApproval,RepeatPreflight decision
-    class AuditHtml,TodoRow report
+    class AuditHtml,ParentMirror,SharedTask report
 ```
 
 ## Loop Runner

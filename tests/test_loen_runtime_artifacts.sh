@@ -10,9 +10,7 @@ audit_writer="$plugin_root/hooks/audit-writer.py"
 template_dir="$plugin_root/assets/templates"
 workdir="$(mktemp -d)"
 artifact_root="$workdir/docs/loen"
-todo_path="$workdir/docs/TODO.md"
 topic="sample-runtime-topic"
-opened_date="$(date +%F)"
 
 cleanup() {
   rm -rf "$workdir"
@@ -376,40 +374,27 @@ printf '{"status":"pass","command":"bash tests/test_loen_runtime_artifacts.sh"}\
 printf '# Check\n\n## Result\n\nBYPASS\n' > "$topic_dir/5_check.md"
 printf '# Result\n\n## Outcome\n\nNot Done\n' > "$topic_dir/7_result.md"
 
-assert_exit "audit writer runs for negative verdict" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$todo_path" python3 "$audit_writer"
+assert_exit "audit writer runs for negative verdict" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" python3 "$audit_writer"
 negative_audit="$(cat "$topic_dir/audit.html" 2>/dev/null || true)"
 assert_contains "audit negative verdict stays not done" "$negative_audit" "Not done"
 assert_eq "audit negative verdict is not done" "0" "$(grep -cF "Final verdict:</strong> Done" <<<"$negative_audit" || true)"
 
-if [[ -f "$artifact_module" ]]; then
-  opened_default_status="$(PYTHONPATH="$plugin_root/hooks" python3 - <<'PY'
-import inspect
-from loen_artifacts import upsert_todo_row
-
-default = inspect.signature(upsert_todo_row).parameters["opened"].default
-print("OK" if default is None else repr(default))
-PY
-)"
-else
-  opened_default_status="missing"
-fi
-assert_eq "TODO opened date defaults dynamically" "OK" "$opened_default_status"
+assert_eq "artifact module has no TODO writer" "0" "$(grep -cF 'upsert_todo_row' "$artifact_module" || true)"
+assert_eq "audit writer has no TODO env" "0" "$(grep -cF 'LOEN_TODO_PATH' "$audit_writer" || true)"
 
 printf '{"status":"pass","command":"bash tests/test_loen_runtime_artifacts.sh"}\n' > "$topic_dir/evidence/latest-test.json"
 printf 'first attempt\nsecond attempt\n' > "$topic_dir/attempts.jsonl"
 printf '# Check\n\n## Result\n\nPASS\n' > "$topic_dir/5_check.md"
 printf '# Result\n\n## Outcome\n\nDone\n' > "$topic_dir/7_result.md"
 
-assert_exit "audit writer runs first time" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$todo_path" python3 "$audit_writer"
-assert_exit "audit writer runs second time" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$todo_path" python3 "$audit_writer"
+assert_exit "audit writer runs first time" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" python3 "$audit_writer"
+assert_exit "audit writer runs second time" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" python3 "$audit_writer"
 
 updated_audit="$(cat "$topic_dir/audit.html" 2>/dev/null || true)"
-updated_todo="$(cat "$todo_path" 2>/dev/null || true)"
 
 assert_contains "audit regenerated with evidence file" "$updated_audit" "evidence/latest-test.json"
 assert_contains "audit regenerated with attempts count" "$updated_audit" "2 attempt(s)"
 assert_contains "audit regenerated done verdict" "$updated_audit" "Done"
-assert_contains "task log row exists" "$updated_todo" "| sample-runtime-topic | in-progress | n/a | n/a | n/a | - | $opened_date |  | LoEn loop |"
-assert_eq "task log has one topic row" "1" "$(grep -cF "| sample-runtime-topic |" "$todo_path" 2>/dev/null || true)"
+assert_eq "audit writer does not create repository TODO" "" "$(find "$workdir" -path '*/docs/TODO.md' -print -quit)"
 
 finish
