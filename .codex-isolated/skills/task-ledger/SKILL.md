@@ -18,6 +18,8 @@ Track every direct, chain, and LoEn task, including read-only work. The parent a
 7. On MCP failure, enqueue redacted events with `scripts/task_spool.py` and use `completion-pending`.
 8. Set `done` only after final evidence, successful wiki write, empty spool, and `wiki_lint` without a new task-page finding.
 
+If iwiki is connected but the project domain is absent, the task page cannot be read or created. Parent may continue with redacted spool events, report durable status unavailable, and retain `completion-pending`; completion remains fail-closed until a bound domain permits replay, wiki write, and lint. This differs from the normal bound-domain flow above.
+
 ## State and events
 
 Lifecycle: `in-progress`, `blocked`, `completion-pending`, `done`. Material event kinds: `open`, `route`, `dispatch`, `return`, `decision`, `blocker`, `verification`, `close`; append them chronologically, not every tool call.
