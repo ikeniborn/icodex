@@ -96,21 +96,26 @@ def validate_event(value: object, topic: str) -> dict[str, object]:
         if not isinstance(digest, str) or not _HASH.fullmatch(digest):
             raise ValueError("hashes must be lowercase hexadecimal")
         valid_hashes[name] = digest
+    canonical_evidence = {"paths": valid_paths, "checks": valid_checks, "hashes": valid_hashes}
+    evidence_digest = hashlib.sha256(
+        json.dumps(canonical_evidence, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return {
         "kind": kind,
         "occurred_at": occurred_at,
         "actor": actor,
         "summary": summary,
-        "evidence": {"paths": valid_paths, "checks": valid_checks, "hashes": valid_hashes},
+        "evidence": canonical_evidence,
+        "evidence_hash": evidence_digest,
     }
 
 
 def event_id(topic: str, event: dict[str, object]) -> str:
     """Return stable ID derived solely from topic, kind, canonical evidence."""
     _require_slug(topic, "topic")
-    evidence = event["evidence"]
-    encoded = json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode()
-    evidence_hash = hashlib.sha256(encoded).hexdigest()
+    evidence_hash = event["evidence_hash"]
+    if not isinstance(evidence_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", evidence_hash):
+        raise ValueError("event must carry canonical evidence_hash")
     material = f"{topic}\n{event['kind']}\n{evidence_hash}".encode()
     return hashlib.sha256(material).hexdigest()[:16]
 
@@ -132,6 +137,18 @@ def _load(path: Path, project: str, topic: str) -> dict[str, object]:
         raise ValueError("spool queue identity mismatch")
     if not isinstance(queue["events"], list):
         raise ValueError("invalid spool events")
+    for stored in queue["events"]:
+        if not isinstance(stored, dict):
+            raise ValueError("invalid spool event")
+        _require_keys(
+            stored,
+            {"kind", "occurred_at", "actor", "summary", "evidence", "evidence_hash", "event_id"},
+            "spool event",
+        )
+        raw = {key: stored[key] for key in ("kind", "occurred_at", "actor", "summary", "evidence")}
+        validated = validate_event(raw, topic)
+        if stored["evidence_hash"] != validated["evidence_hash"] or stored["event_id"] != event_id(topic, validated):
+            raise ValueError("spool event integrity mismatch")
     return queue
 
 

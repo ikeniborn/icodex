@@ -18,12 +18,33 @@ assert_contains "parent sole writer" "$body" "parent agent is the sole writer"
 assert_contains "canonical slug" "$body" "reference/tasks/<topic>"
 assert_contains "completion waits" "$body" "completion-pending"
 assert_contains "server stays external" "$body" "never modify iwiki-mcp"
+assert_contains "page metadata type" "$body" "type: reference"
+assert_contains "page metadata status" "$body" "status: stable"
+assert_contains "page metadata tag" "$body" 'tag `task`'
+for section in "Current State" "TODO" "Subtasks" "Evidence" "Changelog"; do
+  assert_contains "required page section: $section" "$body" "## $section"
+done
+for field in topic route lifecycle opened closed parent pending-delivery; do
+  assert_contains "current state field: $field" "$body" "$field"
+done
+assert_contains "TODO stays workflow-specific" "$body" "workflow-specific"
+assert_contains "TODO does not impose chain stages" "$body" "direct or LoEn"
+assert_contains "page read before replay" "$body" "Read or create"
+assert_contains "helper never calls MCP" "$body" "never call MCP"
+assert_contains "helper never syncs" "$body" "wiki_sync"
+for lifecycle in in-progress blocked completion-pending done; do
+  assert_contains "lifecycle: $lifecycle" "$body" "\`$lifecycle\`"
+done
+for kind in open route dispatch return decision blocker verification close; do
+  assert_contains "event kind: $kind" "$body" "\`$kind\`"
+done
 
 event='{"kind":"verification","occurred_at":"2026-08-12T12:00:00Z","actor":"root","summary":"focused suite passed","evidence":{"paths":["tests/test_task_ledger.sh"],"checks":[{"name":"task-ledger","status":"passed","exit_code":0}],"hashes":{"fixture":"0123456789abcdef"}}}'
 assert_exit "enqueue valid event" 0 bash -c 'printf "%s" "$1" | python3 "$2" enqueue --codex-home "$3" --project icodex --topic wiki-task-tracking' _ "$event" "$helper" "$tmp/home"
 assert_eq "spool mode is private" "600" "$(stat -c '%a' "$tmp/home/state/iwiki-task-spool/icodex/wiki-task-tracking.json")"
 first="$(python3 "$helper" list --codex-home "$tmp/home" --project icodex --topic wiki-task-tracking)"
 assert_contains "queued event has id" "$first" '"event_id"'
+assert_contains "queued event has evidence hash" "$first" '"evidence_hash"'
 assert_exit "duplicate enqueue is idempotent" 0 bash -c 'printf "%s" "$1" | python3 "$2" enqueue --codex-home "$3" --project icodex --topic wiki-task-tracking' _ "$event" "$helper" "$tmp/home"
 after_retry="$(python3 "$helper" list --codex-home "$tmp/home" --project icodex --topic wiki-task-tracking)"
 assert_eq "one event after retry" "1" "$(python3 -c 'import json,sys; print(len(json.load(sys.stdin)["events"]))' <<<"$after_retry")"
@@ -48,6 +69,38 @@ for leaked in 'password=hunter2' 'secret: value' 'api_key=abc' 'authorization: B
   payload="$(printf '%s' "$event" | sed "s/focused suite passed/$leaked/")"
   assert_exit "sensitive summary rejected: $leaked" 2 bash -c 'printf "%s" "$1" | python3 "$2" enqueue --codex-home "$3" --project icodex --topic wiki-task-tracking' _ "$payload" "$helper" "$tmp/home"
 done
+
+assert_eq "schema rejects malformed inputs" "OK" "$(python3 - "$helper" <<'PY'
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("task_spool", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+base = {
+    "kind": "verification",
+    "occurred_at": "2026-08-12T12:00:00Z",
+    "actor": "root",
+    "summary": "safe summary",
+    "evidence": {"paths": ["tests/test_task_ledger.sh"], "checks": [{"name": "suite", "status": "passed", "exit_code": 0}], "hashes": {"fixture": "0123456789abcdef"}},
+}
+cases = []
+unknown = dict(base); unknown["raw_output"] = "no"; cases.append(unknown)
+bad_time = dict(base); bad_time["occurred_at"] = "2026-08-12T12:00:00+00:00"; cases.append(bad_time)
+unsafe = dict(base); unsafe["evidence"] = dict(base["evidence"], paths=["../secret"]); cases.append(unsafe)
+bad_check = dict(base); bad_check["evidence"] = dict(base["evidence"], checks=[{"name": "suite", "status": "unknown", "exit_code": 0}]); cases.append(bad_check)
+bad_hash = dict(base); bad_hash["evidence"] = dict(base["evidence"], hashes={"fixture": "UPPERCASE"}); cases.append(bad_hash)
+for value in cases:
+    try:
+        module.validate_event(value, "wiki-task-tracking")
+    except ValueError:
+        continue
+    raise SystemExit("invalid event accepted")
+print("OK")
+PY
+)"
 
 assert_eq "replace failure preserves valid queue" "OK" "$(python3 - "$helper" "$tmp/home" <<'PY'
 import importlib.util
