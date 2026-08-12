@@ -2,7 +2,7 @@
 chain:
   intent: docs/superpowers/intents/2026-08-12-wiki-task-tracking-intent.md
 review:
-  spec_hash: da30bc85ab3b862b
+  spec_hash: b39858880d9ab1b8
   last_run: 2026-08-12
   phases:
     structure: { status: passed }
@@ -53,6 +53,10 @@ Every task MUST receive one English lowercase-kebab-case `<topic>` before work s
 The topic MUST match the task-page suffix and every applicable controlled artifact,
 including `dev-<topic>`, chain artifacts, profile manifest, and LoEn directory.
 
+Bounded routing discovery MAY read the request, project binding, and minimum repository
+context needed to derive the canonical topic and workflow. It MUST NOT perform the
+task-specific analysis or implementation that the task page exists to track.
+
 Acceptance:
 
 - A direct, chain, or LoEn task with a valid topic resolves exactly one task-page slug.
@@ -96,8 +100,10 @@ Lifecycle status MUST be one of `in-progress`, `blocked`, `completion-pending`, 
 subagent dispatch and return, scope or decision change, blocker, verification result,
 and close. It MUST NOT log every tool call or intermediate read.
 
-Each event MUST carry an idempotency key derived from topic, event kind, and a hash of
-redacted evidence. Replay MUST skip a key already present on the page. Existing entries
+Each event MUST carry an evidence hash over canonical redacted evidence and an
+idempotency key derived only from topic, event kind, and that evidence hash. Timestamp,
+actor, and summary MUST NOT change the key. Replay MUST skip a key already present on
+the page. Existing entries
 MUST NOT be rewritten except to repair a confirmed malformed or secret-bearing entry
 under proposal-first authority.
 
@@ -131,8 +137,9 @@ queue, not an authoritative task state. It MUST contain only redacted structured
 their ordering, and idempotency keys. It MUST NOT contain credentials, environment
 values, raw command output, or a duplicate durable project task database.
 
-At the next available parent checkpoint, pending events MUST replay in order. The parent
-MUST confirm each event on the wiki page before removing it from the spool. A task with
+At the next available parent checkpoint, the parent MUST read or create the task page,
+load its durable idempotency keys, then replay pending events in order. The parent MUST
+confirm each event on the wiki page before removing it from the spool. A task with
 pending events MUST use `completion-pending`; `done` is fail-closed until replay,
 verification evidence, and `wiki_lint` succeed.
 
@@ -155,9 +162,9 @@ LoEn skills, runtime artifacts, and enforcement hooks MUST stop creating or upda
 uses the shared task-page only for cross-workflow task status, lifecycle history, and
 evidence links.
 
-Direct work MUST create or resolve its task page before durable implementation or
-read-only analysis. `@topic` remains an optional explicit topic/profile command, not a
-precondition for direct tracking.
+Direct work MUST create or resolve its task page after bounded routing discovery and
+before durable implementation or task-specific read-only analysis. `@topic` remains an
+optional explicit topic/profile command, not a precondition for direct tracking.
 
 Acceptance:
 
@@ -244,9 +251,10 @@ MCP ownership belongs to the interactive parent agent.
 
 ### Data Flow
 
-1. Parent resolves project domain and canonical topic.
-2. Parent replays pending spool events, then searches the exact task-page slug.
-3. Parent creates the page if absent or reads current lifecycle and idempotency keys.
+1. Parent performs bounded discovery to resolve the project domain and canonical topic.
+2. Parent searches the exact task-page slug and creates the page if absent.
+3. Parent reads current lifecycle and durable idempotency keys, then replays and
+   acknowledges pending spool events in order.
 4. Parent updates current sections and appends material events at workflow checkpoints.
 5. Parent records subagent dispatch, delegates read-only task context, receives
    structured evidence, and serializes the result.
