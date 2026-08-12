@@ -50,6 +50,11 @@ assert_contains "check-chain final report requires process diagrams when needed"
 assert_contains "check-chain cached non-result stays markdown-only" "$CC" 'Cached quick-exit runs for `intent`, `spec`, and `plan` do not regenerate HTML'
 assert_contains "check-chain cached non-result verifies durable page" "$CC" 'Before returning cached OK, the parent reads `reference/tasks/<topic>`'
 assert_contains "check-chain cached non-result rejects stale page" "$CC" "Stale task page state is not a cache hit"
+assert_contains "check-chain cached result verifies or replays page" "$CC" "Cached result first verifies or replays durable final task-page state."
+assert_contains "check-chain cached result requires close hash" "$CC" 'matching `close` event with the current selected-source hash'
+assert_contains "check-chain cached result rejects absent final state" "$CC" "Absent final task-page state is not a cache hit"
+assert_contains "check-chain cached result rejects stale final state" "$CC" "Stale final task-page state is not a cache hit"
+assert_contains "check-chain cached result rejects pending spool" "$CC" 'Pending spool state is not a cache hit; retain `completion-pending` and never report `done`.'
 assert_before "check-chain writes current result state before report offer" "$CC" 'Write state into the selected source' 'Optional report offer'
 assert_contains "check-chain report reads task lifecycle" "$CC" "task-page lifecycle, evidence, subtasks, and changelog"
 assert_contains "chain-report receives task lifecycle" "$CR" "task-page lifecycle, evidence, subtasks, and changelog"

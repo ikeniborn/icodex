@@ -49,6 +49,8 @@ assert_contains "check-chain result blocks stale chain docs" "$cc_text" 'Do not 
 assert_contains "check-chain documents markdown feedback loop" "$cc_text" 'fix the markdown source first and rerun the relevant `check-chain'
 assert_contains "check-chain prohibits invented report content" "$cc_text" "Do not invent requirements, dependencies, decisions, risks, or diagrams"
 assert_contains "check-chain cached result asks for report" "$cc_text" 'Cached quick-exit runs for `result` must still ask whether to generate the optional HTML'
+assert_contains "check-chain cached result verifies final page" "$cc_text" "Cached result first verifies or replays durable final task-page state."
+assert_contains "check-chain cached result blocks pending spool" "$cc_text" 'Pending spool state is not a cache hit; retain `completion-pending` and never report `done`.'
 assert_contains "check-chain report uses task page" "$cc_text" "task-page lifecycle, evidence, subtasks, and changelog"
 assert_contains "chain-report uses task page" "$cr_text" "task-page lifecycle, evidence, subtasks, and changelog"
 assert_not_contains "check-chain has no live TODO contract" "$cc_text" "docs/TODO.md"

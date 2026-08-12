@@ -77,6 +77,15 @@ if [[ -f "$CC" ]]; then
   assert_contains "check-chain cached stages verify matching event hash" "$body" 'matching `gate` event with the current body hash'
   assert_contains "check-chain missing cached page state reruns" "$body" "Missing task page state is not a cache hit"
   assert_contains "check-chain stale cached page state reruns" "$body" "Stale task page state is not a cache hit"
+  assert_contains "check-chain cached result replays durable task state" "$body" "Cached result first verifies or replays durable final task-page state."
+  assert_contains "check-chain cached result requires final evidence" "$body" "final verification evidence"
+  assert_contains "check-chain cached result requires matching close hash" "$body" 'matching `close` event with the current selected-source hash'
+  assert_contains "check-chain cached result requires done lifecycle" "$body" 'lifecycle is `done`'
+  assert_contains "check-chain cached result requires empty spool" "$body" "spool is empty"
+  assert_contains "check-chain cached result requires wiki completion" "$body" 'successful wiki write and `wiki_lint`'
+  assert_contains "check-chain absent cached result state reruns" "$body" "Absent final task-page state is not a cache hit"
+  assert_contains "check-chain stale cached result state reruns" "$body" "Stale final task-page state is not a cache hit"
+  assert_contains "check-chain pending cached result stays pending" "$body" 'Pending spool state is not a cache hit; retain `completion-pending` and never report `done`.'
   assert_contains "check-chain records execute n/a stages in task page" "$body" "execute records Spec and Plan as n/a in the task page."
   assert_contains "check-chain persists evidence before close" "$body" "result writes final evidence before the close event."
   assert_contains "check-chain keeps pending completion during delivery" "$body" "completion-pending is used while spool events remain."

@@ -72,11 +72,16 @@ hash, then verify its `Changelog` has a matching `gate` event with the current b
 Missing task page state is not a cache hit. Stale task page state is not a cache hit.
 Only when both page checks match, output `OK (cached, hash match)` and finish; cached
 intent/spec/plan checks do not append a duplicate gate event. Otherwise continue through
-the normal stage flow and reconcile durable state after frontmatter persistence. For `result`, require
-`result_check.verdict == OK` and a matching `plan_hash` for source `plan` or
-`intent_hash` for source `intent`; missing `source` means `plan` for backward
-compatibility. Otherwise continue. The advisory `alignment` phase is not recomputed on
-a hash match — trust the previous run.
+the normal stage flow and reconcile durable state after frontmatter persistence.
+
+For `result`, require `result_check.verdict == OK` and a matching `plan_hash` for source
+`plan` or `intent_hash` for source `intent`; missing `source` means `plan` for backward
+compatibility. Cached result first verifies or replays durable final task-page state.
+Before returning cached OK, the parent reads `reference/tasks/<topic>` and verifies final verification evidence for the current selected-source hash.
+It verifies a matching `close` event with the current selected-source hash, lifecycle is `done`, spool is empty, and successful wiki write and `wiki_lint` evidence.
+Absent final task-page state is not a cache hit. Stale final task-page state is not a cache hit. Pending spool state is not a cache hit; retain `completion-pending` and never report `done`.
+For absent, stale, or pending state, execute normal result persistence/replay: write or replay final evidence, reconcile delivery in order, and append or acknowledge `close` only after confirmed write and lint. Otherwise continue.
+The advisory `alignment` phase is not recomputed on a hash match — trust the previous run.
 
 ### Step 1 — scope resolution
 
