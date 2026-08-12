@@ -72,6 +72,11 @@ if [[ -f "$CC" ]]; then
   assert_contains "check-chain approval requires OK first" "$body" 'Human approval is requested only after this stage returns `OK`'
   assert_contains "check-chain keeps task-page writes in main context" "$body" "Main context keeps task-page and changelog writes."
   assert_contains "check-chain skips duplicate cached events" "$body" "Cached intent/spec/plan checks do not append a duplicate gate event."
+  assert_contains "check-chain cached stages read durable task page" "$body" 'Before returning cached OK, the parent reads `reference/tasks/<topic>`'
+  assert_contains "check-chain cached stages verify TODO stage" "$body" 'verify the durable `TODO` stage is `OK`'
+  assert_contains "check-chain cached stages verify matching event hash" "$body" 'matching `gate` event with the current body hash'
+  assert_contains "check-chain missing cached page state reruns" "$body" "Missing task page state is not a cache hit"
+  assert_contains "check-chain stale cached page state reruns" "$body" "Stale task page state is not a cache hit"
   assert_contains "check-chain records execute n/a stages in task page" "$body" "execute records Spec and Plan as n/a in the task page."
   assert_contains "check-chain persists evidence before close" "$body" "result writes final evidence before the close event."
   assert_contains "check-chain keeps pending completion during delivery" "$body" "completion-pending is used while spool events remain."

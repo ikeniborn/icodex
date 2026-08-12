@@ -64,8 +64,15 @@ Run bash via the Bash tool; never recompute "in your head".
 ### Step 0 — quick exit by state
 
 If frontmatter has a `review:` block, `current_body_hash == review.<hash_key>` AND every
-phase `status == passed` AND no finding with `severity == CRITICAL ∧ verdict == open` →
-output `OK (cached, hash match)` and finish. For `result`, require
+phase `status == passed` AND no finding with `severity == CRITICAL ∧ verdict == open`,
+cached `intent`, `spec`, and `plan` still require durable task-page verification before
+they can return. Before returning cached OK, the parent reads `reference/tasks/<topic>`;
+verify the durable `TODO` stage is `OK` for the current stage and has the current body
+hash, then verify its `Changelog` has a matching `gate` event with the current body hash.
+Missing task page state is not a cache hit. Stale task page state is not a cache hit.
+Only when both page checks match, output `OK (cached, hash match)` and finish; cached
+intent/spec/plan checks do not append a duplicate gate event. Otherwise continue through
+the normal stage flow and reconcile durable state after frontmatter persistence. For `result`, require
 `result_check.verdict == OK` and a matching `plan_hash` for source `plan` or
 `intent_hash` for source `intent`; missing `source` means `plan` for backward
 compatibility. Otherwise continue. The advisory `alignment` phase is not recomputed on
