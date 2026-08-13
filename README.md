@@ -24,11 +24,19 @@ work does not select a workflow by itself. Workflow routing has three entries: `
   does not require `fix-intent`, `superpowers:*`, or `$check-chain` unless the user
   explicitly chooses chain for a separate non-LoEn change.
 
-Task naming uses one canonical kebab-case `<topic>` across controlled artifacts:
-`docs/TODO.md`, the Superpowers chain topic or LoEn topic directory, and the
-`dev-<topic>` branch suffix. Thread titles are best-effort only; if the Codex
-surface cannot change or request a UI title, the agent records the chosen topic in
-the conversation and continues.
+## Task tracking
+
+One canonical topic maps to `reference/tasks/<topic>`. Every direct, chain, and LoEn
+task, including read-only analysis, requires that task page. The parent agent is the
+sole writer; subagents return structured evidence only. On an MCP outage, execution
+may continue: an MCP outage writes redacted local delivery-spool evidence and keeps
+lifecycle `completion-pending`. Task-tagged wiki pages are the only current task-status
+index. Legacy repository history is archived at `reference/tasks-legacy-archive`.
+
+Use the canonical kebab-case `<topic>` across the task page, Superpowers chain topic or
+LoEn topic directory, and `dev-<topic>` branch suffix. Thread titles are best-effort only;
+if the Codex surface cannot change or request a UI title, the agent records the
+chosen topic in the conversation and continues.
 
 ## How isolation works
 
