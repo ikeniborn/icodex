@@ -32,7 +32,17 @@ if [[ -f "$agents" ]]; then
   assert_contains "missing evidence does not select chain" "$flat_agents_body" 'Absence of evidence is not evidence for chain'
   assert_contains "chain branches after intent" "$agents_body" 'Continuation after intent: execute | full | n/a'
   assert_contains "chain execute skips spec and plan" "$flat_agents_body" 'implements directly from the approved intent and marks Spec and Plan n/a'
-  assert_contains "direct avoids full App Server orchestration" "$flat_agents_body" 'Direct work creates no formal intent, spec, plan, `check-chain`, or chain TODO artifacts.'
+  assert_contains "task page precedes every task" "$agents_body" "Every direct, chain, and LoEn task"
+  assert_contains "read-only work tracked" "$agents_body" "including read-only analysis"
+  assert_contains "wiki is sole durable status" "$agents_body" "sole durable task index"
+  assert_contains "outage is fail-open execution" "$agents_body" "execution may continue"
+  assert_contains "outage is fail-closed completion" "$agents_body" 'must not report `done`'
+  assert_contains "missing task domain is fail-open execution" "$agents_body" "When iwiki is connected but the project domain is absent, execution may continue"
+  assert_contains "missing task domain uses completion pending" "$agents_body" 'lifecycle is `completion-pending`'
+  assert_contains "missing task domain is fail-closed completion" "$agents_body" 'must not report `done` until the domain and task page are available'
+  assert_exit "no live repository task log" 1 grep -qF "Task Log (docs/TODO.md)" "$agents"
+  assert_contains "routing discovery excludes task-specific analysis" "$flat_agents_body" 'must not perform task-specific analysis, reproduction, or test execution before the task page is resolved'
+  assert_contains "direct creates no chain artifacts but resolves a task page" "$flat_agents_body" 'Direct work creates no formal intent, spec, plan, or `check-chain` artifact, but always resolves a wiki task page.'
   assert_contains "full continuation needs evidence" "$flat_agents_body" 'Recommend `full` only when both an enumerated design-risk category'
   assert_contains "full requires an unresolved decision" "$flat_agents_body" 'named unresolved design decision'
   assert_contains "direct skips fix-intent" "$agents_body" 'Direct work must not invoke `fix-intent`'
@@ -74,16 +84,31 @@ if [[ -f "$readme" ]]; then
   assert_contains "README thread titles best effort" "$readme_body" "Thread titles are best-effort only"
   assert_contains "README documents three workflow routes" "$flat_readme_body" 'Workflow routing has three entries: `direct`, `chain`, and `loen`.'
   assert_contains "README documents chain continuation" "$flat_readme_body" '`execute` is the default; `full` needs both a design-risk category and a named unresolved design decision.'
+  assert_contains "README documents canonical wiki task page" "$flat_readme_body" 'One canonical topic maps to `reference/tasks/<topic>`.'
+  assert_contains "README documents direct and read-only task pages" "$flat_readme_body" 'Every direct, chain, and LoEn task, including read-only analysis, requires that task page.'
+  assert_contains "README documents parent-only task writes" "$flat_readme_body" 'The parent agent is the sole writer; subagents return structured evidence only.'
+  assert_contains "README documents completion pending outage" "$flat_readme_body" 'an MCP outage writes redacted local delivery-spool evidence and keeps lifecycle `completion-pending`.'
+  assert_contains "README documents wiki-only status" "$flat_readme_body" 'Task-tagged wiki pages are the only current task-status index.'
+  assert_contains "README documents legacy archive" "$flat_readme_body" 'Legacy repository history is archived at `reference/tasks-legacy-archive`.'
+  assert_exit "README has no current repository TODO index" 1 grep -qF 'docs/TODO.md' "$readme"
 fi
 
 if [[ -f "$readme_ru" ]]; then
   readme_ru_body="$(cat "$readme_ru")"
+  flat_readme_ru_body="$(tr '\n' ' ' < "$readme_ru" | sed 's/[[:space:]][[:space:]]*/ /g')"
   assert_contains "Russian README workflow boundaries section" "$readme_ru_body" "## Границы workflow"
   assert_contains "Russian README separates LoEn and Superpowers" "$readme_ru_body" "IDD -> SDD/Superpowers и LoEn — отдельные workflow"
   assert_contains "Russian README LoEn no Superpowers requirement" "$readme_ru_body" "активный LoEn loop сам по себе не требует \`fix-intent\`, \`superpowers:*\` или"
   assert_contains "Russian README thread titles best effort" "$readme_ru_body" "Thread title — best-effort"
   assert_contains "Russian README documents three workflow routes" "$readme_ru_body" 'Маршрутизация workflow имеет три входа: `direct`, `chain` и `loen`.'
   assert_contains "Russian README documents chain continuation" "$readme_ru_body" '`execute` выбирается по умолчанию; для `full` одновременно нужны категория design-risk и явно названное нерешённое design decision.'
+  assert_contains "Russian README documents canonical wiki task page" "$flat_readme_ru_body" 'Один canonical topic соответствует `reference/tasks/<topic>`.'
+  assert_contains "Russian README documents direct and read-only task pages" "$flat_readme_ru_body" 'Каждая задача direct, chain или LoEn, включая read-only analysis, требует эту страницу.'
+  assert_contains "Russian README documents parent-only task writes" "$flat_readme_ru_body" 'Только parent agent пишет состояние; subagent возвращает лишь structured evidence.'
+  assert_contains "Russian README documents completion pending outage" "$flat_readme_ru_body" 'outage MCP записывает redacted evidence в локальный delivery spool и сохраняет lifecycle `completion-pending`.'
+  assert_contains "Russian README documents wiki-only status" "$flat_readme_ru_body" 'Task-tagged wiki pages — единственный текущий индекс статуса задач.'
+  assert_contains "Russian README documents legacy archive" "$flat_readme_ru_body" 'Исторический repository index архивирован в `reference/tasks-legacy-archive`.'
+  assert_exit "Russian README has no current repository TODO index" 1 grep -qF 'docs/TODO.md' "$readme_ru"
   assert_contains "Russian README profile policy locations" "$readme_ru_body" '.codex-isolated/profiles/registry.yaml'
   assert_contains "Russian README project manifest policy location" "$readme_ru_body" 'docs/profiles/<topic>.yaml'
   assert_contains "Russian README shared profiles directory symlink" "$readme_ru_body" '.codex-homes/<проект>-<хеш>/profiles'

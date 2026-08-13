@@ -21,9 +21,9 @@ Codex, хуки, определения агентов и шаблоны для 
 
 | Навык | Когда использовать | За что отвечает |
 |---|---|---|
-| `loen:loop-start` | Нужно начать loop или выбрать устойчивую тему. | Создаёт или переиспользует `docs/loen/<topic>/`, собирает контракт запуска для `delivery` или `governance`, пишет `3_plan.md` на одобрение и затем фиксирует одобренный блок `run:` в `loop.yaml`. |
-| `loen:loop-run` | Одобренный `3_plan.md` нужно довести до конечного результата. | Исполняет одобренный блок `run:` через стадии prepare, act, check и reflect, затем пишет `7_result.md` или `handoff.md`. |
-| `loen:loop-plan` | Цель уже есть, нужен один ограниченный проход. | Превращает `1_goal.md`, `2_context.md` и `loop.yaml` в `3_plan.md` с точными командами проверки. |
+| `loen:loop-start` | Нужно начать или явно обновить устойчивую тему. | Адаптивно разрабатывает и подтверждает goal/context, собирает и подтверждает mode/subtype, включает planning, отдельно фиксирует одобрение плана и останавливается с `loen:loop-run <topic>`. |
+| `loen:loop-run` | Тема с checkpoints готова к решению о запуске. | Повторно проверяет контракт, показывает итоговую сводку, фиксирует явное подтверждение запуска человеком, повторяет полный preflight и затем исполняет или отказывает. |
+| `loen:loop-plan` | Существующей теме с checkpoints нужен новый план. | Проверяет подтверждённые upstream checkpoints, сбрасывает plan и launch, пишет новый `3_plan.md` и запрашивает новое одобрение плана. Не используется при первичном старте. |
 | `loen:loop-act` | В активном плане есть одно следующее действие. | Выполняет одно ограниченное действие и записывает изменённые файлы, команды и наблюдения в `4_act.md`. |
 | `loen:loop-check` | Изменились код, документация или конфигурация. | Запускает запланированные проверки и пишет коды выхода, краткие итоги вывода и ссылки на evidence в `5_check.md`. |
 | `loen:loop-reflect` | Evidence проверок уже есть, нужно решение по loop. | Выбирает keep, fix, revert или handoff; пишет `6_reflect.md`, а при завершении `7_result.md`. |
@@ -69,12 +69,15 @@ docs/loen/<topic>/
 Путь с мастером запуска:
 
 ```text
-loen:loop-start -> выбрать delivery или governance -> одобрить план -> loen:loop-run <topic> -> 7_result.md или handoff.md
+loen:loop-start -> подтвердить goal/context -> выбрать mode/subtype -> одобрить встроенный план -> loen:loop-run <topic> -> подтвердить launch -> повторный preflight -> result или handoff
 ```
 
-Ручные шаги `loen:loop-plan`, `loen:loop-act`, `loen:loop-check` и
-`loen:loop-reflect` остаются поддержанными для пошаговой работы, исправлений,
-ревью и совместимости с уже существующими темами.
+`loop-start` никогда не вызывает runner и не предлагает немедленный запуск. После
+одобрения плана он останавливается с точной командой продолжения
+`loen:loop-run <topic>`. Отдельный `loop-plan` служит только для replanning
+существующей темы: проверяет upstream checkpoints, инвалидирует plan и launch и
+требует нового одобрения плана. Ручные `loop-act`, `loop-check` и
+`loop-reflect` остаются доступны для пошаговой работы.
 
 Последовательность с мастером запуска:
 
@@ -88,18 +91,25 @@ sequenceDiagram
     participant Files as docs/loen/topic
 
     User->>Start: создать или выбрать устойчивую тему
-    Start->>User: собрать цель, scope, verifier и budget
-    Start->>User: выбрать delivery или governance
+    Start->>User: адаптивно разработать goal и context
+    Start->>User: подтвердить сводку goal/context
+    Start->>Files: записать checkpoint goal_context и event
+    Start->>User: явно выбрать delivery или governance
     alt governance
         Start->>User: выбрать report-only, auto-fix или merge-release
         Start->>User: собрать automation и release policy
     end
-    Start->>Files: записать draft loop.yaml, 1_goal.md, 2_context.md и 3_plan.md
+    Start->>Files: записать checkpoint mode и event
+    Start->>Files: записать встроенный 3_plan.md
     Start->>User: одобрить 3_plan.md
-    Start->>Files: записать run.plan_approved, plan_hash, mode и subtype
-    Start-->>User: запустить loen:loop-run topic
-    User->>Run: выполнить одобренный run contract
-    Run->>Files: проверить approval, hash, mode, scope, verifier и policy
+    Start->>Files: записать checkpoint plan и event
+    Start-->>User: loen:loop-run #60;topic#62;
+    User->>Run: вызвать команду продолжения
+    Run->>Files: выполнить prelaunch-проверку
+    Run->>User: показать итоговый контракт и запросить launch
+    User->>Run: явно подтвердить launch
+    Run->>Files: записать launch hashes и event
+    Run->>Files: повторить полный preflight, исполнить или отказать
     Run->>Files: записать attempts, evidence, 4_act.md, 5_check.md, 6_reflect.md
     Run->>Files: записать 7_result.md или handoff.md
     User->>Status: проверить текущее состояние
@@ -119,16 +129,21 @@ sequenceDiagram
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#1e1e2e', 'primaryColor': '#313244', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#89b4fa', 'lineColor': '#888888', 'secondaryColor': '#181825', 'tertiaryColor': '#45475a'}}}%%
 flowchart TD
     StartTopic["loen:loop-start создаёт docs/loen/&lt;topic&gt;/"] --> SharedArtifacts["Общая подготовка: loop.yaml, файлы стадий, attempts.jsonl, evidence/, audit.html"]
-    SharedArtifacts --> Intake["Собрать цель, ограничения, scope, verifier, budget"]
-    Intake --> Branch{"Ветка выполнения?"}
-    Branch -- "delivery" --> PlanApproval["Записать и одобрить 3_plan.md"]
+    SharedArtifacts --> Develop["Адаптивно разработать и подтвердить goal/context"]
+    Develop --> Branch{"Явный mode?"}
+    Branch -- "delivery" --> PlanApproval["Записать и отдельно одобрить встроенный 3_plan.md"]
     Branch -- "governance" --> StartSubtype{"Выбрать governance subtype"}
     StartSubtype -- "report-only" --> PlanApproval
     StartSubtype -- "auto-fix" --> PlanApproval
     StartSubtype -- "merge-release" --> PlanApproval
-    PlanApproval --> RunContract["Записать одобренный run contract и plan hash"]
-    RunContract --> RunPreflight{"loen:loop-run preflight проходит?"}
-    RunPreflight -- "no" --> HandoffStep["handoff.md фиксирует передачу человеку"]
+    PlanApproval --> Stop["Стоп: loen:loop-run &lt;topic&gt;"]
+    Stop --> Prelaunch{"Prelaunch-контракт валиден?"}
+    Prelaunch -- "no" --> HandoffStep["handoff.md фиксирует ошибку preflight"]
+    Prelaunch -- "yes" --> LaunchGate{"Итоговая сводка и явный launch человеком?"}
+    LaunchGate -- "no" --> Refused["Добавить refused event и остановиться"]
+    LaunchGate -- "yes" --> Launch["Записать launch hashes"]
+    Launch --> RunPreflight{"Повторный полный preflight проходит?"}
+    RunPreflight -- "no" --> HandoffStep
 
     subgraph delivery["Проход delivery"]
         PrepareStep["loop-run state prepare"]
@@ -141,10 +156,10 @@ flowchart TD
 
     subgraph governance["Проход governance"]
         GovStep["loop-run governance state"]
-        GovSubtype{"Одобренный run.subtype?"}
+        GovSubtype{"Подтверждённый checkpoint subtype?"}
         ReportOnly["report-only пишет findings"]
         AutoFix["auto-fix меняет usable mutable scope"]
-        MergeRelease["merge-release проверяет release_policy"]
+        MergeRelease["merge-release проверяет universal launch и release_policy"]
         GovPolicy["Добавляет или обновляет в loop.yaml owner, schedule и review rules"]
         GovAttempt["Обязательно для run: запись автоматизации в attempts.jsonl"]
         GovEvidence["Обязательно для run: вывод verifier в evidence/*"]
@@ -177,20 +192,21 @@ flowchart TD
     GovReview -- "yes" --> GovWait
     GovReview -- "no" --> ReflectStep
 
-    ManualSkills["Ручные loop-plan, loop-act, loop-check, loop-reflect остаются поддержанными"] -.-> PrepareStep
+    Replan["Отдельный loop-plan перепланирует существующую тему"] -.-> PlanApproval
+    ManualSkills["Ручные loop-act, loop-check и loop-reflect остаются поддержанными"] -.-> PrepareStep
 
     classDef decision fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
     classDef deliveryClass fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec
     classDef governanceClass fill:#94e2d5,color:#1e1e2e,stroke:#179299
     classDef artifactClass fill:#a6e3a1,color:#1e1e2e,stroke:#40a02b
-    class Branch,StartSubtype,RunPreflight,ReflectStep,GovSubtype,GovReview decision
-    class PrepareStep,ActStep,CheckStep,FixStep,HandoffStep,ManualSkills deliveryClass
+    class Branch,StartSubtype,Prelaunch,LaunchGate,RunPreflight,ReflectStep,GovSubtype,GovReview decision
+    class Develop,PrepareStep,ActStep,CheckStep,FixStep,HandoffStep,Replan,ManualSkills deliveryClass
     class GovStep,ReportOnly,AutoFix,MergeRelease,GovPolicy,GovAttempt,GovEvidence,GovAudit,GovWait governanceClass
-    class SharedArtifacts,PlanApproval,RunContract,ResultStep artifactClass
+    class StartTopic,SharedArtifacts,PlanApproval,Stop,Refused,Launch,ResultStep artifactClass
 ```
 
-1. `loop-plan` сужает цель до одного проверяемого действия и пишет проверки в
-   `3_plan.md`.
+1. Первичное planning встроено в `loop-start`. Отдельный `loop-plan` заменяет
+   план только существующей темы и сбрасывает plan и launch.
 2. `loop-act` выполняет только это действие и записывает изменения в `4_act.md`.
 3. `loop-check` запускает или анализирует запланированные проверки и сохраняет evidence в
    `5_check.md` плюс `docs/loen/<topic>/evidence/`.
@@ -211,29 +227,85 @@ Loop завершён только когда у темы есть резуль�
 
 ## Контракт запуска
 
-`loop-start` включает `loop-run` только после одобрения `3_plan.md`
-пользователем. Одобрение записывается в `loop.yaml` в блоке `run:`:
+Checkpoints в `loop.yaml` хранят текущий Runner authority. `attempts.jsonl` — append-only
+история: события подтверждения, invalidation, отказа и исполнения остаются в
+аудите, но старые события никогда не переопределяют текущее состояние
+checkpoints. Блок `run:` хранит только progress, включая state и pass counters.
 
 ```yaml
-run:
-  mode: delivery
-  subtype: null
-  plan_approved: true
-  plan_hash: "<hash of 3_plan.md>"
-  state: prepare
-  max_passes: 3
-  current_pass: 0
+checkpoints:
+  goal_context:
+    confirmed: true
+    goal_hash: "<hash of 1_goal.md>"
+    context_hash: "<hash of 2_context.md>"
+  mode:
+    confirmed: true
+    mode: delivery
+    subtype: null
+  plan:
+    confirmed: true
+    plan_hash: "<hash of 3_plan.md>"
+    policy_hash: "<hash of canonical policy>"
+  launch:
+    confirmed: false
+    goal_hash: null
+    context_hash: null
+    plan_hash: null
+    policy_hash: null
 ```
 
-`subtype` — governance-подтип, выбранный во время `loop-start`. Для delivery
-используется `subtype: null`; для governance обязателен один из `report-only`,
-`auto-fix` или `merge-release`. `loop-run` не выбирает subtype, а только читает
-одобренное значение и проверяет соответствующую policy перед действием.
+`policy_hash` — первые 16 шестнадцатеричных символов SHA-256 от канонического
+JSON с отсортированными ключами для `mode`, `subtype`, `mutable_scope`,
+`protected_scope`, `quality_gates`, `verifier`, `budget`, `stop_conditions`,
+`handoff_conditions`, `rollback_policy`, `governance` и `release_policy`.
+Неэкранированные YAML-значения null сохраняют семантику null; quoted `"null"`
+остаётся строкой. Для delivery null subtype нормализуется в пустой runtime
+subtype до хеширования. Preflight отклоняет дубли canonical authority keys,
+включая вложенные verifier, budget, governance, release-policy, quality-gate и
+checkpoint keys, вместо выбора первого или последнего значения.
 
-`loop-run` останавливается, если нет одобрения, изменился hash плана, режим или
-подтип неверен, изменяемая область не задана, команда verifier отсутствует,
-budget пустой или политика rollback/recovery неполная. Значения изменяемой
+Checkpoints упорядочены: `goal_context`, `mode`, `plan`, затем `launch`. Mode
+выбирается явно между `delivery` и `governance`; для governance также нужен
+явный subtype `report-only`, `auto-fix` или `merge-release`. Значения нельзя
+выводить из текста задачи, defaults, предыдущего диалога или старых событий.
+
+| Изменение | Инвалидируемые checkpoints |
+|---|---|
+| Изменилось содержимое `1_goal.md` или `2_context.md` | `goal_context`, `mode`, `plan`, `launch` |
+| Изменились mode, subtype или любая authority-relevant scope/policy | `mode`, когда применимо, `plan`, `launch` |
+| Изменилось содержимое `3_plan.md` или начался отдельный replan | `plan`, `launch` |
+| Изменился любой hash, к которому привязан launch | `launch` |
+
+Вызов `loen:loop-run <topic>` не является подтверждением запуска. Runner сначала
+проверяет upstream checkpoints и policy, затем показывает итоговую сводку
+контракта, включая `policy_hash`. Несовпадение plan policy фиксируется как plan
+policy hash mismatch и инвалидирует plan и launch. Только отдельное явное
+подтверждение человеком записывает `launch.confirmed` с текущими goal, context,
+plan и policy hashes. Runner отдельно отказывает при launch policy hash mismatch,
+затем сразу повторяет полный preflight по всем четырём hashes и либо исполняет
+контракт, либо отказывает.
+Универсальный launch checkpoint обязателен и для governance `merge-release`.
+
+Confirmed checkpoint audit events содержат hashes, авторизующие решение:
+goal/context для `goal_context`, plan/policy для `plan` и
+goal/context/plan/policy для `launch`. Эти events остаются историей; Runner
+authority берётся из checkpoints, progress — из `run:`.
+Каждый checkpoint event также обязан содержать реальный UTC RFC3339 timestamp в
+каноническом формате `YYYY-MM-DDTHH:MM:SS[.fraction]Z`. Невалидная запись
+отклоняется до изменения `attempts.jsonl`, а malformed historical checkpoint
+events не попадают в отображаемую checkpoint history.
+
+`loop-run` останавливается, если checkpoint отсутствует, устарел, противоречив
+или нарушает порядок; изменяемая область не задана; команда verifier
+отсутствует; budget пустой; либо policy rollback/recovery неполная. Значения изменяемой
 области вроде `none`, `null` или пустой строки считаются отсутствующей областью.
+
+Legacy-контракты без `checkpoints` строго невалидны. Миграции, inferred approval,
+compatibility flag и grandfathering нет. Тему нужно явно обновить через
+`loen:loop-start`, а после одобрения плана продолжить точной командой
+`loen:loop-run <topic>`. Для устаревшего плана в остальном валидной существующей
+темы выполни `loen:loop-plan <topic>`, одобри новый план, затем выполни
+`loen:loop-run <topic>`.
 
 Для governance `merge-release` секция `release_policy:` должна быть полной до
 любого merge или release:
@@ -263,15 +335,15 @@ runner должен соблюдать при автоматизации merge/r
 | `5_check.md` | Результаты проверок, коды выхода и ссылки на verifier evidence. |
 | `6_reflect.md` | Решение keep, fix, revert или handoff. |
 | `7_result.md` | Итоговый результат, когда loop завершён. |
-| `loop.yaml` | Машиночитаемый контракт: topic, mode, scope, verifier, budget, stop rules и governance. |
-| `attempts.jsonl` | Журнал запусков, дописываемый только в конец, для ручных или автоматических попыток. |
+| `loop.yaml` | Текущий машиночитаемый authority: ordered checkpoints, scope, verifier, budget, stop rules, progress и governance. |
+| `attempts.jsonl` | Append-only история попыток и checkpoint events; никогда не текущий approval authority. |
 | `evidence/` | Сырой вывод проверок: логи, JSON-сводки или файлы verifier. |
 | `handoff.md` | Состояние передачи человеку, если loop нельзя безопасно продолжать. |
 | `audit.html` | Перегенерированное человекочитаемое audit-представление для этой темы по пути `docs/loen/<topic>/audit.html`. |
 
-Для просмотра состояния используй `loen:loop-status`. Для одного ограниченного прохода
-через loop используй `loen:loop-plan`, `loen:loop-act`, `loen:loop-check` и
-`loen:loop-reflect`.
+Для просмотра состояния используй `loen:loop-status`. Отдельный
+`loen:loop-plan <topic>` используй только для replanning существующей темы с
+checkpoints. Ручные `loop-act`, `loop-check` и `loop-reflect` остаются доступны.
 
 ## Минимальный пример
 
@@ -288,6 +360,7 @@ loen:loop-start создаёт docs/loen/fix-proxy-test/
 выбрать delivery
 одобрить 3_plan.md
 loen:loop-run fix-proxy-test
+явно подтвердить launch после итоговой сводки контракта
 запуск записывает 7_result.md или handoff.md
 ```
 
@@ -306,10 +379,11 @@ Governance-темы пишут обычные артефакты LoEn в `docs/l
 добавляют попытки автоматизации в `attempts.jsonl`, сохраняют вывод verifier в
 `evidence/` и перегенерируют `docs/loen/<topic>/audit.html`.
 
-`loop-governance` можно запускать сразу после `loop-start`; завершённый проход
-delivery не нужен. `loop-start` создаёт общие артефакты темы, а
-`loop-governance` добавляет или обновляет секцию `governance:` внутри
-`loop.yaml`. После этого каждый governance-запуск требует эти артефакты, прежде чем
+Больше неверно, что `loop-governance` можно запускать сразу после
+`loop-start`. Он добавляет или обновляет секцию `governance:` внутри
+`loop.yaml`, но governance-исполнение всё равно требует универсальный launch
+checkpoint в `loop-run`. Одобрение плана или сам вызов runner не авторизует
+governance-запуск. Каждый governance-запуск требует эти артефакты, прежде чем
 его можно считать записанным:
 
 | Обязательный артефакт | Назначение |
@@ -321,8 +395,9 @@ delivery не нужен. `loop-start` создаёт общие артефак�
 
 Автоматизация в этом исходнике плагина работает в advisory-режиме. По умолчанию
 auto-merge отключён. Подтип `merge-release` может включить
-`governance.auto_merge: true` только после явного одобрения на старте и при
-полной секции `release_policy:`, включая `scope_limit`; внешние правила веток,
+`governance.auto_merge: true` только при подтверждённой mode policy,
+универсальном явном launch checkpoint, повторном preflight и полной секции
+`release_policy:`, включая `scope_limit`; внешние правила веток,
 запросы подтверждения от среды выполнения и правила безопасности репозитория всё
 равно применяются. Автоматизация не должна выполнять разрушительные операции,
 менять protected scope или завершать первые запуски без требований human review,
@@ -348,9 +423,12 @@ Codex cache, который использует подключение при �
 
 ## Границы
 
-LoEn самодостаточен и не зависит от других workflow-плагинов. Он пишет состояние
-loop только в `docs/loen/<topic>/` и обновляет `docs/TODO.md` как общий индекс задач.
-Auto-merge по умолчанию отключён; только одобренная политика для
+LoEn самодостаточен и не зависит от других workflow-плагинов. Артефакты loop
+остаются авторитетными для исполнения в `docs/loen/<topic>/`. До запуска loop
+parent разрешает или создаёт общую страницу `reference/tasks/<topic>`, затем
+зеркалирует туда существенные evidence жизненного цикла. Hooks остаются MCP-free.
+Жизненный цикл LoEn полон сам по себе; cross-workflow validation включается только
+явным выбором для отдельной работы. Auto-merge по умолчанию отключён; только одобренная политика для
 `merge-release` может установить `governance.auto_merge: true`. LoEn не
 переписывает protected files и не обходит `LOEN_MODE`.
 

@@ -4,12 +4,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/helpers.sh"
 
 overview="$ROOT/docs/superpowers/specs/2026-07-02-00-loen-overview-design.md"
-todo="$ROOT/docs/TODO.md"
+readme="$ROOT/plugins/loen/README.md"
+readme_ru="$ROOT/plugins/loen/README.ru.md"
+architecture="$ROOT/plugins/loen/docs/architecture.md"
+loop_start="$ROOT/plugins/loen/skills/loop-start/SKILL.md"
 
 assert_exit "overview spec exists" 0 test -f "$overview"
-assert_exit "TODO index exists" 0 test -f "$todo"
-
-if [[ ! -f "$overview" || ! -f "$todo" ]]; then
+if [[ ! -f "$overview" ]]; then
   finish; exit $?
 fi
 
@@ -44,24 +45,18 @@ for i in "${!layer_topics[@]}"; do
   assert_contains "overview links $topic" "$overview_body" "$expected_link"
 done
 
-todo_topics=(
-  "00-loen-overview"
-  "01-loen-plugin-core"
-  "02-loen-runtime-artifacts"
-  "03-loen-enforcement-hooks"
-  "04-loen-agent-isolation"
-  "05-loen-icodex-integration"
-  "06-loen-automation-governance"
-)
-
-for topic in "${todo_topics[@]}"; do
-  assert_eq "TODO one row: $topic" "1" "$(grep -cF "| $topic |" "$todo")"
-done
-
 assert_contains "overview source boundary" "$overview_body" "plugins/loen/"
 assert_contains "overview cache boundary" "$overview_body" ".codex-isolated/plugins/cache/<marketplace>/loen/<version>/"
 assert_contains "overview task artifact boundary" "$overview_body" "docs/loen/<topic>/"
-assert_contains "overview global registry boundary" "$flat_overview_body" '`docs/TODO.md` remains the only global human-readable task index'
+for doc in "$readme" "$readme_ru" "$architecture" "$loop_start"; do
+  assert_eq "LoEn docs have no repository task index: $(basename "$doc")" "0" "$(grep -cF 'docs/TODO.md' "$doc" || true)"
+done
+readme_flat="$(tr '\n' ' ' < "$readme" | sed 's/[[:space:]][[:space:]]*/ /g')"
+assert_contains "README loop artifacts authoritative" "$readme_flat" "Loop artifacts remain authoritative for loop execution"
+assert_contains "README parent task-page mirror" "$(cat "$readme")" "mirrors material lifecycle evidence"
+assert_contains "README hooks MCP-free" "$(cat "$readme")" "Hooks remain MCP-free"
+assert_contains "loop-start resolves shared page" "$(cat "$loop_start")" 'resolve or create the shared `reference/tasks/<topic>` page before the loop starts'
+assert_contains "architecture parent task-page mirror" "$(cat "$architecture")" 'parent resolves or creates `reference/tasks/<topic>`'
 
 assert_contains "independent from IDD chain" "$overview_body" "LoEn is not an extension of the current IDD->SDD chain"
 assert_contains "independent from Superpowers" "$flat_overview_body" "does not depend on the Superpowers plugin"

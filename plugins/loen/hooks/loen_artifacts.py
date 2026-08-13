@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import datetime
 import hashlib
 import html
 import json
@@ -937,29 +937,3 @@ def render_audit(base: Path, topic: str) -> str:
     "</html>",
     "",
   ])
-
-
-def upsert_todo_row(todo_path: Path, topic: str, opened: str | None = None) -> None:
-  topic_name = validate_topic_slug(topic)
-  opened_date = opened or date.today().isoformat()
-  header = "| Topic | Status | Intent | Spec | Plan | Result | Opened | Closed | Notes |\n"
-  separator = "|-------|--------|--------|------|------|--------|--------|--------|-------|\n"
-  row = f"| {topic_name} | in-progress | n/a | n/a | n/a | - | {opened_date} |  | LoEn loop |\n"
-  todo_path.parent.mkdir(parents=True, exist_ok=True)
-  lines = todo_path.read_text(encoding="utf-8").splitlines(keepends=True) if todo_path.is_file() else [header, separator]
-  needle = f"| {topic_name} |"
-  for index, line in enumerate(lines):
-    if line.startswith(needle):
-      cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-      if len(cells) == 9:
-        if cells[1] != "done":
-          cells[1] = "in-progress"
-        if not cells[6]:
-          cells[6] = opened_date
-        lines[index] = "| " + " | ".join(cells) + " |\n"
-      else:
-        lines[index] = row
-      break
-  else:
-    lines.append(row)
-  todo_path.write_text("".join(lines), encoding="utf-8")

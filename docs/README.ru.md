@@ -31,11 +31,20 @@ Superpowers сама по себе не выбирает полную цепоч
 - `chain` начинается с `fix-intent -> check-chain intent`. После intent-scoped анализа `execute` выбирается по умолчанию; для `full` одновременно нужны категория design-risk и явно названное нерешённое design decision. Обе ветки завершаются через `check-chain result` с intent или plan как source.
 - `loen` использует навыки `loen:loop-*` и артефакты в `docs/loen/<topic>/`; активный LoEn loop сам по себе не требует `fix-intent`, `superpowers:*` или `$check-chain`, если пользователь явно не выбирает chain для отдельного не-LoEn изменения.
 
-Именование задач использует один canonical kebab-case `<topic>` для управляемых
-артефактов: `docs/TODO.md`, topic цепочки Superpowers или директория LoEn topic,
-и suffix ветки `dev-<topic>`. Thread title — best-effort: если текущая Codex
-поверхность не умеет менять или запрашивать UI-title, агент фиксирует выбранный
-topic в разговоре и продолжает.
+## Учёт задач
+
+Один canonical topic соответствует `reference/tasks/<topic>`. Каждая задача direct,
+chain или LoEn, включая read-only analysis, требует эту страницу. Только parent agent
+пишет состояние; subagent возвращает лишь structured evidence. При outage MCP выполнение
+может продолжаться: outage MCP записывает redacted evidence в локальный delivery spool и
+сохраняет lifecycle `completion-pending`. Task-tagged wiki pages — единственный текущий
+индекс статуса задач. Исторический repository index архивирован в
+`reference/tasks-legacy-archive`.
+
+Используйте canonical kebab-case `<topic>` для task page, topic цепочки Superpowers или
+директории LoEn topic и suffix ветки `dev-<topic>`. Thread title — best-effort: если
+текущая Codex поверхность не умеет менять или запрашивать UI-title, агент фиксирует
+выбранный topic в разговоре и продолжает.
 
 ## Как работает изоляция
 

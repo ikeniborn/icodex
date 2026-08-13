@@ -86,13 +86,13 @@ touch "$topic_dir/1_goal.md" "$topic_dir/2_context.md" "$topic_dir/3_plan.md" "$
 
 run_hook() {
   local hook="$1" mode="$2" topic_value="$3" payload="$4"
-  env LOEN_MODE="$mode" LOEN_TOPIC="$topic_value" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$tmp/TODO.md" \
+  env LOEN_MODE="$mode" LOEN_TOPIC="$topic_value" LOEN_ARTIFACT_ROOT="$artifact_root" \
     python3 "$hook_root/$hook" <<<"$payload" >/dev/null 2>&1
 }
 
 run_hook_capture() {
   local hook="$1" mode="$2" topic_value="$3" payload="$4" stderr_file="$5"
-  env LOEN_MODE="$mode" LOEN_TOPIC="$topic_value" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$tmp/TODO.md" \
+  env LOEN_MODE="$mode" LOEN_TOPIC="$topic_value" LOEN_ARTIFACT_ROOT="$artifact_root" \
     python3 "$hook_root/$hook" <<<"$payload" >/dev/null 2>"$stderr_file"
 }
 
@@ -361,31 +361,17 @@ assert_hook_exit "evidence-gate strict allows separated verifier" 0 "evidence-ga
 
 assert_hook_exit "audit-writer off no-ops" 0 "audit-writer.py" "off" "$topic" "$test_edit"
 assert_eq "audit-writer off skips audit html" "" "$(cat "$topic_dir/audit.html" 2>/dev/null || true)"
-assert_eq "audit-writer off skips TODO row" "" "$(cat "$tmp/TODO.md" 2>/dev/null || true)"
+assert_eq "audit-writer off does not create repository TODO" "" "$(find "$tmp" -path '*/TODO.md' -print -quit)"
 assert_hook_exit "audit-writer regenerates audit html" 0 "audit-writer.py" "advisory" "$topic" "$test_edit"
 first_audit="$(cat "$topic_dir/audit.html" 2>/dev/null)"
 assert_hook_exit "audit-writer regenerates audit html idempotently" 0 "audit-writer.py" "advisory" "$topic" "$test_edit"
 second_audit="$(cat "$topic_dir/audit.html" 2>/dev/null)"
 assert_eq "audit html is idempotent" "$first_audit" "$second_audit"
 assert_contains "audit html names topic" "$second_audit" "demo-topic"
-assert_contains "audit writer updates TODO row" "$(cat "$tmp/TODO.md" 2>/dev/null)" "| demo-topic | in-progress |"
-
-preserve_topic="preserve-topic"
-preserve_dir="$artifact_root/$preserve_topic"
-mkdir -p "$preserve_dir"
-cat > "$preserve_dir/loop.yaml" <<'YAML'
-topic: preserve-topic
-status: active
-stage: act
-YAML
-cat > "$tmp/TODO.md" <<'MD'
-| Topic | Status | Intent | Spec | Plan | Result | Opened | Closed | Notes |
-|---|---|---|---|---|---|---|---|---|
-| preserve-topic | review | ✓ | ✓ | ✓ | OK | 2026-07-02 |  | Keep this note |
-MD
-assert_hook_exit "audit-writer preserves existing TODO row fields" 0 "audit-writer.py" "advisory" "$preserve_topic" "$test_edit"
-preserved_row="$(grep -F '| preserve-topic |' "$tmp/TODO.md" 2>/dev/null || true)"
-assert_contains "audit writer preserves TODO intent" "$preserved_row" "| preserve-topic | in-progress | ✓ | ✓ | ✓ | OK | 2026-07-02 |  | Keep this note |"
+assert_eq "audit writer does not create repository TODO" "" "$(find "$tmp" -path '*/TODO.md' -print -quit)"
+assert_eq "audit writer has no TODO env" "0" "$(grep -cF 'LOEN_TODO_PATH' "$hook_root/audit-writer.py" || true)"
+legacy_env_name="LOEN_TODO_PATH"
+assert_eq "hook fixtures have no TODO env" "0" "$(grep -cF "$legacy_env_name=\"$tmp/TODO.md\"" "${BASH_SOURCE[0]}" || true)"
 
 hook_refs="$(find "$hook_root" -maxdepth 1 -type f -name '*.py' -print0 | xargs -0 grep -En 'chain-gate|IDD|SDD|docs/superpowers|frontmatter' 2>/dev/null || true)"
 assert_eq "LoEn hooks do not depend on chain-gate or IDD frontmatter" "" "$hook_refs"

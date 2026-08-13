@@ -1,6 +1,6 @@
 # Chain Report (final IDD→SDD result report)
 
-`mode: chain` produces ONE unified HTML report for a whole IDD→SDD task when the user accepts the result-stage report offer. The HTML report may be offered only at `check-chain result`, after implementation evidence exists. If the user declines, no HTML report is generated or refreshed. Earlier `intent`, `spec`, and `plan` validations update frontmatter and `docs/TODO.md`, then print Russian terminal review summaries for approval; they do not create or refresh HTML.
+`mode: chain` produces ONE unified HTML report for a whole IDD→SDD task when the user accepts the result-stage report offer. The HTML report may be offered only at `check-chain result`, after implementation evidence exists. If the user declines, no HTML report is generated or refreshed. Earlier `intent`, `spec`, and `plan` validations update frontmatter and the shared task page, then print Russian terminal review summaries for approval; they do not create or refresh HTML.
 
 Default `standalone` mode (no `mode` passed) is unchanged. This file applies only when
 the caller passes `mode: chain`.
@@ -13,8 +13,7 @@ The caller is `check-chain result` after the user accepts the optional report of
 - `target: docs/superpowers/reports/<topic>-results.html` — the final report file.
 - A complete inline final payload containing source mode, selected-source content,
   available linked artifacts, persisted current `result_check`, result reconciliation,
-  review findings, verification evidence, documentation evidence, TODO state, and the
-  final verdict.
+  review findings, verification evidence, documentation evidence, task-page lifecycle, evidence, subtasks, and changelog, and the final verdict.
 
 Intent-backed reports mark spec and plan `n/a`; do not synthesize their requirements,
 steps, or diagrams. Plan-backed reports include real intent/spec/plan content available

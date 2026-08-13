@@ -143,12 +143,15 @@ assert_contains "architecture doc has artifact diagram" "$architecture_text" "at
 assert_contains "architecture doc has governance branch" "$architecture_text" "loen:loop-governance"
 assert_contains "architecture doc has governance review artifact" "$architecture_text" "human review requirement"
 assert_contains "architecture doc keeps audit under topic" "$architecture_text" "docs/loen/<topic>/audit.html"
+assert_contains "architecture system map names parent MCP writer" "$architecture_text" 'Parent["Parent agent: sole MCP writer"]'
+assert_contains "architecture says cache hooks MCP-free" "$architecture_text" "Cache hooks remain MCP-free"
 assert_contains "architecture Mermaid escapes topic placeholder" "$architecture_mermaid" "docs/loen/&lt;topic&gt;/"
 assert_contains "architecture diagram labels topic audit node" "$architecture_mermaid" 'AuditHtml["docs/loen/&lt;topic&gt;/audit.html"]'
 assert_contains "architecture doc groups topic artifacts" "$architecture_text" "subgraph topic_dir"
 assert_exit "architecture Mermaid has no raw topic placeholder" 1 grep -qF "docs/loen/<topic>" <<<"$architecture_mermaid"
 assert_contains "runtime cache includes governance template" "$(cat "$runtime_cache/assets/templates/loop.yaml" 2>/dev/null || true)" "governance:"
 assert_contains "runtime cache includes automation helper" "$(cat "$runtime_cache/hooks/loen_artifacts.py" 2>/dev/null || true)" "append_automation_attempt"
+assert_exit "runtime cache audit hook has no TODO env" 1 grep -qF "LOEN_TODO_PATH" "$runtime_cache/hooks/audit-writer.py"
 
 if [[ -f "$manifest" ]]; then
   manifest_summary="$(python3 - "$manifest" <<'PY'
@@ -184,6 +187,7 @@ assert_eq "manifest author" "ikeniborn" "$(sed -n '8p' <<<"$manifest_summary")"
 assert_eq "manifest developer" "ikeniborn" "$(sed -n '9p' <<<"$manifest_summary")"
 
 assert_exit "vendored LoEn cache exists" 0 test -d "$vendored_cache"
+assert_exit "vendored LoEn cache matches source" 0 diff -qr -x __pycache__ "$plugin_root" "$vendored_cache"
 assert_exit "legacy iclaude LoEn cache absent" 1 test -d "$legacy_iclaude_cache"
 assert_exit "legacy icodex-local LoEn cache absent" 1 test -d "$legacy_icodex_local_cache"
 assert_exit "stale ikeniborn LoEn 0.1.0 absent" 1 test -d "$ROOT/.codex-isolated/plugins/cache/ikeniborn/loen/0.1.0"
@@ -226,6 +230,12 @@ for skill in "${expected_skills[@]}"; do
   assert_eq "skill name matches directory: $skill" "$skill" "$name"
   assert_contains "skill writes only LoEn artifacts: $skill" "$(cat "$skill_md" 2>/dev/null)" 'docs/loen/<topic>/'
   assert_contains "skill has description: $skill" "$desc" "LoEn"
+done
+
+for skill in loop-run loop-act loop-check loop-reflect loop-status; do
+  skill_body="$(cat "$plugin_root/skills/$skill/SKILL.md" 2>/dev/null || true)"
+  assert_contains "skill parent mirrors lifecycle: $skill" "$skill_body" "parent mirrors the material lifecycle state"
+  assert_contains "skill hooks stay MCP-free: $skill" "$skill_body" "Hooks remain MCP-free"
 done
 
 unique_skill_count="$(printf '%s\n' "${skill_names[@]}" | sort | uniq | sed '/^$/d' | wc -l | tr -d ' ')"

@@ -16,7 +16,7 @@ check_skill() { # <skill-path> <agent-name> <main-owned-phrase>
   assert_contains "$path summary next_action" "$text" "next_action"
 }
 
-check_skill ".codex-isolated/skills/check-chain/SKILL.md" "chain-auditor" "Main context keeps confirmations, final verdicts, frontmatter writes, report merges, task-log row updates, and downstream stop/go decisions."
+check_skill ".codex-isolated/skills/check-chain/SKILL.md" "chain-auditor" "Main context keeps task-page and changelog writes."
 check_skill ".codex-isolated/skills/html-report/SKILL.md" "artifact-renderer" "Main context keeps ambiguous source selection, final file writes, and user-facing output reporting."
 check_skill ".codex-isolated/skills/mermaid-obsidian/SKILL.md" "diagram-checker" "Main context keeps semantic questions, final diagram text, and file edits."
 check_skill ".codex-isolated/skills/git-workflow/SKILL.md" "repo-safety-reviewer" "Main context keeps all mutating git commands: checkout, branch creation, add, commit, push, and PR creation."

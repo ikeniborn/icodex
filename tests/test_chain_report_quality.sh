@@ -14,6 +14,15 @@ hr_text="$(cat "$HR")"
 cr_text="$(cat "$CR")"
 report_text="$(cat "$REPORT")"
 
+assert_not_contains() { # <desc> <haystack> <needle>
+  local desc="$1" hay="$2" need="$3"
+  if grep -qF -- "$need" <<<"$hay"; then
+    echo "FAIL [$desc]: unexpected '$need' found"; FAIL=$((FAIL+1))
+  else
+    echo "PASS [$desc]"; PASS=$((PASS+1))
+  fi
+}
+
 assert_contains "check-chain documents enriched final payload" "$cc_text" "## Enriched final report payload"
 assert_contains "check-chain documents result-only report step" "$cc_text" "### Step 5 — Result-only optional HTML report"
 assert_contains "check-chain forbids intermediate html" "$cc_text" 'Intermediate stages (`intent`, `spec`, `plan`) do not invoke `html-report`'
@@ -40,6 +49,16 @@ assert_contains "check-chain result blocks stale chain docs" "$cc_text" 'Do not 
 assert_contains "check-chain documents markdown feedback loop" "$cc_text" 'fix the markdown source first and rerun the relevant `check-chain'
 assert_contains "check-chain prohibits invented report content" "$cc_text" "Do not invent requirements, dependencies, decisions, risks, or diagrams"
 assert_contains "check-chain cached result asks for report" "$cc_text" 'Cached quick-exit runs for `result` must still ask whether to generate the optional HTML'
+assert_contains "check-chain cached result verifies final page" "$cc_text" "Cached result first verifies or replays durable final task-page state."
+assert_contains "check-chain cached result blocks pending spool" "$cc_text" 'Pending spool state is not a cache hit; retain `completion-pending` and never report `done`.'
+assert_contains "check-chain report uses task page" "$cc_text" "task-page lifecycle, evidence, subtasks, and changelog"
+assert_contains "chain-report uses task page" "$cr_text" "task-page lifecycle, evidence, subtasks, and changelog"
+assert_not_contains "check-chain has no live TODO contract" "$cc_text" "docs/TODO.md"
+assert_not_contains "chain-report has no live TODO contract" "$cr_text" "docs/TODO.md"
+assert_not_contains "check-chain has no TODO row ownership" "$cc_text" "TODO row"
+assert_not_contains "chain-report has no TODO row ownership" "$cr_text" "TODO row"
+assert_not_contains "check-chain has no TODO cell ownership" "$cc_text" "TODO cell"
+assert_not_contains "chain-report has no TODO cell ownership" "$cr_text" "TODO cell"
 
 for diagram in \
   "Outcome Chain" \

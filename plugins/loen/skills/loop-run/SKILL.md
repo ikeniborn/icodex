@@ -52,6 +52,10 @@ Replace the example values with the current topic and artifact values. For an ev
 - `check`: run the verifier and save evidence.
 - `reflect`: decide verified success, bounded retry, rollback/recovery, or handoff.
 
+After every material state transition, the parent mirrors the material lifecycle state
+and redacted evidence to `reference/tasks/<topic>`. Hooks remain MCP-free;
+`docs/loen/<topic>/` remains authoritative for loop execution.
+
 ## Mode Policy
 
 ### Delivery
