@@ -35,6 +35,10 @@ assert_contains "TODO does not impose chain stages" "$body" "direct or LoEn"
 assert_contains "page read before replay" "$body" "Read or create"
 assert_contains "helper never calls MCP" "$body" "never call MCP"
 assert_contains "helper never syncs" "$body" "wiki_sync"
+assert_contains "task history stays complete" "$body" "history segments"
+assert_contains "task history writes stay bounded" "$body" "bounded active segment"
+assert_contains "domain changelog is curated" "$body" "domain changelog"
+assert_contains "task orphan is expected advisory" "$body" "expected task-page orphan advisory"
 assert_contains "context includes task page" "$context_body" 'task_page_slug'
 assert_contains "context includes pending delivery" "$context_body" 'task_delivery_pending'
 assert_contains "context checks Codex home spool" "$context_body" '$CODEX_HOME/state/iwiki-task-spool/<project>/<topic>.json'
