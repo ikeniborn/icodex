@@ -12,6 +12,11 @@ review:
 workflow:
   route: chain
   continuation: execute
+result_check:
+  verdict: OK
+  source: intent
+  intent_hash: f1d4a929bb3f5a44
+  last_run: 2026-08-13
 ---
 # Intent: task-ledger-changelog-behavior
 
