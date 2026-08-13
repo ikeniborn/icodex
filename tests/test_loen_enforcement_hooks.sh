@@ -86,13 +86,13 @@ touch "$topic_dir/1_goal.md" "$topic_dir/2_context.md" "$topic_dir/3_plan.md" "$
 
 run_hook() {
   local hook="$1" mode="$2" topic_value="$3" payload="$4"
-  env LOEN_MODE="$mode" LOEN_TOPIC="$topic_value" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$tmp/TODO.md" \
+  env LOEN_MODE="$mode" LOEN_TOPIC="$topic_value" LOEN_ARTIFACT_ROOT="$artifact_root" \
     python3 "$hook_root/$hook" <<<"$payload" >/dev/null 2>&1
 }
 
 run_hook_capture() {
   local hook="$1" mode="$2" topic_value="$3" payload="$4" stderr_file="$5"
-  env LOEN_MODE="$mode" LOEN_TOPIC="$topic_value" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$tmp/TODO.md" \
+  env LOEN_MODE="$mode" LOEN_TOPIC="$topic_value" LOEN_ARTIFACT_ROOT="$artifact_root" \
     python3 "$hook_root/$hook" <<<"$payload" >/dev/null 2>"$stderr_file"
 }
 
@@ -370,6 +370,8 @@ assert_eq "audit html is idempotent" "$first_audit" "$second_audit"
 assert_contains "audit html names topic" "$second_audit" "demo-topic"
 assert_eq "audit writer does not create repository TODO" "" "$(find "$tmp" -path '*/TODO.md' -print -quit)"
 assert_eq "audit writer has no TODO env" "0" "$(grep -cF 'LOEN_TODO_PATH' "$hook_root/audit-writer.py" || true)"
+legacy_env_name="LOEN_TODO_PATH"
+assert_eq "hook fixtures have no TODO env" "0" "$(grep -cF "$legacy_env_name=\"$tmp/TODO.md\"" "${BASH_SOURCE[0]}" || true)"
 
 hook_refs="$(find "$hook_root" -maxdepth 1 -type f -name '*.py' -print0 | xargs -0 grep -En 'chain-gate|IDD|SDD|docs/superpowers|frontmatter' 2>/dev/null || true)"
 assert_eq "LoEn hooks do not depend on chain-gate or IDD frontmatter" "" "$hook_refs"
