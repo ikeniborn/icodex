@@ -240,7 +240,7 @@ PY
 assert_eq "automation governance uses checked canonical authority" "OK" "$governance_bypass_status"
 
 printf '{"status":"pass","command":"bash tests/test_loen_automation_governance.sh"}\n' > "$topic_dir/evidence/governance-check.json"
-assert_exit "audit writer runs for governance topic" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$tmp/TODO.md" python3 "$audit_writer"
+assert_exit "audit writer runs for governance topic" 0 env LOEN_MODE=advisory LOEN_TOPIC="$topic" LOEN_ARTIFACT_ROOT="$artifact_root" python3 "$audit_writer"
 audit_text="$(cat "$topic_dir/audit.html" 2>/dev/null || true)"
 assert_contains "audit shows governance section" "$audit_text" "Governance"
 assert_contains "audit shows automation type" "$audit_text" "dependency-audit"
@@ -252,7 +252,7 @@ assert_contains "audit shows no auto merge" "$audit_text" "auto_merge: false"
 
 run_hook() {
   local hook="$1" mode="$2" topic_value="$3" payload="$4"
-  env LOEN_MODE="$mode" LOEN_TOPIC="$topic_value" LOEN_ARTIFACT_ROOT="$artifact_root" LOEN_TODO_PATH="$tmp/TODO.md" \
+  env LOEN_MODE="$mode" LOEN_TOPIC="$topic_value" LOEN_ARTIFACT_ROOT="$artifact_root" \
     python3 "$hook_root/$hook" <<<"$payload" >/dev/null 2>&1
 }
 

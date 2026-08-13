@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """LoEn audit artifact writer; reads LOEN_ARTIFACT_ROOT through loen_common."""
-import os
-from pathlib import Path
-
-from loen_artifacts import render_audit, upsert_todo_row, validate_topic_slug
+from loen_artifacts import render_audit, validate_topic_slug
 from loen_common import event_topic, is_off, read_event, read_loop_artifact, should_run_hook, topic_dir
 
 SCRIPT_NAME = "audit-writer"
@@ -26,7 +23,6 @@ def main() -> int:
   try:
     base.mkdir(parents=True, exist_ok=True)
     (base / "audit.html").write_text(render_audit(base, topic_name), encoding="utf-8")
-    upsert_todo_row(Path(os.environ.get("LOEN_TODO_PATH", "docs/TODO.md")), topic_name)
   except OSError:
     return 0
   return 0

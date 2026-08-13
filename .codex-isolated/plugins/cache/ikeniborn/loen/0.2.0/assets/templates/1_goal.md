@@ -6,6 +6,14 @@ Topic: `{{topic}}`
 
 {{user_request}}
 
+## Objective
+
+{{objective}}
+
+## Observable Outcome
+
+{{observable_outcome}}
+
 ## Success Criteria
 
 - {{success_criterion}}

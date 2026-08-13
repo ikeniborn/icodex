@@ -17,6 +17,8 @@ flowchart LR
     end
 
     Vendor["scripts/vendor-loen.sh"]
+    Parent["Parent agent: sole MCP writer"]
+    SharedTask["reference/tasks/&lt;topic&gt;"]
 
     subgraph cache["Vendored cache"]
         CacheManifest["plugin.json"]
@@ -27,7 +29,6 @@ flowchart LR
     subgraph runtime["Repository runtime state"]
         Topic["docs/loen/&lt;topic&gt;/"]
         TopicAudit["docs/loen/&lt;topic&gt;/audit.html"]
-        SharedTask["reference/tasks/&lt;topic&gt; (parent-owned)"]
     end
 
     Manifest --> Vendor
@@ -40,7 +41,8 @@ flowchart LR
     Vendor --> CacheDocs
     CacheSkills --> Topic
     Topic --> TopicAudit
-    CacheSkills --> SharedTask
+    Topic --> Parent
+    Parent --> SharedTask
 
     classDef source fill:#89b4fa,color:#1e1e2e,stroke:#74c7ec,stroke-width:2px
     classDef process fill:#f9e2af,color:#1e1e2e,stroke:#df8e1d
@@ -49,7 +51,8 @@ flowchart LR
     class Manifest,Skills,Hooks,Templates,Docs source
     class Vendor process
     class CacheManifest,CacheSkills,CacheDocs cache
-    class Topic,TopicAudit,Todo runtime
+    class Topic,TopicAudit,SharedTask runtime
+    class Parent process
 ```
 
 ## Source Layer
@@ -67,7 +70,8 @@ but their behavior is implemented and fixture-tested in this repository.
 
 The enforcement layer owns loop-state gating, mutable/protected path checks,
 tool and role policy, shell and network policy, final evidence checks, and
-audit regeneration. The hooks do not depend on IDD->SDD, Superpowers, or
+audit regeneration. Cache hooks remain MCP-free; the parent agent alone writes
+the shared task page. The hooks do not depend on IDD->SDD, Superpowers, or
 frontmatter review state.
 
 ```mermaid

@@ -12,6 +12,9 @@ Use this skill when the user asks for the state of a LoEn topic or all active Lo
 1. Read `docs/loen/<topic>/loop.yaml` and numbered artifact files.
 2. Summarize current stage, latest evidence, open decisions, and next action.
 3. Treat missing artifact files as missing state, not as implied chat state.
+4. The parent mirrors the material lifecycle state to `reference/tasks/<topic>`
+   when this status is material. Hooks remain MCP-free; `docs/loen/<topic>/`
+   remains authoritative for loop execution.
 
 ## Output
 
