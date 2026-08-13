@@ -310,4 +310,8 @@ assert_exit "enqueue gate event" 0 bash -c 'printf "%s" "$1" | python3 "$2" enqu
 gate_queue="$(python3 "$helper" list --codex-home "$tmp/home" --project icodex --topic chain-gate-event)"
 assert_eq "list preserves gate event" "gate" "$(python3 -c 'import json,sys; print(json.load(sys.stdin)["events"][0]["kind"])' <<<"$gate_queue")"
 
+assert_exit "legacy repository TODO removed" 1 test -e "$ROOT/docs/TODO.md"
+active_refs="$(rg -n 'docs/TODO\.md|LOEN_TODO_PATH|upsert_todo_row' "$ROOT/.codex-isolated" "$ROOT/plugins" "$ROOT/lib" "$ROOT/tests" "$ROOT/README.md" "$ROOT/docs/README.ru.md" 2>/dev/null | grep -vF 'legacy repository TODO removed' || true)"
+assert_eq "no active repository TODO dependency" "" "$active_refs"
+
 finish
