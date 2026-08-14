@@ -32,6 +32,10 @@ export ICODEX_IWIKI_BFS_TOP_K="11"
 export ICODEX_IWIKI_SEED_THRESHOLD="0.17"
 export ICODEX_IWIKI_WRITE_SEED_THRESHOLD="0.37"
 export ICODEX_IWIKI_CHAT_MODEL="chat-test-model"
+export ICODEX_IWIKI_CODE_GRAPH_ENABLED="false"
+export ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES="2000000"
+export ICODEX_IWIKI_CODE_GRAPH_MAX_FILES="5000"
+export ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD="off"
 unset ICODEX_IWIKI_EMBED_DIMENSIONS ICODEX_IWIKI_SCORE_THRESHOLD \
       ICODEX_IWIKI_GRAPH_DEPTH ICODEX_IWIKI_CHUNK_SIZE \
       ICODEX_IWIKI_CHUNK_OVERLAP ICODEX_IWIKI_SUMMARY_MAX_CHARS
@@ -43,7 +47,7 @@ ensure_iwiki_wiring
 cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
 assert_contains "block header present"     "$cfg" "[mcp_servers.iwiki]"
 assert_contains "resolved command"         "$cfg" "command = \"$tmp/bin/iwiki-mcp\""
-assert_contains "env_vars present"         "$cfg" 'env_vars = ["IWIKI_LLM_KEY"]'
+assert_contains "secret env_vars present"  "$cfg" 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD"]'
 assert_contains "resolved base dir"        "$cfg" "IWIKI_BASE_DIR = \"$tmp/wiki-base\""
 assert_contains "resolved llm url"         "$cfg" 'IWIKI_LLM_BASE_URL = "http://test-llm:1234/v1"'
 assert_contains "resolved project dir"     "$cfg" "IWIKI_PROJECT_DIR = \"$tmp/project-root\""
@@ -57,6 +61,10 @@ assert_contains "set optional bfs top k" "$cfg" 'IWIKI_BFS_TOP_K = "11"'
 assert_contains "set optional seed threshold" "$cfg" 'IWIKI_SEED_THRESHOLD = "0.17"'
 assert_contains "set optional write seed threshold" "$cfg" 'IWIKI_WRITE_SEED_THRESHOLD = "0.37"'
 assert_contains "set optional chat model" "$cfg" 'IWIKI_CHAT_MODEL = "chat-test-model"'
+assert_contains "set code graph enabled" "$cfg" 'IWIKI_CODE_GRAPH_ENABLED = "false"'
+assert_contains "set code graph max file bytes" "$cfg" 'IWIKI_CODE_GRAPH_MAX_FILE_BYTES = "2000000"'
+assert_contains "set code graph max files" "$cfg" 'IWIKI_CODE_GRAPH_MAX_FILES = "5000"'
+assert_contains "set code graph auto rebuild" "$cfg" 'IWIKI_CODE_GRAPH_AUTO_REBUILD = "off"'
 assert_eq "manual project dir ignored" "0" "$(grep -cF "$tmp/wrong-project" "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "unset optional dims absent"    "0" "$(grep -c 'IWIKI_EMBED_DIMENSIONS' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "unset optional chunk absent"   "0" "$(grep -c 'IWIKI_CHUNK_SIZE' "$ICODEX_HOME_DIR/config.toml")"
@@ -175,12 +183,60 @@ assert_eq "absent config not created" "1" "$([[ -f "$ICODEX_HOME_DIR/config.toml
         ICODEX_IWIKI_BFS_TOP_K ICODEX_IWIKI_SEED_THRESHOLD \
         ICODEX_IWIKI_WRITE_SEED_THRESHOLD ICODEX_IWIKI_CHAT_MODEL \
         ICODEX_IWIKI_SCORE_THRESHOLD ICODEX_IWIKI_GRAPH_DEPTH ICODEX_IWIKI_CHUNK_SIZE \
-        ICODEX_IWIKI_CHUNK_OVERLAP ICODEX_IWIKI_SUMMARY_MAX_CHARS
+        ICODEX_IWIKI_CHUNK_OVERLAP ICODEX_IWIKI_SUMMARY_MAX_CHARS \
+        ICODEX_IWIKI_CODE_GRAPH_ENABLED ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES \
+        ICODEX_IWIKI_CODE_GRAPH_MAX_FILES ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD
   export ICODEX_HOME_DIR="$tmp/home-sete"
   mkdir -p "$ICODEX_HOME_DIR"
   printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
   ensure_iwiki_wiring
 )
 assert_eq "wiring survives set -e with all optionals unset" "0" "$?"
+
+# --- PostgreSQL binding forwards DB password as a secret and does not require a Git base ---
+export ICODEX_HOME_DIR="$tmp/home-postgres"
+export ICODEX_PROJECT_ROOT="$tmp/project-postgres"
+export ICODEX_IWIKI_DB_PASSWORD="db-test-secret"
+unset ICODEX_IWIKI_BASE_DIR
+mkdir -p "$ICODEX_HOME_DIR" "$ICODEX_PROJECT_ROOT"
+printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
+cat > "$ICODEX_PROJECT_ROOT/.iwiki.toml" <<'EOF'
+read = ["postgres-domain"]
+write = ["postgres-domain"]
+primary = "postgres-domain"
+
+[storage]
+type = "postgres"
+host = "db.invalid"
+port = 5432
+database = "iwiki"
+user = "iwiki"
+sslmode = "require"
+iwiki_id = "test-wiki"
+EOF
+ensure_iwiki_wiring
+cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "postgres block present" "$cfg" '[mcp_servers.iwiki]'
+assert_contains "postgres forwards both secret names" "$cfg" 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD"]'
+assert_eq "postgres has no Git base" "0" "$(grep -c 'IWIKI_BASE_DIR' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "postgres DB secret not written literally" "0" "$(grep -c 'db-test-secret' "$ICODEX_HOME_DIR/config.toml")"
+unset ICODEX_IWIKI_DB_PASSWORD
+
+# --- remote URL switches the managed iwiki server from local stdio to HTTPS MCP ---
+export ICODEX_HOME_DIR="$tmp/home-remote"
+export ICODEX_PROJECT_ROOT="$tmp/project-remote"
+export ICODEX_IWIKI_REMOTE_URL="https://iwiki.example.com/mcp"
+export ICODEX_IWIKI_REMOTE_TOKEN="remote-test-token"
+unset ICODEX_IWIKI_BASE_DIR ICODEX_IWIKI_LLM_BASE_URL ICODEX_IWIKI_LLM_KEY
+mkdir -p "$ICODEX_HOME_DIR" "$ICODEX_PROJECT_ROOT"
+printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
+ensure_iwiki_wiring
+cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "remote URL configured" "$cfg" 'url = "https://iwiki.example.com/mcp"'
+assert_contains "remote token env configured" "$cfg" 'bearer_token_env_var = "IWIKI_REMOTE_TOKEN"'
+assert_eq "remote has no stdio command" "0" "$(grep -c '^command =' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "remote has no local env vars" "0" "$(grep -c '^env_vars =' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "remote token not written literally" "0" "$(grep -c 'remote-test-token' "$ICODEX_HOME_DIR/config.toml")"
+unset ICODEX_IWIKI_REMOTE_URL ICODEX_IWIKI_REMOTE_TOKEN
 
 finish

@@ -1,3 +1,50 @@
 read = ["iclaude", "icodex", "iwiki-mcp", "devops"]
-write = ["icodex"]
+write = ["icodex", "devops", "icodex"]
 primary = "icodex"
+
+# Code graph is a local Git/stdio cache for Python only. This repository is Bash,
+# so keep it disabled. To enable it for a Python project, set enabled = true and
+# uncomment or adjust the bounded settings below.
+[code_graph]
+enabled = false
+# languages = ["python"]
+# auto_rebuild = "bounded" # off | bounded
+# max_rebuild_seconds = 10
+# max_file_bytes = 1000000
+# max_total_files = 20000
+# include_tests = true
+# exclude = ["vendor", "generated"]
+
+# Local stdio PostgreSQL examples: replace the Git binding above with exactly
+# one block below. Keep IWIKI_DB_PASSWORD out of this file; set
+# ICODEX_IWIKI_DB_PASSWORD in .codex_config instead.
+#
+# Local/internal database for development. `sslmode = "disable"` is appropriate
+# only when PostgreSQL listens on this machine.
+# read = ["icodex"]
+# write = ["icodex"]
+# primary = "icodex"
+#
+# [storage]
+# type = "postgres"
+# host = "127.0.0.1"
+# port = 5432
+# database = "iwiki_dev"
+# user = "iwiki_app"
+# sslmode = "disable"
+# iwiki_id = "icodex-dev"
+#
+# External PostgreSQL database. Use verify-full with a trusted CA and a hostname
+# matching the server certificate.
+# read = ["icodex"]
+# write = ["icodex"]
+# primary = "icodex"
+#
+# [storage]
+# type = "postgres"
+# host = "db.example.com"
+# port = 5432
+# database = "iwiki"
+# user = "iwiki_app"
+# sslmode = "verify-full"
+# iwiki_id = "team-wiki"

@@ -137,8 +137,11 @@ interactively — asks whether to continue without the proxy (default yes) or ex
 without a TTY it continues without the proxy. Use `--no-proxy` to skip the proxy (and
 the probe) entirely.
 
-> `ICODEX_IWIKI_*` keys configure the iwiki MCP server. Other iwiki settings are
-> ignored by the wrapper config.
+> `ICODEX_IWIKI_*` keys configure the iwiki MCP server. Git bindings need
+> `ICODEX_IWIKI_BASE_DIR`; PostgreSQL bindings declare `[storage] type = "postgres"`
+> in the project `.iwiki.toml` and need the secret `ICODEX_IWIKI_DB_PASSWORD`.
+> The wrapper forwards both secret values through Codex `env_vars`, never writes
+> them into `config.toml`, and leaves existing project bindings unchanged.
 
 On hosts whose curl is linked against an OpenSSL build that cannot decode every CA in the
 system trust bundle (e.g. ALT Linux, whose bundle ships GOST-algorithm roots that OpenSSL

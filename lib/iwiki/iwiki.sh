@@ -2,9 +2,10 @@
 # Wire the iwiki MCP server into the per-project Codex home config.toml at launch.
 # Always on: a delimited region registers [mcp_servers.iwiki]. The block is built
 # from ICODEX_IWIKI_* config: command falls back to `command -v iwiki-mcp`;
-# IWIKI_BASE_DIR / IWIKI_LLM_BASE_URL, generated IWIKI_PROJECT_DIR, and the
-# secret IWIKI_LLM_KEY are required (any unresolved -> warn + skip). Every other
-# IWIKI_* server var is written only when its ICODEX_IWIKI_* is set, else the
+# IWIKI_LLM_BASE_URL, generated IWIKI_PROJECT_DIR, and secret IWIKI_LLM_KEY are
+# required. Git bindings also require IWIKI_BASE_DIR; PostgreSQL bindings require
+# secret IWIKI_DB_PASSWORD instead. Every other IWIKI_* server var is written only
+# when its ICODEX_IWIKI_* is set, else the
 # server default applies. The secret is forwarded via env_vars (mapped by
 # apply_iwiki_env in lib/config/env.sh), never written literally. IWIKI_PROJECT_DIR
 # is generated from ICODEX_PROJECT_ROOT so Codex-spawned iwiki-mcp resolves the
@@ -16,7 +17,7 @@ _IWIKI_REGION_END="# icodex:iwiki:end"
 
 # Optional IWIKI_* server vars (each has a server-side default). Written only when
 # the matching ICODEX_IWIKI_<NAME> is set. Extend this list to expose new vars.
-_IWIKI_OPTIONAL_VARS="EMBED_MODEL EMBED_DIMENSIONS TOP_K SCORE_THRESHOLD SEARCH_MODE RERANK_MODEL IDLE_TIMEOUT_SECONDS GRAPH_DEPTH SEED_TOP_K BFS_TOP_K SEED_THRESHOLD WRITE_SEED_THRESHOLD CHAT_MODEL CHUNK_SIZE CHUNK_OVERLAP SUMMARY_MAX_CHARS"
+_IWIKI_OPTIONAL_VARS="EMBED_MODEL EMBED_DIMENSIONS TOP_K SCORE_THRESHOLD SEARCH_MODE RERANK_MODEL IDLE_TIMEOUT_SECONDS GRAPH_DEPTH SEED_TOP_K BFS_TOP_K SEED_THRESHOLD WRITE_SEED_THRESHOLD CHAT_MODEL CHUNK_SIZE CHUNK_OVERLAP SUMMARY_MAX_CHARS CODE_GRAPH_ENABLED CODE_GRAPH_MAX_FILE_BYTES CODE_GRAPH_MAX_FILES CODE_GRAPH_AUTO_REBUILD"
 
 # Emit the [mcp_servers.iwiki] block (without the region markers) from resolved
 # values. command/env_vars precede the [.env] subtable header so they bind to the
@@ -25,9 +26,11 @@ _iwiki_region_body() { # <command> <base_dir> <llm_base_url> <project_dir>
   local cmd="$1" base="$2" url="$3" project="$4" name cfg val
   printf '[mcp_servers.iwiki]\n'
   printf 'command = "%s"\n' "$cmd"
-  printf 'env_vars = ["IWIKI_LLM_KEY"]\n'
+  printf 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD"]\n'
   printf '[mcp_servers.iwiki.env]\n'
-  printf 'IWIKI_BASE_DIR = "%s"\n' "$base"
+  if [[ -n "$base" ]]; then
+    printf 'IWIKI_BASE_DIR = "%s"\n' "$base"
+  fi
   printf 'IWIKI_LLM_BASE_URL = "%s"\n' "$url"
   printf 'IWIKI_PROJECT_DIR = "%s"\n' "$project"
   for name in $_IWIKI_OPTIONAL_VARS; do
@@ -40,6 +43,24 @@ _iwiki_region_body() { # <command> <base_dir> <llm_base_url> <project_dir>
       printf 'IWIKI_%s = "%s"\n' "$name" "$val"
     fi
   done
+}
+
+_iwiki_remote_region_body() { # <remote-url>
+  local remote_url="$1"
+  printf '[mcp_servers.iwiki]\n'
+  printf 'url = "%s"\n' "$remote_url"
+  printf 'bearer_token_env_var = "IWIKI_REMOTE_TOKEN"\n'
+}
+
+_iwiki_project_uses_postgres() { # <project-root>
+  local toml="$1"
+  [[ -f "$toml/.iwiki.toml" ]] || return 1
+  awk '
+    /^[[:space:]]*\[storage\][[:space:]]*(#.*)?$/ { storage=1; next }
+    /^[[:space:]]*\[/ { storage=0 }
+    storage && /^[[:space:]]*type[[:space:]]*=[[:space:]]*"postgres"[[:space:]]*(#.*)?$/ { found=1 }
+    END { exit !found }
+  ' "$toml/.iwiki.toml"
 }
 
 _iwiki_strip_existing_wiring() { # <config>
@@ -59,18 +80,32 @@ _iwiki_strip_existing_wiring() { # <config>
 # No-op when ICODEX_HOME_DIR is unset or the config file does not exist.
 ensure_iwiki_wiring() {
   [[ -n "${ICODEX_HOME_DIR:-}" ]] || return 0
-  local file="$ICODEX_HOME_DIR/config.toml" body tmp cmd base url key project
+  local file="$ICODEX_HOME_DIR/config.toml" body tmp cmd base url key db_password project remote_url remote_token postgres=0
   [[ -f "$file" ]] || return 0
   cmd="${ICODEX_IWIKI_COMMAND:-$(command -v iwiki-mcp || true)}"
   base="${ICODEX_IWIKI_BASE_DIR:-}"
   url="${ICODEX_IWIKI_LLM_BASE_URL:-}"
   key="${ICODEX_IWIKI_LLM_KEY:-${IWIKI_LLM_KEY:-}}"
+  db_password="${ICODEX_IWIKI_DB_PASSWORD:-${IWIKI_DB_PASSWORD:-}}"
   project="${ICODEX_PROJECT_ROOT:-}"
-  if [[ -z "$cmd" || -z "$base" || -z "$url" || -z "$key" || -z "$project" ]]; then
-    log_warn "iwiki: required setting (command/base_dir/llm_base_url/llm_key/project_root) unresolved, skipping iwiki wiring"
-    return 0
+  remote_url="${ICODEX_IWIKI_REMOTE_URL:-}"
+  remote_token="${ICODEX_IWIKI_REMOTE_TOKEN:-${IWIKI_REMOTE_TOKEN:-}}"
+  if [[ -n "$remote_url" ]]; then
+    if [[ -z "$remote_token" ]]; then
+      log_warn "iwiki: remote URL is set but remote token is unresolved, skipping iwiki wiring"
+      return 0
+    fi
+    body="$(_iwiki_remote_region_body "$remote_url")"
+  else
+    if [[ -n "$project" ]] && _iwiki_project_uses_postgres "$project"; then
+      postgres=1
+    fi
+    if [[ -z "$cmd" || -z "$url" || -z "$key" || -z "$project" || ( "$postgres" -eq 0 && -z "$base" ) || ( "$postgres" -eq 1 && -z "$db_password" ) ]]; then
+      log_warn "iwiki: required setting unresolved, skipping iwiki wiring"
+      return 0
+    fi
+    body="$(_iwiki_region_body "$cmd" "$base" "$url" "$project")"
   fi
-  body="$(_iwiki_region_body "$cmd" "$base" "$url" "$project")"
   tmp="$(mktemp)"
   _iwiki_strip_existing_wiring "$file" > "$tmp"
   printf '%s\n%s\n%s\n' "$_IWIKI_REGION_START" "$body" "$_IWIKI_REGION_END" >> "$tmp"

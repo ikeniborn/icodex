@@ -1,0 +1,21 @@
+# Hosted iwiki MCP server configuration. This is server-only configuration:
+# do not place it in a project .iwiki.toml and do not add iwiki_id here.
+
+[storage]
+type = "postgres"
+host = "db.example.com"
+port = 5432
+database = "iwiki"
+user = "iwiki_app"
+sslmode = "verify-full"
+
+[server]
+# iwiki-mcp accepts loopback listeners only. Terminate public TLS at a reverse
+# proxy and forward the exact Origin and Authorization headers.
+host = "127.0.0.1"
+port = 8765
+allowed_origins = ["https://iwiki.example.com"]
+pool_min_size = 2
+pool_max_size = 10
+statement_timeout_ms = 30000
+lock_timeout_ms = 5000
