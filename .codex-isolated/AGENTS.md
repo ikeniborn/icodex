@@ -17,7 +17,7 @@ unavailable only when it is absent from that catalog or its listed source cannot
 
 At the start of any task in an unfamiliar area, or after a gap of more than 1 day:
 
-1. **If the iwiki MCP server is connected**, call `wiki_status`. If it reports a domain bound to this project (convention: domain name == project basename), `wiki_bind(read=[<domain>], write=<domain>)`, then `wiki_search "<task topic>"` → retrieve relevant sections; `wiki_lint` → check doc health. (No server / no project domain → skip; iwiki is not set up for this project.)
+1. **If the generated `Remote iwiki project scope` section is present**, it takes precedence: load `.iwiki.toml`, normalize only its domain names, and call `wiki_bind` with its complete `read`, `write`, and `primary` scope before `wiki_status`, searches, task-ledger, or any other wiki call. On a missing, invalid, or rejected scope, report a brief reason, make no mutating wiki call, and retain `completion-pending`; never infer a replacement scope. Otherwise, if the iwiki MCP server is connected, call `wiki_status`. If it reports a domain bound to this project (convention: domain name == project basename), `wiki_bind(read=[<domain>], write=<domain>)`, then `wiki_search "<task topic>"` → retrieve relevant sections; `wiki_lint` → check doc health. (No server / no project domain → skip; iwiki is not set up for this project.)
 2. Map the `docs/` layout into context (complements iwiki's semantic search with a structural overview):
    ```bash
    tree -L 2 docs/ || find docs -maxdepth 2 | sort   # fallback when `tree` is absent

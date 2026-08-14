@@ -65,6 +65,18 @@ configuration shown in `iwiki-remote-mcp.toml.example`. The token is mapped only
 `IWIKI_REMOTE_TOKEN`, never written to TOML. The remote server resolves wiki identity and
 read/write scope from the token; database and model credentials remain server-only.
 
+In this remote-client mode, icodex also generates a short instruction in the active project
+agent file. Before its first iwiki operation, the agent reads only `read`, `write`, and `primary`
+from the project-root `.iwiki.toml`, normalizes the domain names, then calls `wiki_bind` with
+that complete scope. It does this before `wiki_status`, search, task-ledger, or any other wiki
+call. The client never sends TOML text, paths, `iwiki_id`, or credentials. A missing or invalid
+scope, or a rejected bind such as HTTP 403, fails closed: no heuristic fallback or mutating wiki
+call is allowed and lifecycle remains `completion-pending`. Token grants remain the absolute
+maximum; a project TOML can request less scope, never more.
+
+Local stdio does not use this generated remote preflight. Its existing project binding remains
+server-local through `.iwiki.toml` and the home symlink.
+
 ### `iwiki_id` ownership
 
 Local PostgreSQL stdio reads `iwiki_id` from the project `.iwiki.toml` `[storage]` table. Hosted

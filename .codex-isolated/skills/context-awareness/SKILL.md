@@ -87,8 +87,9 @@ JavaScript:
    durable status.
 
 IF MCP-сервер iwiki подключён:
-  2. wiki_status → project_dir, список `domains`, текущая привязка read/write
-  3. Если домен проекта присутствует в `domains` (имя == basename проекта):
+  2. If generated remote-scope instructions are present: load only `read`, `write`, and `primary` from project `.iwiki.toml`, normalize domain names, then call `wiki_bind` with the full scope before `wiki_status`. On missing, invalid, or rejected scope, do not make mutating calls and retain `completion-pending`; never infer a replacement scope.
+  3. wiki_status → project_dir, список `domains`, текущая привязка read/write
+  4. Если домен проекта присутствует в `domains` (имя == basename проекта):
        - не привязан → wiki_bind(read=[<domain>], write=<domain>)
        - wiki_summary ← wiki_read_page(domain, "overview") (если есть)
          либо wiki_search('ключевые компоненты и архитектура проекта')
@@ -101,7 +102,7 @@ IF MCP-сервер iwiki подключён:
        task_page_found: true|false
        task_lifecycle: "in-progress|blocked|completion-pending|done" | null
        task_delivery_pending: true|false
-  4. Если домена проекта нет:
+  5. Если домена проекта нет:
        wiki_initialized: false
        wiki_domain: null
        wiki_summary: null

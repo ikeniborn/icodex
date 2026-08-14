@@ -9,7 +9,7 @@ Track every direct, chain, and LoEn task, including read-only work. The parent a
 
 ## Required flow
 
-1. Call `wiki_status`; bind the project domain for read/write when present.
+1. If the generated remote-scope instruction is present, first load and normalize the project `.iwiki.toml` scope and call `wiki_bind` with its full `read`, `write`, and `primary` values. On missing, invalid, or rejected scope, do not issue a mutating call and retain `completion-pending`. Otherwise call `wiki_status`; bind the project domain for read/write when present.
 2. Resolve one English lowercase-kebab-case topic; stop on conflicting controlled topics.
 3. Read or create `reference/tasks/<topic>` with `type: reference`, `status: stable`, and tag `task`.
 4. Load durable event keys, then replay pending spool events in order; acknowledge only after confirmed page replay.

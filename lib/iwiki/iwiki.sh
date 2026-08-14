@@ -14,6 +14,8 @@
 
 _IWIKI_REGION_START="# icodex:iwiki:start"
 _IWIKI_REGION_END="# icodex:iwiki:end"
+_IWIKI_REMOTE_SCOPE_REGION_START="<!-- icodex:iwiki-remote-scope:start -->"
+_IWIKI_REMOTE_SCOPE_REGION_END="<!-- icodex:iwiki-remote-scope:end -->"
 
 # Optional IWIKI_* server vars (each has a server-side default). Written only when
 # the matching ICODEX_IWIKI_<NAME> is set. Extend this list to expose new vars.
@@ -50,6 +52,43 @@ _iwiki_remote_region_body() { # <remote-url>
   printf '[mcp_servers.iwiki]\n'
   printf 'url = "%s"\n' "$remote_url"
   printf 'bearer_token_env_var = "IWIKI_REMOTE_TOKEN"\n'
+}
+
+_iwiki_strip_remote_scope_instructions() { # <agents-file>
+  local file="$1"
+  awk -v s="$_IWIKI_REMOTE_SCOPE_REGION_START" -v e="$_IWIKI_REMOTE_SCOPE_REGION_END" '
+    $0 == s { in_region=1; next }
+    $0 == e { in_region=0; next }
+    !in_region { print }
+  ' "$file"
+}
+
+# Remote HTTP servers authorize grants, but agents must select the complete project
+# scope before their first wiki call. Keep this generated instruction out of
+# config.toml so neither project metadata nor credentials can leak there.
+ensure_iwiki_remote_scope_instructions() {
+  [[ -n "${ICODEX_HOME_DIR:-}" ]] || return 0
+  local file="$ICODEX_HOME_DIR/AGENTS.md" tmp
+  [[ -f "$file" ]] || return 0
+  tmp="$(mktemp)"
+  _iwiki_strip_remote_scope_instructions "$file" > "$tmp"
+  if [[ -n "${ICODEX_IWIKI_REMOTE_URL:-}" ]]; then
+    cat >> "$tmp" <<'EOF'
+<!-- icodex:iwiki-remote-scope:start -->
+
+## Remote iwiki project scope
+
+Before the first wiki call, load only `read`, `write`, and `primary` from the project-root `.iwiki.toml`. Normalize domain names before passing them to `wiki_bind`; never pass TOML text, paths, `iwiki_id`, tokens, or other credentials. Call `wiki_bind` with the full normalized `read`, `write`, and `primary` values from `.iwiki.toml` before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call.
+
+Do not infer, broaden, or replace that scope with a project name, primary domain, or current session scope. On a missing or invalid TOML scope, or a rejected bind (including 403), show a brief reason, do not make mutating wiki calls and retain task lifecycle `completion-pending`. The remote server's token grants remain the absolute authorization limit.
+
+<!-- icodex:iwiki-remote-scope:end -->
+EOF
+  fi
+  if ! cmp -s "$tmp" "$file"; then
+    cat "$tmp" > "$file"
+  fi
+  rm -f "$tmp"
 }
 
 _iwiki_project_uses_postgres() { # <project-root>
@@ -90,6 +129,7 @@ ensure_iwiki_wiring() {
   project="${ICODEX_PROJECT_ROOT:-}"
   remote_url="${ICODEX_IWIKI_REMOTE_URL:-}"
   remote_token="${ICODEX_IWIKI_REMOTE_TOKEN:-${IWIKI_REMOTE_TOKEN:-}}"
+  ensure_iwiki_remote_scope_instructions
   if [[ -n "$remote_url" ]]; then
     if [[ -z "$remote_token" ]]; then
       log_warn "iwiki: remote URL is set but remote token is unresolved, skipping iwiki wiring"

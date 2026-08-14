@@ -10,6 +10,9 @@ fi
 source "$ROOT/lib/core/logging.sh"   # provides log_warn used by the guard
 source "$ROOT/lib/iwiki/iwiki.sh"
 
+# Local wiring cases must not inherit an operator's remote client configuration.
+unset ICODEX_IWIKI_REMOTE_URL ICODEX_IWIKI_REMOTE_TOKEN IWIKI_REMOTE_TOKEN
+
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
