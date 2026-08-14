@@ -227,6 +227,15 @@ OTel/Langfuse храните только в `.codex_config` или окруже
 > передаёт оба секрета через Codex `env_vars`, не записывает их в `config.toml` и
 > не изменяет существующий project binding.
 
+> При `ICODEX_IWIKI_REMOTE_URL` это отличается от local stdio: icodex добавляет в
+> активные agent instructions remote preflight. До первого `wiki_status`, поиска,
+> task-ledger или другого wiki-вызова агент читает из project-root `.iwiki.toml`
+> только `read`, `write`, `primary`, нормализует имена доменов и вызывает
+> `wiki_bind` с полным scope. TOML, пути, `iwiki_id` и секреты не передаются. Нет
+> TOML, он невалиден или сервер вернул 403 — scope не угадывается, записи в wiki
+> не выполняются, lifecycle остаётся `completion-pending`. Grants bearer token —
+> абсолютный максимум прав; `.iwiki.toml` не может их расширить.
+
 На хостах, где curl слинкован со сборкой OpenSSL, не умеющей декодировать все CA в системном
 бандле доверия (например ALT Linux, чей бандл содержит GOST-корни, отвергаемые OpenSSL 1.1.1),
 curl обрывает весь handshake с `x509_pubkey_decode: unsupported algorithm`, и любой HTTPS-вызов

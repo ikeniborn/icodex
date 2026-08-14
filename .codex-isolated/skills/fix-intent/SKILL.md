@@ -25,9 +25,12 @@ IDD owns WHY / WHAT / Outcomes / Constraints. Brainstorm owns HOW (architecture,
 
 ### Step 0: Load project context via iwiki (if available)
 
-Before asking any questions, check the iwiki MCP server. If connected, `wiki_status`;
-if a domain for this project exists, `wiki_bind(read=[<domain>], write=<domain>)` and load
-context in parallel:
+Before asking any questions, check the generated agent instructions for a remote iwiki scope
+preflight. When present, load `.iwiki.toml`, normalize only domain names, and call `wiki_bind`
+with its full `read`, `write`, and `primary` scope before `wiki_status`; never replace it with a
+project domain. A missing, invalid, or rejected scope fails closed for mutating wiki work.
+Otherwise, check the iwiki MCP server. If connected, `wiki_status`; if a domain for this project
+exists, `wiki_bind(read=[<domain>], write=<domain>)` and load context in parallel:
 
 1. `wiki_search('<topic>')` — existing documentation for this topic
 
