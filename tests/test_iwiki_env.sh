@@ -44,4 +44,22 @@ unset IWIKI_LLM_KEY ICODEX_IWIKI_LLM_KEY
 assert_exit "no wrapper -> noop 0" 0 apply_iwiki_env
 assert_eq "IWIKI_LLM_KEY stays unset" "" "${IWIKI_LLM_KEY:-}"
 
+# --- PostgreSQL password follows the same wrapper-only secret path ---
+unset IWIKI_DB_PASSWORD; ICODEX_IWIKI_DB_PASSWORD="db-secret"
+apply_iwiki_env
+assert_eq "mapped to IWIKI_DB_PASSWORD" "db-secret" "${IWIKI_DB_PASSWORD:-}"
+
+unset IWIKI_DB_PASSWORD; export IWIKI_DB_PASSWORD="db-ambient"; ICODEX_IWIKI_DB_PASSWORD="db-config"
+apply_iwiki_env
+assert_eq "ambient IWIKI_DB_PASSWORD wins" "db-ambient" "${IWIKI_DB_PASSWORD:-}"
+
+# --- remote MCP token follows the wrapper-only secret path ---
+unset IWIKI_REMOTE_TOKEN; ICODEX_IWIKI_REMOTE_TOKEN="remote-secret"
+apply_iwiki_env
+assert_eq "mapped to IWIKI_REMOTE_TOKEN" "remote-secret" "${IWIKI_REMOTE_TOKEN:-}"
+
+unset IWIKI_REMOTE_TOKEN; export IWIKI_REMOTE_TOKEN="remote-ambient"; ICODEX_IWIKI_REMOTE_TOKEN="remote-config"
+apply_iwiki_env
+assert_eq "ambient IWIKI_REMOTE_TOKEN wins" "remote-ambient" "${IWIKI_REMOTE_TOKEN:-}"
+
 finish

@@ -221,8 +221,11 @@ trusted Langfuse URL. При `langfuse`/`both` icodex запускает local c
 route в `CODEX_HOME/config.toml`; при `off` managed telemetry regions удаляются. Секреты
 OTel/Langfuse храните только в `.codex_config` или окружении, не в tracked files.
 
-> Ключи `ICODEX_*`, зарезервированные за плагином iwiki (например `ICODEX_IWIKI_*`),
-> намеренно игнорируются конфигом обёртки.
+> Ключи `ICODEX_IWIKI_*` настраивают MCP-сервер iwiki. Для Git binding нужен
+> `ICODEX_IWIKI_BASE_DIR`; PostgreSQL binding задаётся как `[storage] type = "postgres"`
+> в проектном `.iwiki.toml` и требует секрет `ICODEX_IWIKI_DB_PASSWORD`. Обёртка
+> передаёт оба секрета через Codex `env_vars`, не записывает их в `config.toml` и
+> не изменяет существующий project binding.
 
 На хостах, где curl слинкован со сборкой OpenSSL, не умеющей декодировать все CA в системном
 бандле доверия (например ALT Linux, чей бандл содержит GOST-корни, отвергаемые OpenSSL 1.1.1),

@@ -33,13 +33,20 @@ apply_api_key() {
   export OPENAI_API_KEY="${OPENAI_API_KEY:-$ICODEX_API_KEY}"
 }
 
-# apply_iwiki_env — map ICODEX_IWIKI_LLM_KEY (from .codex_config) to IWIKI_LLM_KEY
-# for the iwiki MCP server. The config.toml [mcp_servers.iwiki] block forwards
-# IWIKI_LLM_KEY via env_vars; all other iwiki settings are literal in that block.
-# An IWIKI_LLM_KEY already in the environment takes precedence.
+# apply_iwiki_env — map iwiki secret wrapper values from .codex_config for the
+# MCP server. The config.toml [mcp_servers.iwiki] block forwards these through
+# env_vars; all non-secret iwiki settings are literal in that block. Ambient
+# IWIKI_* values take precedence.
 apply_iwiki_env() {
-  [[ -n "${ICODEX_IWIKI_LLM_KEY:-}" ]] || return 0
-  export IWIKI_LLM_KEY="${IWIKI_LLM_KEY:-$ICODEX_IWIKI_LLM_KEY}"
+  if [[ -n "${ICODEX_IWIKI_LLM_KEY:-}" ]]; then
+    export IWIKI_LLM_KEY="${IWIKI_LLM_KEY:-$ICODEX_IWIKI_LLM_KEY}"
+  fi
+  if [[ -n "${ICODEX_IWIKI_DB_PASSWORD:-}" ]]; then
+    export IWIKI_DB_PASSWORD="${IWIKI_DB_PASSWORD:-$ICODEX_IWIKI_DB_PASSWORD}"
+  fi
+  if [[ -n "${ICODEX_IWIKI_REMOTE_TOKEN:-}" ]]; then
+    export IWIKI_REMOTE_TOKEN="${IWIKI_REMOTE_TOKEN:-$ICODEX_IWIKI_REMOTE_TOKEN}"
+  fi
 }
 
 _pii_is_uint() { [[ "${1:-}" =~ ^[0-9]+$ ]]; }

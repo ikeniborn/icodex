@@ -156,11 +156,26 @@
 # Command + required tier (iwiki is NOT wired if a required value is missing):
 #   ICODEX_IWIKI_COMMAND       Path to the iwiki-mcp binary. OPTIONAL:
 #                              auto-detected via `command -v iwiki-mcp` when unset.
-#   ICODEX_IWIKI_BASE_DIR      Personal wiki store path. REQUIRED.
+#   ICODEX_IWIKI_BASE_DIR      Git wiki store path. REQUIRED for Git storage;
+#                              omit for a PostgreSQL project binding.
 #   ICODEX_IWIKI_LLM_BASE_URL  OpenAI-compatible endpoint base URL. REQUIRED.
 #   ICODEX_IWIKI_LLM_KEY       Secret API key, forwarded as IWIKI_LLM_KEY via
 #                              `env_vars`. REQUIRED, SECRET — never commit a real
 #                              value.
+#   ICODEX_IWIKI_DB_PASSWORD   PostgreSQL password, forwarded as
+#                              IWIKI_DB_PASSWORD via `env_vars`. REQUIRED only
+#                              when the project .iwiki.toml has [storage]
+#                              type = "postgres". SECRET — never commit it.
+#
+# PostgreSQL binding lives in the project-root .iwiki.toml, not here. It must
+# define read/write/primary plus [storage] type, host, port, database, user,
+# sslmode, and iwiki_id. icodex preserves an existing .iwiki.toml unchanged.
+#
+# Remote HTTPS MCP mode: setting ICODEX_IWIKI_REMOTE_URL replaces the managed
+# local stdio server with the remote `/mcp` endpoint. ICODEX_IWIKI_REMOTE_TOKEN
+# is mapped to the runtime-only IWIKI_REMOTE_TOKEN; do not add raw IWIKI_* keys
+# to this file. The client does not send iwiki_id in remote mode: the hosted
+# server resolves wiki identity and domain grants from this bearer token.
 #
 # Project directory:
 #   IWIKI_PROJECT_DIR is generated from the launched project root. Do not add
@@ -184,11 +199,18 @@
 #   ICODEX_IWIKI_CHUNK_SIZE               (default 512)
 #   ICODEX_IWIKI_CHUNK_OVERLAP            (default 64)
 #   ICODEX_IWIKI_SUMMARY_MAX_CHARS        (default 400)
+#   ICODEX_IWIKI_CODE_GRAPH_ENABLED       (true|false; Git/local stdio only)
+#   ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES (positive integer)
+#   ICODEX_IWIKI_CODE_GRAPH_MAX_FILES     (positive integer)
+#   ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD  (off|bounded)
 #
 #ICODEX_IWIKI_COMMAND=/home/you/.local/bin/iwiki-mcp
 #ICODEX_IWIKI_BASE_DIR=/home/you/Documents/Project/iwiki-personal
 #ICODEX_IWIKI_LLM_BASE_URL=http://localhost:11434/v1
 #ICODEX_IWIKI_LLM_KEY=sk-...
+#ICODEX_IWIKI_DB_PASSWORD=...
+#ICODEX_IWIKI_REMOTE_URL=https://iwiki.example.com/mcp
+#ICODEX_IWIKI_REMOTE_TOKEN=...
 #ICODEX_IWIKI_EMBED_MODEL=ollama-bge-m3
 #ICODEX_IWIKI_EMBED_DIMENSIONS=1024
 #ICODEX_IWIKI_SEARCH_MODE=hybrid
@@ -198,3 +220,7 @@
 #ICODEX_IWIKI_SEED_THRESHOLD=0.15
 #ICODEX_IWIKI_WRITE_SEED_THRESHOLD=0.35
 #ICODEX_IWIKI_CHAT_MODEL=
+#ICODEX_IWIKI_CODE_GRAPH_ENABLED=true
+#ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES=1000000
+#ICODEX_IWIKI_CODE_GRAPH_MAX_FILES=20000
+#ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD=bounded
