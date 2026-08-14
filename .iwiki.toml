@@ -1,10 +1,10 @@
-read = ["iclaude", "icodex", "iwiki-mcp", "devops"]
-write = ["icodex", "devops", "icodex"]
-primary = "icodex"
 
 # Code graph is a local Git/stdio cache for Python only. This repository is Bash,
 # so keep it disabled. To enable it for a Python project, set enabled = true and
 # uncomment or adjust the bounded settings below.
+read = ["iclaude", "icodex", "iwiki-mcp", "devops"]
+write = ["icodex", "devops", "icodex"]
+primary = "icodex"
 [code_graph]
 enabled = false
 # languages = ["python"]
