@@ -140,13 +140,17 @@ ensure_uv_dependency() {
   _export_uv_bin "$target"
 }
 
-_extract_release_binary() { # <tarball> <archive-name-pattern> <name> <destination>
-  local tarball="$1" pattern="$2" name="$3" destination="$4" tmpd found install_tmp
+_extract_release_binary() { # <tarball> <archive-name-pattern> <name> <destination> [fallback-pattern]
+  local tarball="$1" pattern="$2" name="$3" destination="$4" fallback_pattern="${5:-}" tmpd found install_tmp
   tmpd="$(mktemp -d)"
   if ! tar -xzf "$tarball" -C "$tmpd"; then
     log_error "failed to extract $tarball"; rm -rf "$tmpd"; return 1
   fi
-  found="$(find "$tmpd" -type f -name "$pattern" | head -1)"
+  if [[ -n "$fallback_pattern" ]]; then
+    found="$(find "$tmpd" -type f \( -name "$pattern" -o -name "$fallback_pattern" \) | head -1)"
+  else
+    found="$(find "$tmpd" -type f -name "$pattern" | head -1)"
+  fi
   if [[ -z "$found" ]]; then
     log_error "$name binary not found inside archive"; rm -rf "$tmpd"; return 1
   fi
@@ -169,7 +173,7 @@ _extract_release_binary() { # <tarball> <archive-name-pattern> <name> <destinati
 }
 
 _extract_codex() {
-  _extract_release_binary "$1" codex codex "$ICODEX_BIN"
+  _extract_release_binary "$1" codex codex "$ICODEX_BIN" 'codex-*-unknown-*'
 }
 
 _extract_code_mode_host() {

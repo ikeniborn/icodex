@@ -236,4 +236,15 @@ assert_eq "_resolve_latest wget fallback" "rust-v7.7.7" "$(_resolve_latest)"
 rm -rf "$tmp"
 unset -f curl wget
 
+# --- Legacy releases store both executables under their platform asset names ---
+setup_case
+cp "$tmp/stage/codex" "$tmp/stage/codex-x86_64-unknown-linux-musl"
+FLAT_FIXTURE_TAR="$tmp/flat-fixture.tar.gz"
+tar -czf "$FLAT_FIXTURE_TAR" -C "$tmp/stage" codex-x86_64-unknown-linux-musl codex-code-mode-host-x86_64-unknown-linux-musl
+assert_exit "flat codex asset extracts" 0 _extract_codex "$FLAT_FIXTURE_TAR"
+assert_exit "flat host asset extracts" 0 _extract_code_mode_host "$FLAT_FIXTURE_TAR"
+assert_exit "flat codex binary installed" 0 test -x "$ICODEX_BIN"
+assert_exit "flat host binary installed" 0 test -x "$ICODEX_HOME_DIR/bin/codex-code-mode-host"
+rm -rf "$tmp"
+
 finish
