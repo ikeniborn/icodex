@@ -22,6 +22,10 @@ assert_contains "remote scope binds before status" "$agents" 'before `wiki_statu
 assert_contains "remote scope includes full TOML scope" "$agents" 'full normalized `read`, `write`, and `primary` values from `.iwiki.toml`'
 assert_contains "remote scope refuses fallback" "$agents" 'Do not infer, broaden, or replace that scope'
 assert_contains "remote scope fails closed" "$agents" 'do not make mutating wiki calls and retain task lifecycle `completion-pending`'
+assert_contains "remote scope documents PostgreSQL CAS" "$agents" 'pass its current `revision` as `expected_revision`'
+assert_contains "remote scope documents section CAS" "$agents" '`expected_section_hash`'
+assert_contains "remote scope keeps hosted code reads" "$agents" '`wiki_code_status`, `wiki_code_search`, and `wiki_code_context` read the published hosted snapshot'
+assert_contains "remote scope rejects hosted indexing" "$agents" '`wiki_code_index` returns `source_unavailable`'
 assert_eq "remote scope excludes token" "0" "$(grep -c 'remote-test-token' "$ICODEX_HOME_DIR/AGENTS.md")"
 assert_eq "remote scope is idempotent" "1" "$(grep -c '<!-- icodex:iwiki-remote-scope:start -->' "$ICODEX_HOME_DIR/AGENTS.md")"
 

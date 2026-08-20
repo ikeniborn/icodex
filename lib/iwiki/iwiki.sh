@@ -82,6 +82,10 @@ Before the first wiki call, load only `read`, `write`, and `primary` from the pr
 
 Do not infer, broaden, or replace that scope with a project name, primary domain, or current session scope. On a missing or invalid TOML scope, or a rejected bind (including 403), show a brief reason, do not make mutating wiki calls and retain task lifecycle `completion-pending`. The remote server's token grants remain the absolute authorization limit.
 
+Hosted page mutations use PostgreSQL compare-and-swap. Read the current page immediately before `wiki_update_page`, `wiki_insert_section`, `wiki_move_section`, `wiki_delete_section`, or `wiki_delete_page`, and pass its current `revision` as `expected_revision`. When protecting one heading, also pass the `section_hash` returned by `wiki_read_page(..., heading=...)` as `expected_section_hash`; re-read after `conflict` or `section_conflict`.
+
+`wiki_code_status`, `wiki_code_search`, and `wiki_code_context` read the published hosted snapshot. `wiki_code_index` returns `source_unavailable` because a hosted server has no client checkout; run indexing through a local MCP server instead. PostgreSQL writes are already durable, so do not call Git-only `wiki_sync` or OKF maintenance tools.
+
 <!-- icodex:iwiki-remote-scope:end -->
 EOF
   fi

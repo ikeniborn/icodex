@@ -1,6 +1,6 @@
 ---
 review:
-  intent_hash: 6a754d4406d51e26
+  intent_hash: 45edc2816eb95c15
   last_run: 2026-08-20
   phases:
     structure: { status: passed }
@@ -12,6 +12,13 @@ review:
 workflow:
   route: chain
   continuation: execute
+result_check:
+  verdict: OK
+  source: intent
+  intent_hash: 45edc2816eb95c15
+  last_run: 2026-08-20
+  reviewed: true
+  docs_checked: true
 ---
 
 # Intent: iwiki-mcp-remote-workflow

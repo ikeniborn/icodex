@@ -1,9 +1,9 @@
 ---
 name: context-awareness
-description: Detect project language, framework, package manager, lint/test commands and locate CLAUDE.md / PRD docs at task start (Phase 0). Also detects the iwiki MCP domain for this project, surfacing its summary as project context. Use when starting any task, switching project, or before running syntax/test checks. NOT for deep semantic doc search (wiki_search) — this skill only detects availability + a quick summary.
+description: Detect project language, framework, package manager, lint/test commands and locate CLAUDE.md / PRD docs at task start (Phase 0). Also detects iwiki documentation and code-graph availability/state. Use when starting any task, switching project, or before running syntax/test checks. NOT for deep wiki or code-graph queries — this skill only detects availability and quick context.
 user-invocable: false
 agent: Explore
-# version: 1.6.0
+# version: 1.7.1
 # tags: context, detection, project, language, framework, lat
 # dependencies: []
 # files: templates: ./templates/*.json, shared: ../_shared/syntax-commands.json
@@ -87,22 +87,27 @@ JavaScript:
    durable status.
 
 IF MCP-сервер iwiki подключён:
-  2. If generated remote-scope instructions are present: load only `read`, `write`, and `primary` from project `.iwiki.toml`, normalize domain names, then call `wiki_bind` with the full scope before `wiki_status`. On missing, invalid, or rejected scope, do not make mutating calls and retain `completion-pending`; never infer a replacement scope.
-  3. wiki_status → project_dir, список `domains`, текущая привязка read/write
-  4. Если домен проекта присутствует в `domains` (имя == basename проекта):
-       - не привязан → wiki_bind(read=[<domain>], write=<domain>)
-       - wiki_summary ← wiki_read_page(domain, "overview") (если есть)
+  2. For local stdio or remote HTTP: load only `read`, `write`, and `primary` from project `.iwiki.toml`, normalize domain names, then call `wiki_bind` with the full scope before `wiki_status`; never narrow to basename. Under generated remote-scope instructions, missing, invalid, or rejected scope permits no mutation and retains `completion-pending`.
+  3. wiki_status → storage, transport, список `domains`, текущая привязка read/write/primary.
+  4. Если `primary` присутствует в `domains`:
+       - wiki_summary ← wiki_read_page(primary, "overview") (если есть)
          либо wiki_search('ключевые компоненты и архитектура проекта')
      Добавить в project_context:
        wiki_initialized: true
-       wiki_domain: "<domain>"
+       wiki_domain: "<primary>"
        wiki_summary: <обзор страницы overview или результат wiki_search>
        task_topic: <canonical topic or null>
        task_page_slug: "reference/tasks/<topic>" | null
        task_page_found: true|false
        task_lifecycle: "in-progress|blocked|completion-pending|done" | null
        task_delivery_pending: true|false
-  5. Если домена проекта нет:
+     Для Python or TypeScript code-analysis вызвать read-only `wiki_code_status`:
+       code_graph_available: true только когда state == "ready"
+       code_graph_domain: "<primary>"
+       code_graph_state: <state либо стабильный error code>
+     При ready предпочитать `wiki_code_search` / `wiki_code_context` для symbol lookup,
+     relations и impact analysis. missing/stale/failed/not_configured не блокируют fallback на rg.
+  4. Если домена проекта нет:
        wiki_initialized: false
        wiki_domain: null
        wiki_summary: null
@@ -111,6 +116,9 @@ IF MCP-сервер iwiki подключён:
        task_page_found: false
        task_lifecycle: null
        task_delivery_pending: <spool result when topic known; otherwise false>
+       code_graph_available: false
+       code_graph_domain: null
+       code_graph_state: null
 
 ELSE (сервер не подключён):
   wiki_initialized: false
@@ -121,6 +129,9 @@ ELSE (сервер не подключён):
   task_page_found: false
   task_lifecycle: null
   task_delivery_pending: <spool result when topic known; otherwise false>
+  code_graph_available: false
+  code_graph_domain: null
+  code_graph_state: null
 ```
 
 После привязки домена Phase 0 выводит точный контекст task page: определяет
@@ -134,6 +145,8 @@ ELSE (сервер не подключён):
 downstream-навыки (brainstorming, prd-generator) используют
 `project_context.wiki_initialized` вместо самостоятельной проверки.
 `wiki_search` — опциональный семантический поиск по секциям внутри задачи.
+`wiki_code_status` — read-only availability probe; этот skill никогда не вызывает
+`wiki_code_index` и не публикует snapshot.
 
 ## Output
 
@@ -154,6 +167,9 @@ downstream-навыки (brainstorming, prd-generator) используют
     "wiki_initialized": true|false,
     "wiki_domain": "<имя домена iwiki>" | null,
     "wiki_summary": "синтезированный обзор из домена iwiki" | null,
+    "code_graph_available": true|false,
+    "code_graph_domain": "<имя primary-домена>" | null,
+    "code_graph_state": "ready|missing_snapshot|stale_snapshot|failed|not_configured" | null,
     "task_topic": "<topic>" | null,
     "task_page_slug": "reference/tasks/<topic>" | null,
     "task_page_found": true|false,
@@ -194,6 +210,9 @@ downstream-навыки (brainstorming, prd-generator) используют
     "wiki_initialized": false,
     "wiki_domain": null,
     "wiki_summary": null,
+    "code_graph_available": false,
+    "code_graph_domain": null,
+    "code_graph_state": null,
     "task_topic": null,
     "task_page_slug": null,
     "task_page_found": false,
@@ -233,6 +252,9 @@ downstream-навыки (brainstorming, prd-generator) используют
     "wiki_initialized": false,
     "wiki_domain": null,
     "wiki_summary": null,
+    "code_graph_available": false,
+    "code_graph_domain": null,
+    "code_graph_state": null,
     "task_topic": null,
     "task_page_slug": null,
     "task_page_found": false,
@@ -273,6 +295,9 @@ downstream-навыки (brainstorming, prd-generator) используют
     "wiki_initialized": false,
     "wiki_domain": null,
     "wiki_summary": null,
+    "code_graph_available": false,
+    "code_graph_domain": null,
+    "code_graph_state": null,
     "task_topic": null,
     "task_page_slug": null,
     "task_page_found": false,
@@ -310,6 +335,9 @@ downstream-навыки (brainstorming, prd-generator) используют
     "wiki_initialized": false,
     "wiki_domain": null,
     "wiki_summary": null,
+    "code_graph_available": false,
+    "code_graph_domain": null,
+    "code_graph_state": null,
     "task_topic": null,
     "task_page_slug": null,
     "task_page_found": false,
@@ -348,6 +376,9 @@ downstream-навыки (brainstorming, prd-generator) используют
     "wiki_initialized": true,
     "wiki_domain": "iclaude",
     "wiki_summary": "iclaude — bash-обёртка для Claude Code: HTTP/HTTPS-прокси, изолированная NVM-среда, OAuth-обновление токенов, Claude Code Router, PII-прокси (Presidio), microVM-песочница, security-хуки.",
+    "code_graph_available": false,
+    "code_graph_domain": "iclaude",
+    "code_graph_state": "not_configured",
     "task_topic": "proxy-audit",
     "task_page_slug": "reference/tasks/proxy-audit",
     "task_page_found": true,
@@ -383,6 +414,9 @@ downstream-навыки (brainstorming, prd-generator) используют
     "wiki_initialized": true,
     "wiki_domain": "iclaude",
     "wiki_summary": "iclaude — bash-обёртка для Claude Code: прокси, NVM, OAuth, PII-маскирование, microVM, security-хуки.",
+    "code_graph_available": false,
+    "code_graph_domain": "iclaude",
+    "code_graph_state": "not_configured",
     "task_topic": "proxy-audit",
     "task_page_slug": "reference/tasks/proxy-audit",
     "task_page_found": true,
@@ -421,6 +455,9 @@ downstream-навыки (brainstorming, prd-generator) используют
     "prd_path": "docs/PRD.md",
     "syntax_command": "python -m py_compile",
     "code_style": "pep8",
+    "code_graph_available": false,
+    "code_graph_domain": null,
+    "code_graph_state": null,
     "task_topic": "service-contract-check",
     "task_page_slug": "reference/tasks/service-contract-check",
     "task_page_found": true,
@@ -446,6 +483,9 @@ downstream-навыки (brainstorming, prd-generator) используют
     "prd_path": "../docs/PRD.md",
     "syntax_command": "npx tsc --noEmit",
     "code_style": "prettier",
+    "code_graph_available": false,
+    "code_graph_domain": null,
+    "code_graph_state": null,
     "task_topic": "frontend-typecheck",
     "task_page_slug": "reference/tasks/frontend-typecheck",
     "task_page_found": false,
@@ -471,6 +511,7 @@ downstream-навыки (brainstorming, prd-generator) используют
 
 **Delegates to:**
 - iwiki MCP `wiki_search` - Targeted semantic search over the project's iwiki domain (optional, in-task)
+- iwiki MCP `wiki_code_status` - Read-only code-graph availability check for Python or TypeScript
 
 **Provides:**
 - `language` → Enables language-specific tooling
@@ -478,6 +519,7 @@ downstream-навыки (brainstorming, prd-generator) используют
 - `prd_path` → Enables PRD-driven validation
 - `syntax_command` → Enables pre-commit syntax checks
 - `wiki_initialized` / `wiki_domain` / `wiki_summary` → Enables doc-graph-aware context without re-checking files
+- `code_graph_available` / `code_graph_domain` / `code_graph_state` → Enables code-graph-first symbol and impact analysis
 - `task_topic` / `task_page_slug` / `task_page_found` / `task_lifecycle` / `task_delivery_pending` → Surfaces exact task-page and non-authoritative spool state
 
 ---
@@ -488,6 +530,11 @@ downstream-навыки (brainstorming, prd-generator) используют
 **License:** MIT
 
 ## Changelog
+
+### 1.7.1 (2026-08-20)
+- Full `.iwiki.toml` binding now applies before status for local stdio and remote HTTP
+- Added read-only Python/TypeScript code-graph availability fields via `wiki_code_status`
+- Ready graphs route symbol and impact lookup to `wiki_code_search` / `wiki_code_context`
 
 ### 1.6.0 (2026-08-12)
 - Phase 0 now resolves exact iwiki task-page context and reports pending local delivery without treating it as durable status

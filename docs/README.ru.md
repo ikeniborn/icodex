@@ -225,7 +225,10 @@ OTel/Langfuse храните только в `.codex_config` или окруже
 > `ICODEX_IWIKI_BASE_DIR`; PostgreSQL binding задаётся как `[storage] type = "postgres"`
 > в проектном `.iwiki.toml` и требует секрет `ICODEX_IWIKI_DB_PASSWORD`. Обёртка
 > передаёт оба секрета через Codex `env_vars`, не записывает их в `config.toml` и
-> не изменяет существующий project binding.
+> не изменяет существующий project binding. Hosted streamable HTTP использует
+> `ICODEX_IWIKI_REMOTE_URL` и `ICODEX_IWIKI_REMOTE_TOKEN`; binding scope,
+> PostgreSQL CAS, storage-specific tools, ограничения lint и code graph описаны
+> в `docs/iwiki-mcp-modes.md`.
 
 > При `ICODEX_IWIKI_REMOTE_URL` это отличается от local stdio: icodex добавляет в
 > активные agent instructions remote preflight. До первого `wiki_status`, поиска,
