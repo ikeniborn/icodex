@@ -17,7 +17,7 @@ unavailable only when it is absent from that catalog or its listed source cannot
 
 At the start of any task in an unfamiliar area, or after a gap of more than 1 day:
 
-1. **If the generated `Remote iwiki project scope` section is present**, it takes precedence: load `.iwiki.toml`, normalize only its domain names, and call `wiki_bind` with its complete `read`, `write`, and `primary` scope before `wiki_status`, searches, task-ledger, or any other wiki call. On a missing, invalid, or rejected scope, report a brief reason, make no mutating wiki call, and retain `completion-pending`; never infer a replacement scope. Otherwise, if the iwiki MCP server is connected, call `wiki_status`. If it reports a domain bound to this project (convention: domain name == project basename), `wiki_bind(read=[<domain>], write=<domain>)`, then `wiki_search "<task topic>"` → retrieve relevant sections; `wiki_lint` → check doc health. (No server / no project domain → skip; iwiki is not set up for this project.)
+1. **One binding protocol applies to local stdio and remote HTTP.** When project-root `.iwiki.toml` exists, load only its domain names and call `wiki_bind` with the full normalized `read`, `write`, and `primary` scope before `wiki_status`, searches, task-ledger, or any other wiki call; never narrow to the project basename. Then run `wiki_status`, `wiki_search "<task topic>"`, and `wiki_lint`. If the generated `Remote iwiki project scope` section is present, its fail-closed rules take precedence: missing, invalid, or rejected scope permits no mutating wiki call and retains `completion-pending`. Without a project binding or connected server, skip iwiki context.
 2. Map the `docs/` layout into context (complements iwiki's semantic search with a structural overview):
    ```bash
    tree -L 2 docs/ || find docs -maxdepth 2 | sort   # fallback when `tree` is absent
@@ -32,16 +32,26 @@ Skip only when: familiar area, same session.
 
 **After every change that alters functionality, architecture, or behavior — and only when the iwiki MCP server reports a domain bound to this project (`wiki_status`) — update the wiki via the MCP tools before responding to the user.**
 
-- Pick the write tool by intent — all three auto-reindex the domain and auto-commit the base on success, so no manual `wiki_index` follows:
+- Pick the write tool by intent — each reindexes the touched domain on success, so no routine `wiki_index` follows:
   - **New page** → `wiki_write_page(domain, slug, markdown, source=<changed-source>)`. Refuses to overwrite an existing page.
-  - **Existing page** → `wiki_update_page(domain, slug, heading, new_body, source=<changed-source>)`. Rewrites one `##` section in place.
+  - **Rewrite / rename one `##` section** → `wiki_update_page(..., heading, new_body, new_heading=...)`.
+  - **Add one `##` section** → `wiki_insert_section(..., heading, body, after_heading=... | before_heading=...)`.
+  - **Reorder one `##` section** → `wiki_move_section(..., heading, after_heading=... | before_heading=...)`.
+  - **Drop one `##` section** → `wiki_delete_section(..., heading)`.
   - **Stale / removed source** → `wiki_delete_page(domain, slug)`. Drops the page and its vectors.
+- PostgreSQL page mutations are compare-and-swap. Read the page immediately before `wiki_update_page`, `wiki_insert_section`, `wiki_move_section`, `wiki_delete_section`, or `wiki_delete_page`, then pass its `revision` as `expected_revision`; omission returns `expected_revision_required`, and a stale value returns `conflict`. A heading-scoped `wiki_read_page(..., heading=...)` also returns `section_hash`; pass it as `expected_section_hash` when protecting that section, and re-read on `section_conflict`.
 - Call `wiki_index(domain)` only to rebuild after out-of-band edits (markdown changed on disk without a tool) or a sync conflict — never as a routine step after a write.
-- Run `wiki_lint` — no broken `[[refs]]`, no orphan or stale pages.
-- Writes auto-commit the base locally; `wiki_sync` publishes those commits to the git remote (pull-rebase-push) — run it only when sharing the base across machines.
+- Run `wiki_lint`. Git reports links, structure, orphans, stale sources, frontmatter, and tag drift; task/history orphans are expected advisories. PostgreSQL lint does not compute orphan, stale-source, frontmatter, or tag-drift findings, so empty lists for them are not evidence of health.
+- Read `storage` and `transport` from `wiki_status` once. On Git, writes auto-commit and `wiki_sync` is Git-only publication. On PostgreSQL, writes are durable database transactions; `wiki_sync`, OKF tools, and `wiki_remediation_plan` return `unsupported_storage`. `wiki_create_domain` requires hosted creation authority under streamable HTTP, works normally on Git, and is unsupported for local PostgreSQL stdio. Domain-grant tools require hosted management authority.
 - Skip only for changes that touch no functionality, architecture, or behavior (typo, comment, formatting).
 
-Always use the iwiki MCP tools (`wiki_status`, `wiki_bind`, `wiki_search`, `wiki_related`, `wiki_read_page`, `wiki_list_domains`, `wiki_list_pages`, `wiki_write_page`, `wiki_update_page`, `wiki_delete_page`, `wiki_index`, `wiki_create_domain`, `wiki_lint`, `wiki_sync`) — never the old plugin skills or the `iwiki_engine` CLI.
+Always use the iwiki MCP tools exposed by the current session — including section operations, code-graph reads/publication, and hosted domain-authority tools where their storage/transport preconditions hold — never old plugin skills or the `iwiki_engine` CLI.
+
+## Keep Code Graph Current (MANDATORY)
+
+For Python or TypeScript code-analysis or planning, call `wiki_code_status` after binding. When it reports a ready published PostgreSQL snapshot or ready local graph, prefer `wiki_code_search` and `wiki_code_context` over blind text search for symbols, relations, and change impact. Missing, stale, failed, or unconfigured graph state is optional context: fall back to repository search and report no blocker.
+
+After a Python or TypeScript symbol change, call `wiki_code_index` only when the active MCP server has the repository checkout. Hosted HTTP returns `source_unavailable`; its `wiki_code_status`, `wiki_code_search`, and `wiki_code_context` still read the published PostgreSQL snapshot. Publication tools require hosted HTTP, writable primary, and server-advertised batch limits from `wiki_code_publish_begin`; never raise those limits client-side.
 
 ## Wiki Task Ledger
 

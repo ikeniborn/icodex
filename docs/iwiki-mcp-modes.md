@@ -19,15 +19,19 @@ Start the local mode normally:
 
 ### Code graph
 
-Code graph is a local Git/stdio cache for Python only; PostgreSQL and hosted HTTP do not
-support it. The active `.iwiki.toml` disables it for this Bash repository. For a Python
-project, set `[code_graph].enabled = true` and optionally bound it with
-`max_rebuild_seconds`, `max_file_bytes`, `max_total_files`, `include_tests`, and safe
-relative `exclude` paths. The wrapper also supports `ICODEX_IWIKI_CODE_GRAPH_ENABLED`,
+Code graph supports Python and TypeScript. `wiki_code_index` needs a local Git/stdio MCP
+server with the repository checkout and a configured `[code_graph]` table. The server never
+builds the graph at startup; call `wiki_code_status`, then `wiki_code_index` when a rebuild is
+needed. The wrapper supports `ICODEX_IWIKI_CODE_GRAPH_ENABLED`,
 `ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES`, `ICODEX_IWIKI_CODE_GRAPH_MAX_FILES`, and
-`ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD` in `.codex_config`.
+`ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD` overrides; project TOML remains the primary source
+for languages, bounds, excludes, and publication/read modes.
 
-The server never builds this cache at startup; call `wiki_code_index` to build it.
+PostgreSQL serves `wiki_code_status`, `wiki_code_search`, and `wiki_code_context` from a
+published snapshot. It cannot index the client checkout: `wiki_code_index` returns
+`source_unavailable`. Hosted `wiki_code_publish_begin` / `_batch` / `_finalize` / `_abort`
+require an authenticated writable primary. The begin response advertises server batch row
+and byte limits; clients must respect them and cannot raise the hosted ceilings.
 
 ## Hosted streamable HTTP
 
@@ -48,7 +52,8 @@ iwiki-mcp serve --transport streamable-http
 
 The endpoint is `/mcp`. Keep the listener on loopback and publish it through a TLS reverse
 proxy that forwards the exact `Origin` and does not log `Authorization`. This wrapper currently
-generates only the local stdio registration.
+selects one managed transport per launch: remote configuration replaces local stdio when
+`ICODEX_IWIKI_REMOTE_URL` is set.
 
 ### External MCP client
 
@@ -76,6 +81,25 @@ maximum; a project TOML can request less scope, never more.
 
 Local stdio does not use this generated remote preflight. Its existing project binding remains
 server-local through `.iwiki.toml` and the home symlink.
+
+### Hosted mutation and maintenance contract
+
+Hosted page storage is PostgreSQL. Before `wiki_update_page`, `wiki_insert_section`,
+`wiki_move_section`, `wiki_delete_section`, or `wiki_delete_page`, read the current page and
+pass its `revision` as `expected_revision`. For one-heading edits, a heading-scoped read also
+returns `section_hash`; pass it as `expected_section_hash`. `conflict` and
+`section_conflict` change nothing: re-read, preserve concurrent content, and retry the bounded
+edit once.
+
+PostgreSQL writes are durable transactions. Do not call Git-only `wiki_sync`,
+`wiki_remediation_plan`, or OKF maintenance tools; they return `unsupported_storage`.
+`wiki_index` remains available for an explicit database reindex. `wiki_create_domain` works on
+hosted HTTP only when the bearer token has creation authority and is unsupported for local
+PostgreSQL stdio. Domain-grant tools similarly require hosted management authority.
+
+PostgreSQL `wiki_lint` checks links and section structure but does not compute orphans, stale
+sources, missing frontmatter, or tag drift. Empty lists for those categories are not proof of
+health. Git lint retains the broader report; task/history orphans are expected advisories.
 
 ### `iwiki_id` ownership
 

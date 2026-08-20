@@ -141,7 +141,10 @@ the probe) entirely.
 > `ICODEX_IWIKI_BASE_DIR`; PostgreSQL bindings declare `[storage] type = "postgres"`
 > in the project `.iwiki.toml` and need the secret `ICODEX_IWIKI_DB_PASSWORD`.
 > The wrapper forwards both secret values through Codex `env_vars`, never writes
-> them into `config.toml`, and leaves existing project bindings unchanged.
+> them into `config.toml`, and leaves existing project bindings unchanged. Hosted
+> streamable HTTP uses `ICODEX_IWIKI_REMOTE_URL` plus `ICODEX_IWIKI_REMOTE_TOKEN`;
+> see `docs/iwiki-mcp-modes.md` for scope binding, PostgreSQL CAS, storage-specific
+> tools, lint limits, and code-graph behavior.
 
 On hosts whose curl is linked against an OpenSSL build that cannot decode every CA in the
 system trust bundle (e.g. ALT Linux, whose bundle ships GOST-algorithm roots that OpenSSL

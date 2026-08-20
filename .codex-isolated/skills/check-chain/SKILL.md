@@ -174,9 +174,11 @@ Every stage must check whether its verdict changes documented behavior, architec
 workflow, command semantics, approval rules, or user-facing report output. If yes,
 update the repository docs that describe the change before final approval. When the
 iwiki MCP server has a bound domain for this project, update the relevant wiki page
-through `wiki_write_page`, `wiki_update_page`, or `wiki_delete_page`, then run
+through the relevant page or section mutation tool, then run
 `wiki_lint`. Broken refs, stale pages for changed sources, or wiki text that contradicts
 the checked artifact keep the stage at `needs_work`.
+
+On PostgreSQL storage, read the current page revision immediately before each task-page or documentation mutation and pass it as `expected_revision`; use `expected_section_hash` for one-section edits when available. A failed CAS changes nothing: re-read after `conflict` or `section_conflict`, preserve concurrent content, rebuild the bounded update, and retry once. Never treat Git-only `wiki_sync` as remote publication; a successful hosted write is already durable.
 
 For `intent`, `spec`, and `plan`, documentation evidence is recorded in the validation
 summary and frontmatter findings only; do not generate a stage HTML report. For

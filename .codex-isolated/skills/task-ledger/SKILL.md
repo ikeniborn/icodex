@@ -9,14 +9,16 @@ Track every direct, chain, and LoEn task, including read-only work. The parent a
 
 ## Required flow
 
-1. If the generated remote-scope instruction is present, first load and normalize the project `.iwiki.toml` scope and call `wiki_bind` with its full `read`, `write`, and `primary` values. On missing, invalid, or rejected scope, do not issue a mutating call and retain `completion-pending`. Otherwise call `wiki_status`; bind the project domain for read/write when present.
+1. For local stdio or remote HTTP, first load and normalize the project `.iwiki.toml` scope and call `wiki_bind` with its full `read`, `write`, and `primary` values before `wiki_status`; never narrow to the project basename. Under generated remote-scope instructions, missing, invalid, or rejected scope permits no mutating call and retains `completion-pending`.
 2. Resolve one English lowercase-kebab-case topic; stop on conflicting controlled topics.
 3. Read or create `reference/tasks/<topic>` with `type: reference`, `status: stable`, and tag `task`.
-4. Load durable event keys, then replay pending spool events in order; acknowledge only after confirmed page replay.
+4. Load durable event keys, then replay pending spool events in order; acknowledge only after confirmed page replay. Read the current page revision before every PostgreSQL page mutation and pass it as `expected_revision`; for one-section updates also pass `expected_section_hash` when available.
 5. Keep exactly `## Current State`, `## TODO`, `## Subtasks`, `## Evidence`, and `## Changelog`. Each starts with a <=250-character lead paragraph and blank line; use no heading deeper than `##`.
 6. Parent records material events. Before delegation record `dispatch`; subagents never write wiki and return subtask ID, role, outcome, changed paths, checks, blockers, and proposed changelog text. Record `return` before the next transition.
 7. On MCP failure, enqueue redacted events with `scripts/task_spool.py` and use `completion-pending`.
 8. Set `done` only after final evidence, successful wiki write, empty spool, and `wiki_lint` without a new task-page finding.
+
+PostgreSQL mutations returning `conflict` or `section_conflict` changed nothing. Re-read the current page/section, preserve concurrent events or state, rebuild the intended bounded update, and retry once with the new revision/hash. A second conflict becomes `completion-pending` plus a blocker; never overwrite from stale content.
 
 If iwiki is connected but the project domain is absent, the task page cannot be read or created. Parent may continue with redacted spool events, report durable status unavailable, and retain `completion-pending`; completion remains fail-closed until a bound domain permits replay, wiki write, and lint. This differs from the normal bound-domain flow above.
 
@@ -32,12 +34,12 @@ Idempotency key: SHA-256 of topic, kind, and canonical redacted evidence hash, t
 
 ## History segments and domain journal
 
-Keep complete task history in linked history segments. The task page `Changelog` is a small manifest that links to the first and bounded active segment; it does not repeat past events. Each segment is `reference/task-history/<topic>-<sequence>`, carries up to 20 events, and links to its successor after rollover. A new event rewrites only the bounded active segment. On replay, the parent traverses history segments, loads their durable event IDs, then appends only missing events. Closing a topic leaves every segment reachable from the task page and preserves its full event history.
+Keep complete task history in linked history segments. The task page `Changelog` is a small manifest that links to the first and bounded active segment; it does not repeat past events. Each segment has exactly `## Events` and `## Next`, carries up to 20 events, and names its successor or `none`. A new event rewrites only the bounded active segment. On replay, the parent traverses history segments, loads their durable event IDs, then appends only missing events. Closing a topic leaves every segment reachable from the task page and preserves its full history.
 
 The domain changelog is `reference/domain-changelog`. It contains curated domain-level changes such as standards, releases, migrations, and cross-task decisions, with links to affected task pages. Do not add routine task events there and do not use it as a task index.
 
-An `orphans` entry for `reference/tasks/*` is an expected task-page orphan advisory: status discovery uses the `task` tag rather than an inbound central index. It does not block closure unless `wiki_lint` reports another finding for that task page.
+An `orphans` entry for `reference/tasks/*` is an expected task-page orphan advisory on Git: status discovery uses the `task` tag rather than an inbound central index. It does not block closure unless `wiki_lint` reports another finding for that task page. PostgreSQL lint does not compute orphan or stale-source findings; closure there relies on successful page/segment writes plus link and section findings.
 
 ## Boundaries and reporting
 
-`task_spool.py` is dependency-free local storage only and must never call MCP; never modify iwiki-mcp, call `wiki_sync`, or create a subagent task page. Threat model: launcher-created per-user `CODEX_HOME` is trusted even when mode 0775; helper-managed `state/iwiki-task-spool/<project>` dirs are owner-only 0700 and unsafe preexisting managed components are rejected, preventing cross-user mutation. It is a redaction backstop: reject controls, secret assignments, authentication/credential paths, `.env` paths, symlinks, and non-regular spool targets before writing. Status reports search task-tagged pages, read relevant pages, report lifecycle/TODO/pending delivery/lint findings, and list `in-progress` tasks older than 14 days. If iwiki is unavailable, say durable status is unavailable; spool evidence is non-authoritative.
+`task_spool.py` is dependency-free local storage only and must never call MCP; never modify iwiki-mcp, invoke `wiki_sync`, or create a subagent task page. Threat model: launcher-created per-user `CODEX_HOME` is trusted even when mode 0775; helper-managed `state/iwiki-task-spool/<project>` dirs are owner-only 0700 and unsafe preexisting managed components are rejected, preventing cross-user mutation. It is a redaction backstop: reject controls, secret assignments, authentication/credential paths, `.env` paths, symlinks, and non-regular spool targets before writing. Status reports search task-tagged pages, read relevant pages, report lifecycle/TODO/pending delivery/lint findings, and list `in-progress` tasks older than 14 days. If iwiki is unavailable, say durable status is unavailable; spool evidence is non-authoritative.
