@@ -25,8 +25,10 @@ For direct work, the user sends `@topic <kebab-case-topic>` in the active sessio
 its direct-topic hook must bootstrap a missing manifest, that explicit command creates an
 approved direct-work-only `engineering` manifest at
 `docs/profiles/<topic>.yaml` and binds the topic only to the current local session.
-The next user prompt is checked against that profile's model; its wording is not part of
-the protocol. This interactive path does not change the full-chain App Server runner.
+The direct profile does not pin the interactive parent model or block its next prompt.
+Parent recommendations remain informational, while eligible delegated subtasks receive
+an explicit task-specific model and reasoning effort. This interactive path does not
+change the full-chain App Server runner.
 
 Never copy the shared registry or runtime routing state into this directory. Runtime
 state is local and disposable; it does not alter approved policy.

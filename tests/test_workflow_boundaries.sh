@@ -6,12 +6,14 @@ source "$ROOT/tests/helpers.sh"
 agents="$ROOT/.codex-isolated/AGENTS.md"
 readme="$ROOT/README.md"
 readme_ru="$ROOT/docs/README.ru.md"
+profiles_readme="$ROOT/docs/profiles/README.md"
 loen_readme="$ROOT/plugins/loen/README.md"
 loen_readme_ru="$ROOT/plugins/loen/README.ru.md"
 
 assert_exit "global AGENTS policy exists" 0 test -f "$agents"
 assert_exit "README exists" 0 test -f "$readme"
 assert_exit "Russian README exists" 0 test -f "$readme_ru"
+assert_exit "profile manifest README exists" 0 test -f "$profiles_readme"
 assert_exit "LoEn README exists" 0 test -f "$loen_readme"
 assert_exit "LoEn Russian README exists" 0 test -f "$loen_readme_ru"
 
@@ -56,8 +58,15 @@ if [[ -f "$agents" ]]; then
   assert_contains "orchestrated accepts correlated local handoff" "$flat_agents_body" "hook accepts only correlated local handoff/session evidence"
   assert_contains "orchestrated task bypass is scoped" "$flat_agents_body" "for that protected task only"
   assert_contains "interactive transition branch" "$agents_body" "Interactive branch:"
-  assert_contains "interactive accepts platform switch confirmation" "$flat_agents_body" 'A platform-reported successful model switch is sufficient confirmation for that switch.'
-  assert_contains "interactive uses status only when switch is not observed" "$flat_agents_body" 'Request `/status` only when no successful platform switch event is available'
+  assert_contains "interactive recommendations do not block parent" "$flat_agents_body" 'Parent-session model recommendations are informational and never block safe work.'
+  assert_contains "interactive work keeps active parent model" "$flat_agents_body" 'Continue on the active parent model without requesting `/status`, `/model`, downgrade confirmation, or escalation confirmation.'
+  assert_contains "delegation requires coordination benefit" "$flat_agents_body" 'Delegate only when the expected benefit exceeds coordination cost.'
+  assert_contains "delegated task gets explicit mapping" "$flat_agents_body" 'Pass the exact mapped `model` and `reasoning_effort` to `spawn_agent`'
+  assert_contains "mechanical child cannot use unjustified strong route" "$flat_agents_body" 'A delegated mechanical subtask must not use a stronger route without an evidenced trigger.'
+  assert_contains "missing child model does not block parent" "$flat_agents_body" 'An unavailable preferred child model never blocks safe parent work.'
+  assert_contains "delegation preserves authority boundaries" "$flat_agents_body" 'Delegation never bypasses user confirmation for destructive, risky, or external actions.'
+  assert_exit "interactive policy has no status stop gate" 1 grep -qF 'request `/status` before asking the user to switch' "$agents"
+  assert_exit "interactive policy has no switch halt" 1 grep -qF 'Halt before the next stage when a recommended switch requires user action.' "$agents"
   assert_contains "hook never selects model" "$flat_agents_body" "never selects or changes model"
   assert_contains "semantic route mechanical" "$agents_body" '`mechanical`'
   assert_contains "semantic route engineering" "$agents_body" '`engineering`'
@@ -125,6 +134,15 @@ if [[ -f "$readme_ru" ]]; then
   assert_contains "Russian README model failure" "$readme_ru_body" "model"
   assert_contains "Russian README no home manifest" "$readme_ru_body" "не хранит policy manifest"
   assert_contains "Russian README portable history out of scope" "$readme_ru_body" "Переносимой истории сессий, export/import"
+  assert_contains "Russian README interactive parent is non-blocking" "$flat_readme_ru_body" 'Обычная интерактивная работа продолжает выполняться на активной parent model без обязательных `/model` или `/status`.'
+  assert_contains "Russian README delegates explicit child mapping" "$flat_readme_ru_body" 'Для подходящих самостоятельных subtasks parent явно передаёт child agent выбранные `model` и `reasoning_effort`.'
+fi
+
+if [[ -f "$profiles_readme" ]]; then
+  profiles_readme_body="$(cat "$profiles_readme")"
+  flat_profiles_readme_body="$(tr '\n' ' ' < "$profiles_readme" | sed 's/[[:space:]][[:space:]]*/ /g')"
+  assert_contains "direct topic does not pin interactive parent model" "$flat_profiles_readme_body" 'The direct profile does not pin the interactive parent model or block its next prompt.'
+  assert_contains "direct topic preserves App Server route" "$flat_profiles_readme_body" 'This interactive path does not change the full-chain App Server runner.'
 fi
 
 if [[ -f "$loen_readme" ]]; then
