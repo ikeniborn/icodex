@@ -12,6 +12,13 @@ review:
 workflow:
   route: chain
   continuation: execute
+result_check:
+  verdict: OK
+  source: intent
+  intent_hash: 0047d99c687c84f6
+  last_run: 2026-08-23
+  reviewed: true
+  docs_checked: true
 ---
 
 # Intent: reduce-model-switch-stops-with-subagent-routing

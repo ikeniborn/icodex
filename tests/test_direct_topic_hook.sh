@@ -45,6 +45,7 @@ assert_eq "topic profile has exact direct task IDs" "direct-work" "$(awk '/^  - 
 assert_exit "topic profile omits intent selection task" 0 sh -c '! grep -q "  - id: intent-profile-selection" "$1"' _ "$project/docs/profiles/direct-hook-test.yaml"
 assert_exit "topic profile omits full implementation task" 0 sh -c '! grep -q "  - id: implementation" "$1"' _ "$project/docs/profiles/direct-hook-test.yaml"
 assert_exit "topic prompt persists local session mapping" 0 test -f "$home/state/direct-topics/session-1.json"
+assert_eq "topic mapping stores only session scope" '{"root":"'"$project"'","topic":"direct-hook-test"}' "$(tr -d '\n' < "$home/state/direct-topics/session-1.json")"
 assert_contains "topic prompt returns model-visible context" "$topic_result" 'direct-hook-test'
 
 continue_payload="$(python3 - "$project" <<'PY'
@@ -60,12 +61,18 @@ print(json.dumps({
 PY
 )"
 continue_result="$(run_hook "$continue_payload")"
-assert_contains "any next prompt continues matching topic model" "$continue_result" 'Direct topic direct-hook-test is active'
+assert_contains "any next prompt keeps direct topic active" "$continue_result" 'Direct topic direct-hook-test is active'
+assert_eq "continuation context does not claim confirmation" "0" "$(grep -c 'confirmed' <<<"$continue_result")"
 
 mismatch_payload="${continue_payload/gpt-5.6-terra/gpt-5.6-sol}"
 mismatch_result="$(run_hook "$mismatch_payload")"
-assert_contains "mismatched model blocks any next prompt" "$mismatch_result" '"decision": "block"'
-assert_contains "mismatched model names required model" "$mismatch_result" 'gpt-5.6-terra'
+assert_contains "different parent model continues active direct topic" "$mismatch_result" 'Direct topic direct-hook-test is active'
+assert_eq "different parent model does not block direct continuation" "0" "$(grep -c '"decision": "block"' <<<"$mismatch_result")"
+
+printf '{"effort":"medium","model":"gpt-5.6-terra","root":"%s","topic":"direct-hook-test"}\n' "$project" >"$home/state/direct-topics/session-1.json"
+legacy_result="$(run_hook "$mismatch_payload")"
+assert_contains "legacy direct topic mapping remains active" "$legacy_result" 'Direct topic direct-hook-test is active'
+assert_eq "legacy direct topic mapping does not block continuation" "0" "$(grep -c '"decision": "block"' <<<"$legacy_result")"
 
 pretool_payload="$(python3 - "$project" <<'PY'
 import json
@@ -81,8 +88,7 @@ print(json.dumps({
 PY
 )"
 pretool_result="$(env -i PATH=/usr/bin:/bin LC_ALL=C CODEX_HOME="$home" ICODEX_ROOT="$ROOT" python3 "$ROOT/.codex-isolated/hooks/profile-transition.py" <<<"$pretool_payload")"
-assert_contains "mismatched direct model blocks protected tool" "$pretool_result" '"permissionDecision": "deny"'
-assert_contains "protected tool denial names direct topic model" "$pretool_result" 'gpt-5.6-terra'
+assert_eq "different interactive parent model does not deny protected tool" "" "$pretool_result"
 
 failed_helper_project="$tmp/failed-helper-project"
 mkdir -p "$failed_helper_project/docs/profiles"

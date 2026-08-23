@@ -135,8 +135,9 @@ before starting `full`. Prefer `execute` when no full trigger is evidenced.
 Direct work creates no formal intent, spec, plan, or `check-chain` artifact, but always resolves a wiki task page.
 The exception is an explicit direct topic: `@topic <kebab-case-topic>` is a user approval
 to create `docs/profiles/<topic>.yaml` with the initial `engineering` profile and bind it
-to the current local session. The next user prompt is the continuation confirmation;
-its wording is not a protocol field. This does not alter the chain/App Server profile path.
+to the current local session. The next user prompt continues immediately; the direct
+profile does not pin the interactive parent model or require a continuation confirmation.
+This does not alter the chain/App Server profile path.
 `@topic` is submitted as plain prompt text, not selected from Codex autocomplete: when
 the `@` menu opens, press `Esc`, finish `@topic <kebab-case-topic>`, then press Enter.
 Direct work must not invoke `fix-intent`, `superpowers:brainstorming`,
@@ -186,8 +187,9 @@ transition gate only: validation state still comes from frontmatter written by t
 
 ## Model and Reasoning Recommendations
 
-Recommend only; never edit TOML, select profiles, start sessions, or claim a switch.
-The user switches with `/model` and verifies with `/status`.
+Classify each task, but keep parent-session recommendations informational. Never edit
+TOML, select profiles, start sessions, operate `/model`, or claim a switch. Parent-session
+model recommendations are informational and never block safe work.
 
 ### Execution Routes
 
@@ -216,10 +218,10 @@ rewrite classification or workflow rules.
 | `escalation` | `gpt-5.6-sol` | `max` |
 | `parallel-audit` | `gpt-5.6-sol` | `ultra` |
 
-Resolve the semantic route through the current catalog before recommending a switch. If
-the mapped entry is absent from `/model`, keep the semantic route, describe its capability
-and effort targets, mark resolution `unresolved`, and ask the user to select the current
-equivalent. Never substitute a model by name from memory.
+Resolve the semantic route through the current catalog before reporting a parent
+recommendation or spawning a delegated agent. If the mapped entry is unavailable, keep
+the semantic route and mark resolution `unresolved`; do not invent a replacement model.
+An unavailable preferred child model never blocks safe parent work.
 
 ### Checkpoints
 
@@ -259,44 +261,34 @@ or the recommendation for the previous task is suitable for the next task.
 
 **Orchestrated branch:** the runner validates shared registry and direct project manifest,
 then the hook accepts only correlated local handoff/session evidence. Matching
-routed evidence replaces manual `/status` confirmation for that protected task only. The
-hook validates evidence; it never selects or changes model.
+routed evidence authorizes work for that protected task only. The hook validates evidence; it
+never selects or changes model.
 
-**Interactive branch:** retain route classification, `/model` switch request,
-downgrade/escalation handling, and critical-migration rules. A platform-reported successful
-model switch is sufficient confirmation for that switch. Request `/status` only when no
-successful platform switch event is available.
+**Interactive branch:** retain route classification and report the resolved mapping as
+cost/capability guidance. Continue on the active parent model without requesting
+`/status`, `/model`, downgrade confirmation, or escalation confirmation. Human authority
+gates still apply to destructive, risky, or external actions.
 
 **Delegated-agent branch:** when delegation is explicitly authorized, resolve the
 subtask's semantic execution route independently before spawning. Pass the exact mapped
 `model` and `reasoning_effort` to `spawn_agent` with `fork_turns` set to `none` or a
-positive value. Do not request `/status` or user switch confirmation for the child agent;
-the parent records the route, evidence, and resolved mapping in its delegation request.
-Do not inherit the parent route automatically. Reclassify before every follow-up task
-whose scope or evidence changes.
+positive value. Delegate only when the expected benefit exceeds coordination cost. The
+parent records the route, evidence, resolved mapping, ownership, and authority limits in
+its delegation request. A delegated mechanical subtask must not use a stronger route
+without an evidenced trigger. Delegation never bypasses user confirmation for
+destructive, risky, or external actions. Do not inherit the parent route automatically.
+Reclassify before every follow-up task whose scope or evidence changes. If no sufficient
+mapped child is available, keep safe work in the parent.
 
-For interactive work, before a task that requires a model switch:
+For interactive work:
 
-1. Identify the next work and classify its execution route independently from current
-   evidence.
-2. Resolve the recommended exact model and effort through the current catalog mapping.
-3. Establish the active exact model and effort from either a successful platform switch
-   event after the requested switch or the latest `/status`. If neither is available,
-   request `/status` before asking the user to switch.
-4. Compare the active and recommended mappings. If they differ, report
-   `Switch required: yes`, ask the user to switch with `/model`, and stop before the task.
-5. Resume after a successful platform switch event or after the user confirms that
-   `/status` shows the recommended mapping; the user may instead explicitly decline the
-   switch under the downgrade or escalation rules below.
-
-For `direct` work on the `mechanical` or `engineering` route, report the recommended
-mapping but continue when the active mapping is unknown. Do not request `/status` unless
-the user asks to change models or evidence reclassifies the task to `synthesis`, `deep`,
-or `escalation`.
-
-Apply the same gate when a scope change or newly discovered invariant reclassifies work
-inside an active task. A matching active mapping uses `Decision: keep` and does not
-require another switch.
+1. Identify the next work and classify its execution route from current evidence.
+2. Resolve and report the recommended exact model and effort when available.
+3. Continue on the active parent model; never pause solely for model or effort alignment.
+4. Delegate bounded independent work only when explicit ownership and verification make
+   coordination worthwhile.
+5. Stop only at existing authority, artifact, safety, or irreversible-action gates—not
+   at model recommendation boundaries.
 
 ### Classification
 
@@ -332,17 +324,14 @@ active subagent orchestration.
 Implementers never revise accepted intent, spec, or plan. Return drift to the earliest
 gate. Never retry without changing strategy.
 
-### Switch Handling
+### Recommendation Handling
 
-Use `keep`, `downgrade`, `escalate`, or `separate-run` (`parallel-audit`). If the active
-mapping is unknown, ask the user to check `/status`, mark switch confirmation `pending`,
-and stop before the next task; never guess or inherit the previous task's recommendation.
-
-Wait when switching is required. A successful platform switch event confirms the resulting
-mapping; request `/status` only when that event is unavailable. A declined downgrade may
-continue with the extra cost recorded and switch confirmation marked `declined`. A declined
-escalation stops the next work until explicit risk acceptance, also recorded as `declined`.
-Critical-migration final review cannot be waived.
+Use `keep`, `downgrade`, `escalate`, or `separate-run` (`parallel-audit`) to explain the
+cost/capability relationship between the active parent model, when known, and the semantic
+route. The decision is informational for parent execution. Never request status or a model
+switch as a continuation condition. A risk that independently crosses a proposal-first or
+no-go authority boundary still requires user action. Critical-migration final review cannot
+be waived.
 
 ```text
 Workflow: direct | chain | loen
@@ -355,8 +344,8 @@ Recommended mapping: <exact model / effort | unresolved>
 Decision: keep | downgrade | escalate | separate-run
 Evidence: <artifact, finding, failure, invariant, or risk>
 Higher route rejected because: <reason or n/a for parallel-audit>
-Switch required: yes | no
-Switch confirmation: n/a | pending | confirmed | declined
+Parent action: continue
+Delegation: parent | child <exact model / effort>
 ```
 
 ## Project Status Reports
