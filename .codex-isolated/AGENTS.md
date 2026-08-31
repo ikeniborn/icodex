@@ -53,6 +53,35 @@ For Python or TypeScript code-analysis or planning, call `wiki_code_status` afte
 
 After a Python or TypeScript symbol change, call `wiki_code_index` only when the active MCP server has the repository checkout. Hosted HTTP returns `source_unavailable`; its `wiki_code_status`, `wiki_code_search`, and `wiki_code_context` still read the published PostgreSQL snapshot. Publication tools require hosted HTTP, writable primary, and server-advertised batch limits from `wiki_code_publish_begin`; never raise those limits client-side.
 
+## GWT Specification Workflow
+
+Given-When-Then scenarios are an additive layer for explicit specification pages. Use a
+scenario for new observable domain behavior, a public contract, a bug reproduction, or a
+business invariant. Do not require one for formatting, ordinary Wiki maintenance, or
+mechanical refactoring with unchanged behavior. Ordinary Wiki pages retain their existing
+validation, storage, search, and lint behavior in every specification mode.
+
+Use only the semantic tools `wiki_spec_search`, `wiki_spec_context`, and
+`wiki_spec_resolve`. Call `wiki_spec_context` before changing an existing scenario.
+Preserve its scenario ID while the observable contract is unchanged; changing that
+contract or ID is proposal-first. Treat the scenario, executable test, `implements` and
+`verifies` bindings, and verification evidence as one coherent unit. Write or update the
+executable test before or with implementation, then run focused and relevant regression
+tests and record command, exit status, and repository revision in the task ledger.
+
+When `wiki_code_status` reports a ready graph, call `wiki_spec_resolve` after code or test
+changes. Ambiguous, stale, or unresolved bindings are maintenance findings, never
+permission to guess. When the graph is absent, stale, failed, unreachable, or hosted
+source is unavailable, preserve declared selectors, use repository search, run executable
+tests, and record `graph_unavailable`; this never blocks ordinary Wiki work.
+
+Agents and `wiki_bind` must not override the configured `disabled`, `optional`, or
+`strict` mode. `disabled` disables specification projection and semantic tools; `optional`
+keeps specification findings advisory; `strict` blocks only future mutations of an
+explicit specification page for missing, invalid, duplicate, or incomplete scenarios.
+Hooks may enforce ordering and policy boundaries, but never write to Wiki or replace
+interactive MCP calls owned by the parent agent.
+
 ## Wiki Task Ledger
 
 **Every direct, chain, and LoEn task, including read-only analysis, has one task-tagged iwiki page at `reference/tasks/<topic>`. It is the sole durable task index.**

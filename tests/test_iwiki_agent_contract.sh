@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/tests/helpers.sh"
 
 agents_body="$(cat "$ROOT/.codex-isolated/AGENTS.md")"
+flat_agents_body="$(tr '\n' ' ' < "$ROOT/.codex-isolated/AGENTS.md" | sed 's/[[:space:]][[:space:]]*/ /g')"
 context_body="$(cat "$ROOT/.codex-isolated/skills/context-awareness/SKILL.md")"
 context_template="$(cat "$ROOT/.codex-isolated/skills/context-awareness/templates/project-context.json")"
 ledger_body="$(cat "$ROOT/.codex-isolated/skills/task-ledger/SKILL.md")"
@@ -22,6 +23,18 @@ assert_contains "rules explain hosted domain creation" "$agents_body" '`wiki_cre
 assert_contains "rules explain PostgreSQL lint limits" "$agents_body" 'PostgreSQL lint does not compute orphan, stale-source, frontmatter, or tag-drift findings'
 assert_contains "rules cover Python and TypeScript graph" "$agents_body" 'Python or TypeScript code-analysis'
 assert_contains "rules use hosted graph reads" "$agents_body" 'published PostgreSQL snapshot'
+assert_contains "rules define GWT workflow" "$agents_body" '## GWT Specification Workflow'
+assert_contains "GWT applies to observable behavior" "$flat_agents_body" 'new observable domain behavior, a public contract, a bug reproduction, or a business invariant'
+assert_contains "GWT excludes non-behavior edits" "$flat_agents_body" 'formatting, ordinary Wiki maintenance, or mechanical refactoring with unchanged behavior'
+assert_contains "GWT uses exact semantic tools" "$flat_agents_body" '`wiki_spec_search`, `wiki_spec_context`, and `wiki_spec_resolve`'
+assert_contains "GWT reads context before edits" "$flat_agents_body" 'Call `wiki_spec_context` before changing an existing scenario'
+assert_contains "GWT preserves scenario identity" "$flat_agents_body" 'Preserve its scenario ID while the observable contract is unchanged'
+assert_contains "GWT keeps artifacts coherent" "$flat_agents_body" 'scenario, executable test, `implements` and `verifies` bindings, and verification evidence as one coherent unit'
+assert_contains "GWT records executable evidence" "$flat_agents_body" 'focused and relevant regression tests and record command, exit status, and repository revision in the task ledger'
+assert_contains "GWT resolves ready graphs" "$flat_agents_body" 'call `wiki_spec_resolve` after code or test changes'
+assert_contains "GWT graph fallback is fail soft" "$flat_agents_body" 'preserve declared selectors, use repository search, run executable tests, and record `graph_unavailable`'
+assert_contains "GWT preserves configured modes" "$flat_agents_body" 'must not override the configured `disabled`, `optional`, or `strict` mode'
+assert_contains "GWT hooks never write Wiki" "$flat_agents_body" 'Hooks may enforce ordering and policy boundaries, but never write to Wiki'
 
 assert_contains "context skill version updated" "$context_body" '# version: 1.7.1'
 assert_contains "context reports graph availability" "$context_body" 'code_graph_available'

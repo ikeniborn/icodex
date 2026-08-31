@@ -12,6 +12,13 @@ review:
 workflow:
   route: chain
   continuation: execute
+result_check:
+  verdict: OK
+  source: intent
+  intent_hash: 6e2a8d76ca6245a3
+  last_run: 2026-08-31
+  reviewed: true
+  docs_checked: true
 ---
 
 # Intent: iwiki-gwt-icodex-rules
