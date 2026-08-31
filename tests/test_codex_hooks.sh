@@ -5,6 +5,7 @@ source "$ROOT/tests/helpers.sh"
 
 BLOCK_HOOK="$ROOT/.codex-isolated/hooks/block-secrets.py"
 REDACT_HOOK="$ROOT/.codex-isolated/hooks/redact-secrets.py"
+GWT_HOOK="$ROOT/.codex-isolated/hooks/gwt-gate.py"
 HOOKS_JSON="$ROOT/.codex-isolated/hooks.json"
 
 run_hook() { # <hook> <json>
@@ -25,6 +26,7 @@ capture_hook() { # <hook> <json>
 
 assert_exit "block hook exists" 0 test -f "$BLOCK_HOOK"
 assert_exit "redact hook exists" 0 test -f "$REDACT_HOOK"
+assert_exit "GWT hook exists" 0 test -f "$GWT_HOOK"
 assert_exit "hooks json exists" 0 test -f "$HOOKS_JSON"
 
 safe_payload='{"tool_name":"Bash","tool_input":{"command":"cat .env.example"}}'
@@ -56,6 +58,9 @@ hooks_config="$(cat "$HOOKS_JSON" 2>/dev/null || true)"
 assert_contains "hooks json wires PreToolUse" "$hooks_config" '"PreToolUse"'
 assert_contains "hooks json wires block hook" "$hooks_config" 'block-secrets.py'
 assert_contains "hooks json wires redact hook" "$hooks_config" 'redact-secrets.py'
+assert_contains "hooks json wires GWT gate" "$hooks_config" 'gwt-gate.py'
+assert_contains "hooks json matches GWT context" "$hooks_config" 'wiki_spec_context'
+assert_contains "hooks json matches GWT mutation" "$hooks_config" 'wiki_update_page'
 assert_contains "hooks json matches Bash" "$hooks_config" 'Bash'
 assert_contains "hooks json matches apply_patch" "$hooks_config" 'apply_patch'
 

@@ -17,7 +17,7 @@ unavailable only when it is absent from that catalog or its listed source cannot
 
 At the start of any task in an unfamiliar area, or after a gap of more than 1 day:
 
-1. **One binding protocol applies to local stdio and remote HTTP.** When project-root `.iwiki.toml` exists, load only its domain names and call `wiki_bind` with the full normalized `read`, `write`, and `primary` scope before `wiki_status`, searches, task-ledger, or any other wiki call; never narrow to the project basename. Then run `wiki_status`, `wiki_search "<task topic>"`, and `wiki_lint`. If the generated `Remote iwiki project scope` section is present, its fail-closed rules take precedence: missing, invalid, or rejected scope permits no mutating wiki call and retains `completion-pending`. Without a project binding or connected server, skip iwiki context.
+1. **One binding protocol applies to local stdio and remote HTTP.** When project-root `.iwiki.toml` exists, load its full normalized `read`, `write`, and `primary` scope before `wiki_status`, searches, task-ledger, or any other wiki call; never narrow to the project basename. Also load `[specifications].mode` when present: pass `[specifications].mode` as `specification_mode` to hosted HTTP `wiki_bind`, but omit `specification_mode` for local stdio, where the server reads project configuration and rejects client overrides. If the hosted tool schema lacks the parameter, the bind rejects it, or `wiki_status` reports a different mode, report the mismatch, make no mutating specification call, and retain task lifecycle `completion-pending`. Then run `wiki_status`, `wiki_search "<task topic>"`, and `wiki_lint`. If the generated `Remote iwiki project scope` section is present, its fail-closed rules take precedence. Without a project binding or connected server, skip iwiki context.
 2. Map the `docs/` layout into context (complements iwiki's semantic search with a structural overview):
    ```bash
    tree -L 2 docs/ || find docs -maxdepth 2 | sort   # fallback when `tree` is absent
@@ -69,18 +69,26 @@ contract or ID is proposal-first. Treat the scenario, executable test, `implemen
 executable test before or with implementation, then run focused and relevant regression
 tests and record command, exit status, and repository revision in the task ledger.
 
+Author each scenario in one closed `iwiki-gwt` TOML fence. Include non-empty `id`,
+`given`, `when`, `then`, and `code` fields, with at least one `implements` and one
+`verifies` binding using canonical roles and selectors. Use `wiki_spec_context` or the
+canonical iwiki GWT authoring page instead of inventing grammar.
+
 When `wiki_code_status` reports a ready graph, call `wiki_spec_resolve` after code or test
 changes. Ambiguous, stale, or unresolved bindings are maintenance findings, never
 permission to guess. When the graph is absent, stale, failed, unreachable, or hosted
 source is unavailable, preserve declared selectors, use repository search, run executable
 tests, and record `graph_unavailable`; this never blocks ordinary Wiki work.
 
-Agents and `wiki_bind` must not override the configured `disabled`, `optional`, or
-`strict` mode. `disabled` disables specification projection and semantic tools; `optional`
-keeps specification findings advisory; `strict` blocks only future mutations of an
-explicit specification page for missing, invalid, duplicate, or incomplete scenarios.
-Hooks may enforce ordering and policy boundaries, but never write to Wiki or replace
-interactive MCP calls owned by the parent agent.
+Agents must preserve the configured `disabled`, `optional`, or `strict` mode according to
+the transport-specific binding rule above. `disabled` disables specification projection
+and semantic tools; `optional` keeps every specification finding advisory. `strict` blocks
+only a future mutation of the reported explicit specification page for
+`missing_scenario`, `invalid_scenario`, `duplicate_scenario_id`, or
+`incomplete_bindings`. Projection and resolution findings remain advisory. Hooks never
+infer that an uncontextualized fence is an existing scenario: they nudge the parent to
+obtain context, then enforce matching domain and scenario ID after `wiki_spec_context`.
+They never write to Wiki or replace interactive MCP calls owned by the parent agent.
 
 ## Wiki Task Ledger
 
