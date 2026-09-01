@@ -16,6 +16,8 @@ _IWIKI_REGION_START="# icodex:iwiki:start"
 _IWIKI_REGION_END="# icodex:iwiki:end"
 _IWIKI_REMOTE_SCOPE_REGION_START="<!-- icodex:iwiki-remote-scope:start -->"
 _IWIKI_REMOTE_SCOPE_REGION_END="<!-- icodex:iwiki-remote-scope:end -->"
+_IWIKI_GWT_GATE='python3 "$CODEX_HOME/hooks/gwt-gate.py"'
+_IWIKI_GWT_POST='python3 "$CODEX_HOME/hooks/gwt-gate.py" --post'
 
 # Optional IWIKI_* server vars (each has a server-side default). Written only when
 # the matching ICODEX_IWIKI_<NAME> is set. Extend this list to expose new vars.
@@ -78,9 +80,11 @@ ensure_iwiki_remote_scope_instructions() {
 
 ## Remote iwiki project scope
 
-Before the first wiki call, load only `read`, `write`, and `primary` from the project-root `.iwiki.toml`. Normalize domain names before passing them to `wiki_bind`; never pass TOML text, paths, `iwiki_id`, tokens, or other credentials. Call `wiki_bind` with the full normalized `read`, `write`, and `primary` values from `.iwiki.toml` before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call.
+Before the first wiki call, load `read`, `write`, `primary`, and optional `[specifications].mode` from the project-root `.iwiki.toml`. Normalize domain names before passing them to `wiki_bind`; never pass TOML text, paths, `iwiki_id`, tokens, or other credentials. Call `wiki_bind` with the full normalized `read`, `write`, and `primary` values from `.iwiki.toml`, and pass `[specifications].mode` as `specification_mode` to hosted HTTP `wiki_bind`, before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call.
 
-Do not infer, broaden, or replace that scope with a project name, primary domain, or current session scope. On a missing or invalid TOML scope, or a rejected bind (including 403), show a brief reason, do not make mutating wiki calls and retain task lifecycle `completion-pending`. The remote server's token grants remain the absolute authorization limit.
+Do not infer, broaden, or replace that scope with a project name, primary domain, or current session scope. On a missing or invalid TOML scope or a rejected bind (including 403), show a brief reason, do not make mutating wiki calls and retain task lifecycle `completion-pending`. If the `specification_mode` parameter is unavailable or `wiki_status` reports a mode mismatch, make no mutating specification call and retain task lifecycle `completion-pending`; ordinary Wiki work remains available. The remote server's token grants remain the absolute authorization limit.
+
+Take the effective mode per domain from the `specifications` block of `wiki_status`, never from the project file. Hosted precedence is exact override, then the carried project mode, then hosted default, then the built-in `optional`; the server gates the carried mode with `allow_project_mode` and a tighten-only guard and reports a refused value as `project_mode_suppressed: true`. `source: project` confirms the carried mode answered; `source: hosted_override` is a legitimate server decision that outranks it, not a mismatch.
 
 Hosted page mutations use PostgreSQL compare-and-swap. Read the current page immediately before `wiki_update_page`, `wiki_insert_section`, `wiki_move_section`, `wiki_delete_section`, or `wiki_delete_page`, and pass its current `revision` as `expected_revision`. When protecting one heading, also pass the `section_hash` returned by `wiki_read_page(..., heading=...)` as `expected_section_hash`; re-read after `conflict` or `section_conflict`.
 
@@ -90,6 +94,60 @@ Hosted page mutations use PostgreSQL compare-and-swap. Read the current page imm
 EOF
   fi
   if ! cmp -s "$tmp" "$file"; then
+    cat "$tmp" > "$file"
+  fi
+  rm -f "$tmp"
+}
+
+# Merge the GWT context-ordering gate into an existing per-project hooks file.
+# The hook observes tool events only; it never performs MCP calls or Wiki writes.
+ensure_iwiki_gwt_hook() {
+  [[ -n "${ICODEX_HOME_DIR:-}" ]] || return 0
+  local file="$ICODEX_HOME_DIR/hooks.json" tmp
+  [[ -e "$file" || -L "$file" ]] || return 0
+  tmp="$(mktemp)"
+  python3 - "$file" "$_IWIKI_GWT_GATE" "$_IWIKI_GWT_POST" > "$tmp" <<'PY'
+import json, sys
+
+path, gate, post = sys.argv[1:]
+with open(path, encoding="utf-8") as stream:
+    config = json.load(stream)
+hooks = config.setdefault("hooks", {})
+
+def replace(event, command, matcher, status):
+    entries = hooks.get(event, [])
+    kept = [
+        entry for entry in entries
+        if not any(item.get("command") == command for item in entry.get("hooks", []))
+    ]
+    kept.append({
+        "matcher": matcher,
+        "hooks": [{
+            "type": "command",
+            "command": command,
+            "timeout": 30,
+            "statusMessage": status,
+        }],
+    })
+    hooks[event] = kept
+
+replace(
+    "PreToolUse",
+    gate,
+    "mcp__iwiki__wiki_update_page|wiki_update_page",
+    "Checking GWT context ordering",
+)
+replace(
+    "PostToolUse",
+    post,
+    "mcp__iwiki__wiki_spec_context|wiki_spec_context|mcp__iwiki__wiki_update_page|wiki_update_page",
+    "Recording GWT context ordering",
+)
+json.dump(config, sys.stdout, indent=2)
+sys.stdout.write("\n")
+PY
+  if [[ -L "$file" || ! -f "$file" ]] || ! cmp -s "$tmp" "$file"; then
+    rm -f "$file"
     cat "$tmp" > "$file"
   fi
   rm -f "$tmp"
@@ -150,6 +208,7 @@ ensure_iwiki_wiring() {
     fi
     body="$(_iwiki_region_body "$cmd" "$base" "$url" "$project")"
   fi
+  ensure_iwiki_gwt_hook
   tmp="$(mktemp)"
   _iwiki_strip_existing_wiring "$file" > "$tmp"
   printf '%s\n%s\n%s\n' "$_IWIKI_REGION_START" "$body" "$_IWIKI_REGION_END" >> "$tmp"

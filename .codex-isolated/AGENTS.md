@@ -17,7 +17,7 @@ unavailable only when it is absent from that catalog or its listed source cannot
 
 At the start of any task in an unfamiliar area, or after a gap of more than 1 day:
 
-1. **One binding protocol applies to local stdio and remote HTTP.** When project-root `.iwiki.toml` exists, load only its domain names and call `wiki_bind` with the full normalized `read`, `write`, and `primary` scope before `wiki_status`, searches, task-ledger, or any other wiki call; never narrow to the project basename. Then run `wiki_status`, `wiki_search "<task topic>"`, and `wiki_lint`. If the generated `Remote iwiki project scope` section is present, its fail-closed rules take precedence: missing, invalid, or rejected scope permits no mutating wiki call and retains `completion-pending`. Without a project binding or connected server, skip iwiki context.
+1. **One binding protocol applies to local stdio and remote HTTP.** When project-root `.iwiki.toml` exists, load its full normalized `read`, `write`, and `primary` scope before `wiki_status`, searches, task-ledger, or any other wiki call; never narrow to the project basename. Also load `[specifications].mode` when present: pass `[specifications].mode` as `specification_mode` to hosted HTTP `wiki_bind`, but omit `specification_mode` for local stdio, where the server reads project configuration and rejects client overrides. If the hosted tool schema lacks the parameter, the bind rejects it, or `wiki_status` reports a different mode, report the mismatch, make no mutating specification call, and retain task lifecycle `completion-pending`. Then run `wiki_status`, `wiki_search "<task topic>"`, and `wiki_lint`. If the generated `Remote iwiki project scope` section is present, its fail-closed rules take precedence. Without a project binding or connected server, skip iwiki context.
 2. Map the `docs/` layout into context (complements iwiki's semantic search with a structural overview):
    ```bash
    tree -L 2 docs/ || find docs -maxdepth 2 | sort   # fallback when `tree` is absent
@@ -52,6 +52,49 @@ Always use the iwiki MCP tools exposed by the current session — including sect
 For Python or TypeScript code-analysis or planning, call `wiki_code_status` after binding. When it reports a ready published PostgreSQL snapshot or ready local graph, prefer `wiki_code_search` and `wiki_code_context` over blind text search for symbols, relations, and change impact. Missing, stale, failed, or unconfigured graph state is optional context: fall back to repository search and report no blocker.
 
 After a Python or TypeScript symbol change, call `wiki_code_index` only when the active MCP server has the repository checkout. Hosted HTTP returns `source_unavailable`; its `wiki_code_status`, `wiki_code_search`, and `wiki_code_context` still read the published PostgreSQL snapshot. Publication tools require hosted HTTP, writable primary, and server-advertised batch limits from `wiki_code_publish_begin`; never raise those limits client-side.
+
+## GWT Specification Workflow
+
+Given-When-Then scenarios are an additive layer for explicit specification pages. Use a
+scenario for new observable domain behavior, a public contract, a bug reproduction, or a
+business invariant. Do not require one for formatting, ordinary Wiki maintenance, or
+mechanical refactoring with unchanged behavior. Ordinary Wiki pages retain their existing
+validation, storage, search, and lint behavior in every specification mode.
+
+Use only the semantic tools `wiki_spec_search`, `wiki_spec_context`, and
+`wiki_spec_resolve`. Call `wiki_spec_context` before changing an existing scenario.
+Preserve its scenario ID while the observable contract is unchanged; changing that
+contract or ID is proposal-first. Treat the scenario, executable test, `implements` and
+`verifies` bindings, and verification evidence as one coherent unit. Write or update the
+executable test before or with implementation, then run focused and relevant regression
+tests and record command, exit status, and repository revision in the task ledger.
+
+Author each scenario in one closed `iwiki-gwt` TOML fence. Include non-empty `id`,
+`given`, `when`, `then`, and `code` fields, with at least one `implements` and one
+`verifies` binding using canonical roles and selectors. Use `wiki_spec_context` or the
+canonical iwiki GWT authoring page instead of inventing grammar.
+
+When `wiki_code_status` reports a ready graph, call `wiki_spec_resolve` after code or test
+changes. Ambiguous, stale, or unresolved bindings are maintenance findings, never
+permission to guess. When the graph is absent, stale, failed, unreachable, or hosted
+source is unavailable, preserve declared selectors, use repository search, run executable
+tests, and record `graph_unavailable`; this never blocks ordinary Wiki work.
+
+Agents must preserve the configured `disabled`, `optional`, or `strict` mode according to
+the transport-specific binding rule above, and read the effective mode per domain from the
+`specifications` block of `wiki_status`, never from the project file. Hosted precedence is
+exact override, then the carried project mode, then hosted default, then the built-in
+`optional`; the server gates the carried mode with `allow_project_mode` and a tighten-only
+guard and reports a refused value as `project_mode_suppressed: true`. `source: project`
+confirms the carried mode answered, while `source: hosted_override` outranks it
+legitimately and is not a mismatch. `disabled` disables specification projection
+and semantic tools; `optional` keeps every specification finding advisory. `strict` blocks
+only a future mutation of the reported explicit specification page for
+`missing_scenario`, `invalid_scenario`, `duplicate_scenario_id`, or
+`incomplete_bindings`. Projection and resolution findings remain advisory. Hooks never
+infer that an uncontextualized fence is an existing scenario: they nudge the parent to
+obtain context, then enforce matching domain and scenario ID after `wiki_spec_context`.
+They never write to Wiki or replace interactive MCP calls owned by the parent agent.
 
 ## Wiki Task Ledger
 

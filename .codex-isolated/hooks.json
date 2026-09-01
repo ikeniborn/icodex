@@ -22,6 +22,30 @@
             "statusMessage": "Checking secret content"
           }
         ]
+      },
+      {
+        "matcher": "mcp__iwiki__wiki_update_page|wiki_update_page",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CODEX_HOME/hooks/gwt-gate.py\"",
+            "timeout": 30,
+            "statusMessage": "Checking GWT context ordering"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__iwiki__wiki_spec_context|wiki_spec_context|mcp__iwiki__wiki_update_page|wiki_update_page",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CODEX_HOME/hooks/gwt-gate.py\" --post",
+            "timeout": 30,
+            "statusMessage": "Recording GWT context ordering"
+          }
+        ]
       }
     ]
   }

@@ -20,6 +20,12 @@ assert_contains "remote scope region starts" "$agents" '<!-- icodex:iwiki-remote
 assert_contains "remote scope normalizes domains" "$agents" 'Normalize domain names before passing them to `wiki_bind`'
 assert_contains "remote scope binds before status" "$agents" 'before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call'
 assert_contains "remote scope includes full TOML scope" "$agents" 'full normalized `read`, `write`, and `primary` values from `.iwiki.toml`'
+assert_contains "remote scope forwards specification mode" "$agents" 'pass `[specifications].mode` as `specification_mode` to hosted HTTP `wiki_bind`'
+assert_contains "remote scope rejects silent mode fallback" "$agents" 'make no mutating specification call and retain task lifecycle `completion-pending`'
+assert_contains "remote scope reads the effective mode from status" "$agents" 'Take the effective mode per domain from the `specifications` block of `wiki_status`'
+assert_contains "remote scope states hosted precedence" "$agents" 'exact override, then the carried project mode, then hosted default'
+assert_contains "remote scope names the suppressed marker" "$agents" '`project_mode_suppressed: true`'
+assert_contains "remote scope clears hosted override of mismatch" "$agents" '`source: hosted_override` is a legitimate server decision that outranks it, not a mismatch'
 assert_contains "remote scope refuses fallback" "$agents" 'Do not infer, broaden, or replace that scope'
 assert_contains "remote scope fails closed" "$agents" 'do not make mutating wiki calls and retain task lifecycle `completion-pending`'
 assert_contains "remote scope documents PostgreSQL CAS" "$agents" 'pass its current `revision` as `expected_revision`'
@@ -34,5 +40,14 @@ ensure_iwiki_remote_scope_instructions
 agents="$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
 assert_eq "stdio removes remote scope region" "0" "$(grep -c 'icodex:iwiki-remote-scope:start' "$ICODEX_HOME_DIR/AGENTS.md")"
 assert_contains "stdio retains project instructions" "$agents" 'project instructions'
+
+printf '{"hooks":{}}\n' > "$ICODEX_HOME_DIR/hooks.json"
+ensure_iwiki_gwt_hook
+ensure_iwiki_gwt_hook
+hooks="$(cat "$ICODEX_HOME_DIR/hooks.json")"
+assert_contains "GWT pre-hook is wired" "$hooks" 'gwt-gate.py'
+assert_contains "GWT hook matches context" "$hooks" 'wiki_spec_context'
+assert_contains "GWT hook matches mutation" "$hooks" 'wiki_update_page'
+assert_eq "GWT hooks are idempotent" "2" "$(grep -c 'gwt-gate.py' "$ICODEX_HOME_DIR/hooks.json")"
 
 finish
