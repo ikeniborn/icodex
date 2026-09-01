@@ -81,7 +81,13 @@ source is unavailable, preserve declared selectors, use repository search, run e
 tests, and record `graph_unavailable`; this never blocks ordinary Wiki work.
 
 Agents must preserve the configured `disabled`, `optional`, or `strict` mode according to
-the transport-specific binding rule above. `disabled` disables specification projection
+the transport-specific binding rule above, and read the effective mode per domain from the
+`specifications` block of `wiki_status`, never from the project file. Hosted precedence is
+exact override, then the carried project mode, then hosted default, then the built-in
+`optional`; the server gates the carried mode with `allow_project_mode` and a tighten-only
+guard and reports a refused value as `project_mode_suppressed: true`. `source: project`
+confirms the carried mode answered, while `source: hosted_override` outranks it
+legitimately and is not a mismatch. `disabled` disables specification projection
 and semantic tools; `optional` keeps every specification finding advisory. `strict` blocks
 only a future mutation of the reported explicit specification page for
 `missing_scenario`, `invalid_scenario`, `duplicate_scenario_id`, or

@@ -5,6 +5,17 @@
 read = ["iclaude", "icodex", "iwiki-mcp", "devops"]
 write = ["icodex", "devops", "icodex"]
 primary = "icodex"
+
+# GWT specification policy for every visible local domain.
+# Choose one value:
+# - "disabled": keep specification pages as ordinary Markdown; semantic tools are off.
+# - "optional": report advisory findings and project only valid scenarios (recommended).
+# - "strict": reject invalid specification mutations atomically.
+# Ordinary Wiki pages work in every mode and never require the code graph.
+[specifications]
+mode = "strict"
+
+
 [code_graph]
 enabled = true
 languages = ["python","typescript"]
