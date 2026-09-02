@@ -12,6 +12,7 @@ fix_body="$(cat "$ROOT/.codex-isolated/skills/fix-intent/SKILL.md")"
 ledger_body="$(cat "$ROOT/.codex-isolated/skills/task-ledger/SKILL.md")"
 chain_body="$(cat "$ROOT/.codex-isolated/skills/check-chain/SKILL.md")"
 modes_body="$(cat "$ROOT/docs/iwiki-mcp-modes.md")"
+flat_modes_body="$(tr '\n' ' ' < "$ROOT/docs/iwiki-mcp-modes.md" | sed 's/[[:space:]][[:space:]]*/ /g')"
 
 assert_contains "binding uses project TOML for every transport" "$agents_body" 'One binding protocol applies to local stdio and remote HTTP'
 assert_contains "binding keeps complete project scope" "$agents_body" 'full normalized `read`, `write`, and `primary` scope'
@@ -59,6 +60,9 @@ assert_contains "GWT requires implementation bindings" "$flat_agents_body" 'at l
 assert_contains "GWT hosted bind forwards project mode" "$flat_agents_body" 'pass `[specifications].mode` as `specification_mode` to hosted HTTP `wiki_bind`'
 assert_contains "GWT local bind omits project mode" "$flat_agents_body" 'omit `specification_mode` for local stdio'
 assert_contains "GWT mode mismatch fails closed" "$flat_agents_body" 'retain task lifecycle `completion-pending`'
+assert_contains "startup accepts hosted precedence before calling a mismatch" "$flat_agents_body" 'unaccepted mismatch under documented hosted precedence'
+assert_contains "startup preserves ordinary Wiki work for a mode mismatch" "$flat_agents_body" 'ordinary Wiki work remains available'
+assert_eq "startup rejects broad different-mode mismatch claim" "0" "$(grep -cF 'wiki_status reports a different mode' <<<"$agents_body")"
 assert_contains "GWT reads the effective mode from status" "$flat_agents_body" 'read the effective mode per domain from the `specifications` block of `wiki_status`'
 assert_contains "GWT states hosted precedence" "$flat_agents_body" 'exact override, then the carried project mode, then hosted default'
 assert_contains "GWT names the suppressed marker" "$flat_agents_body" '`project_mode_suppressed: true`'
@@ -104,6 +108,10 @@ assert_contains "ledger handles revision conflict" "$ledger_body" '`conflict`'
 assert_contains "ledger handles section conflict" "$ledger_body" '`section_conflict`'
 assert_contains "ledger verifies hosted session provenance" "$ledger_body" '`binding_source: session`'
 assert_contains "ledger retains pending on binding mismatch" "$ledger_body" 'binding mismatch retains `completion-pending`'
+assert_contains "ledger carries project mode only for hosted bind" "$ledger_body" 'pass `[specifications].mode` as `specification_mode` only to hosted HTTP `wiki_bind`'
+assert_contains "ledger omits client mode override for local stdio" "$ledger_body" 'local stdio omits `specification_mode`'
+assert_contains "ledger accepts hosted override precedence" "$ledger_body" '`source: hosted_override` is legitimate'
+assert_contains "ledger fails closed on unaccepted status mode" "$ledger_body" 'unaccepted mode mismatch retains `completion-pending`'
 assert_contains "ledger records history successor" "$ledger_body" 'exactly `## Events` and `## Next`'
 assert_contains "ledger understands PostgreSQL lint limits" "$ledger_body" 'PostgreSQL lint does not compute orphan or stale-source findings'
 
@@ -117,5 +125,9 @@ assert_contains "modes explain search all" "$modes_body" '`scope="all"`'
 assert_contains "modes explain selector-only update" "$modes_body" '`wiki_update_page(code=...)`'
 assert_contains "modes require hosted session provenance" "$modes_body" '`binding_source: session`'
 assert_contains "modes protect grant changes" "$modes_body" 'separate explicit user authorization'
+assert_contains "modes carry project specification mode only to hosted bind" "$flat_modes_body" 'passes `[specifications].mode` as `specification_mode` only to hosted HTTP `wiki_bind`'
+assert_contains "modes omit client specification mode for local bind" "$flat_modes_body" 'Local stdio omits `specification_mode`'
+assert_contains "modes document hosted precedence and suppression" "$flat_modes_body" '`source: hosted_override` is legitimate and `project_mode_suppressed: true` reports refusal'
+assert_eq "modes reject incomplete scope-only claim" "0" "$(grep -cF 'reads only `read`, `write`, and `primary`' <<<"$modes_body")"
 
 finish

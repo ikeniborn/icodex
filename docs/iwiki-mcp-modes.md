@@ -73,22 +73,27 @@ configuration shown in `iwiki-remote-mcp.toml.example`. The token is mapped only
 read/write scope from the token; database and model credentials remain server-only.
 
 In this remote-client mode, icodex also generates a short instruction in the active project
-agent file. Before its first iwiki operation, the agent reads only `read`, `write`, and `primary`
-from the project-root `.iwiki.toml`, normalizes the domain names, then calls `wiki_bind` with
-that complete scope. It does this before `wiki_status`, search, task-ledger, or any other wiki
-call. The client never sends TOML text, paths, `iwiki_id`, or credentials. A missing or invalid
-scope, or a rejected bind such as HTTP 403, fails closed: no heuristic fallback or mutating wiki
-call is allowed and lifecycle remains `completion-pending`. Token grants remain the absolute
-maximum; a project TOML can request less scope, never more.
+agent file. Before its first iwiki operation, the agent reads the normalized `read`, `write`, and
+`primary` scope and, when present, `[specifications].mode` from the project-root `.iwiki.toml`.
+It calls `wiki_bind` with the complete scope and passes `[specifications].mode` as
+`specification_mode` only to hosted HTTP `wiki_bind`. Local stdio omits `specification_mode`:
+its server reads project configuration and rejects client overrides. It does this before
+`wiki_status`, search, task-ledger, or any other wiki call. The client never sends TOML text,
+paths, `iwiki_id`, or credentials. A missing or invalid scope, or a rejected bind such as HTTP
+403, fails closed: no heuristic fallback or mutating wiki call is allowed and lifecycle remains
+`completion-pending`. Token grants remain the absolute maximum; a project TOML can request less
+scope, never more.
 
 After bind, `wiki_status` must report `binding_source: session`. If a status or domain-free code
 read reports `token_default` or `binding_defaulted`, bind again with the exact project scope and
 repeat the affected domain-free read. Treat `primary_substituted` with `requested_primary`,
 `binding_not_selected`, a rejected bind, or an unexpected session as a mismatch: make no
 mutation and retain `completion-pending` until resolved. Read effective per-domain specification
-mode from `wiki_status`, not project TOML. For hosted binding, the project mode is carried as
-`specification_mode`; a server `source: hosted_override` is legitimate, while an unaccepted mode
-mismatch permits ordinary Wiki work but no mutating specification call.
+mode from `wiki_status`, not project TOML. Hosted precedence is exact override, then carried
+project mode, then hosted default, then built-in `optional`. `source: hosted_override` is
+legitimate and `project_mode_suppressed: true` reports refusal of the carried project mode. Only
+an unaccepted mode mismatch permits ordinary Wiki work but no mutating specification call and
+retains `completion-pending`.
 
 Explicit domains passed to `wiki_search` win over ambient scope. Use `scope="all"` only for an
 intentional whole-base search; `read=["all"]` is a literal domain, not a wildcard. Use
