@@ -1,5 +1,5 @@
 {
-  "version": "rust-v0.149.1",
+  "version": "rust-v0.152.0",
   "asset": "codex-x86_64-unknown-linux-musl.tar.gz",
-  "sha256": "e24fb784c7d71140d67afb620f56e9137496cf7f6c9e19217fa3666dcf306278"
+  "sha256": "05f942d3d3c5b5acd9edad56ce2797b6fe72dbb1462b24e5c9bf7dcec9a28a11"
 }

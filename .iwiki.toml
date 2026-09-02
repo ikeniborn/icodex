@@ -18,7 +18,7 @@ mode = "strict"
 
 [code_graph]
 enabled = true
-languages = ["python","typescript"]
+languages = ["python","bash"]
 auto_rebuild = "bounded"
 max_rebuild_seconds = 1800
 max_full_rebuild_seconds = 1800
