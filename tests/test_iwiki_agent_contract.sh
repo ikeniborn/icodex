@@ -11,6 +11,7 @@ context_template="$(cat "$ROOT/.codex-isolated/skills/context-awareness/template
 fix_body="$(cat "$ROOT/.codex-isolated/skills/fix-intent/SKILL.md")"
 ledger_body="$(cat "$ROOT/.codex-isolated/skills/task-ledger/SKILL.md")"
 chain_body="$(cat "$ROOT/.codex-isolated/skills/check-chain/SKILL.md")"
+modes_body="$(cat "$ROOT/docs/iwiki-mcp-modes.md")"
 
 assert_contains "binding uses project TOML for every transport" "$agents_body" 'One binding protocol applies to local stdio and remote HTTP'
 assert_contains "binding keeps complete project scope" "$agents_body" 'full normalized `read`, `write`, and `primary` scope'
@@ -110,5 +111,11 @@ assert_contains "check-chain uses PostgreSQL CAS" "$chain_body" 'read the curren
 assert_contains "check-chain permits section mutation tools" "$chain_body" 'relevant page or section mutation tool'
 assert_contains "check-chain passes expected revision" "$chain_body" 'pass it as `expected_revision`'
 assert_contains "check-chain retries only after reread" "$chain_body" 're-read after `conflict` or `section_conflict`'
+
+assert_contains "modes name four graph languages" "$modes_body" 'Python, TypeScript, JavaScript, and Bash'
+assert_contains "modes explain search all" "$modes_body" '`scope="all"`'
+assert_contains "modes explain selector-only update" "$modes_body" '`wiki_update_page(code=...)`'
+assert_contains "modes require hosted session provenance" "$modes_body" '`binding_source: session`'
+assert_contains "modes protect grant changes" "$modes_body" 'separate explicit user authorization'
 
 finish

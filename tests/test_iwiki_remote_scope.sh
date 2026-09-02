@@ -32,6 +32,12 @@ assert_contains "remote scope documents PostgreSQL CAS" "$agents" 'pass its curr
 assert_contains "remote scope documents section CAS" "$agents" '`expected_section_hash`'
 assert_contains "remote scope keeps hosted code reads" "$agents" '`wiki_code_status`, `wiki_code_search`, and `wiki_code_context` read the published hosted snapshot'
 assert_contains "remote scope rejects hosted indexing" "$agents" '`wiki_code_index` returns `source_unavailable`'
+assert_contains "remote scope requires session provenance" "$agents" '`binding_source: session`'
+assert_contains "remote scope repairs default binding" "$agents" '`token_default` or `binding_defaulted`'
+assert_contains "remote scope blocks substituted primary" "$agents" '`primary_substituted`'
+assert_contains "remote scope repeats affected reads" "$agents" 'repeat the affected domain-free read'
+assert_contains "remote scope gates hosted graph freshness" "$agents" '`state == "ready"`, `fresh == true`, and `binding_source == "session"`'
+assert_contains "remote scope protects grant mutations" "$agents" '`wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization'
 assert_eq "remote scope excludes token" "0" "$(grep -c 'remote-test-token' "$ICODEX_HOME_DIR/AGENTS.md")"
 assert_eq "remote scope is idempotent" "1" "$(grep -c '<!-- icodex:iwiki-remote-scope:start -->' "$ICODEX_HOME_DIR/AGENTS.md")"
 

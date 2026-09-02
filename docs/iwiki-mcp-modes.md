@@ -19,19 +19,21 @@ Start the local mode normally:
 
 ### Code graph
 
-Code graph supports Python and TypeScript. `wiki_code_index` needs a local Git/stdio MCP
-server with the repository checkout and a configured `[code_graph]` table. The server never
-builds the graph at startup; call `wiki_code_status`, then `wiki_code_index` when a rebuild is
-needed. The wrapper supports `ICODEX_IWIKI_CODE_GRAPH_ENABLED`,
+Code graph supports Python, TypeScript, JavaScript, and Bash. Bash is opt-in, scans `.sh`
+files only, and uses `sh:` entities. `wiki_code_index` needs a local Git/stdio MCP server with
+the repository checkout and a configured `[code_graph]` table. The server never builds the graph
+at startup; call `wiki_code_status`, then `wiki_code_index` when a rebuild is needed. Use graph
+results only when status is `ready` and `fresh`. The wrapper supports `ICODEX_IWIKI_CODE_GRAPH_ENABLED`,
 `ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES`, `ICODEX_IWIKI_CODE_GRAPH_MAX_FILES`, and
 `ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD` overrides; project TOML remains the primary source
 for languages, bounds, excludes, and publication/read modes.
 
 PostgreSQL serves `wiki_code_status`, `wiki_code_search`, and `wiki_code_context` from a
 published snapshot. It cannot index the client checkout: `wiki_code_index` returns
-`source_unavailable`. Hosted `wiki_code_publish_begin` / `_batch` / `_finalize` / `_abort`
-require an authenticated writable primary. The begin response advertises server batch row
-and byte limits; clients must respect them and cannot raise the hosted ceilings.
+`source_unavailable`. Hosted graph results additionally require `binding_source: session`.
+Hosted `wiki_code_publish_begin` / `_batch` / `_finalize` / `_abort` require an authenticated
+writable primary. The begin response advertises server batch row and byte limits; clients must
+respect them and cannot raise the hosted ceilings.
 
 ## Hosted streamable HTTP
 
@@ -79,6 +81,20 @@ scope, or a rejected bind such as HTTP 403, fails closed: no heuristic fallback 
 call is allowed and lifecycle remains `completion-pending`. Token grants remain the absolute
 maximum; a project TOML can request less scope, never more.
 
+After bind, `wiki_status` must report `binding_source: session`. If a status or domain-free code
+read reports `token_default` or `binding_defaulted`, bind again with the exact project scope and
+repeat the affected domain-free read. Treat `primary_substituted` with `requested_primary`,
+`binding_not_selected`, a rejected bind, or an unexpected session as a mismatch: make no
+mutation and retain `completion-pending` until resolved. Read effective per-domain specification
+mode from `wiki_status`, not project TOML. For hosted binding, the project mode is carried as
+`specification_mode`; a server `source: hosted_override` is legitimate, while an unaccepted mode
+mismatch permits ordinary Wiki work but no mutating specification call.
+
+Explicit domains passed to `wiki_search` win over ambient scope. Use `scope="all"` only for an
+intentional whole-base search; `read=["all"]` is a literal domain, not a wildcard. Use
+`wiki_update_page(code=...)` for a selector-only update. When a section update also changes code,
+send the section fields plus `code` atomically.
+
 Local stdio does not use this generated remote preflight. Its existing project binding remains
 server-local through `.iwiki.toml` and the home symlink.
 
@@ -95,7 +111,8 @@ PostgreSQL writes are durable transactions. Do not call Git-only `wiki_sync`,
 `wiki_remediation_plan`, or OKF maintenance tools; they return `unsupported_storage`.
 `wiki_index` remains available for an explicit database reindex. `wiki_create_domain` works on
 hosted HTTP only when the bearer token has creation authority and is unsupported for local
-PostgreSQL stdio. Domain-grant tools similarly require hosted management authority.
+PostgreSQL stdio. Domain discovery is read-only. Domain-grant reads require explicit hosted
+management work; grant set/revoke require hosted management authority and separate explicit user authorization.
 
 PostgreSQL `wiki_lint` checks links and section structure but does not compute orphans, stale
 sources, missing frontmatter, or tag drift. Empty lists for those categories are not proof of
