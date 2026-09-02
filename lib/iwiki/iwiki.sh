@@ -82,12 +82,21 @@ ensure_iwiki_remote_scope_instructions() {
 
 Before the first wiki call, load `read`, `write`, `primary`, and optional `[specifications].mode` from the project-root `.iwiki.toml`. Normalize domain names before passing them to `wiki_bind`; never pass TOML text, paths, `iwiki_id`, tokens, or other credentials. Call `wiki_bind` with the full normalized `read`, `write`, and `primary` values from `.iwiki.toml`, and pass `[specifications].mode` as `specification_mode` to hosted HTTP `wiki_bind`, before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call.
 
-After hosted bind, require `wiki_status` to report `binding_source: session`. If status
-or a domain-free code read reports `token_default` or `binding_defaulted`, call
-`wiki_bind` again with the exact project scope and repeat the affected domain-free read.
+After hosted bind, require `wiki_status` to report `binding_source: session`. If status,
+a domain-free code read, or a `wiki_spec_search` called without `domains` reports
+`token_default` or `binding_defaulted`, call
+`wiki_bind` again with the exact project scope and repeat the affected read.
 Treat `primary_substituted` with `requested_primary`, `binding_not_selected`, a rejected
 bind, or an unexpected session as a binding mismatch: make no mutation and retain
 `completion-pending` until resolved.
+
+A refused call answers `access_denied` whose `data` carries your own `binding_source`
+and, when the gate can attribute it, a `reason`; neither ever names a domain or wiki.
+Read `binding_source` first: `token_default` means the selection was lost, so rebind and
+repeat once. For `wiki_spec_resolve` the reason is `invalid_domain`,
+`primary_not_selected`, `primary_not_writable`, or `not_bound_primary`; hosted resolve
+accepts only the bound primary, so `not_bound_primary` reports a scenario outside that
+primary and is never repaired by requesting a wider grant.
 
 Do not infer, broaden, or replace that scope with a project name, primary domain, or current session scope. On a missing or invalid TOML scope or a rejected bind (including 403), show a brief reason, do not make mutating wiki calls and retain task lifecycle `completion-pending`. If the `specification_mode` parameter is unavailable or `wiki_status` reports a mode mismatch, make no mutating specification call and retain task lifecycle `completion-pending`; ordinary Wiki work remains available. The remote server's token grants remain the absolute authorization limit.
 
