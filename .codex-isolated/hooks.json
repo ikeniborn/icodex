@@ -37,7 +37,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "mcp__iwiki__wiki_spec_context|wiki_spec_context|mcp__iwiki__wiki_update_page|wiki_update_page",
+        "matcher": "mcp__iwiki__wiki_status|wiki_status|mcp__iwiki__wiki_spec_context|wiki_spec_context|mcp__iwiki__wiki_update_page|wiki_update_page",
         "hooks": [
           {
             "type": "command",

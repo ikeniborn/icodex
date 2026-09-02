@@ -53,6 +53,7 @@ ensure_iwiki_gwt_hook
 ensure_iwiki_gwt_hook
 hooks="$(cat "$ICODEX_HOME_DIR/hooks.json")"
 assert_contains "GWT pre-hook is wired" "$hooks" 'gwt-gate.py'
+assert_contains "GWT hook matches status" "$hooks" 'wiki_status'
 assert_contains "GWT hook matches context" "$hooks" 'wiki_spec_context'
 assert_contains "GWT hook matches mutation" "$hooks" 'wiki_update_page'
 assert_eq "GWT hooks are idempotent" "2" "$(grep -c 'gwt-gate.py' "$ICODEX_HOME_DIR/hooks.json")"
