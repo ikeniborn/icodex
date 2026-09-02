@@ -84,9 +84,14 @@ paths, `iwiki_id`, or credentials. A missing or invalid scope, or a rejected bin
 `completion-pending`. Token grants remain the absolute maximum; a project TOML can request less
 scope, never more.
 
-After bind, `wiki_status` must report `binding_source: session`. If a status or domain-free code
-read reports `token_default` or `binding_defaulted`, bind again with the exact project scope and
-repeat the affected domain-free read. Treat `primary_substituted` with `requested_primary`,
+After bind, `wiki_status` must report `binding_source: session`. If a status, a domain-free code
+read, or a `wiki_spec_search` without `domains` reports `token_default` or `binding_defaulted`,
+bind again with the exact project scope and
+repeat the affected read. A refused call answers `access_denied` whose `data` carries the
+caller's own `binding_source` and an attributed `reason`; for `wiki_spec_resolve` that reason is
+`invalid_domain`, `primary_not_selected`, `primary_not_writable`, or `not_bound_primary`, and the
+last one reports a scenario outside the bound primary rather than a missing grant. Treat
+`primary_substituted` with `requested_primary`,
 `binding_not_selected`, a rejected bind, or an unexpected session as a mismatch: make no
 mutation and retain `completion-pending` until resolved. Read effective per-domain specification
 mode from `wiki_status`, not project TOML. Hosted precedence is exact override, then carried
