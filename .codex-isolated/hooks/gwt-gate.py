@@ -37,9 +37,17 @@ def _status_path():
     return os.path.join(home, "state", "gwt-status.json") if home else None
 
 
+def _validated_response_payload(payload):
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("isError") is True or "error" in payload:
+        return None
+    return payload
+
+
 def _response_payload(data):
-    response = data.get("tool_response")
-    if not isinstance(response, dict) or response.get("isError") is True or "error" in response:
+    response = _validated_response_payload(data.get("tool_response"))
+    if response is None:
         return None
     content = response.get("content")
     if content is None:
@@ -54,7 +62,7 @@ def _response_payload(data):
         except (TypeError, ValueError):
             continue
         if isinstance(payload, dict):
-            return payload
+            return _validated_response_payload(payload)
     return None
 
 

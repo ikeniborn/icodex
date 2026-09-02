@@ -33,7 +33,8 @@ status_default='{"session_id":"defaulted","hook_event_name":"PostToolUse","tool_
 status_substituted='{"session_id":"substituted","hook_event_name":"PostToolUse","tool_name":"wiki_status","tool_response":{"storage":"postgres","transport":"streamable-http","binding_source":"session","primary_substituted":true,"requested_primary":"demo","specifications":{"domains":[{"domain":"demo","mode":"strict","source":"project"}]}}}'
 status_wrapped='{"session_id":"wrapped","hook_event_name":"PostToolUse","tool_name":"wiki_status","tool_response":{"content":[{"type":"text","text":"{\"storage\":\"postgres\",\"transport\":\"streamable-http\",\"binding_source\":\"session\",\"specifications\":{\"domains\":[{\"domain\":\"demo\",\"mode\":\"strict\",\"source\":\"project\"}]}}"}]}}'
 status_malformed='{"session_id":"malformed-status","hook_event_name":"PostToolUse","tool_name":"wiki_status","tool_response":{"content":[{"type":"text","text":"not-json"}]}}'
-status_error_object='{"session_id":"error-object","hook_event_name":"PostToolUse","tool_name":"wiki_status","tool_response":{"storage":"postgres","transport":"streamable-http","binding_source":"session","specifications":{"domains":[{"domain":"demo","mode":"strict","source":"project"}]},"error":{}}}'
+status_direct_error='{"session_id":"direct-error","hook_event_name":"PostToolUse","tool_name":"wiki_status","tool_response":{"storage":"postgres","transport":"streamable-http","binding_source":"session","specifications":{"domains":[{"domain":"demo","mode":"strict","source":"project"}]},"error":{}}}'
+status_wrapped_error='{"session_id":"wrapped-error","hook_event_name":"PostToolUse","tool_name":"wiki_status","tool_response":{"content":[{"type":"text","text":"{\"error\":{},\"storage\":\"postgres\",\"transport\":\"streamable-http\",\"binding_source\":\"session\",\"specifications\":{\"domains\":[{\"domain\":\"demo\",\"mode\":\"strict\",\"source\":\"project\"}]}}"},{"type":"text","text":"{\"storage\":\"postgres\",\"transport\":\"streamable-http\",\"binding_source\":\"session\",\"specifications\":{\"domains\":[{\"domain\":\"demo\",\"mode\":\"strict\",\"source\":\"project\"}]}}"}]}}'
 
 ordinary='{"session_id":"s1","hook_event_name":"PreToolUse","tool_name":"mcp__iwiki__wiki_update_page","tool_input":{"domain":"demo","slug":"notes","heading":"Text","new_body":"Ordinary Wiki text"}}'
 assert_eq "ordinary Wiki mutation remains allowed" "0" "$(capture_code pre "$ordinary")"
@@ -56,8 +57,14 @@ assert_eq "wrapped status response records mode" "0" "$(capture_code post "$stat
 assert_eq "wrapped status authorizes GWT checks" "0" "$(capture_code pre "${mutation//\"s1\"/\"wrapped\"}")"
 assert_eq "malformed status response stays untrusted" "0" "$(capture_code post "$status_malformed")"
 assert_eq "malformed status cannot authorize GWT update" "2" "$(capture_code pre "${mutation//\"s1\"/\"malformed-status\"}")"
-assert_eq "status with error object stays controlled" "0" "$(capture_code post "$status_error_object")"
-assert_eq "status with error object cannot authorize GWT update" "2" "$(capture_code pre "${mutation//\"s1\"/\"error-object\"}")"
+assert_eq "direct-error session records trusted status" "0" "$(capture_code post "${status_optional//\"s1\"/\"direct-error\"}")"
+assert_eq "direct-error session starts authorized" "0" "$(capture_code pre "${mutation//\"s1\"/\"direct-error\"}")"
+assert_eq "direct error-bearing status stays controlled" "0" "$(capture_code post "$status_direct_error")"
+assert_eq "direct error-bearing status clears previous evidence" "2" "$(capture_code pre "${mutation//\"s1\"/\"direct-error\"}")"
+assert_eq "wrapped-error session records trusted status" "0" "$(capture_code post "${status_optional//\"s1\"/\"wrapped-error\"}")"
+assert_eq "wrapped-error session starts authorized" "0" "$(capture_code pre "${mutation//\"s1\"/\"wrapped-error\"}")"
+assert_eq "wrapped error-bearing status stays controlled" "0" "$(capture_code post "$status_wrapped_error")"
+assert_eq "wrapped error-bearing status clears previous evidence" "2" "$(capture_code pre "${mutation//\"s1\"/\"wrapped-error\"}")"
 
 context='{"session_id":"s1","hook_event_name":"PostToolUse","tool_name":"mcp__iwiki__wiki_spec_context","tool_input":{"domain":"demo","scenario_id":"checkout.submit"},"tool_response":{"isError":false}}'
 assert_eq "successful context records ordering evidence" "0" "$(capture_code post "$context")"
