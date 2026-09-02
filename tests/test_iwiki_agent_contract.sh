@@ -80,6 +80,9 @@ assert_contains "context gates hosted session binding" "$context_body" 'binding_
 assert_contains "context checks graph read-only" "$context_body" '`wiki_code_status`'
 assert_contains "context prefers graph search" "$context_body" '`wiki_code_search` / `wiki_code_context`'
 assert_contains "context covers four graph languages" "$context_body" 'Python, TypeScript, JavaScript, or Bash'
+assert_contains "context reads effective mode from status" "$context_body" 'Read the effective per-domain specification mode from `wiki_status`; never infer it from `.iwiki.toml`.'
+assert_contains "context fails closed for hosted mode errors" "$context_body" 'If its callable schema lacks `specification_mode`, bind rejects it, or status reports an unaccepted mismatch, report it, make no mutating specification call, and retain `completion-pending`; ordinary non-specification Wiki work remains available.'
+assert_contains "context preserves hosted mode precedence" "$context_body" '`source: hosted_override` legitimately outranks project mode and is not a mismatch; `project_mode_suppressed: true` means the carried project value was refused and must be reported.'
 assert_contains "context template uses wiki domain" "$context_template" '"wiki_domain"'
 assert_contains "context template reports graph availability" "$context_template" '"code_graph_available"'
 assert_contains "context template reports graph domain" "$context_template" '"code_graph_domain"'
@@ -90,6 +93,9 @@ assert_contains "context template reports task page" "$context_template" '"task_
 
 assert_contains "intent binds before status in every transport" "$fix_body" 'call `wiki_bind` with the full normalized project scope before `wiki_status`'
 assert_eq "intent removes inferred single-domain bind" "0" "$(grep -cF 'wiki_bind(read=[<domain>], write=<domain>)' <<<"$fix_body")"
+assert_contains "intent reads effective mode from status" "$fix_body" 'Read the effective per-domain specification mode from `wiki_status`; never infer it from `.iwiki.toml`.'
+assert_contains "intent fails closed for hosted mode errors" "$fix_body" 'If its callable schema lacks `specification_mode`, bind rejects it, or status reports an unaccepted mismatch, report it, make no intent or specification mutation, and retain `completion-pending`; ordinary Wiki reads may continue.'
+assert_contains "intent preserves hosted mode precedence" "$fix_body" '`source: hosted_override` legitimately outranks project mode and is not a mismatch; `project_mode_suppressed: true` means the carried project value was refused and must be reported.'
 
 assert_contains "ledger reads revision before mutation" "$ledger_body" 'Read the current page revision before every PostgreSQL page mutation'
 assert_contains "ledger passes expected revision" "$ledger_body" '`expected_revision`'
