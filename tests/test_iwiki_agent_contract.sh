@@ -94,7 +94,7 @@ assert_contains "context template reports task page" "$context_template" '"task_
 assert_contains "intent binds before status in every transport" "$fix_body" 'call `wiki_bind` with the full normalized project scope before `wiki_status`'
 assert_eq "intent removes inferred single-domain bind" "0" "$(grep -cF 'wiki_bind(read=[<domain>], write=<domain>)' <<<"$fix_body")"
 assert_contains "intent reads effective mode from status" "$fix_body" 'Read the effective per-domain specification mode from `wiki_status`; never infer it from `.iwiki.toml`.'
-assert_contains "intent fails closed for hosted mode errors" "$fix_body" 'If its callable schema lacks `specification_mode`, bind rejects it, or status reports an unaccepted mismatch, report it, make no intent or specification mutation, and retain `completion-pending`; ordinary Wiki reads may continue.'
+assert_contains "intent preserves non-specification work on hosted mode errors" "$fix_body" 'If its callable schema lacks `specification_mode`, bind rejects it, or status reports an unaccepted mismatch, report it, make no mutating specification call, and retain `completion-pending`; ordinary non-specification Wiki work remains available.'
 assert_contains "intent preserves hosted mode precedence" "$fix_body" '`source: hosted_override` legitimately outranks project mode and is not a mismatch; `project_mode_suppressed: true` means the carried project value was refused and must be reported.'
 
 assert_contains "ledger reads revision before mutation" "$ledger_body" 'Read the current page revision before every PostgreSQL page mutation'

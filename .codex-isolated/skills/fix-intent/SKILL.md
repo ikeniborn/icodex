@@ -32,7 +32,7 @@ never infer a single-domain binding from the project name. Pass
 `specification_mode` only to hosted HTTP when its callable schema accepts it. On hosted
 HTTP, require `binding_source: session`; rebind and repeat after `token_default`,
 `binding_defaulted`, or `binding_not_selected`, and stop mutating work after a rejected
-or substituted binding. Read the effective per-domain specification mode from `wiki_status`; never infer it from `.iwiki.toml`. `source: hosted_override` legitimately outranks project mode and is not a mismatch; `project_mode_suppressed: true` means the carried project value was refused and must be reported. If its callable schema lacks `specification_mode`, bind rejects it, or status reports an unaccepted mismatch, report it, make no intent or specification mutation, and retain `completion-pending`; ordinary Wiki reads may continue. Then load `wiki_search('<topic>')` from the authorized read scope as `wiki_context`.
+or substituted binding. Read the effective per-domain specification mode from `wiki_status`; never infer it from `.iwiki.toml`. `source: hosted_override` legitimately outranks project mode and is not a mismatch; `project_mode_suppressed: true` means the carried project value was refused and must be reported. If its callable schema lacks `specification_mode`, bind rejects it, or status reports an unaccepted mismatch, report it, make no mutating specification call, and retain `completion-pending`; ordinary non-specification Wiki work remains available. Then load `wiki_search('<topic>')` from the authorized read scope as `wiki_context`.
 
 Present to user:
 
