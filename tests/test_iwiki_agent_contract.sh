@@ -8,11 +8,32 @@ agents_body="$(cat "$ROOT/.codex-isolated/AGENTS.md")"
 flat_agents_body="$(tr '\n' ' ' < "$ROOT/.codex-isolated/AGENTS.md" | sed 's/[[:space:]][[:space:]]*/ /g')"
 context_body="$(cat "$ROOT/.codex-isolated/skills/context-awareness/SKILL.md")"
 context_template="$(cat "$ROOT/.codex-isolated/skills/context-awareness/templates/project-context.json")"
+fix_body="$(cat "$ROOT/.codex-isolated/skills/fix-intent/SKILL.md")"
 ledger_body="$(cat "$ROOT/.codex-isolated/skills/task-ledger/SKILL.md")"
 chain_body="$(cat "$ROOT/.codex-isolated/skills/check-chain/SKILL.md")"
+modes_body="$(cat "$ROOT/docs/iwiki-mcp-modes.md")"
+flat_modes_body="$(tr '\n' ' ' < "$ROOT/docs/iwiki-mcp-modes.md" | sed 's/[[:space:]][[:space:]]*/ /g')"
 
 assert_contains "binding uses project TOML for every transport" "$agents_body" 'One binding protocol applies to local stdio and remote HTTP'
 assert_contains "binding keeps complete project scope" "$agents_body" 'full normalized `read`, `write`, and `primary` scope'
+assert_contains "rules trust live callable schemas" "$agents_body" 'live callable tool schemas and observed server responses'
+assert_contains "hosted binding requires session provenance" "$agents_body" '`binding_source: session`'
+assert_contains "hosted default binding is rejected" "$agents_body" '`token_default` or `binding_defaulted`'
+assert_contains "substituted primary blocks writes" "$agents_body" '`primary_substituted`'
+assert_contains "rules include domain discovery" "$agents_body" '`wiki_list_domains`, `wiki_list_pages`, and `wiki_related`'
+assert_contains "rules explain explicit whole-base search" "$agents_body" '`scope="all"`'
+assert_contains "rules reject literal all wildcard" "$agents_body" '`read=["all"]` is a literal domain'
+assert_contains "rules cover selector-only updates" "$agents_body" '`wiki_update_page(..., code=...)`'
+assert_contains "code-only updates omit body mutation fields" "$agents_body" 'code-only calls omit `source`, `description`, `status`, `new_heading`, and `expected_section_hash`'
+assert_contains "rules cover combined selector updates" "$agents_body" 'section fields plus `code` atomically'
+assert_contains "rules name four graph languages" "$agents_body" 'Python, TypeScript, JavaScript, or Bash'
+assert_contains "rules gate graph freshness" "$agents_body" '`state == "ready"` and `fresh == true`'
+assert_contains "rules gate hosted graph provenance" "$agents_body" '`binding_source == "session"`'
+assert_contains "Bash graph support is constrained" "$agents_body" 'Bash is opt-in, scans `.sh` files only, and uses the `sh:` entity prefix'
+assert_contains "source-unavailable graph state fails soft" "$agents_body" 'source-unavailable graph state falls back to repository search without blocking ordinary Wiki work'
+assert_contains "hosted publication rejects client binding fields" "$agents_body" 'they accept neither client `domain` nor `iwiki_id`'
+assert_contains "hosted publication obeys advertised limits" "$agents_body" 'server-advertised batch limits from `wiki_code_publish_begin`; they accept neither client `domain` nor `iwiki_id`, and never raise those limits client-side'
+assert_contains "rules protect grant mutations" "$agents_body" '`wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization'
 assert_contains "rules include section insert" "$agents_body" '`wiki_insert_section`'
 assert_contains "rules include section move" "$agents_body" '`wiki_move_section`'
 assert_contains "rules include section delete" "$agents_body" '`wiki_delete_section`'
@@ -21,7 +42,7 @@ assert_contains "rules include section hash CAS" "$agents_body" '`expected_secti
 assert_contains "rules separate Git publication" "$agents_body" '`wiki_sync` is Git-only'
 assert_contains "rules explain hosted domain creation" "$agents_body" '`wiki_create_domain` requires hosted creation authority'
 assert_contains "rules explain PostgreSQL lint limits" "$agents_body" 'PostgreSQL lint does not compute orphan, stale-source, frontmatter, or tag-drift findings'
-assert_contains "rules cover Python and TypeScript graph" "$agents_body" 'Python or TypeScript code-analysis'
+assert_contains "rules gate graph-assisted analysis" "$agents_body" 'Treat graph-assisted analysis as available only when `state == "ready"` and `fresh == true`; hosted reads additionally require `binding_source == "session"`'
 assert_contains "rules use hosted graph reads" "$agents_body" 'published PostgreSQL snapshot'
 assert_contains "rules define GWT workflow" "$agents_body" '## GWT Specification Workflow'
 assert_contains "GWT applies to observable behavior" "$flat_agents_body" 'new observable domain behavior, a public contract, a bug reproduction, or a business invariant'
@@ -39,6 +60,9 @@ assert_contains "GWT requires implementation bindings" "$flat_agents_body" 'at l
 assert_contains "GWT hosted bind forwards project mode" "$flat_agents_body" 'pass `[specifications].mode` as `specification_mode` to hosted HTTP `wiki_bind`'
 assert_contains "GWT local bind omits project mode" "$flat_agents_body" 'omit `specification_mode` for local stdio'
 assert_contains "GWT mode mismatch fails closed" "$flat_agents_body" 'retain task lifecycle `completion-pending`'
+assert_contains "startup accepts hosted precedence before calling a mismatch" "$flat_agents_body" 'unaccepted mismatch under documented hosted precedence'
+assert_contains "startup preserves ordinary Wiki work for a mode mismatch" "$flat_agents_body" 'ordinary Wiki work remains available'
+assert_eq "startup rejects broad different-mode mismatch claim" "0" "$(grep -cF 'wiki_status reports a different mode' <<<"$agents_body")"
 assert_contains "GWT reads the effective mode from status" "$flat_agents_body" 'read the effective mode per domain from the `specifications` block of `wiki_status`'
 assert_contains "GWT states hosted precedence" "$flat_agents_body" 'exact override, then the carried project mode, then hosted default'
 assert_contains "GWT names the suppressed marker" "$flat_agents_body" '`project_mode_suppressed: true`'
@@ -50,23 +74,46 @@ assert_contains "GWT hook avoids guessing existing scenarios" "$flat_agents_body
 assert_contains "GWT hook enforces contextual identity" "$flat_agents_body" 'enforce matching domain and scenario ID after `wiki_spec_context`'
 assert_contains "GWT hooks never write Wiki" "$flat_agents_body" 'never write to Wiki or replace interactive MCP calls'
 
-assert_contains "context skill version updated" "$context_body" '# version: 1.7.1'
+assert_contains "context skill version updated" "$context_body" '# version: 1.7.2'
 assert_contains "context reports graph availability" "$context_body" 'code_graph_available'
 assert_contains "context reports graph domain" "$context_body" 'code_graph_domain'
 assert_contains "context reports graph state" "$context_body" 'code_graph_state'
+assert_contains "context reports graph freshness" "$context_body" 'code_graph_fresh'
+assert_contains "context reports graph binding source" "$context_body" 'code_graph_binding_source'
+assert_contains "context gates ready and fresh" "$context_body" 'state == "ready" and fresh == true'
+assert_contains "context gates hosted session binding" "$context_body" 'binding_source == "session"'
 assert_contains "context checks graph read-only" "$context_body" '`wiki_code_status`'
 assert_contains "context prefers graph search" "$context_body" '`wiki_code_search` / `wiki_code_context`'
-assert_contains "context covers TypeScript" "$context_body" 'Python or TypeScript'
+assert_contains "context covers four graph languages" "$context_body" 'Python, TypeScript, JavaScript, or Bash'
+assert_contains "context reads effective mode from status" "$context_body" 'Read the effective per-domain specification mode from `wiki_status`; never infer it from `.iwiki.toml`.'
+assert_contains "context fails closed for hosted mode errors" "$context_body" 'If its callable schema lacks `specification_mode`, bind rejects it, or status reports an unaccepted mismatch, report it, make no mutating specification call, and retain `completion-pending`; ordinary non-specification Wiki work remains available.'
+assert_contains "context preserves hosted mode precedence" "$context_body" '`source: hosted_override` legitimately outranks project mode and is not a mismatch; `project_mode_suppressed: true` means the carried project value was refused and must be reported.'
 assert_contains "context template uses wiki domain" "$context_template" '"wiki_domain"'
 assert_contains "context template reports graph availability" "$context_template" '"code_graph_available"'
 assert_contains "context template reports graph domain" "$context_template" '"code_graph_domain"'
 assert_contains "context template reports graph state" "$context_template" '"code_graph_state"'
+assert_contains "context template reports graph freshness" "$context_template" '"code_graph_fresh"'
+assert_contains "context template reports graph binding source" "$context_template" '"code_graph_binding_source"'
 assert_contains "context template reports task page" "$context_template" '"task_page_slug"'
+
+assert_contains "intent binds before status in every transport" "$fix_body" 'call `wiki_bind` with the full normalized project scope before `wiki_status`'
+assert_eq "intent removes inferred single-domain bind" "0" "$(grep -cF 'wiki_bind(read=[<domain>], write=<domain>)' <<<"$fix_body")"
+assert_contains "intent reads effective mode from status" "$fix_body" 'Read the effective per-domain specification mode from `wiki_status`; never infer it from `.iwiki.toml`.'
+assert_contains "intent preserves non-specification work on hosted mode errors" "$fix_body" 'If its callable schema lacks `specification_mode`, bind rejects it, or status reports an unaccepted mismatch, report it, make no mutating specification call, and retain `completion-pending`; ordinary non-specification Wiki work remains available.'
+assert_contains "intent preserves hosted mode precedence" "$fix_body" '`source: hosted_override` legitimately outranks project mode and is not a mismatch; `project_mode_suppressed: true` means the carried project value was refused and must be reported.'
 
 assert_contains "ledger reads revision before mutation" "$ledger_body" 'Read the current page revision before every PostgreSQL page mutation'
 assert_contains "ledger passes expected revision" "$ledger_body" '`expected_revision`'
 assert_contains "ledger handles revision conflict" "$ledger_body" '`conflict`'
 assert_contains "ledger handles section conflict" "$ledger_body" '`section_conflict`'
+assert_contains "ledger verifies hosted session provenance" "$ledger_body" '`binding_source: session`'
+assert_contains "ledger retains pending on binding mismatch" "$ledger_body" 'binding mismatch retains `completion-pending`'
+assert_contains "ledger carries project mode only for hosted bind" "$ledger_body" 'pass `[specifications].mode` as `specification_mode` only to hosted HTTP `wiki_bind`'
+assert_contains "ledger omits client mode override for local stdio" "$ledger_body" 'local stdio omits `specification_mode`'
+assert_contains "ledger accepts hosted override precedence" "$ledger_body" '`source: hosted_override` is legitimate'
+assert_contains "ledger blocks only specification mutations on unaccepted mode" "$ledger_body" 'unaccepted mode mismatch retains `completion-pending` and blocks only mutating specification calls'
+assert_contains "ledger preserves ordinary task-page work on mode mismatch" "$ledger_body" 'ordinary non-specification Wiki and task-page work remains available when session binding and provenance are valid'
+assert_eq "ledger rejects blanket task-page mutation block on mode mismatch" "0" "$(grep -cF 'unaccepted mode mismatch retains `completion-pending` and permits no task-page mutation' <<<"$ledger_body")"
 assert_contains "ledger records history successor" "$ledger_body" 'exactly `## Events` and `## Next`'
 assert_contains "ledger understands PostgreSQL lint limits" "$ledger_body" 'PostgreSQL lint does not compute orphan or stale-source findings'
 
@@ -74,5 +121,15 @@ assert_contains "check-chain uses PostgreSQL CAS" "$chain_body" 'read the curren
 assert_contains "check-chain permits section mutation tools" "$chain_body" 'relevant page or section mutation tool'
 assert_contains "check-chain passes expected revision" "$chain_body" 'pass it as `expected_revision`'
 assert_contains "check-chain retries only after reread" "$chain_body" 're-read after `conflict` or `section_conflict`'
+
+assert_contains "modes name four graph languages" "$modes_body" 'Python, TypeScript, JavaScript, and Bash'
+assert_contains "modes explain search all" "$modes_body" '`scope="all"`'
+assert_contains "modes explain selector-only update" "$modes_body" '`wiki_update_page(code=...)`'
+assert_contains "modes require hosted session provenance" "$modes_body" '`binding_source: session`'
+assert_contains "modes protect grant changes" "$modes_body" 'separate explicit user authorization'
+assert_contains "modes carry project specification mode only to hosted bind" "$flat_modes_body" 'passes `[specifications].mode` as `specification_mode` only to hosted HTTP `wiki_bind`'
+assert_contains "modes omit client specification mode for local bind" "$flat_modes_body" 'Local stdio omits `specification_mode`'
+assert_contains "modes document hosted precedence and suppression" "$flat_modes_body" '`source: hosted_override` is legitimate and `project_mode_suppressed: true` reports refusal'
+assert_eq "modes reject incomplete scope-only claim" "0" "$(grep -cF 'reads only `read`, `write`, and `primary`' <<<"$modes_body")"
 
 finish

@@ -82,13 +82,25 @@ ensure_iwiki_remote_scope_instructions() {
 
 Before the first wiki call, load `read`, `write`, `primary`, and optional `[specifications].mode` from the project-root `.iwiki.toml`. Normalize domain names before passing them to `wiki_bind`; never pass TOML text, paths, `iwiki_id`, tokens, or other credentials. Call `wiki_bind` with the full normalized `read`, `write`, and `primary` values from `.iwiki.toml`, and pass `[specifications].mode` as `specification_mode` to hosted HTTP `wiki_bind`, before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call.
 
+After hosted bind, require `wiki_status` to report `binding_source: session`. If status
+or a domain-free code read reports `token_default` or `binding_defaulted`, call
+`wiki_bind` again with the exact project scope and repeat the affected domain-free read.
+Treat `primary_substituted` with `requested_primary`, `binding_not_selected`, a rejected
+bind, or an unexpected session as a binding mismatch: make no mutation and retain
+`completion-pending` until resolved.
+
 Do not infer, broaden, or replace that scope with a project name, primary domain, or current session scope. On a missing or invalid TOML scope or a rejected bind (including 403), show a brief reason, do not make mutating wiki calls and retain task lifecycle `completion-pending`. If the `specification_mode` parameter is unavailable or `wiki_status` reports a mode mismatch, make no mutating specification call and retain task lifecycle `completion-pending`; ordinary Wiki work remains available. The remote server's token grants remain the absolute authorization limit.
 
 Take the effective mode per domain from the `specifications` block of `wiki_status`, never from the project file. Hosted precedence is exact override, then the carried project mode, then hosted default, then the built-in `optional`; the server gates the carried mode with `allow_project_mode` and a tighten-only guard and reports a refused value as `project_mode_suppressed: true`. `source: project` confirms the carried mode answered; `source: hosted_override` is a legitimate server decision that outranks it, not a mismatch.
 
 Hosted page mutations use PostgreSQL compare-and-swap. Read the current page immediately before `wiki_update_page`, `wiki_insert_section`, `wiki_move_section`, `wiki_delete_section`, or `wiki_delete_page`, and pass its current `revision` as `expected_revision`. When protecting one heading, also pass the `section_hash` returned by `wiki_read_page(..., heading=...)` as `expected_section_hash`; re-read after `conflict` or `section_conflict`.
 
-`wiki_code_status`, `wiki_code_search`, and `wiki_code_context` read the published hosted snapshot. `wiki_code_index` returns `source_unavailable` because a hosted server has no client checkout; run indexing through a local MCP server instead. PostgreSQL writes are already durable, so do not call Git-only `wiki_sync` or OKF maintenance tools.
+`wiki_code_status`, `wiki_code_search`, and `wiki_code_context` read the published hosted snapshot. Use hosted code results only when `state == "ready"`, `fresh == true`, and `binding_source == "session"`. `wiki_code_index` returns `source_unavailable` because a
+hosted server has no client checkout. Hosted publication requires a writable primary,
+accepts neither client `domain` nor `iwiki_id`, and must obey the limits returned by
+`wiki_code_publish_begin`. PostgreSQL writes are durable, so do not call Git-only
+`wiki_sync` or OKF maintenance tools. Domain-grant reads require explicit hosted
+management work; `wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority.
 
 <!-- icodex:iwiki-remote-scope:end -->
 EOF
@@ -140,7 +152,7 @@ replace(
 replace(
     "PostToolUse",
     post,
-    "mcp__iwiki__wiki_spec_context|wiki_spec_context|mcp__iwiki__wiki_update_page|wiki_update_page",
+    "mcp__iwiki__wiki_status|wiki_status|mcp__iwiki__wiki_spec_context|wiki_spec_context|mcp__iwiki__wiki_update_page|wiki_update_page",
     "Recording GWT context ordering",
 )
 json.dump(config, sys.stdout, indent=2)

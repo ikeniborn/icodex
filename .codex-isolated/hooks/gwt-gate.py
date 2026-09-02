@@ -1,32 +1,125 @@
 #!/usr/bin/env python3
-"""Enforce context-before-mutation ordering for explicit iwiki GWT scenarios.
+"""Enforce effective mode and context ordering for explicit iwiki GWT scenarios.
 
-The hook records successful ``wiki_spec_context`` calls per Codex session. An
-unclassified ``wiki_update_page`` receives a context nudge; when context exists, the
-hook enforces matching domain and scenario IDs. Successful mutations consume that
-evidence. The hook never calls MCP or writes Wiki content.
+The hook records effective modes from trusted ``wiki_status`` responses and successful
+``wiki_spec_context`` calls per Codex session. It checks both before GWT-bearing page
+updates. Successful mutations consume context evidence. The hook never calls MCP or
+writes Wiki content.
 """
 
+import fcntl
 import json
 import os
 import re
 import sys
 import time
-import tomllib
 
 
 CONTEXT_MAX_AGE_SECONDS = 2 * 60 * 60
+STATUS_MAX_AGE_SECONDS = 30 * 60
+VALID_MODES = {"disabled", "optional", "strict"}
 FENCE_RE = re.compile(r"```iwiki-gwt[ \t]*\n(.*?)```", re.DOTALL)
 ID_RE = re.compile(r'^\s*id\s*=\s*"([^"\n]+)"\s*(?:#.*)?$', re.MULTILINE)
 
 
 def _tool_suffix(name):
-    return (name or "").rsplit("__", 1)[-1]
+    if not isinstance(name, str):
+        return ""
+    return name.rsplit("__", 1)[-1]
 
 
 def _state_path():
     home = os.environ.get("CODEX_HOME")
     return os.path.join(home, "state", "gwt-contexts.json") if home else None
+
+
+def _state_lock_path():
+    path = _state_path()
+    return os.path.join(os.path.dirname(path), "gwt-contexts.lock") if path else None
+
+
+def _status_path():
+    home = os.environ.get("CODEX_HOME")
+    return os.path.join(home, "state", "gwt-status.json") if home else None
+
+
+def _status_lock_path():
+    path = _status_path()
+    return os.path.join(os.path.dirname(path), "gwt-status.lock") if path else None
+
+
+def _validated_response_payload(payload):
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("isError") is True or "error" in payload:
+        return None
+    return payload
+
+
+def _response_payload(data):
+    response = _validated_response_payload(data.get("tool_response"))
+    if response is None:
+        return None
+    content = response.get("content")
+    if content is None:
+        return response
+    if not isinstance(content, list):
+        return None
+    candidate = None
+    for item in content:
+        if not isinstance(item, dict) or item.get("type") != "text":
+            continue
+        try:
+            payload = json.loads(item.get("text", ""))
+        except (TypeError, ValueError):
+            continue
+        if isinstance(payload, dict):
+            payload = _validated_response_payload(payload)
+            if payload is None:
+                return None
+            if candidate is None:
+                candidate = payload
+    return candidate
+
+
+def _load_status():
+    path = _status_path()
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as stream:
+            data = json.load(stream)
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    cutoff = time.time() - STATUS_MAX_AGE_SECONDS
+    clean = {}
+    for session_id, domains in data.items():
+        if not isinstance(session_id, str) or not isinstance(domains, dict):
+            continue
+        kept = {}
+        for domain, entry in domains.items():
+            if not isinstance(domain, str) or not isinstance(entry, dict):
+                continue
+            mode = entry.get("mode")
+            stamp = entry.get("timestamp")
+            if mode in VALID_MODES and isinstance(stamp, (int, float)) and stamp >= cutoff:
+                kept[domain] = {"mode": mode, "timestamp": stamp}
+        if kept:
+            clean[session_id] = kept
+    return clean
+
+
+def _save_status(state):
+    path = _status_path()
+    if not path:
+        return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = "%s.%d.tmp" % (path, os.getpid())
+    with open(tmp, "w", encoding="utf-8") as stream:
+        json.dump(state, stream, sort_keys=True)
+    os.replace(tmp, path)
 
 
 def _load_state():
@@ -79,23 +172,51 @@ def _scenario_ids(params):
 
 
 def _response_failed(data):
-    response = data.get("tool_response")
-    return isinstance(response, dict) and (
-        response.get("isError") is True or response.get("error") is not None
-    )
+    return _response_payload(data) is None
 
 
-def _specification_disabled(data):
-    cwd = data.get("cwd")
-    if not isinstance(cwd, str) or not cwd:
-        return False
-    try:
-        with open(os.path.join(cwd, ".iwiki.toml"), "rb") as stream:
-            config = tomllib.load(stream)
-    except (OSError, tomllib.TOMLDecodeError):
-        return False
-    specifications = config.get("specifications")
-    return isinstance(specifications, dict) and specifications.get("mode") == "disabled"
+def _record_status(data):
+    payload = _response_payload(data)
+    session_id = data.get("session_id")
+    if not isinstance(session_id, str) or not session_id:
+        return
+    domains = {}
+    if isinstance(payload, dict):
+        transport = payload.get("transport")
+        trusted_transport = transport == "stdio" or (
+            transport == "streamable-http" and payload.get("binding_source") == "session"
+        )
+        if trusted_transport and payload.get("primary_substituted") is not True:
+            specifications = payload.get("specifications")
+            rows = specifications.get("domains") if isinstance(specifications, dict) else None
+            if isinstance(rows, list):
+                stamp = int(time.time())
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    domain = row.get("domain")
+                    mode = row.get("mode")
+                    if isinstance(domain, str) and domain and mode in VALID_MODES:
+                        domains[domain] = {"mode": mode, "timestamp": stamp}
+    lock_path = _status_lock_path()
+    if not lock_path:
+        return
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "a+", encoding="utf-8") as lock_stream:
+        fcntl.flock(lock_stream, fcntl.LOCK_EX)
+        state = _load_status()
+        state.pop(session_id, None)
+        if domains:
+            state[session_id] = domains
+        _save_status(state)
+
+
+def _effective_mode(data, domain):
+    session_id = data.get("session_id")
+    if not isinstance(session_id, str) or not isinstance(domain, str):
+        return None
+    entry = _load_status().get(session_id, {}).get(domain)
+    return entry.get("mode") if isinstance(entry, dict) else None
 
 
 def _record_context(data):
@@ -107,9 +228,15 @@ def _record_context(data):
     scenario_id = params.get("scenario_id") if isinstance(params, dict) else None
     if not all(isinstance(value, str) and value for value in (session_id, domain, scenario_id)):
         return
-    state = _load_state()
-    state.setdefault(session_id, {})[_key(domain, scenario_id)] = int(time.time())
-    _save_state(state)
+    lock_path = _state_lock_path()
+    if not lock_path:
+        return
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "a+", encoding="utf-8") as lock_stream:
+        fcntl.flock(lock_stream, fcntl.LOCK_EX)
+        state = _load_state()
+        state.setdefault(session_id, {})[_key(domain, scenario_id)] = int(time.time())
+        _save_state(state)
 
 
 def _consume_context(data):
@@ -121,15 +248,21 @@ def _consume_context(data):
     scenario_ids = _scenario_ids(params)
     if not session_id or not domain or not scenario_ids:
         return
-    state = _load_state()
-    entries = state.get(session_id, {})
-    for scenario_id in scenario_ids:
-        entries.pop(_key(domain, scenario_id), None)
-    if entries:
-        state[session_id] = entries
-    else:
-        state.pop(session_id, None)
-    _save_state(state)
+    lock_path = _state_lock_path()
+    if not lock_path:
+        return
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "a+", encoding="utf-8") as lock_stream:
+        fcntl.flock(lock_stream, fcntl.LOCK_EX)
+        state = _load_state()
+        entries = state.get(session_id, {})
+        for scenario_id in scenario_ids:
+            entries.pop(_key(domain, scenario_id), None)
+        if entries:
+            state[session_id] = entries
+        else:
+            state.pop(session_id, None)
+        _save_state(state)
 
 
 def _nudge_context(domain, scenario_ids):
@@ -148,14 +281,21 @@ def _nudge_context(domain, scenario_ids):
 
 
 def _check_context(data):
-    if _specification_disabled(data):
-        return
     params = data.get("tool_input") or {}
     scenario_ids = _scenario_ids(params)
     if not scenario_ids:
         return
     session_id = data.get("session_id")
     domain = params.get("domain") if isinstance(params, dict) else None
+    mode = _effective_mode(data, domain)
+    if mode is None:
+        sys.stderr.write(
+            "GWT gate: call wiki_bind and wiki_status for domain %r before mutating an iwiki-gwt scenario.\n"
+            % domain
+        )
+        sys.exit(2)
+    if mode == "disabled":
+        return
     state = _load_state()
     entries = state.get(session_id, {}) if session_id else {}
     domain_prefix = "%s\0" % domain
@@ -183,7 +323,9 @@ def main():
     tool = _tool_suffix(data.get("tool_name"))
     post = "--post" in sys.argv[1:] or data.get("hook_event_name") == "PostToolUse"
     try:
-        if post and tool == "wiki_spec_context":
+        if post and tool == "wiki_status":
+            _record_status(data)
+        elif post and tool == "wiki_spec_context":
             _record_context(data)
         elif post and tool == "wiki_update_page":
             _consume_context(data)
