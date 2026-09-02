@@ -8,6 +8,7 @@ agents_body="$(cat "$ROOT/.codex-isolated/AGENTS.md")"
 flat_agents_body="$(tr '\n' ' ' < "$ROOT/.codex-isolated/AGENTS.md" | sed 's/[[:space:]][[:space:]]*/ /g')"
 context_body="$(cat "$ROOT/.codex-isolated/skills/context-awareness/SKILL.md")"
 context_template="$(cat "$ROOT/.codex-isolated/skills/context-awareness/templates/project-context.json")"
+fix_body="$(cat "$ROOT/.codex-isolated/skills/fix-intent/SKILL.md")"
 ledger_body="$(cat "$ROOT/.codex-isolated/skills/task-ledger/SKILL.md")"
 chain_body="$(cat "$ROOT/.codex-isolated/skills/check-chain/SKILL.md")"
 
@@ -68,23 +69,34 @@ assert_contains "GWT hook avoids guessing existing scenarios" "$flat_agents_body
 assert_contains "GWT hook enforces contextual identity" "$flat_agents_body" 'enforce matching domain and scenario ID after `wiki_spec_context`'
 assert_contains "GWT hooks never write Wiki" "$flat_agents_body" 'never write to Wiki or replace interactive MCP calls'
 
-assert_contains "context skill version updated" "$context_body" '# version: 1.7.1'
+assert_contains "context skill version updated" "$context_body" '# version: 1.7.2'
 assert_contains "context reports graph availability" "$context_body" 'code_graph_available'
 assert_contains "context reports graph domain" "$context_body" 'code_graph_domain'
 assert_contains "context reports graph state" "$context_body" 'code_graph_state'
+assert_contains "context reports graph freshness" "$context_body" 'code_graph_fresh'
+assert_contains "context reports graph binding source" "$context_body" 'code_graph_binding_source'
+assert_contains "context gates ready and fresh" "$context_body" 'state == "ready" and fresh == true'
+assert_contains "context gates hosted session binding" "$context_body" 'binding_source == "session"'
 assert_contains "context checks graph read-only" "$context_body" '`wiki_code_status`'
 assert_contains "context prefers graph search" "$context_body" '`wiki_code_search` / `wiki_code_context`'
-assert_contains "context covers TypeScript" "$context_body" 'Python or TypeScript'
+assert_contains "context covers four graph languages" "$context_body" 'Python, TypeScript, JavaScript, or Bash'
 assert_contains "context template uses wiki domain" "$context_template" '"wiki_domain"'
 assert_contains "context template reports graph availability" "$context_template" '"code_graph_available"'
 assert_contains "context template reports graph domain" "$context_template" '"code_graph_domain"'
 assert_contains "context template reports graph state" "$context_template" '"code_graph_state"'
+assert_contains "context template reports graph freshness" "$context_template" '"code_graph_fresh"'
+assert_contains "context template reports graph binding source" "$context_template" '"code_graph_binding_source"'
 assert_contains "context template reports task page" "$context_template" '"task_page_slug"'
+
+assert_contains "intent binds before status in every transport" "$fix_body" 'call `wiki_bind` with the full normalized project scope before `wiki_status`'
+assert_eq "intent removes inferred single-domain bind" "0" "$(grep -cF 'wiki_bind(read=[<domain>], write=<domain>)' <<<"$fix_body")"
 
 assert_contains "ledger reads revision before mutation" "$ledger_body" 'Read the current page revision before every PostgreSQL page mutation'
 assert_contains "ledger passes expected revision" "$ledger_body" '`expected_revision`'
 assert_contains "ledger handles revision conflict" "$ledger_body" '`conflict`'
 assert_contains "ledger handles section conflict" "$ledger_body" '`section_conflict`'
+assert_contains "ledger verifies hosted session provenance" "$ledger_body" '`binding_source: session`'
+assert_contains "ledger retains pending on binding mismatch" "$ledger_body" 'binding mismatch retains `completion-pending`'
 assert_contains "ledger records history successor" "$ledger_body" 'exactly `## Events` and `## Next`'
 assert_contains "ledger understands PostgreSQL lint limits" "$ledger_body" 'PostgreSQL lint does not compute orphan or stale-source findings'
 

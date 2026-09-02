@@ -9,7 +9,7 @@ Track every direct, chain, and LoEn task, including read-only work. The parent a
 
 ## Required flow
 
-1. For local stdio or remote HTTP, first load and normalize the project `.iwiki.toml` scope and call `wiki_bind` with its full `read`, `write`, and `primary` values before `wiki_status`; never narrow to the project basename. Under generated remote-scope instructions, missing, invalid, or rejected scope permits no mutating call and retains `completion-pending`.
+1. For local stdio or remote HTTP, first load and normalize the project `.iwiki.toml` scope and call `wiki_bind` with its full `read`, `write`, and `primary` values before `wiki_status`; never narrow to the project basename. After hosted bind, require `wiki_status` to report `binding_source: session` and the requested primary. Rebind and repeat on a defaulted answer. A rejected bind, `binding_not_selected`, or unresolved primary substitution permits no task-page mutation; binding mismatch retains `completion-pending`. Under generated remote-scope instructions, missing, invalid, or rejected scope permits no mutating call and retains `completion-pending`.
 2. Resolve one English lowercase-kebab-case topic; stop on conflicting controlled topics.
 3. Read or create `reference/tasks/<topic>` with `type: reference`, `status: stable`, and tag `task`.
 4. Load durable event keys, then replay pending spool events in order; acknowledge only after confirmed page replay. Read the current page revision before every PostgreSQL page mutation and pass it as `expected_revision`; for one-section updates also pass `expected_section_hash` when available.

@@ -17,6 +17,8 @@
     "code_graph_available": "{{code_graph_available: boolean}}",
     "code_graph_domain": "{{code_graph_domain: string|null}}",
     "code_graph_state": "{{code_graph_state: string|null}}",
+    "code_graph_fresh": "{{code_graph_fresh: boolean|null}}",
+    "code_graph_binding_source": "{{code_graph_binding_source: session|token_default|null}}",
     "task_topic": "{{task_topic: string|null}}",
     "task_page_slug": "{{task_page_slug: string|null}}",
     "task_page_found": "{{task_page_found: boolean}}",
