@@ -111,7 +111,9 @@ assert_contains "ledger retains pending on binding mismatch" "$ledger_body" 'bin
 assert_contains "ledger carries project mode only for hosted bind" "$ledger_body" 'pass `[specifications].mode` as `specification_mode` only to hosted HTTP `wiki_bind`'
 assert_contains "ledger omits client mode override for local stdio" "$ledger_body" 'local stdio omits `specification_mode`'
 assert_contains "ledger accepts hosted override precedence" "$ledger_body" '`source: hosted_override` is legitimate'
-assert_contains "ledger fails closed on unaccepted status mode" "$ledger_body" 'unaccepted mode mismatch retains `completion-pending`'
+assert_contains "ledger blocks only specification mutations on unaccepted mode" "$ledger_body" 'unaccepted mode mismatch retains `completion-pending` and blocks only mutating specification calls'
+assert_contains "ledger preserves ordinary task-page work on mode mismatch" "$ledger_body" 'ordinary non-specification Wiki and task-page work remains available when session binding and provenance are valid'
+assert_eq "ledger rejects blanket task-page mutation block on mode mismatch" "0" "$(grep -cF 'unaccepted mode mismatch retains `completion-pending` and permits no task-page mutation' <<<"$ledger_body")"
 assert_contains "ledger records history successor" "$ledger_body" 'exactly `## Events` and `## Next`'
 assert_contains "ledger understands PostgreSQL lint limits" "$ledger_body" 'PostgreSQL lint does not compute orphan or stale-source findings'
 
