@@ -7,6 +7,7 @@ updates. Successful mutations consume context evidence. The hook never calls MCP
 writes Wiki content.
 """
 
+import fcntl
 import json
 import os
 import re
@@ -37,6 +38,11 @@ def _status_path():
     return os.path.join(home, "state", "gwt-status.json") if home else None
 
 
+def _status_lock_path():
+    path = _status_path()
+    return os.path.join(os.path.dirname(path), "gwt-status.lock") if path else None
+
+
 def _validated_response_payload(payload):
     if not isinstance(payload, dict):
         return None
@@ -54,6 +60,7 @@ def _response_payload(data):
         return response
     if not isinstance(content, list):
         return None
+    candidate = None
     for item in content:
         if not isinstance(item, dict) or item.get("type") != "text":
             continue
@@ -62,8 +69,12 @@ def _response_payload(data):
         except (TypeError, ValueError):
             continue
         if isinstance(payload, dict):
-            return _validated_response_payload(payload)
-    return None
+            payload = _validated_response_payload(payload)
+            if payload is None:
+                return None
+            if candidate is None:
+                candidate = payload
+    return candidate
 
 
 def _load_status():
@@ -156,10 +167,7 @@ def _scenario_ids(params):
 
 
 def _response_failed(data):
-    response = data.get("tool_response")
-    return isinstance(response, dict) and (
-        response.get("isError") is True or response.get("error") is not None
-    )
+    return _response_payload(data) is None
 
 
 def _record_status(data):
@@ -167,35 +175,35 @@ def _record_status(data):
     session_id = data.get("session_id")
     if not isinstance(session_id, str) or not session_id:
         return
-    state = _load_status()
-    state.pop(session_id, None)
-    if not isinstance(payload, dict):
-        _save_status(state)
-        return
-    hosted = payload.get("transport") == "streamable-http"
-    if hosted and payload.get("binding_source") != "session":
-        _save_status(state)
-        return
-    if payload.get("primary_substituted") is True:
-        _save_status(state)
-        return
-    specifications = payload.get("specifications")
-    rows = specifications.get("domains") if isinstance(specifications, dict) else None
-    if not isinstance(rows, list):
-        _save_status(state)
-        return
-    stamp = int(time.time())
     domains = {}
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        domain = row.get("domain")
-        mode = row.get("mode")
-        if isinstance(domain, str) and domain and mode in VALID_MODES:
-            domains[domain] = {"mode": mode, "timestamp": stamp}
-    if domains:
-        state[session_id] = domains
-    _save_status(state)
+    if isinstance(payload, dict):
+        transport = payload.get("transport")
+        trusted_transport = transport == "stdio" or (
+            transport == "streamable-http" and payload.get("binding_source") == "session"
+        )
+        if trusted_transport and payload.get("primary_substituted") is not True:
+            specifications = payload.get("specifications")
+            rows = specifications.get("domains") if isinstance(specifications, dict) else None
+            if isinstance(rows, list):
+                stamp = int(time.time())
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    domain = row.get("domain")
+                    mode = row.get("mode")
+                    if isinstance(domain, str) and domain and mode in VALID_MODES:
+                        domains[domain] = {"mode": mode, "timestamp": stamp}
+    lock_path = _status_lock_path()
+    if not lock_path:
+        return
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "a+", encoding="utf-8") as lock_stream:
+        fcntl.flock(lock_stream, fcntl.LOCK_EX)
+        state = _load_status()
+        state.pop(session_id, None)
+        if domains:
+            state[session_id] = domains
+        _save_status(state)
 
 
 def _effective_mode(data, domain):
