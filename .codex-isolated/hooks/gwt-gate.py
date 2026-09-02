@@ -22,7 +22,9 @@ ID_RE = re.compile(r'^\s*id\s*=\s*"([^"\n]+)"\s*(?:#.*)?$', re.MULTILINE)
 
 
 def _tool_suffix(name):
-    return (name or "").rsplit("__", 1)[-1]
+    if not isinstance(name, str):
+        return ""
+    return name.rsplit("__", 1)[-1]
 
 
 def _state_path():
@@ -37,7 +39,7 @@ def _status_path():
 
 def _response_payload(data):
     response = data.get("tool_response")
-    if not isinstance(response, dict) or response.get("isError") is True or response.get("error"):
+    if not isinstance(response, dict) or response.get("isError") is True or "error" in response:
         return None
     content = response.get("content")
     if content is None:
