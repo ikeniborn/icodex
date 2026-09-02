@@ -12,6 +12,13 @@ review:
     verifiability: { status: passed }
     consistency: { status: passed }
   findings: []
+result_check:
+  verdict: OK
+  source: plan
+  plan_hash: 28663b7f1dbf8176
+  last_run: 2026-09-02
+  reviewed: true
+  docs_checked: true
 ---
 
 # iwiki-mcp Tooling Alignment Implementation Plan
