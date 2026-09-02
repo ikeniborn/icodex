@@ -16,6 +16,7 @@ export ICODEX_IWIKI_REMOTE_TOKEN="remote-test-token"
 ensure_iwiki_remote_scope_instructions
 ensure_iwiki_remote_scope_instructions
 agents="$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
+flat_agents="$(tr '\n' ' ' < "$ICODEX_HOME_DIR/AGENTS.md" | sed 's/[[:space:]][[:space:]]*/ /g')"
 assert_contains "remote scope region starts" "$agents" '<!-- icodex:iwiki-remote-scope:start -->'
 assert_contains "remote scope normalizes domains" "$agents" 'Normalize domain names before passing them to `wiki_bind`'
 assert_contains "remote scope binds before status" "$agents" 'before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call'
@@ -32,12 +33,12 @@ assert_contains "remote scope documents PostgreSQL CAS" "$agents" 'pass its curr
 assert_contains "remote scope documents section CAS" "$agents" '`expected_section_hash`'
 assert_contains "remote scope keeps hosted code reads" "$agents" '`wiki_code_status`, `wiki_code_search`, and `wiki_code_context` read the published hosted snapshot'
 assert_contains "remote scope rejects hosted indexing" "$agents" '`wiki_code_index` returns `source_unavailable`'
-assert_contains "remote scope requires session provenance" "$agents" '`binding_source: session`'
-assert_contains "remote scope repairs default binding" "$agents" '`token_default` or `binding_defaulted`'
-assert_contains "remote scope blocks substituted primary" "$agents" '`primary_substituted`'
-assert_contains "remote scope repeats affected reads" "$agents" 'repeat the affected domain-free read'
-assert_contains "remote scope gates hosted graph freshness" "$agents" '`state == "ready"`, `fresh == true`, and `binding_source == "session"`'
-assert_contains "remote scope protects grant mutations" "$agents" '`wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization'
+assert_contains "remote scope requires hosted session provenance" "$flat_agents" 'After hosted bind, require `wiki_status` to report `binding_source: session`.'
+assert_contains "remote scope repairs default binding and retries read" "$flat_agents" 'If status or a domain-free code read reports `token_default` or `binding_defaulted`, call `wiki_bind` again with the exact project scope and repeat the affected domain-free read.'
+assert_contains "remote scope fails closed on binding mismatch" "$flat_agents" 'Treat `primary_substituted` with `requested_primary`, `binding_not_selected`, a rejected bind, or an unexpected session as a binding mismatch: make no mutation and retain `completion-pending` until resolved.'
+assert_contains "remote scope gates hosted graph freshness and provenance" "$flat_agents" 'Use hosted code results only when `state == "ready"`, `fresh == true`, and `binding_source == "session"`.'
+assert_contains "remote scope constrains hosted publication" "$flat_agents" 'Hosted publication requires a writable primary, accepts neither client `domain` nor `iwiki_id`, and must obey the limits returned by `wiki_code_publish_begin`.'
+assert_contains "remote scope protects grant reads and mutations" "$flat_agents" 'Domain-grant reads require explicit hosted management work; `wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority.'
 assert_eq "remote scope excludes token" "0" "$(grep -c 'remote-test-token' "$ICODEX_HOME_DIR/AGENTS.md")"
 assert_eq "remote scope is idempotent" "1" "$(grep -c '<!-- icodex:iwiki-remote-scope:start -->' "$ICODEX_HOME_DIR/AGENTS.md")"
 
