@@ -33,6 +33,11 @@ def _state_path():
     return os.path.join(home, "state", "gwt-contexts.json") if home else None
 
 
+def _state_lock_path():
+    path = _state_path()
+    return os.path.join(os.path.dirname(path), "gwt-contexts.lock") if path else None
+
+
 def _status_path():
     home = os.environ.get("CODEX_HOME")
     return os.path.join(home, "state", "gwt-status.json") if home else None
@@ -223,9 +228,15 @@ def _record_context(data):
     scenario_id = params.get("scenario_id") if isinstance(params, dict) else None
     if not all(isinstance(value, str) and value for value in (session_id, domain, scenario_id)):
         return
-    state = _load_state()
-    state.setdefault(session_id, {})[_key(domain, scenario_id)] = int(time.time())
-    _save_state(state)
+    lock_path = _state_lock_path()
+    if not lock_path:
+        return
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "a+", encoding="utf-8") as lock_stream:
+        fcntl.flock(lock_stream, fcntl.LOCK_EX)
+        state = _load_state()
+        state.setdefault(session_id, {})[_key(domain, scenario_id)] = int(time.time())
+        _save_state(state)
 
 
 def _consume_context(data):
@@ -237,15 +248,21 @@ def _consume_context(data):
     scenario_ids = _scenario_ids(params)
     if not session_id or not domain or not scenario_ids:
         return
-    state = _load_state()
-    entries = state.get(session_id, {})
-    for scenario_id in scenario_ids:
-        entries.pop(_key(domain, scenario_id), None)
-    if entries:
-        state[session_id] = entries
-    else:
-        state.pop(session_id, None)
-    _save_state(state)
+    lock_path = _state_lock_path()
+    if not lock_path:
+        return
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "a+", encoding="utf-8") as lock_stream:
+        fcntl.flock(lock_stream, fcntl.LOCK_EX)
+        state = _load_state()
+        entries = state.get(session_id, {})
+        for scenario_id in scenario_ids:
+            entries.pop(_key(domain, scenario_id), None)
+        if entries:
+            state[session_id] = entries
+        else:
+            state.pop(session_id, None)
+        _save_state(state)
 
 
 def _nudge_context(domain, scenario_ids):

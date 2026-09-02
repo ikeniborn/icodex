@@ -23,8 +23,9 @@ capture_code() { # <mode> <payload>
   printf '%s' "$code"
 }
 
-concurrent_status_writers() {
-  python3 - "$HOOK" "$tmp/concurrent-home" <<'PY'
+concurrent_evidence_writers() { # <status|context>
+  local evidence="$1"
+  python3 - "$HOOK" "$tmp/concurrent-$evidence-home" "$evidence" <<'PY'
 import fcntl
 import json
 import os
@@ -33,7 +34,7 @@ import sys
 import time
 
 
-hook, home = sys.argv[1:]
+hook, home, evidence = sys.argv[1:]
 environment = os.environ.copy()
 environment["CODEX_HOME"] = home
 
@@ -57,16 +58,29 @@ def status_payload(session_id, error=False):
     }
 
 
-def mutation_payload(session_id):
+def context_payload(session_id):
     return {
         "session_id": session_id,
-        "hook_event_name": "PreToolUse",
+        "hook_event_name": "PostToolUse",
+        "tool_name": "wiki_spec_context",
+        "tool_input": {"domain": "demo", "scenario_id": "checkout.submit"},
+        "tool_response": {"isError": False},
+    }
+
+
+def mutation_payload(session_id, post=False):
+    payload = {
+        "session_id": session_id,
+        "hook_event_name": "PostToolUse" if post else "PreToolUse",
         "tool_name": "wiki_update_page",
         "tool_input": {
             "domain": "demo",
             "new_body": '```iwiki-gwt\nid = "checkout.submit"\n```',
         },
     }
+    if post:
+        payload["tool_response"] = {"isError": False}
+    return payload
 
 
 def run(payload, post=False):
@@ -98,49 +112,78 @@ def spawn(payload):
     return process
 
 
-initial = run(status_payload("victim"), post=True)
-assert initial.returncode == 0, initial.stderr
-state_directory = os.path.join(home, "state")
-lock_path = os.path.join(state_directory, "gwt-status.lock")
-processes = []
-try:
+def run_locked_writers(lock_path, payloads):
+    processes = []
     with open(lock_path, "a+", encoding="utf-8") as lock_stream:
         fcntl.flock(lock_stream, fcntl.LOCK_EX)
-        processes = [
-            spawn(status_payload("victim", error=True)),
-            spawn(status_payload("survivor")),
-        ]
-        deadline = time.monotonic() + 5
-        while True:
-            assert all(process.poll() is None for process in processes), (
-                "status writer bypassed the transaction lock"
-            )
-            with open("/proc/locks", encoding="utf-8") as stream:
-                lock_rows = [line.split() for line in stream]
-            waiting_pids = {
-                int(row[5]) for row in lock_rows
-                if len(row) > 5 and row[1:3] == ["->", "FLOCK"]
-            }
-            if all(process.pid in waiting_pids for process in processes):
-                break
-            assert time.monotonic() < deadline, "status writer did not wait on the transaction lock"
-            time.sleep(0.01)
-        fcntl.flock(lock_stream, fcntl.LOCK_UN)
-    for process in processes:
-        stdout, stderr = process.communicate(timeout=5)
-        assert process.returncode == 0, stdout + stderr
-finally:
-    for process in processes:
-        if process.poll() is None:
-            process.terminate()
-            process.wait(timeout=5)
+        try:
+            processes = [spawn(payload) for payload in payloads]
+            deadline = time.monotonic() + 5
+            while True:
+                assert all(process.poll() is None for process in processes), (
+                    "%s writer bypassed the transaction lock" % evidence
+                )
+                with open("/proc/locks", encoding="utf-8") as stream:
+                    lock_rows = [line.split() for line in stream]
+                waiting_pids = {
+                    int(row[5]) for row in lock_rows
+                    if len(row) > 5 and row[1:3] == ["->", "FLOCK"]
+                }
+                if all(process.pid in waiting_pids for process in processes):
+                    break
+                assert time.monotonic() < deadline, (
+                    "%s writer did not wait on the transaction lock" % evidence
+                )
+                time.sleep(0.01)
+        finally:
+            fcntl.flock(lock_stream, fcntl.LOCK_UN)
+    try:
+        for process in processes:
+            stdout, stderr = process.communicate(timeout=5)
+            assert process.returncode == 0, stdout + stderr
+    finally:
+        for process in processes:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
 
-with open(os.path.join(state_directory, "gwt-status.json"), encoding="utf-8") as stream:
-    state = json.load(stream)
-assert "victim" not in state, state
-assert state.get("survivor", {}).get("demo", {}).get("mode") == "optional", state
-assert run(mutation_payload("victim")).returncode == 2
-assert run(mutation_payload("survivor")).returncode == 0
+
+state_directory = os.path.join(home, "state")
+os.makedirs(state_directory, exist_ok=True)
+if evidence == "status":
+    initial = run(status_payload("victim"), post=True)
+    assert initial.returncode == 0, initial.stderr
+    run_locked_writers(
+        os.path.join(state_directory, "gwt-status.lock"),
+        [status_payload("victim", error=True), status_payload("survivor")],
+    )
+    with open(os.path.join(state_directory, "gwt-status.json"), encoding="utf-8") as stream:
+        state = json.load(stream)
+    assert "victim" not in state, state
+    assert state.get("survivor", {}).get("demo", {}).get("mode") == "optional", state
+    assert run(mutation_payload("victim")).returncode == 2
+    assert run(mutation_payload("survivor")).returncode == 0
+elif evidence == "context":
+    for session_id in ("victim", "survivor"):
+        result = run(status_payload(session_id), post=True)
+        assert result.returncode == 0, result.stderr
+    initial = run(context_payload("victim"), post=True)
+    assert initial.returncode == 0, initial.stderr
+    run_locked_writers(
+        os.path.join(state_directory, "gwt-contexts.lock"),
+        [mutation_payload("victim", post=True), context_payload("survivor")],
+    )
+    with open(os.path.join(state_directory, "gwt-contexts.json"), encoding="utf-8") as stream:
+        state = json.load(stream)
+    key = "demo\0checkout.submit"
+    assert key not in state.get("victim", {}), state
+    assert key in state.get("survivor", {}), state
+    victim = run(mutation_payload("victim"))
+    assert victim.returncode == 0 and "wiki_spec_context" in victim.stdout, victim.stderr
+    survivor = run(mutation_payload("survivor"))
+    assert survivor.returncode == 0 and not survivor.stdout, survivor.stderr
+else:
+    raise AssertionError("unknown evidence kind: %s" % evidence)
 PY
 }
 
@@ -211,7 +254,8 @@ other_domain_mutation="${mutation//\"s1\"/\"other-domain\"}"
 other_domain_mutation="${other_domain_mutation//\"demo\"/\"other\"}"
 assert_eq "other-domain status authorizes its own domain" "0" "$(capture_code pre "$other_domain_mutation")"
 assert_eq "other-domain status cannot authorize demo" "2" "$(capture_code pre "${mutation//\"s1\"/\"other-domain\"}")"
-assert_exit "concurrent status writers do not resurrect cleared evidence" 0 concurrent_status_writers
+assert_exit "concurrent status writers do not resurrect cleared evidence" 0 concurrent_evidence_writers status
+assert_exit "concurrent context writers preserve one-use evidence" 0 concurrent_evidence_writers context
 
 context='{"session_id":"s1","hook_event_name":"PostToolUse","tool_name":"mcp__iwiki__wiki_spec_context","tool_input":{"domain":"demo","scenario_id":"checkout.submit"},"tool_response":{"isError":false}}'
 assert_eq "successful context records ordering evidence" "0" "$(capture_code post "$context")"
