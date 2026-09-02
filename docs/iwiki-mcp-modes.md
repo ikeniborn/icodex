@@ -85,9 +85,10 @@ paths, `iwiki_id`, or credentials. A missing or invalid scope, or a rejected bin
 scope, never more.
 
 After bind, `wiki_status` must report `binding_source: session`. If a status, a domain-free code
-read, or a `wiki_spec_search` without `domains` reports `token_default` or `binding_defaulted`,
-bind again with the exact project scope and
-repeat the affected read. A refused call answers `access_denied` whose `data` carries the
+read, or a `wiki_spec_search` or `wiki_search` without `domains` reports `token_default` or
+`binding_defaulted`, bind again with the exact project scope and
+repeat the affected read. `wiki_search(intent="write")` prefers the bound primary over any
+`domains` argument, so its target is defaulted under the fallback whatever the call names. A refused call answers `access_denied` whose `data` carries the
 caller's own `binding_source` and an attributed `reason`; for `wiki_spec_resolve` that reason is
 `invalid_domain`, `primary_not_selected`, `primary_not_writable`, or `not_bound_primary`, and the
 last one reports a scenario outside the bound primary rather than a missing grant. Treat

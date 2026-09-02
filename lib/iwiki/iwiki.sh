@@ -83,9 +83,12 @@ ensure_iwiki_remote_scope_instructions() {
 Before the first wiki call, load `read`, `write`, `primary`, and optional `[specifications].mode` from the project-root `.iwiki.toml`. Normalize domain names before passing them to `wiki_bind`; never pass TOML text, paths, `iwiki_id`, tokens, or other credentials. Call `wiki_bind` with the full normalized `read`, `write`, and `primary` values from `.iwiki.toml`, and pass `[specifications].mode` as `specification_mode` to hosted HTTP `wiki_bind`, before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call.
 
 After hosted bind, require `wiki_status` to report `binding_source: session`. If status,
-a domain-free code read, or a `wiki_spec_search` called without `domains` reports
+a domain-free code read, or a `wiki_spec_search` or `wiki_search` called without
+`domains` reports
 `token_default` or `binding_defaulted`, call
 `wiki_bind` again with the exact project scope and repeat the affected read.
+`wiki_search(intent="write")` prefers the bound primary over any `domains` argument, so
+under the fallback its target is defaulted whatever you name: rebind before writing to it.
 Treat `primary_substituted` with `requested_primary`, `binding_not_selected`, a rejected
 bind, or an unexpected session as a binding mismatch: make no mutation and retain
 `completion-pending` until resolved.
