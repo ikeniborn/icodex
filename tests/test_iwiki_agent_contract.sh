@@ -41,7 +41,7 @@ assert_contains "rules include section hash CAS" "$agents_body" '`expected_secti
 assert_contains "rules separate Git publication" "$agents_body" '`wiki_sync` is Git-only'
 assert_contains "rules explain hosted domain creation" "$agents_body" '`wiki_create_domain` requires hosted creation authority'
 assert_contains "rules explain PostgreSQL lint limits" "$agents_body" 'PostgreSQL lint does not compute orphan, stale-source, frontmatter, or tag-drift findings'
-assert_contains "rules cover Python and TypeScript graph" "$agents_body" 'Python or TypeScript code-analysis'
+assert_contains "rules gate graph-assisted analysis" "$agents_body" 'Treat graph-assisted analysis as available only when `state == "ready"` and `fresh == true`; hosted reads additionally require `binding_source == "session"`'
 assert_contains "rules use hosted graph reads" "$agents_body" 'published PostgreSQL snapshot'
 assert_contains "rules define GWT workflow" "$agents_body" '## GWT Specification Workflow'
 assert_contains "GWT applies to observable behavior" "$flat_agents_body" 'new observable domain behavior, a public contract, a bug reproduction, or a business invariant'
