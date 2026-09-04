@@ -24,6 +24,15 @@ work does not select a workflow by itself. Workflow routing has three entries: `
   does not require `fix-intent`, `superpowers:*`, or `$check-chain` unless the user
   explicitly chooses chain for a separate non-LoEn change.
 
+### Verification economy
+
+Verification evidence is tied to relevant inputs and an exact code-state fingerprint,
+not to a conversation turn. Read-only and documentation-only tasks do not run code tests.
+Localized changes use focused checks; shared runtime or contract changes add related
+regressions and run the full suite once on the final stable state. Result review, branch
+finishing, and completion reuse matching evidence while relevant inputs remain unchanged.
+High-risk security, migration, concurrency, and data-integrity checks are never reduced.
+
 ## Task tracking
 
 One canonical topic maps to `reference/tasks/<topic>`. Every direct, chain, and LoEn
