@@ -514,6 +514,47 @@ For multi-step tasks, state a brief plan:
 3. [Step] → verify: [check]
 ```
 
+## Verification Economy
+
+**Evidence follows relevant inputs, not conversation turns.** Verification evidence
+remains valid while its declared relevant inputs are unchanged. Fresh means produced
+after the last relevant input change for the exact code-state fingerprint; it does not
+mean rerun in the current message. Record the command, scope, exit status, and fingerprint
+needed to connect a claim to that state.
+
+Choose the smallest check set that proves the current claim:
+
+- Read-only and documentation-only tasks run no code tests. Documentation-only work runs
+  only applicable documentation, structure, or lint checks. Agent instructions, skills,
+  hooks, executable examples, and generated runtime inputs are behavior, not
+  documentation-only content.
+- A localized behavior change runs syntax validation plus its focused test. Add related
+  regression tests only when the changed boundary has affected callers or contracts.
+- Shared runtime, launcher, hook, configuration, or public-contract changes run focused
+  and relevant regression checks during iteration, then the full suite once on the final
+  stable state.
+- Security, migration, concurrency, and data-integrity changes retain their required
+  enhanced verification.
+
+Run the full suite at most once for one unchanged code-state fingerprint. Result review,
+branch finishing, and completion checks reuse matching full-suite evidence. Within this
+project, this rule scopes generic skill wording that asks for fresh evidence or a full
+suite: rerun only when relevant implementation, test, dependency, configuration, generated
+runtime input, or execution environment changed. Repository documentation, iwiki, task
+ledger, review text, and conversation updates do not invalidate code-test evidence unless
+they change an executable or generated runtime input.
+
+Never describe focused or related-test evidence as a full-suite pass. If a check fails,
+diagnose with the narrow failing check and rerun it after a relevant change; return to the
+full suite only after focused evidence passes. Do not repeat an unchanged failing command
+without a new diagnostic hypothesis. After two different strategies fail to explain the
+same result, reclassify or escalate instead of looping.
+
+A verification budget is a strategy-change threshold, never permission to skip a required
+check. When verification exceeds its expected cost or repeats, stop broad reruns, identify
+the invalidated evidence, and choose a narrower diagnostic step. Trust remains the first
+priority; speed comes from removing checks that add no evidence.
+
 ## Mode: Piecemeal Growth
 
 Piecemeal growth designs from forces that exist now: executable requirements, current workflows, and failures that have actually occurred. Like a desire path, the shape follows observed traffic; it is not paved in anticipation of journeys nobody has taken.

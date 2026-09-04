@@ -31,6 +31,16 @@ Superpowers сама по себе не выбирает полную цепоч
 - `chain` начинается с `fix-intent -> check-chain intent`. После intent-scoped анализа `execute` выбирается по умолчанию; для `full` одновременно нужны категория design-risk и явно названное нерешённое design decision. Обе ветки завершаются через `check-chain result` с intent или plan как source.
 - `loen` использует навыки `loen:loop-*` и артефакты в `docs/loen/<topic>/`; активный LoEn loop сам по себе не требует `fix-intent`, `superpowers:*` или `$check-chain`, если пользователь явно не выбирает chain для отдельного не-LoEn изменения.
 
+### Экономная верификация
+
+Verification evidence привязывается к релевантным входам и точному fingerprint состояния
+кода, а не к сообщению в диалоге. Read-only и documentation-only задачи не запускают
+кодовые тесты. Локальные изменения используют focused checks; изменения общего runtime
+или контракта добавляют related regressions и запускают full suite один раз на финальном
+стабильном состоянии. Result review, branch finishing и completion повторно используют
+подходящее evidence, пока релевантные входы не изменились. Усиленные проверки security,
+migration, concurrency и data integrity не сокращаются.
+
 ## Учёт задач
 
 Один canonical topic соответствует `reference/tasks/<topic>`. Каждая задача direct,

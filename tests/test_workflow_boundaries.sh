@@ -52,6 +52,15 @@ if [[ -f "$agents" ]]; then
   assert_contains "direct skips writing plans" "$agents_body" '`superpowers:writing-plans`'
   assert_contains "direct skips plan execution skills" "$flat_agents_body" '`superpowers:subagent-driven-development`, or `superpowers:executing-plans`'
   assert_contains "finishing skill remains available" "$agents_body" '`superpowers:finishing-a-development-branch` remains available'
+  assert_contains "verification evidence follows relevant inputs" "$flat_agents_body" 'Verification evidence remains valid while its declared relevant inputs are unchanged.'
+  assert_contains "fresh verification is state based" "$flat_agents_body" 'Fresh means produced after the last relevant input change for the exact code-state fingerprint; it does not mean rerun in the current message.'
+  assert_contains "read-only work skips code tests" "$flat_agents_body" 'Read-only and documentation-only tasks run no code tests.'
+  assert_contains "agent instructions are behavior" "$flat_agents_body" 'Agent instructions, skills, hooks, executable examples, and generated runtime inputs are behavior, not documentation-only content.'
+  assert_contains "full suite has one owner" "$flat_agents_body" 'Run the full suite at most once for one unchanged code-state fingerprint.'
+  assert_contains "matching full-suite evidence is reused" "$flat_agents_body" 'Result review, branch finishing, and completion checks reuse matching full-suite evidence.'
+  assert_contains "focused test is not full-suite evidence" "$flat_agents_body" 'Never describe focused or related-test evidence as a full-suite pass.'
+  assert_contains "high-risk verification stays strict" "$flat_agents_body" 'Security, migration, concurrency, and data-integrity changes retain their required enhanced verification.'
+  assert_contains "verification budget changes strategy" "$flat_agents_body" 'A verification budget is a strategy-change threshold, never permission to skip a required check.'
   assert_contains "LoEn gets model checkpoints" "$flat_agents_body" 'At LoEn loop start and after each check or review, classify the next work'
   assert_contains "orchestrated transition branch" "$agents_body" "Orchestrated branch:"
   assert_contains "orchestrated validates split policy" "$flat_agents_body" "runner validates shared registry and direct project manifest"
@@ -93,6 +102,8 @@ if [[ -f "$readme" ]]; then
   assert_contains "README thread titles best effort" "$readme_body" "Thread titles are best-effort only"
   assert_contains "README documents three workflow routes" "$flat_readme_body" 'Workflow routing has three entries: `direct`, `chain`, and `loen`.'
   assert_contains "README documents chain continuation" "$flat_readme_body" '`execute` is the default; `full` needs both a design-risk category and a named unresolved design decision.'
+  assert_contains "README documents state-based verification" "$flat_readme_body" 'Verification evidence is tied to relevant inputs and an exact code-state fingerprint, not to a conversation turn.'
+  assert_contains "README documents one final full suite" "$flat_readme_body" 'run the full suite once on the final stable state'
   assert_contains "README documents canonical wiki task page" "$flat_readme_body" 'One canonical topic maps to `reference/tasks/<topic>`.'
   assert_contains "README documents direct and read-only task pages" "$flat_readme_body" 'Every direct, chain, and LoEn task, including read-only analysis, requires that task page.'
   assert_contains "README documents parent-only task writes" "$flat_readme_body" 'The parent agent is the sole writer; subagents return structured evidence only.'
@@ -111,6 +122,8 @@ if [[ -f "$readme_ru" ]]; then
   assert_contains "Russian README thread titles best effort" "$readme_ru_body" "Thread title — best-effort"
   assert_contains "Russian README documents three workflow routes" "$readme_ru_body" 'Маршрутизация workflow имеет три входа: `direct`, `chain` и `loen`.'
   assert_contains "Russian README documents chain continuation" "$readme_ru_body" '`execute` выбирается по умолчанию; для `full` одновременно нужны категория design-risk и явно названное нерешённое design decision.'
+  assert_contains "Russian README documents state-based verification" "$flat_readme_ru_body" 'Verification evidence привязывается к релевантным входам и точному fingerprint состояния кода, а не к сообщению в диалоге.'
+  assert_contains "Russian README documents one final full suite" "$flat_readme_ru_body" 'запускают full suite один раз на финальном стабильном состоянии'
   assert_contains "Russian README documents canonical wiki task page" "$flat_readme_ru_body" 'Один canonical topic соответствует `reference/tasks/<topic>`.'
   assert_contains "Russian README documents direct and read-only task pages" "$flat_readme_ru_body" 'Каждая задача direct, chain или LoEn, включая read-only analysis, требует эту страницу.'
   assert_contains "Russian README documents parent-only task writes" "$flat_readme_ru_body" 'Только parent agent пишет состояние; subagent возвращает лишь structured evidence.'
