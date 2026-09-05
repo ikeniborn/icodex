@@ -239,5 +239,75 @@ sed -i '$d' "$cfg"; sed -i '$d' "$cfg"; sed -i '$d' "$cfg"
 sed -i 's/superpowers@openai-curated/superpowers@wrong-marketplace/' "$cfg"
 assert_preflight_failure "marketplace mismatch" "marketplace mismatch"
 
+# 9. legacy marketplace identity auto-migrates to the pinned name.
+sed -i 's/superpowers@wrong-marketplace/superpowers@openai-curated/' "$cfg"
+cp "$cfg" "$cfg.before-migration"
+cat > "$cfg" <<'EOF'
+[marketplaces.legacy-market]
+source_type = "local"
+source = "/stale/path"
+
+[plugins."superpowers@legacy-market"]
+enabled = true
+
+[marketplaces.icodex-local]
+source_type = "local"
+
+[plugins."loen@icodex-local"]
+enabled = true
+EOF
+migrate_code=0
+migrate_output="$(ensure_superpowers_wiring 2>&1)" || migrate_code=$?
+assert_eq "legacy identity migration succeeds" "0" "$migrate_code"
+assert_contains "migration reports renamed identity" "$migrate_output" "identity migrated to openai-curated"
+assert_eq "migrated marketplace table present" "1" "$(grep -cFx '[marketplaces.openai-curated]' "$cfg")"
+assert_eq "migrated plugin table present" "1" "$(grep -cFx '[plugins."superpowers@openai-curated"]' "$cfg")"
+assert_eq "legacy identity removed" "0" "$(grep -cF 'legacy-market' "$cfg")"
+assert_eq "unrelated marketplace untouched" "1" "$(grep -cFx '[marketplaces.icodex-local]' "$cfg")"
+assert_eq "unrelated plugin untouched" "1" "$(grep -cFx '[plugins."loen@icodex-local"]' "$cfg")"
+assert_eq "source rewritten after migration" "1" "$(grep -cFx "source = \"$MARKETPLACE\"" "$cfg")"
+second_output="$(ensure_superpowers_wiring 2>&1)"
+assert_exit "post-migration run needs no migration" 1 grep -qF "identity migrated" <<<"$second_output"
+
+# quoted legacy identity with a dot decodes and migrates the same way.
+cat > "$cfg" <<'EOF'
+[marketplaces."legacy.market"]
+source_type = "local"
+source = "/stale/path"
+
+[plugins."superpowers@legacy.market"]
+enabled = true
+EOF
+quoted_code=0
+ensure_superpowers_wiring >/dev/null 2>&1 || quoted_code=$?
+assert_eq "quoted legacy identity migrates" "0" "$quoted_code"
+assert_eq "quoted legacy marketplace renamed" "1" "$(grep -cFx '[marketplaces.openai-curated]' "$cfg")"
+
+# 10. ambiguous superpowers plugin tables refuse migration and preserve state.
+cat > "$cfg" <<'EOF'
+[marketplaces.legacy-market]
+source_type = "local"
+source = "/stale/path"
+
+[plugins."superpowers@legacy-market"]
+enabled = true
+
+[plugins."superpowers@second-market"]
+enabled = true
+EOF
+assert_preflight_failure "ambiguous superpowers plugin tables" "marketplace mismatch"
+
+# legacy plugin without its marketplace table still fails without mutation.
+cat > "$cfg" <<'EOF'
+[marketplaces.openai-curated]
+source_type = "local"
+source = "/stale/path"
+
+[plugins."superpowers@legacy-market"]
+enabled = true
+EOF
+assert_preflight_failure "legacy plugin without legacy marketplace" "marketplace mismatch"
+mv "$cfg.before-migration" "$cfg"
+
 rm -rf "$tmp"
 finish
