@@ -44,11 +44,11 @@ web_search = "cached"
 # `vendor/superpowers/pin` selects an immutable committed cache generation.
 # Reconstructed baseline snapshots reproduce the legacy overlay. Future vendor
 # runs store verified source ref inside generation metadata, then change pin last.
-[marketplaces.openai-curated]
+[marketplaces.superpowers-dev]
 source_type = "local"
-source = "/home/ikeniborn/Documents/Project/icodex/.codex-isolated/tmp/marketplaces/openai-curated"
+source = "/home/ikeniborn/Documents/Project/icodex/.codex-isolated/tmp/marketplaces/superpowers-dev"
 
-[plugins."superpowers@openai-curated"]
+[plugins."superpowers@superpowers-dev"]
 enabled = true
 
 [features]
