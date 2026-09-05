@@ -34,10 +34,10 @@
 !.codex-isolated/plugins/cache/ikeniborn/loen/
 !.codex-isolated/plugins/cache/ikeniborn/loen/**
 
-!.codex-isolated/plugins/cache/openai-curated/
-.codex-isolated/plugins/cache/openai-curated/*
-!.codex-isolated/plugins/cache/openai-curated/superpowers/
-!.codex-isolated/plugins/cache/openai-curated/superpowers/**
+!.codex-isolated/plugins/cache/superpowers-dev/
+.codex-isolated/plugins/cache/superpowers-dev/*
+!.codex-isolated/plugins/cache/superpowers-dev/superpowers/
+!.codex-isolated/plugins/cache/superpowers-dev/superpowers/**
 
 !.codex-isolated/plugins/cache/openai-curated-remote/
 .codex-isolated/plugins/cache/openai-curated-remote/*

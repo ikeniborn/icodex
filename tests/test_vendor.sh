@@ -94,15 +94,14 @@ assert_exit "multiple source caches rejected" 1 test "$ambiguous_code" -eq 0
 assert_eq "ambiguity preserves pin" "$before_pin" "$(cat "$pin")"
 
 # Committed reconstructed baseline plus patches must reproduce materialized skills.
-clean="$tmp/clean/openai-curated/superpowers/11c74d6b"
+clean="$tmp/clean/superpowers-dev/superpowers/6.3.0"
 mkdir -p "$clean/skills/brainstorming" "$clean/skills/writing-plans"
 committed="$ROOT/.codex-isolated/plugins/cache/$(cat "$ROOT/vendor/superpowers/pin")"
 cp "$ROOT/vendor/superpowers/reconstructed-baseline/skills/brainstorming/SKILL.md" "$clean/skills/brainstorming/SKILL.md"
 cp "$ROOT/vendor/superpowers/reconstructed-baseline/skills/writing-plans/SKILL.md" "$clean/skills/writing-plans/SKILL.md"
-legacy_provenance="$(cat "$committed/.icodex-vendor-provenance.json")"
-assert_contains "legacy provenance is explicitly unverified" "$legacy_provenance" '"status":"legacy-unverified-cache-generation"'
-assert_contains "legacy provenance records cache generation" "$legacy_provenance" '"cache_generation":"11c74d6b"'
-assert_contains "legacy provenance does not claim source ref" "$legacy_provenance" '"source_ref":null'
+committed_provenance="$(cat "$committed/.icodex-vendor-provenance.json")"
+assert_contains "committed provenance is verified" "$committed_provenance" '"status":"verified-immutable-source-ref"'
+assert_contains "committed provenance records source ref" "$committed_provenance" '"source_ref":"b36e0829c6d0140e93cfef2ca599b1b07d4a7797"'
 for overlay in "$ROOT"/vendor/superpowers/patches/*.patch; do
   patch --batch --forward --fuzz=0 -d "$clean" -p1 < "$overlay" >/dev/null
 done

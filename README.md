@@ -238,10 +238,10 @@ offline once the binary is present:
 - **Superpowers overlay source** — `vendor/superpowers/pin` selects one immutable
   materialized cache generation, while ordered zero-fuzz patches under
   `vendor/superpowers/patches/` carry icodex's validation-first workflow changes.
-  The reviewed legacy inputs under `vendor/superpowers/reconstructed-baseline/` are
-  explicitly marked as reconstructed rather than claimed as verified upstream
-  provenance. Future vendor runs store the supplied immutable source revision inside
-  the generated cache before publication. `scripts/vendor-superpowers.sh` validates
+  The pristine upstream skill inputs under `vendor/superpowers/reconstructed-baseline/`
+  let tests reproduce the materialized skills from baseline plus patches. Vendor runs
+  store the supplied immutable source revision inside the generated cache before
+  publication. `scripts/vendor-superpowers.sh` validates
   required skill markers and plugin identity, publishes the complete immutable
   generation, then updates the pin atomically last. Patch drift, malformed manifests,
   ambiguous cache state, or pin traversal aborts before the active cache or per-project
