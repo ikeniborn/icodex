@@ -255,7 +255,11 @@ files above, so secrets and runtime churn can never be committed by accident.
 
 > **Existing users with a custom `config.toml`:** the base `config.toml` is tracked and acts
 > as a **template** — it is copied into each per-project `CODEX_HOME` on first launch. Keep
-> secrets in `.codex_config` or `auth.json`, never in `config.toml`.
+> secrets in `.codex_config` or `auth.json`, never in `config.toml`. When a vendored
+> Superpowers release renames its marketplace, launch wiring migrates the old identity in
+> each existing per-project `config.toml` automatically (only the single unambiguous
+> superpowers marketplace/plugin table pair is renamed; anything ambiguous fails closed
+> with `marketplace mismatch`).
 
 ## What's in a per-project home
 

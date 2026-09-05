@@ -164,7 +164,7 @@ _ensure_superpowers_skill_links() { # <cache_dir>
   done
 }
 
-_superpowers_config_tool() { # <validate|rewrite> <config> <marketplace> [source]
+_superpowers_config_tool() { # <validate|rewrite|migrate> <config> <marketplace> [source]
   python3 - "$@" <<'PY' 2>/dev/null
 import json
 import re
@@ -261,8 +261,8 @@ def starts_multiline(line):
 
 target_marketplace = ("marketplaces", marketplace)
 target_plugin = ("plugins", "superpowers@" + marketplace)
-marketplace_headers = []
-plugin_headers = []
+marketplace_tables = []
+superpowers_plugins = []
 source_lines = []
 current = None
 multiline = None
@@ -276,10 +276,10 @@ for index, line in enumerate(lines):
     if parsed_header is not None:
         header, is_array = parsed_header
         current = header
-        if not is_array and header == target_marketplace:
-            marketplace_headers.append(index)
+        if not is_array and len(header) == 2 and header[0] == "marketplaces":
+            marketplace_tables.append((index, header[1]))
         if not is_array and len(header) == 2 and header[0] == "plugins" and header[1].startswith("superpowers@"):
-            plugin_headers.append(header)
+            superpowers_plugins.append((index, header[1][len("superpowers@"):]))
         continue
     if line.lstrip().startswith("["):
         current = None
@@ -291,6 +291,33 @@ for index, line in enumerate(lines):
     if current == target_marketplace and re.match(r"^\s*source\s*=", line):
         source_lines.append(index)
 
+def line_ending(line):
+    return "\r\n" if line.endswith("\r\n") else "\n"
+
+
+if mode == "migrate":
+    # Rename the single legacy superpowers marketplace identity to the pinned
+    # name; refuse ambiguity so a broken config never gets half-rewritten.
+    if invalid_header or multiline is not None or len(superpowers_plugins) != 1:
+        raise SystemExit(1)
+    legacy = superpowers_plugins[0][1]
+    legacy_tables = [i for i, name in marketplace_tables if name == legacy]
+    target_tables = [i for i, name in marketplace_tables if name == marketplace]
+    if legacy == marketplace or len(legacy_tables) != 1 or target_tables:
+        raise SystemExit(1)
+    if re.match(r"^[A-Za-z0-9_-]+$", marketplace):
+        marketplace_key = marketplace
+    else:
+        marketplace_key = json.dumps(marketplace)
+    index = legacy_tables[0]
+    lines[index] = "[marketplaces." + marketplace_key + "]" + line_ending(lines[index])
+    index = superpowers_plugins[0][0]
+    lines[index] = "[plugins." + json.dumps("superpowers@" + marketplace) + "]" + line_ending(lines[index])
+    sys.stdout.write("".join(lines))
+    raise SystemExit(0)
+
+marketplace_headers = [i for i, name in marketplace_tables if name == marketplace]
+plugin_headers = [("plugins", "superpowers@" + name) for _, name in superpowers_plugins]
 if invalid_header or multiline is not None or len(marketplace_headers) != 1 or plugin_headers != [target_plugin] or len(source_lines) != 1:
     raise SystemExit(1)
 
@@ -317,6 +344,23 @@ _superpowers_config_has_identity() { # <config> <marketplace>
   _superpowers_config_tool validate "$1" "$2"
 }
 
+# One-shot legacy-identity migration: rename the single superpowers marketplace
+# to the pinned name. The migrated text is installed only after it passes the
+# same identity validation, so a refused or partial migration never mutates the
+# config.
+_migrate_marketplace_identity() { # <config> <marketplace>
+  local config="$1" mkt="$2" tmp
+  tmp="$(mktemp)"
+  if _superpowers_config_tool migrate "$config" "$mkt" > "$tmp" \
+    && _superpowers_config_tool validate "$tmp" "$mkt"; then
+    cat "$tmp" > "$config"
+    rm -f "$tmp"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
 # Orchestrate: fix the source path in the committed base config.
 ensure_superpowers_wiring() {
   local config="$ICODEX_HOME_DIR/config.toml"
@@ -328,8 +372,12 @@ ensure_superpowers_wiring() {
   cache="$(_superpowers_pinned_cache_dir)" || return 1
   mkt="$(_superpowers_marketplace_name "$cache")"
   _superpowers_config_has_identity "$config" "$mkt" || {
-    log_error "superpowers marketplace mismatch: expected $mkt in $config"
-    return 1
+    if _migrate_marketplace_identity "$config" "$mkt"; then
+      log_warn "superpowers marketplace identity migrated to $mkt in $config"
+    else
+      log_error "superpowers marketplace mismatch: expected $mkt in $config"
+      return 1
+    fi
   }
   marketplace="$(_ensure_superpowers_marketplace_root "$cache" "$mkt")"
   _ensure_superpowers_skill_links "$cache"
