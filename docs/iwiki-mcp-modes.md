@@ -35,6 +35,23 @@ Hosted `wiki_code_publish_begin` / `_batch` / `_finalize` / `_abort` require an 
 writable primary. The begin response advertises server batch row and byte limits; clients must
 respect them and cannot raise the hosted ceilings.
 
+### Build jobs and Wiki-link maintenance
+
+On a local server with the checkout, `wiki_code_index(wait_seconds=...)` limits the caller
+wait rather than the build deadline. A `rebuilding` response with `job.id` leaves the worker
+running through publication. Poll `wiki_code_status(job_id=...)` on the same server and binding.
+Inspect that job's terminal `ready`/`failed` state separately from the graph's `state`/`fresh`.
+`job_unknown` means the handle cannot be answered; current readiness does not prove that job
+succeeded. A response without the requested `job` is not completion evidence, even if it
+omits `job_unknown`; error answers can omit that warning. A publication failure can fail a job even when the local graph is ready.
+
+After Wiki edits, `wiki_links_stale` is distinct from source snapshot freshness. For unchanged
+source, `wiki_code_refresh_links(domain=...)` re-derives links against the active ready
+PostgreSQL snapshot without parsing source, renewing snapshot age, or changing graph counts.
+Name the intended writable domain explicitly, verify binding, and check status/lint after the
+last Wiki write. `missing_snapshot` means no active ready snapshot exists. Changed source
+still requires rebuilding and publication; link refresh cannot repair `fresh=false`.
+
 ## Hosted streamable HTTP
 
 Hosted HTTP requires PostgreSQL. Copy `iwiki-http-server.toml.example` to an operator-managed
@@ -75,10 +92,17 @@ read/write scope from the token; database and model credentials remain server-on
 In this remote-client mode, icodex also generates a short instruction in the active project
 agent file. Before its first iwiki operation, the agent reads the normalized `read`, `write`, and
 `primary` scope and, when present, `[specifications].mode` from the project-root `.iwiki.toml`.
-It calls `wiki_bind` with the complete scope and passes `[specifications].mode` as
-`specification_mode` only to hosted HTTP `wiki_bind`. Local stdio omits `specification_mode`:
-its server reads project configuration and rejects client overrides. It does this before
-`wiki_status`, search, task-ledger, or any other wiki call. The client never sends TOML text,
+It calls `wiki_bind` with the complete scope and carries explicitly configured policy through
+`project_policy`: `[specifications].mode` becomes `specification_mode`, while
+`[code_graph].max_snapshot_age_seconds` retains its field name.
+`require_session_binding` is operator-only; never include it in `project_policy`.
+Read its effective server value from status. Never send both `project_policy` and the deprecated top-level
+`specification_mode` alias. Use the alias only when the live schema lacks `project_policy`
+and the project declares only specification mode. A rebind replaces the policy wholesale;
+resend all configured fields. Report uncarried fields and retain `completion-pending`.
+Local stdio omits both policy arguments: its server reads project configuration.
+This preflight runs before `wiki_status`, search, task-ledger, or any other wiki call.
+The client never sends TOML text,
 paths, `iwiki_id`, or credentials. A missing or invalid scope, or a rejected bind such as HTTP
 403, fails closed: no heuristic fallback or mutating wiki call is allowed and lifecycle remains
 `completion-pending`. Token grants remain the absolute maximum; a project TOML can request less
@@ -95,13 +119,20 @@ last one reports a scenario outside the bound primary rather than a missing gran
 `primary_substituted` with `requested_primary`,
 `binding_not_selected`, a rejected bind, or an unexpected session as a mismatch: make no
 mutation and retain `completion-pending` until resolved. Read effective per-domain specification
-mode from `wiki_status`, not project TOML. Hosted precedence is exact override, then carried
-project mode, then hosted default, then built-in `optional`. `source: hosted_override` is
+mode from `wiki_status`, not project TOML. Hosted precedence is per field: exact override, then tenant-wide override, then project
+value, then hosted default, then built-in value. `source: hosted_override` is
 legitimate and `project_mode_suppressed: true` reports refusal of the carried project mode. Only
 an unaccepted mode mismatch permits ordinary Wiki work but no mutating specification call and
 retains `completion-pending`.
 
-Explicit domains passed to `wiki_search` win over ambient scope. Use `scope="all"` only for an
+Read `wiki_status.policy.domains[]` for effective values, sources, and `suppressed` fields.
+Project policy only tightens hosted defaults: stronger specification mode or smaller snapshot
+age (`0` means infinity). `allow_project_mode=false` disables the project tier for both
+client-settable fields. Session-binding enforcement has no project tier. Report suppression and honor the server value.
+
+Read search accepts `hybrid`, `lexical`, or `semantic`. Lexical suits exact identifiers and
+skips query embedding, though optional reranking may still run. Hits are locators, so read
+the selected page/heading before interpreting its content. Explicit domains passed to `wiki_search` win over ambient scope. Use `scope="all"` only for an
 intentional whole-base search; `read=["all"]` is a literal domain, not a wildcard. Use
 `wiki_update_page(code=...)` for a selector-only update. When a section update also changes code,
 send the section fields plus `code` atomically.
@@ -117,6 +148,9 @@ pass its `revision` as `expected_revision`. For one-heading edits, a heading-sco
 returns `section_hash`; pass it as `expected_section_hash`. `conflict` and
 `section_conflict` change nothing: re-read, preserve concurrent content, and retry the bounded
 edit once.
+
+`wiki_migrate_okf` mutates even in plan mode: deterministic layout moves and reindexing still
+run. It is not a read-only discovery tool.
 
 PostgreSQL writes are durable transactions. Do not call Git-only `wiki_sync`,
 `wiki_remediation_plan`, or OKF maintenance tools; they return `unsupported_storage`.

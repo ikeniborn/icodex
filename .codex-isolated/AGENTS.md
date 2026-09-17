@@ -17,7 +17,7 @@ unavailable only when it is absent from that catalog or its listed source cannot
 
 At the start of any task in an unfamiliar area, or after a gap of more than 1 day:
 
-1. **One binding protocol applies to local stdio and remote HTTP.** When project-root `.iwiki.toml` exists, load its full normalized `read`, `write`, and `primary` scope before `wiki_status`, searches, task-ledger, or any other wiki call; never narrow to the project basename. Also load `[specifications].mode` when present: pass `[specifications].mode` as `specification_mode` to hosted HTTP `wiki_bind`, but omit `specification_mode` for local stdio, where the server reads project configuration and rejects client overrides. If the hosted tool schema lacks the parameter, the bind rejects it, or `wiki_status` reports an unaccepted mismatch under documented hosted precedence, report it, make no mutating specification call, and retain task lifecycle `completion-pending`; ordinary Wiki work remains available. A `source: hosted_override` result is accepted under that precedence, not a mismatch. Treat live callable tool schemas and observed server responses as the operation contract. After hosted `wiki_bind`, require `wiki_status` to report `binding_source: session`. If an answer reports `token_default` or `binding_defaulted`, rebind the full project scope and repeat the affected read. `primary_substituted` with `requested_primary`, `binding_not_selected`, a rejected bind, or an unexpected session identity blocks mutations and retains `completion-pending` until the exact project binding is restored. Domain-named Markdown tools carry no provenance fields, but `wiki_search` does: without `domains` its search set is the bound read list, and `intent="write"` prefers the bound primary over any `domains` you pass, so both answer `binding_defaulted` under the fallback and must be repeated after a rebind. A refused call answers `access_denied` whose `data` carries your own `binding_source` and, when the gate can attribute it, a `reason`; read `binding_source` first, because `token_default` there means the selection was lost rather than that the call is forbidden. Then run `wiki_status`, `wiki_search "<task topic>"`, and `wiki_lint`. If the generated `Remote iwiki project scope` section is present, its fail-closed rules take precedence. Without a project binding or connected server, skip iwiki context.
+1. **One binding protocol applies to local stdio and remote HTTP.** When project-root `.iwiki.toml` exists, load its full normalized `read`, `write`, and `primary` scope before `wiki_status`, searches, task-ledger, or any other wiki call; never narrow to the project basename. Carry configured policy through `project_policy` as described below; omit both policy arguments for local stdio. If policy cannot be carried, or `wiki_status` reports an unaccepted mismatch under documented hosted precedence, report it and retain task lifecycle `completion-pending`; block mutating specification calls for specification-mode mismatches. A rejected bind blocks all mutations; ordinary Wiki work remains available only with a trusted binding. A `source: hosted_override` result is accepted under that precedence, not a mismatch. Treat live callable tool schemas and observed server responses as the operation contract. After hosted `wiki_bind`, require `wiki_status` to report `binding_source: session`. If an answer reports `token_default` or `binding_defaulted`, rebind the full project scope and repeat the affected read. `primary_substituted` with `requested_primary`, `binding_not_selected`, a rejected bind, or an unexpected session identity blocks mutations and retains `completion-pending` until the exact project binding is restored. Domain-named Markdown tools carry no provenance fields, but `wiki_search` does: without `domains` its search set is the bound read list, and `intent="write"` prefers the bound primary over any `domains` you pass, so both answer `binding_defaulted` under the fallback and must be repeated after a rebind. A refused call answers `access_denied` whose `data` carries your own `binding_source` and, when the gate can attribute it, a `reason`; read `binding_source` first, because `token_default` there means the selection was lost rather than that the call is forbidden. Then run `wiki_status`, `wiki_search "<task topic>"`, and `wiki_lint`. If the generated `Remote iwiki project scope` section is present, its fail-closed rules take precedence. Without a project binding or connected server, skip iwiki context.
 2. Map the `docs/` layout into context (complements iwiki's semantic search with a structural overview):
    ```bash
    tree -L 2 docs/ || find docs -maxdepth 2 | sort   # fallback when `tree` is absent
@@ -28,11 +28,35 @@ At the start of any task in an unfamiliar area, or after a gap of more than 1 da
 
 Skip only when: familiar area, same session.
 
+## Hosted project policy
+
+For hosted HTTP, prefer `project_policy`: map explicitly configured `[specifications].mode`
+to `specification_mode`, and `[code_graph].max_snapshot_age_seconds` to its same-named
+policy field. `require_session_binding` is operator-only; never include it in `project_policy`.
+Read its effective server value from status. Send only the two client-settable
+policy values and the complete normalized scope, never the whole TOML. Never send both
+`project_policy` and the deprecated top-level `specification_mode` alias. A later bind
+replaces the policy wholesale: resend all configured policy fields on every rebind.
+Use the alias only when the live schema lacks `project_policy` and the project declares
+only specification mode; report any uncarried policy field instead of silently dropping it.
+Local stdio omits both policy arguments and reads project configuration.
+
+Read effective values and their sources from `wiki_status.policy.domains[]`, including
+`policy.domains[].suppressed`; keep specification mode checks against `specifications`.
+Precedence is per field: exact override, then tenant-wide override, then project value,
+then hosted default, then built-in value. Operator overrides are legitimate. Project
+values may only tighten policy: `disabled < optional < strict` and a
+smaller snapshot age (`0` means infinity). `allow_project_mode=false` disables the project
+tier for both client-settable fields. Session-binding enforcement has no project tier. Report suppression and honor the effective server value; never
+relax policy to make stale snapshots pass. An unaccepted specification-mode mismatch
+retains `completion-pending` and blocks specification mutations; ordinary Wiki work
+remains available with a trusted binding.
+
 ## Keep Docs Current (MANDATORY)
 
 **After every change that alters functionality, architecture, or behavior — and only when the iwiki MCP server reports a domain bound to this project (`wiki_status`) — update the wiki via the MCP tools before responding to the user.**
 
-Use `wiki_list_domains`, `wiki_list_pages`, and `wiki_related` for read-only discovery; `wiki_related` consumes a real section ID returned by retrieval. For `wiki_search`, explicit `domains` win. Use `scope="all"` only for an explicit whole-base search; `read=["all"]` is a literal domain, not a wildcard. Discovery does not authorize a write. `wiki_list_domain_grants` is limited to explicit hosted management work; `wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority. Never expand grants automatically.
+Use `wiki_list_domains`, `wiki_list_pages`, and `wiki_related` for read-only discovery; `wiki_related` consumes a real section ID returned by retrieval. For `wiki_search`, explicit `domains` win. Use `scope="all"` only for an explicit whole-base search; `read=["all"]` is a literal domain, not a wildcard. Read search accepts `hybrid`, `lexical`, or `semantic`; use lexical for exact identifiers, hybrid for mixed discovery, and semantic for conceptual queries. Search returns locators, not page content: read the selected page/heading before relying on it. Lexical skips query embedding but can still rerank. Discovery does not authorize a write. `wiki_list_domain_grants` is limited to explicit hosted management work; `wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority. Never expand grants automatically.
 
 - Pick the write tool by intent — each reindexes the touched domain on success, so no routine `wiki_index` follows:
   - **New page** → `wiki_write_page(domain, slug, markdown, source=<changed-source>)`. Refuses to overwrite an existing page.
@@ -56,6 +80,22 @@ Always use the iwiki MCP tools exposed by the current session — including sect
 For Python, TypeScript, JavaScript, or Bash code analysis or planning, call `wiki_code_status` after binding. Treat graph-assisted analysis as available only when `state == "ready"` and `fresh == true`; hosted reads additionally require `binding_source == "session"`. Bash is opt-in, scans `.sh` files only, and uses the `sh:` entity prefix. Missing, stale, failed, unconfigured, default-bound, or source-unavailable graph state falls back to repository search without blocking ordinary Wiki work. The four-language code-analysis scope covers Python, TypeScript, JavaScript, and Bash.
 
 After a Python, TypeScript, JavaScript, or Bash symbol change, call `wiki_code_index` only when the active MCP server has the repository checkout. Hosted HTTP returns `source_unavailable`; its `wiki_code_status`, `wiki_code_search`, and `wiki_code_context` still read the published PostgreSQL snapshot. Publication tools require hosted HTTP, writable primary, and server-advertised batch limits from `wiki_code_publish_begin`; they accept neither client `domain` nor `iwiki_id`, and never raise those limits client-side.
+
+For a local build, `wiki_code_index(wait_seconds=...)` bounds the caller wait, not the
+build deadline. A `rebuilding` answer with `job.id` means the worker continues; poll
+`wiki_code_status(job_id=...)` on the same server and binding. Inspect that job's terminal
+`ready`/`failed` state separately from graph `state`/`fresh`. `job_unknown` is not success;
+fall back to current graph status without claiming the requested build completed. A response
+without the requested `job` is not completion evidence, even without a `job_unknown` warning. A
+publication failure may fail the job even when the local graph is ready.
+
+After Wiki edits, distinguish `wiki_links_stale` from code snapshot freshness. When the
+code snapshot is unchanged, `wiki_code_refresh_links(domain=...)` re-derives links against
+the active ready PostgreSQL snapshot. Name the intended writable domain explicitly and
+verify binding first. It parses no source, does not renew snapshot age, and returns
+`missing_snapshot` when there is no active ready snapshot. Check status/lint after the
+last Wiki write; changed code still requires rebuild/publication. Do not use link refresh
+or `wiki_index` to make an old code snapshot fresh.
 
 ## GWT Specification Workflow
 
@@ -95,8 +135,8 @@ tests, and record `graph_unavailable`; this never blocks ordinary Wiki work.
 Agents must preserve the configured `disabled`, `optional`, or `strict` mode according to
 the transport-specific binding rule above, and read the effective mode per domain from the
 `specifications` block of `wiki_status`, never from the project file. Hosted precedence is
-exact override, then the carried project mode, then hosted default, then the built-in
-`optional`; the server gates the carried mode with `allow_project_mode` and a tighten-only
+exact override, then tenant-wide override, then the carried project mode, then hosted default,
+then the built-in `optional`; the server gates the carried mode with `allow_project_mode` and a tighten-only
 guard and reports a refused value as `project_mode_suppressed: true`. `source: project`
 confirms the carried mode answered, while `source: hosted_override` outranks it
 legitimately and is not a mismatch. `disabled` disables specification projection
