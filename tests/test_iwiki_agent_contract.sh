@@ -61,14 +61,14 @@ assert_contains "GWT graph fallback is fail soft" "$flat_agents_body" 'preserve 
 assert_contains "GWT uses bounded TOML grammar" "$flat_agents_body" 'closed `iwiki-gwt` TOML fence'
 assert_contains "GWT requires all phases" "$flat_agents_body" '`given`, `when`, `then`, and `code`'
 assert_contains "GWT requires implementation bindings" "$flat_agents_body" 'at least one `implements` and one `verifies` binding'
-assert_contains "GWT hosted bind forwards project mode" "$flat_agents_body" 'pass `[specifications].mode` as `specification_mode` to hosted HTTP `wiki_bind`'
-assert_contains "GWT local bind omits project mode" "$flat_agents_body" 'omit `specification_mode` for local stdio'
+assert_contains "GWT hosted bind forwards project mode" "$flat_agents_body" 'map explicitly configured `[specifications].mode` to `specification_mode`'
+assert_contains "GWT local bind omits project mode" "$flat_agents_body" 'omit both policy arguments for local stdio'
 assert_contains "GWT mode mismatch fails closed" "$flat_agents_body" 'retain task lifecycle `completion-pending`'
 assert_contains "startup accepts hosted precedence before calling a mismatch" "$flat_agents_body" 'unaccepted mismatch under documented hosted precedence'
 assert_contains "startup preserves ordinary Wiki work for a mode mismatch" "$flat_agents_body" 'ordinary Wiki work remains available'
 assert_eq "startup rejects broad different-mode mismatch claim" "0" "$(grep -cF 'wiki_status reports a different mode' <<<"$agents_body")"
 assert_contains "GWT reads the effective mode from status" "$flat_agents_body" 'read the effective mode per domain from the `specifications` block of `wiki_status`'
-assert_contains "GWT states hosted precedence" "$flat_agents_body" 'exact override, then the carried project mode, then hosted default'
+assert_contains "GWT states hosted precedence" "$flat_agents_body" 'exact override, then tenant-wide override, then the carried project mode, then hosted default'
 assert_contains "GWT names the suppressed marker" "$flat_agents_body" '`project_mode_suppressed: true`'
 assert_contains "GWT clears hosted override of mismatch" "$flat_agents_body" '`source: hosted_override` outranks it'
 assert_contains "GWT strict uses exact blocking findings" "$flat_agents_body" '`missing_scenario`, `invalid_scenario`, `duplicate_scenario_id`, or `incomplete_bindings`'
@@ -78,7 +78,7 @@ assert_contains "GWT hook avoids guessing existing scenarios" "$flat_agents_body
 assert_contains "GWT hook enforces contextual identity" "$flat_agents_body" 'enforce matching domain and scenario ID after `wiki_spec_context`'
 assert_contains "GWT hooks never write Wiki" "$flat_agents_body" 'never write to Wiki or replace interactive MCP calls'
 
-assert_contains "context skill version updated" "$context_body" '# version: 1.7.2'
+assert_contains "context skill version updated" "$context_body" '# version: 1.7.3'
 assert_contains "context reports graph availability" "$context_body" 'code_graph_available'
 assert_contains "context reports graph domain" "$context_body" 'code_graph_domain'
 assert_contains "context reports graph state" "$context_body" 'code_graph_state'
@@ -90,7 +90,7 @@ assert_contains "context checks graph read-only" "$context_body" '`wiki_code_sta
 assert_contains "context prefers graph search" "$context_body" '`wiki_code_search` / `wiki_code_context`'
 assert_contains "context covers four graph languages" "$context_body" 'Python, TypeScript, JavaScript, or Bash'
 assert_contains "context reads effective mode from status" "$context_body" 'Read the effective per-domain specification mode from `wiki_status`; never infer it from `.iwiki.toml`.'
-assert_contains "context fails closed for hosted mode errors" "$context_body" 'If its callable schema lacks `specification_mode`, bind rejects it, or status reports an unaccepted mismatch, report it, make no mutating specification call, and retain `completion-pending`; ordinary non-specification Wiki work remains available.'
+assert_contains "context fails closed for hosted mode errors" "$context_body" 'If configured policy cannot be carried, report it and retain `completion-pending`; an unaccepted specification-mode mismatch blocks specification mutations, while ordinary non-specification Wiki work remains available with trusted binding. A rejected bind blocks all mutations.'
 assert_contains "context preserves hosted mode precedence" "$context_body" '`source: hosted_override` legitimately outranks project mode and is not a mismatch; `project_mode_suppressed: true` means the carried project value was refused and must be reported.'
 assert_contains "context template uses wiki domain" "$context_template" '"wiki_domain"'
 assert_contains "context template reports graph availability" "$context_template" '"code_graph_available"'
@@ -103,7 +103,7 @@ assert_contains "context template reports task page" "$context_template" '"task_
 assert_contains "intent binds before status in every transport" "$fix_body" 'call `wiki_bind` with the full normalized project scope before `wiki_status`'
 assert_eq "intent removes inferred single-domain bind" "0" "$(grep -cF 'wiki_bind(read=[<domain>], write=<domain>)' <<<"$fix_body")"
 assert_contains "intent reads effective mode from status" "$fix_body" 'Read the effective per-domain specification mode from `wiki_status`; never infer it from `.iwiki.toml`.'
-assert_contains "intent preserves non-specification work on hosted mode errors" "$fix_body" 'If its callable schema lacks `specification_mode`, bind rejects it, or status reports an unaccepted mismatch, report it, make no mutating specification call, and retain `completion-pending`; ordinary non-specification Wiki work remains available.'
+assert_contains "intent preserves non-specification work on hosted mode errors" "$fix_body" 'If configured policy cannot be carried, report it and retain `completion-pending`; an unaccepted specification-mode mismatch blocks specification mutations, while ordinary non-specification Wiki work remains available with trusted binding. A rejected bind blocks all mutations.'
 assert_contains "intent preserves hosted mode precedence" "$fix_body" '`source: hosted_override` legitimately outranks project mode and is not a mismatch; `project_mode_suppressed: true` means the carried project value was refused and must be reported.'
 
 assert_contains "ledger reads revision before mutation" "$ledger_body" 'Read the current page revision before every PostgreSQL page mutation'
@@ -112,8 +112,8 @@ assert_contains "ledger handles revision conflict" "$ledger_body" '`conflict`'
 assert_contains "ledger handles section conflict" "$ledger_body" '`section_conflict`'
 assert_contains "ledger verifies hosted session provenance" "$ledger_body" '`binding_source: session`'
 assert_contains "ledger retains pending on binding mismatch" "$ledger_body" 'binding mismatch retains `completion-pending`'
-assert_contains "ledger carries project mode only for hosted bind" "$ledger_body" 'pass `[specifications].mode` as `specification_mode` only to hosted HTTP `wiki_bind`'
-assert_contains "ledger omits client mode override for local stdio" "$ledger_body" 'local stdio omits `specification_mode`'
+assert_contains "ledger carries project mode only for hosted bind" "$ledger_body" 'Hosted HTTP carries explicitly configured mode and snapshot-age policy through `project_policy`'
+assert_contains "ledger omits client mode override for local stdio" "$ledger_body" 'local stdio omits both policy arguments'
 assert_contains "ledger accepts hosted override precedence" "$ledger_body" '`source: hosted_override` is legitimate'
 assert_contains "ledger blocks only specification mutations on unaccepted mode" "$ledger_body" 'unaccepted mode mismatch retains `completion-pending` and blocks only mutating specification calls'
 assert_contains "ledger preserves ordinary task-page work on mode mismatch" "$ledger_body" 'ordinary non-specification Wiki and task-page work remains available when session binding and provenance are valid'
@@ -134,9 +134,37 @@ assert_contains "modes name the defaulted specification search" "$flat_modes_bod
 assert_contains "modes name the defaulted write-intent target" "$flat_modes_body" '`wiki_search(intent="write")` prefers the bound primary over any `domains` argument'
 assert_contains "modes name the resolve refusal reasons" "$flat_modes_body" 'the last one reports a scenario outside the bound primary rather than a missing grant'
 assert_contains "modes protect grant changes" "$modes_body" 'separate explicit user authorization'
-assert_contains "modes carry project specification mode only to hosted bind" "$flat_modes_body" 'passes `[specifications].mode` as `specification_mode` only to hosted HTTP `wiki_bind`'
-assert_contains "modes omit client specification mode for local bind" "$flat_modes_body" 'Local stdio omits `specification_mode`'
+assert_contains "modes carry project specification mode only to hosted bind" "$flat_modes_body" 'carries explicitly configured policy through `project_policy`'
+assert_contains "modes omit client specification mode for local bind" "$flat_modes_body" 'Local stdio omits both policy arguments'
 assert_contains "modes document hosted precedence and suppression" "$flat_modes_body" '`source: hosted_override` is legitimate and `project_mode_suppressed: true` reports refusal'
 assert_eq "modes reject incomplete scope-only claim" "0" "$(grep -cF 'reads only `read`, `write`, and `primary`' <<<"$modes_body")"
+
+assert_contains "rules prefer structured hosted policy" "$agents_body" '`project_policy`'
+assert_contains "rules include tenant-wide precedence" "$agents_body" 'tenant-wide override'
+assert_contains "rules inspect per-field suppression" "$agents_body" '`policy.domains[].suppressed`'
+assert_contains "rules separate Wiki link maintenance" "$agents_body" '`wiki_code_refresh_links(domain=...)`'
+assert_contains "rules track exact index jobs" "$agents_body" '`wiki_code_status(job_id=...)`'
+assert_contains "rules cover search modes" "$agents_body" '`hybrid`, `lexical`, or `semantic`'
+for skill_body in "$context_body" "$ledger_body" "$fix_body"; do
+  assert_contains "skill carries structured hosted policy" "$skill_body" '`project_policy`'
+  assert_contains "skill links verified MCP reference" "$skill_body" 'references/iwiki-mcp.md'
+done
+
+reference_path="$ROOT/.codex-isolated/skills/context-awareness/references/iwiki-mcp.md"
+reference_body="$(cat "$reference_path" 2>/dev/null || true)"
+assert_contains "reference forbids mixed bind aliases" "$reference_body" 'Never send both'
+assert_contains "reference preserves policy on rebind" "$reference_body" 'replaces the policy wholesale'
+assert_contains "reference distinguishes snapshot age" "$reference_body" 'does not renew snapshot age'
+assert_contains "reference explains unknown job handles" "$reference_body" '`job_unknown`'
+assert_contains "reference treats OKF plan as mutation" "$reference_body" '`wiki_migrate_okf` mutates even in plan mode'
+for policy_body in "$agents_body" "$reference_body" "$modes_body"; do
+  assert_contains "session binding remains operator-only" "$policy_body" '`require_session_binding` is operator-only'
+  assert_contains "client never sends operator-only field" "$policy_body" 'never include it in `project_policy`'
+done
+for skill_body in "$context_body" "$ledger_body" "$fix_body"; do
+  assert_eq "skills do not advertise client session policy" "0" "$(grep -cF 'mode, snapshot age, and session-binding policy' <<<"$skill_body")"
+done
+assert_contains "missing job is not completion evidence" "$reference_body" 'A response without the requested `job` is not completion evidence'
+assert_contains "job warnings can be absent on error" "$reference_body" '`stale_snapshot` may omit `job_unknown`'
 
 finish

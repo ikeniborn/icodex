@@ -80,7 +80,17 @@ ensure_iwiki_remote_scope_instructions() {
 
 ## Remote iwiki project scope
 
-Before the first wiki call, load `read`, `write`, `primary`, and optional `[specifications].mode` from the project-root `.iwiki.toml`. Normalize domain names before passing them to `wiki_bind`; never pass TOML text, paths, `iwiki_id`, tokens, or other credentials. Call `wiki_bind` with the full normalized `read`, `write`, and `primary` values from `.iwiki.toml`, and pass `[specifications].mode` as `specification_mode` to hosted HTTP `wiki_bind`, before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call.
+Before the first wiki call, load `read`, `write`, `primary`, and optional `[specifications].mode` from the project-root `.iwiki.toml`. Normalize domain names before passing them to `wiki_bind`; never pass TOML text, paths, `iwiki_id`, tokens, or other credentials. Call `wiki_bind` with the full normalized `read`, `write`, and `primary` values from `.iwiki.toml`, and carry configured hosted policy as described below before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call.
+
+Prefer `project_policy`: map `[specifications].mode` to `specification_mode`, and
+`[code_graph].max_snapshot_age_seconds` to its same-named field, only when explicitly
+configured. `require_session_binding` is operator-only; never include it in `project_policy`.
+Read its effective server value from status. Never send both `project_policy`
+and the deprecated top-level `specification_mode` alias. Use the alias only when the live
+schema lacks `project_policy` and only specification mode is configured. Report uncarried
+policy fields; retain `completion-pending` rather than silently dropping them. A later
+bind replaces the policy wholesale: every rebind resends all configured policy fields.
+Local stdio omits both policy arguments and reads project configuration.
 
 After hosted bind, require `wiki_status` to report `binding_source: session`. If status,
 a domain-free code read, or a `wiki_spec_search` or `wiki_search` called without
@@ -101,16 +111,28 @@ repeat once. For `wiki_spec_resolve` the reason is `invalid_domain`,
 accepts only the bound primary, so `not_bound_primary` reports a scenario outside that
 primary and is never repaired by requesting a wider grant.
 
-Do not infer, broaden, or replace that scope with a project name, primary domain, or current session scope. On a missing or invalid TOML scope or a rejected bind (including 403), show a brief reason, do not make mutating wiki calls and retain task lifecycle `completion-pending`. If the `specification_mode` parameter is unavailable or `wiki_status` reports a mode mismatch, make no mutating specification call and retain task lifecycle `completion-pending`; ordinary Wiki work remains available. The remote server's token grants remain the absolute authorization limit.
+Do not infer, broaden, or replace that scope with a project name, primary domain, or current session scope. On a missing or invalid TOML scope or a rejected bind (including 403), show a brief reason, do not make mutating wiki calls and retain task lifecycle `completion-pending`. If the configured specification mode cannot be carried or `wiki_status` reports an unaccepted mode mismatch under hosted precedence, make no mutating specification call and retain task lifecycle `completion-pending`; ordinary Wiki work remains available. The remote server's token grants remain the absolute authorization limit.
 
-Take the effective mode per domain from the `specifications` block of `wiki_status`, never from the project file. Hosted precedence is exact override, then the carried project mode, then hosted default, then the built-in `optional`; the server gates the carried mode with `allow_project_mode` and a tighten-only guard and reports a refused value as `project_mode_suppressed: true`. `source: project` confirms the carried mode answered; `source: hosted_override` is a legitimate server decision that outranks it, not a mismatch.
+Take the effective mode per domain from the `specifications` block of `wiki_status`, never from the project file. Hosted precedence is per field: exact override, then tenant-wide override, then the carried project value, then hosted default, then built-in value; the server gates the carried mode with `allow_project_mode` and a tighten-only guard and reports a refused value as `project_mode_suppressed: true`. `source: project` confirms the carried mode answered; `source: hosted_override` is a legitimate server decision that outranks it, not a mismatch.
+
+Read effective policy values and sources from `wiki_status.policy.domains[]` and report
+`policy.domains[].suppressed`. The project tier only tightens policy: modes increase in
+strictness and snapshot age can decrease (`0` means infinity). `allow_project_mode=false`
+disables the project tier for both client-settable fields. Session-binding enforcement has
+no project tier. Honor
+the effective server values; never weaken freshness checks to accept an old snapshot.
 
 Hosted page mutations use PostgreSQL compare-and-swap. Read the current page immediately before `wiki_update_page`, `wiki_insert_section`, `wiki_move_section`, `wiki_delete_section`, or `wiki_delete_page`, and pass its current `revision` as `expected_revision`. When protecting one heading, also pass the `section_hash` returned by `wiki_read_page(..., heading=...)` as `expected_section_hash`; re-read after `conflict` or `section_conflict`.
 
 `wiki_code_status`, `wiki_code_search`, and `wiki_code_context` read the published hosted snapshot. Use hosted code results only when `state == "ready"`, `fresh == true`, and `binding_source == "session"`. `wiki_code_index` returns `source_unavailable` because a
 hosted server has no client checkout. Hosted publication requires a writable primary,
 accepts neither client `domain` nor `iwiki_id`, and must obey the limits returned by
-`wiki_code_publish_begin`. PostgreSQL writes are durable, so do not call Git-only
+`wiki_code_publish_begin`. For unchanged source with `wiki_links_stale`, use
+`wiki_code_refresh_links(domain=...)` with the intended writable domain explicitly named.
+It re-derives links against an active ready PostgreSQL snapshot, does not renew snapshot
+age, and returns `missing_snapshot` when no active ready snapshot exists. Check status or
+lint after the final Wiki write. Changed source still requires rebuild/publication.
+PostgreSQL writes are durable, so do not call Git-only
 `wiki_sync` or OKF maintenance tools. Domain-grant reads require explicit hosted
 management work; `wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority.
 

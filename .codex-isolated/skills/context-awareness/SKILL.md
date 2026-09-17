@@ -3,7 +3,7 @@ name: context-awareness
 description: Detect project language, framework, package manager, lint/test commands and locate CLAUDE.md / PRD docs at task start (Phase 0). Also detects iwiki documentation and code-graph availability/state. Use when starting any task, switching project, or before running syntax/test checks. NOT for deep wiki or code-graph queries — this skill only detects availability and quick context.
 user-invocable: false
 agent: Explore
-# version: 1.7.2
+# version: 1.7.3
 # tags: context, detection, project, language, framework, lat
 # dependencies: []
 # files: templates: ./templates/*.json, shared: ../_shared/syntax-commands.json
@@ -87,8 +87,8 @@ JavaScript:
    durable status.
 
 IF MCP-сервер iwiki подключён:
-  2. For local stdio or remote HTTP: load and normalize the full `read`, `write`, and `primary` scope from project `.iwiki.toml`, then call `wiki_bind` with that full scope before `wiki_status`; never narrow to basename or substitute a primary. Hosted HTTP also passes project `[specifications].mode` as `specification_mode` when its callable schema accepts it. Under generated remote-scope instructions, missing, invalid, or rejected scope permits no mutation and retains `completion-pending`.
-  3. wiki_status → storage, transport, список `domains`, текущая привязка read/write/primary. On hosted HTTP, trust status only when `binding_source == "session"` and requested primary remains unchanged; otherwise rebind and repeat once, or report `completion-pending`. Read the effective per-domain specification mode from `wiki_status`; never infer it from `.iwiki.toml`. `source: hosted_override` legitimately outranks project mode and is not a mismatch; `project_mode_suppressed: true` means the carried project value was refused and must be reported. If its callable schema lacks `specification_mode`, bind rejects it, or status reports an unaccepted mismatch, report it, make no mutating specification call, and retain `completion-pending`; ordinary non-specification Wiki work remains available.
+  2. For local stdio or remote HTTP: load and normalize the full `read`, `write`, and `primary` scope from project `.iwiki.toml`, then call `wiki_bind` with that full scope before `wiki_status`; never narrow to basename or substitute a primary. Hosted HTTP carries explicitly configured mode and snapshot-age policy through `project_policy`; local stdio omits both policy arguments. Read [iwiki MCP binding and maintenance](references/iwiki-mcp.md) before hosted binding or graph diagnostics. Under generated remote-scope instructions, missing, invalid, or rejected scope permits no mutation and retains `completion-pending`.
+  3. wiki_status → storage, transport, список `domains`, текущая привязка read/write/primary. On hosted HTTP, trust status only when `binding_source == "session"` and requested primary remains unchanged; otherwise rebind and repeat once, or report `completion-pending`. Read the effective per-domain specification mode from `wiki_status`; never infer it from `.iwiki.toml`. `source: hosted_override` legitimately outranks project mode and is not a mismatch; `project_mode_suppressed: true` means the carried project value was refused and must be reported. If configured policy cannot be carried, report it and retain `completion-pending`; an unaccepted specification-mode mismatch blocks specification mutations, while ordinary non-specification Wiki work remains available with trusted binding. A rejected bind blocks all mutations.
   4. Если `primary` присутствует в `domains` и trusted binding is available:
        - wiki_summary ← wiki_read_page(primary, "overview") (если есть)
          либо wiki_search('ключевые компоненты и архитектура проекта')
@@ -108,7 +108,7 @@ IF MCP-сервер iwiki подключён:
        code_graph_state: <state либо стабильный error code>
        code_graph_fresh: <fresh when answered; otherwise null>
        code_graph_binding_source: <binding_source when answered; otherwise null>
-     При ready предпочитать `wiki_code_search` / `wiki_code_context` для symbol lookup,
+     При ready и fresh предпочитать `wiki_code_search` / `wiki_code_context` для symbol lookup,
      relations и impact analysis. missing/stale/failed/not_configured не блокируют fallback на rg.
   4. Если домена проекта нет:
        wiki_initialized: false
