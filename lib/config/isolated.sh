@@ -17,6 +17,31 @@ resolve_codex_home() {
   ICODEX_HOME_DIR="$ICODEX_HOMES_DIR/$id"
 }
 
+# Keep a shared lock from before home creation until the wrapper and inherited
+# vendor processes exit. ihar uses the adjacent file exclusively during migration.
+acquire_codex_home_lifecycle_lock() { # <home>
+  local home="$1" lockfile="${1}.ihar-lifecycle.lock" fd
+  if [[ -n "${ICODEX_HOME_LIFECYCLE_FD:-}" ]]; then
+    [[ "${ICODEX_HOME_LIFECYCLE_PATH:-}" == "$lockfile" ]] && return 0
+    log_error "Codex lifecycle lock already protects another home"
+    return 1
+  fi
+  command -v flock >/dev/null 2>&1 \
+    || { log_error "flock is required for safe home migration"; return 1; }
+  mkdir -p "$(dirname "$home")" || return 1
+  if ! { exec {fd}>"$lockfile"; } 2>/dev/null; then
+    log_error "cannot open lifecycle lock $lockfile"
+    return 1
+  fi
+  if ! flock -s -w "${ICODEX_HOME_LOCK_TIMEOUT:-30}" "$fd"; then
+    exec {fd}>&-
+    log_error "home migration is active for $home; retry after it finishes"
+    return 1
+  fi
+  ICODEX_HOME_LIFECYCLE_FD="$fd"
+  ICODEX_HOME_LIFECYCLE_PATH="$lockfile"
+}
+
 # Symlink a shared-store entry into the per-project home (idempotent).
 _link_shared() { # <name>
   local name="$1"
@@ -64,6 +89,7 @@ setup_shared_dirs() {
 # Build the per-project home and export CODEX_HOME (run path).
 setup_codex_home() {
   resolve_codex_home
+  acquire_codex_home_lifecycle_lock "$ICODEX_HOME_DIR" || return 1
   mkdir -p "$ICODEX_HOME_DIR"
   _link_shared plugins
   _link_shared profiles
