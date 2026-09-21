@@ -1,6 +1,6 @@
 ---
 review:
-  plan_hash: 5879fb93ff591fe6
+  plan_hash: 21559b614d370a2e
   last_run: 2026-09-21
   phases:
     structure: { status: passed }
@@ -47,7 +47,7 @@ workflow:
 
 **Tech Stack:** Bash 5 with `awk` and `printf`, the project's own `tests/helpers.sh` assertion harness, Python 3 only inside the existing hook writer.
 
-**Spec:** `docs/superpowers/specs/2026-09-21-icodex-iwiki-dual-transport-design.md` (spec_hash `4b5000a79681cd75`)
+**Spec:** `docs/superpowers/specs/2026-09-21-icodex-iwiki-dual-transport-design.md` (spec_hash `09d5f37d41604403`)
 
 ## Global Constraints
 
