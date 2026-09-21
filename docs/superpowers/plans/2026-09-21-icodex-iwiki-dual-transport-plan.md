@@ -1,6 +1,6 @@
 ---
 review:
-  plan_hash: 22d9f9772fb9e79b
+  plan_hash: 5879fb93ff591fe6
   last_run: 2026-09-21
   phases:
     structure: { status: passed }
@@ -19,9 +19,19 @@ review:
       fix: "Measure what the change actually adds instead: three timed stdio initialize round-trips against the local server, including its embedding probe. The baseline is zero because no second server starts today."
       verdict: fixed
       verdict_at: 2026-09-21
+    - id: F-002
+      phase: coverage
+      severity: WARNING
+      section: Task 9b
+      section_hash: c16e0023fda69b85
+      fragment: "templates/CLAUDE.md.snippet, templates/AGENTS.md.snippet"
+      text: "Spec requirement R9b arrived after the plan was gated, leaving it with no task."
+      fix: "Added Task 9b in phase B, delivered in the same pull request as Task 9, with its own before/after measurement command."
+      verdict: fixed
+      verdict_at: 2026-09-21
 chain:
   intent: 5f9ea0d56abe70b3
-  spec: 4b5000a79681cd75
+  spec: 09d5f37d41604403
 workflow:
   route: chain
   continuation: full
@@ -595,7 +605,61 @@ The two files carry the same information; only the language differs.
 
 Re-run the Step 1 command. Expected: empty output.
 
-- [ ] **Step 5: Commit on a `dev-*` branch and open a pull request**
+- [ ] **Step 5: Commit**
+
+```bash
+git add docs/tools-reference.md docs/tools-reference.ru.md
+git commit -m "docs: list every registered tool in the reference"
+```
+
+---
+
+### Task 9b: Update the agent snippets — same pull request as Task 9
+
+**Files:**
+- Modify: `templates/CLAUDE.md.snippet`, `templates/AGENTS.md.snippet` in the `iwiki-mcp` repository
+
+**Interfaces:**
+- Consumes: the completed reference from Task 9 — the snippets summarize it.
+- Produces: nothing other tasks read.
+
+- [ ] **Step 1: Measure the gap**
+
+```bash
+comm -13 <(grep -oE "wiki_[a-z_]+" templates/AGENTS.md.snippet | sort -u) \
+         <(grep -oE "mcp\.tool\(\)\(wiki_[a-z_]+\)" src/iwiki_mcp/server.py | sed 's/.*(\(wiki_[a-z_]*\))/\1/' | sort -u)
+```
+
+Expected today: 27 tools, including every code-graph tool, `wiki_read_page`,
+`wiki_list_pages`, `wiki_related`, `wiki_status`, and `wiki_spec_search`.
+
+- [ ] **Step 2: Add the missing tools to both snippets**
+
+A snippet is a short operating guide, not a copy of the reference. Group the additions the
+way the server groups them — ordinary reads, page mutations, code graph, specifications,
+governance — one line each, naming what the tool is for and the one constraint that bites
+in practice. Keep the two files equivalent: `CLAUDE.md.snippet` and `AGENTS.md.snippet`
+differ only where the host's tool-naming differs.
+
+- [ ] **Step 3: Verify both files carry the same tool set**
+
+```bash
+diff <(grep -oE "wiki_[a-z_]+" templates/CLAUDE.md.snippet | sort -u) \
+     <(grep -oE "wiki_[a-z_]+" templates/AGENTS.md.snippet | sort -u)
+```
+
+Expected: no output.
+
+- [ ] **Step 4: Verify nothing is left out**
+
+Re-run Step 1's command. Expected: empty output.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add templates/CLAUDE.md.snippet templates/AGENTS.md.snippet
+git commit -m "docs(templates): describe every tool an agent can call"
+```
 
 ---
 

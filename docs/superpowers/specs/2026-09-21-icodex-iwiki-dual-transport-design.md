@@ -1,6 +1,6 @@
 ---
 review:
-  spec_hash: 4b5000a79681cd75
+  spec_hash: 09d5f37d41604403
   last_run: 2026-09-21
   phases:
     structure: { status: passed }
@@ -27,6 +27,16 @@ review:
       text: "The intent's health metric says no page lands in the local Git base 'by accident'. R6 permits a deliberate write there during an outage, which widens the metric's meaning."
       fix: "Accepted as the user's explicit choice; R6 requires every such write to be recorded on the ledger for later reconciliation, so it is never silent."
       verdict: accepted
+      verdict_at: 2026-09-21
+    - id: F-003
+      phase: coverage
+      severity: WARNING
+      section: R9b
+      section_hash: 07056eb3f620721a
+      fragment: "templates/CLAUDE.md.snippet and templates/AGENTS.md.snippet"
+      text: "Scope widened after the first gate: the agent snippets a project pastes into its own rules name nine of the thirty-six registered tools, and nothing in the spec covered them."
+      fix: "Added R9b, delivered in the same pull request as R9 because the two describe the same surface."
+      verdict: fixed
       verdict_at: 2026-09-21
 chain:
   intent: 5f9ea0d56abe70b3
@@ -180,6 +190,20 @@ The reference lives in the `iwiki-mcp` repository, so this requirement is delive
 own pull request there, not by this one. The wiki pages describing agent tool usage are
 updated directly through the MCP tools in the domain that owns them — the wiki has no pull
 request.
+
+### R9b — Update the agent snippets the projects paste in
+
+`templates/CLAUDE.md.snippet` and `templates/AGENTS.md.snippet` in the `iwiki-mcp`
+repository are what a project copies into its own rule file, so they are the first
+description of the tools an agent ever reads. Both name nine tools out of the
+thirty-six the server registers, and both omit the whole code-graph group, every
+specification tool except `wiki_spec_context` and `wiki_spec_resolve`, and the ordinary
+readers `wiki_read_page`, `wiki_list_pages`, `wiki_related`, and `wiki_status`.
+
+An agent given only this snippet cannot know that `wiki_code_refresh_links` exists, or
+that `wiki_read_page` takes a `heading`. The snippets are updated in the same pull
+request as R9, because they describe the same surface and drift apart the moment one
+moves without the other.
 
 ### R10 — Follow-up work lands as its own pull request per project
 
