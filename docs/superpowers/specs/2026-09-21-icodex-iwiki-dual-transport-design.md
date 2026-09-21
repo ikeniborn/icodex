@@ -1,6 +1,6 @@
 ---
 review:
-  spec_hash: 09d5f37d41604403
+  spec_hash: 1d52a28f9e397e44
   last_run: 2026-09-21
   phases:
     structure: { status: passed }
@@ -36,6 +36,16 @@ review:
       fragment: "templates/CLAUDE.md.snippet and templates/AGENTS.md.snippet"
       text: "Scope widened after the first gate: the agent snippets a project pastes into its own rules name nine of the thirty-six registered tools, and nothing in the spec covered them."
       fix: "Added R9b, delivered in the same pull request as R9 because the two describe the same surface."
+      verdict: fixed
+      verdict_at: 2026-09-21
+    - id: F-004
+      phase: coverage
+      severity: WARNING
+      section: R8b
+      section_hash: 1f330bb61076d20b
+      fragment: "which MCP servers appear in a generated config.toml"
+      text: "A coverage audit found the spec contracted new observable behaviour of a public configuration contract in a strict specification domain with no Given-When-Then scenario."
+      fix: "Added R8b: one scenario on its own page in the icodex domain, bound by file selector because the published code-graph snapshot is stale until the rollout."
       verdict: fixed
       verdict_at: 2026-09-21
 chain:
@@ -169,6 +179,23 @@ in R6 is exactly the path where the gate silently stops running.
 `docs/iwiki-mcp-modes.md` and the wiki page `icodex/iwiki-mcp-integration` both state that
 wiring selects one transport per launch. Both change with the implementation, not after
 it. This is finding F-002 from the intent gate.
+
+### R8b — Contract the new behaviour as a Given-When-Then scenario
+
+The `icodex` domain runs specifications in `strict` mode and holds exactly one scenario
+today. What changes here is observable behaviour of a public contract — which MCP servers
+appear in a generated `config.toml`, under which resolved settings — so it earns a
+scenario rather than prose alone.
+
+One scenario covers the mode table from section 3: both sets resolving registers `iwiki`
+over HTTP and `iwiki-local` over stdio. Its bindings point at `lib/iwiki/iwiki.sh` as the
+implementation and `tests/test_iwiki_wiring.sh` as the verification, by `file` selector
+rather than `symbol`, because the code graph indexes this repository's Bash but its
+published snapshot is stale until the rollout in R11.
+
+The scenario lives on its own specification page in the `icodex` domain, beside the
+existing one, and is written after the behaviour it describes is merged — a scenario for
+code that does not exist yet contracts nothing.
 
 ### R9 — Document the tools the rules do not cover
 

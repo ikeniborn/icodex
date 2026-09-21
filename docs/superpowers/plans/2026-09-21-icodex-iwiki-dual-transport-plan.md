@@ -1,6 +1,6 @@
 ---
 review:
-  plan_hash: 21559b614d370a2e
+  plan_hash: 38b040a207796f8f
   last_run: 2026-09-21
   phases:
     structure: { status: passed }
@@ -29,9 +29,19 @@ review:
       fix: "Added Task 9b in phase B, delivered in the same pull request as Task 9, with its own before/after measurement command."
       verdict: fixed
       verdict_at: 2026-09-21
+    - id: F-003
+      phase: coverage
+      severity: WARNING
+      section: Task 7b
+      section_hash: 70807435434c0f80
+      fragment: "icodex/specification/iwiki-dual-transport-wiring"
+      text: "Spec requirement R8b arrived from a coverage audit after the plan was gated, leaving it with no task."
+      fix: "Added Task 7b: write the scenario after the behaviour it describes is merged, verify it through wiki_spec_context and wiki_lint."
+      verdict: fixed
+      verdict_at: 2026-09-21
 chain:
   intent: 5f9ea0d56abe70b3
-  spec: 09d5f37d41604403
+  spec: 1d52a28f9e397e44
 workflow:
   route: chain
   continuation: full
@@ -47,14 +57,14 @@ workflow:
 
 **Tech Stack:** Bash 5 with `awk` and `printf`, the project's own `tests/helpers.sh` assertion harness, Python 3 only inside the existing hook writer.
 
-**Spec:** `docs/superpowers/specs/2026-09-21-icodex-iwiki-dual-transport-design.md` (spec_hash `09d5f37d41604403`)
+**Spec:** `docs/superpowers/specs/2026-09-21-icodex-iwiki-dual-transport-design.md` (spec_hash `1d52a28f9e397e44`)
 
 ## Global Constraints
 
 - The remote server is always `[mcp_servers.iwiki]`. Renaming it is forbidden.
 - A launch never fails because of iwiki: an unresolved setting logs a warning and skips its block, returning 0.
 - Secrets travel only through `env_vars` and `bearer_token_env_var`, never literal in TOML.
-- The 61 existing assertions in `tests/test_iwiki_wiring.sh` are not modified. Editing a passing test needs the user's approval first.
+- Assertions already passing in `tests/test_iwiki_wiring.sh` are not modified — append only. The file started at 61 and stands at 86. Editing a passing test needs the user's approval first.
 - One managed region, existing markers, region stays at end of file.
 - Every `for` loop and trailing conditional keeps its `if`-block form: under the launcher's `set -e` a false test on the last iteration kills the launch.
 
@@ -535,6 +545,73 @@ Run `wiki_lint(domain="icodex")` and confirm no new finding for that page.
 git add docs/iwiki-mcp-modes.md
 git commit -m "docs: describe the three iwiki transport modes"
 ```
+
+---
+
+### Task 7b: Contract the behaviour as a Given-When-Then scenario
+
+**Files:**
+- Create (wiki, through MCP tools): `icodex/specification/iwiki-dual-transport-wiring`
+
+**Interfaces:**
+- Consumes: the finished behaviour from Tasks 2 through 5, and the mode table Task 7 wrote.
+- Produces: nothing other tasks read.
+
+- [ ] **Step 1: Check no scenario already covers this**
+
+```text
+wiki_spec_search(query="iwiki transport wiring registers servers", domains=["icodex"])
+```
+
+Expected: no result describing transport registration. A hit means amend that scenario
+instead of writing a new one, keeping its `id` stable.
+
+- [ ] **Step 2: Write the page**
+
+`wiki_write_page(domain="icodex", slug="specification/iwiki-dual-transport-wiring",
+type="specification", status="stable", tags=["specification", "iwiki", "transport"],
+source="lib/iwiki/iwiki.sh")` with one `##` section holding exactly this fence:
+
+````markdown
+```iwiki-gwt
+id = "register-both-iwiki-transports"
+title = "Register both iwiki transports for one launch"
+given = [
+  { role = "state", name = "RemoteUrlAndTokenResolve" },
+  { role = "state", name = "LocalServerSettingsComplete" }
+]
+when = { role = "action", name = "EnsureIwikiWiring" }
+then = [
+  { role = "outcome", name = "RemoteServerRegisteredAsIwiki" },
+  { role = "outcome", name = "LocalServerRegisteredAsIwikiLocal" }
+]
+code = [
+  { relation = "implements", phase = "when", file = "lib/iwiki/iwiki.sh" },
+  { relation = "verifies", file = "tests/test_iwiki_wiring.sh" }
+]
+```
+````
+
+Use `file` selectors, not `symbol`: the published code-graph snapshot for this domain is
+stale until Task 11 deploys the rollout, so a qualified name would not resolve.
+
+- [ ] **Step 3: Confirm the projection accepted it**
+
+```text
+wiki_spec_context(domain="icodex", scenario_id="register-both-iwiki-transports")
+```
+
+Expected: the scenario is present with both bindings. `graph_unavailable` or
+`stale_graph` is acceptable and expected here; `invalid_scenario` is not.
+
+- [ ] **Step 4: Confirm the domain lints clean**
+
+```text
+wiki_lint(domain="icodex")
+```
+
+Expected: no new finding naming this page, and the `specifications` block reports no
+`invalid_scenario` or `duplicate_scenario_id`.
 
 ---
 
