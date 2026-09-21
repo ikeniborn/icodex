@@ -1,9 +1,9 @@
 
-# Code graph is a local Git/stdio cache for Python only. This repository is Bash,
-# so keep it disabled. To enable it for a Python project, set enabled = true and
-# uncomment or adjust the bounded settings below.
+# The code graph below indexes this repository's Bash and Python sources. It is
+# built by a local Git/stdio server, so a launch that registers only the remote
+# transport cannot refresh it and its published snapshot goes stale.
 read = ["iclaude", "icodex", "iwiki-mcp", "devops"]
-write = ["icodex", "devops", "icodex"]
+write = ["icodex", "devops"]
 primary = "icodex"
 
 # GWT specification policy for every visible local domain.
