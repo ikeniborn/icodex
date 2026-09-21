@@ -242,4 +242,88 @@ assert_eq "remote has no local env vars" "0" "$(grep -c '^env_vars =' "$ICODEX_H
 assert_eq "remote token not written literally" "0" "$(grep -c 'remote-test-token' "$ICODEX_HOME_DIR/config.toml")"
 unset ICODEX_IWIKI_REMOTE_URL ICODEX_IWIKI_REMOTE_TOKEN
 
+# --- dual: a resolvable remote and a resolvable local set register both servers ---
+export ICODEX_HOME_DIR="$tmp/home-dual"
+export ICODEX_PROJECT_ROOT="$tmp/project-dual"
+export ICODEX_IWIKI_REMOTE_URL="https://iwiki.example.com/mcp"
+export ICODEX_IWIKI_REMOTE_TOKEN="remote-test-token"
+export ICODEX_IWIKI_COMMAND="$tmp/bin/iwiki-mcp"
+export ICODEX_IWIKI_BASE_DIR="$tmp/wiki-base"
+export ICODEX_IWIKI_LLM_BASE_URL="http://test-llm:1234/v1"
+export ICODEX_IWIKI_LLM_KEY="test-key"
+mkdir -p "$ICODEX_HOME_DIR" "$ICODEX_PROJECT_ROOT"
+printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
+ensure_iwiki_wiring
+cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "dual: remote table named iwiki" "$cfg" '[mcp_servers.iwiki]'
+assert_contains "dual: remote url present" "$cfg" 'url = "https://iwiki.example.com/mcp"'
+assert_contains "dual: local table suffixed" "$cfg" '[mcp_servers.iwiki-local]'
+assert_contains "dual: local env table suffixed" "$cfg" '[mcp_servers.iwiki-local.env]'
+assert_contains "dual: local command present" "$cfg" "command = \"$tmp/bin/iwiki-mcp\""
+assert_eq "dual: remote token not literal" "0" "$(grep -c 'remote-test-token' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "dual: llm key not literal" "0" "$(grep -c 'test-key' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "dual: exactly one start marker" "1" "$(grep -c '# icodex:iwiki:start' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "dual: region at end of file" "# icodex:iwiki:end" "$(tail -n1 "$ICODEX_HOME_DIR/config.toml")"
+
+before="$(cat "$ICODEX_HOME_DIR/config.toml")"
+ensure_iwiki_wiring
+assert_eq "dual: idempotent second run" "$before" "$(cat "$ICODEX_HOME_DIR/config.toml")"
+
+# --- dual -> remote-only: the suffixed local table must not survive ---
+unset ICODEX_IWIKI_BASE_DIR ICODEX_IWIKI_LLM_BASE_URL ICODEX_IWIKI_LLM_KEY
+ensure_iwiki_wiring
+assert_eq "dual->remote: local table removed" "0" "$(grep -cF '[mcp_servers.iwiki-local]' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "dual->remote: local env table removed" "0" "$(grep -cF '[mcp_servers.iwiki-local.env]' "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "dual->remote: remote kept" "$(cat "$ICODEX_HOME_DIR/config.toml")" 'url = "https://iwiki.example.com/mcp"'
+export ICODEX_IWIKI_BASE_DIR="$tmp/wiki-base"
+export ICODEX_IWIKI_LLM_BASE_URL="http://test-llm:1234/v1"
+export ICODEX_IWIKI_LLM_KEY="test-key"
+
+# --- an unmarked stale iwiki-local table is removed before the managed region is added ---
+saved_home="$ICODEX_HOME_DIR"
+export ICODEX_HOME_DIR="$tmp/home-stale-local"
+mkdir -p "$ICODEX_HOME_DIR"
+cat > "$ICODEX_HOME_DIR/config.toml" <<'STALE'
+model = "x"
+[mcp_servers.iwiki-local]
+command = "/old/unmarked/iwiki-mcp"
+env_vars = ["IWIKI_LLM_KEY"]
+[mcp_servers.iwiki-local.env]
+IWIKI_BASE_DIR = "/old/wiki"
+
+[mcp_servers.other]
+command = "/bin/true"
+STALE
+ensure_iwiki_wiring
+cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "unmarked stale local: old command gone" "0" "$(grep -c '/old/unmarked/iwiki-mcp' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "unmarked stale local: exactly one local table" "1" "$(grep -cF '[mcp_servers.iwiki-local]' "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "unmarked stale local: other mcp kept" "$cfg" "[mcp_servers.other]"
+export ICODEX_HOME_DIR="$saved_home"
+
+# --- remote URL without a token falls back to the local server, named iwiki ---
+export ICODEX_HOME_DIR="$tmp/home-remote-untokened"
+mkdir -p "$ICODEX_HOME_DIR"
+printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
+unset ICODEX_IWIKI_REMOTE_TOKEN IWIKI_REMOTE_TOKEN
+assert_exit "untokened remote -> exit 0" 0 ensure_iwiki_wiring
+cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "untokened remote: local server present" "$cfg" "command = \"$tmp/bin/iwiki-mcp\""
+assert_eq "untokened remote: named iwiki" "1" "$(grep -cF '[mcp_servers.iwiki]' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "untokened remote: no suffixed table" "0" "$(grep -cF '[mcp_servers.iwiki-local]' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "untokened remote: no url" "0" "$(grep -c '^url =' "$ICODEX_HOME_DIR/config.toml")"
+export ICODEX_IWIKI_REMOTE_TOKEN="remote-test-token"
+
+# --- the GWT hook gates writes through either server ---
+export ICODEX_HOME_DIR="$tmp/home-hook"
+mkdir -p "$ICODEX_HOME_DIR"
+printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
+printf '{\n  "hooks": {}\n}\n' > "$ICODEX_HOME_DIR/hooks.json"
+ensure_iwiki_wiring
+hooks="$(cat "$ICODEX_HOME_DIR/hooks.json")"
+assert_contains "hook: pre matches local update" "$hooks" 'mcp__iwiki-local__wiki_update_page'
+assert_contains "hook: pre still matches remote update" "$hooks" 'mcp__iwiki__wiki_update_page'
+assert_contains "hook: post matches local status" "$hooks" 'mcp__iwiki-local__wiki_status'
+assert_contains "hook: post matches local spec context" "$hooks" 'mcp__iwiki-local__wiki_spec_context'
+
 finish

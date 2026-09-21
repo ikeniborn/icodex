@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Wire the iwiki MCP server into the per-project Codex home config.toml at launch.
-# Always on: a delimited region registers [mcp_servers.iwiki]. The block is built
-# from ICODEX_IWIKI_* config: command falls back to `command -v iwiki-mcp`;
+# Wire the iwiki MCP server(s) into the per-project Codex home config.toml at
+# launch. Always on: a delimited region registers [mcp_servers.iwiki] alone, or
+# both [mcp_servers.iwiki] (remote) and [mcp_servers.iwiki-local] when a remote
+# URL and a complete local set both resolve. Each block is built from
+# ICODEX_IWIKI_* config: command falls back to `command -v iwiki-mcp`;
 # IWIKI_LLM_BASE_URL, generated IWIKI_PROJECT_DIR, and secret IWIKI_LLM_KEY are
 # required. Git bindings also require IWIKI_BASE_DIR; PostgreSQL bindings require
 # secret IWIKI_DB_PASSWORD instead. Every other IWIKI_* server var is written only
@@ -23,15 +25,16 @@ _IWIKI_GWT_POST='python3 "$CODEX_HOME/hooks/gwt-gate.py" --post'
 # the matching ICODEX_IWIKI_<NAME> is set. Extend this list to expose new vars.
 _IWIKI_OPTIONAL_VARS="EMBED_MODEL EMBED_DIMENSIONS TOP_K SCORE_THRESHOLD SEARCH_MODE RERANK_MODEL IDLE_TIMEOUT_SECONDS GRAPH_DEPTH SEED_TOP_K BFS_TOP_K SEED_THRESHOLD WRITE_SEED_THRESHOLD CHAT_MODEL CHUNK_SIZE CHUNK_OVERLAP SUMMARY_MAX_CHARS CODE_GRAPH_ENABLED CODE_GRAPH_MAX_FILE_BYTES CODE_GRAPH_MAX_FILES CODE_GRAPH_AUTO_REBUILD"
 
-# Emit the [mcp_servers.iwiki] block (without the region markers) from resolved
-# values. command/env_vars precede the [.env] subtable header so they bind to the
+# Emit one local [mcp_servers.<server>] block (without the region markers) from
+# resolved values; <server> is "iwiki" alone or "iwiki-local" beside a remote
+# block. command/env_vars precede the [.env] subtable header so they bind to the
 # parent table, not the subtable. Optional vars are appended only when set.
-_iwiki_region_body() { # <command> <base_dir> <llm_base_url> <project_dir>
-  local cmd="$1" base="$2" url="$3" project="$4" name cfg val
-  printf '[mcp_servers.iwiki]\n'
+_iwiki_region_body() { # <server-name> <command> <base_dir> <llm_base_url> <project_dir>
+  local server="$1" cmd="$2" base="$3" url="$4" project="$5" name cfg val
+  printf '[mcp_servers.%s]\n' "$server"
   printf 'command = "%s"\n' "$cmd"
   printf 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD"]\n'
-  printf '[mcp_servers.iwiki.env]\n'
+  printf '[mcp_servers.%s.env]\n' "$server"
   if [[ -n "$base" ]]; then
     printf 'IWIKI_BASE_DIR = "%s"\n' "$base"
   fi
@@ -49,9 +52,9 @@ _iwiki_region_body() { # <command> <base_dir> <llm_base_url> <project_dir>
   done
 }
 
-_iwiki_remote_region_body() { # <remote-url>
-  local remote_url="$1"
-  printf '[mcp_servers.iwiki]\n'
+_iwiki_remote_region_body() { # <server-name> <remote-url>
+  local server="$1" remote_url="$2"
+  printf '[mcp_servers.%s]\n' "$server"
   printf 'url = "%s"\n' "$remote_url"
   printf 'bearer_token_env_var = "IWIKI_REMOTE_TOKEN"\n'
 }
@@ -136,6 +139,19 @@ PostgreSQL writes are durable, so do not call Git-only
 `wiki_sync` or OKF maintenance tools. Domain-grant reads require explicit hosted
 management work; `wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority.
 
+When `iwiki-local` is registered beside `iwiki`, the two servers may address different
+stores: `iwiki` is the hosted PostgreSQL wiki, while `iwiki-local` serves whatever store
+this project's `.iwiki.toml` configures — usually a local Git base, and the same hosted
+wiki when the project declares PostgreSQL storage. While `iwiki` answers, use
+`iwiki-local` only for `wiki_code_index` and the code readers `wiki_code_status`,
+`wiki_code_search`, and `wiki_code_context`; send every Markdown and specification call
+to `iwiki`. Where the two stores differ, a misrouted write lands in the wrong one
+silently.
+If `iwiki` is unreachable — absent from the session, a failed `initialize`, or transport
+errors on every call — `iwiki-local` becomes the full server, writes included. When it
+backs a different store, record each such write on the topic's ledger page as having
+landed there, so it can be reconciled with the hosted copy afterwards.
+
 <!-- icodex:iwiki-remote-scope:end -->
 EOF
   fi
@@ -180,13 +196,15 @@ def replace(event, command, matcher, status):
 replace(
     "PreToolUse",
     gate,
-    "mcp__iwiki__wiki_update_page|wiki_update_page",
+    "mcp__iwiki__wiki_update_page|mcp__iwiki-local__wiki_update_page|wiki_update_page",
     "Checking GWT context ordering",
 )
 replace(
     "PostToolUse",
     post,
-    "mcp__iwiki__wiki_status|wiki_status|mcp__iwiki__wiki_spec_context|wiki_spec_context|mcp__iwiki__wiki_update_page|wiki_update_page",
+    "mcp__iwiki__wiki_status|mcp__iwiki-local__wiki_status|wiki_status|"
+    "mcp__iwiki__wiki_spec_context|mcp__iwiki-local__wiki_spec_context|wiki_spec_context|"
+    "mcp__iwiki__wiki_update_page|mcp__iwiki-local__wiki_update_page|wiki_update_page",
     "Recording GWT context ordering",
 )
 json.dump(config, sys.stdout, indent=2)
@@ -216,7 +234,7 @@ _iwiki_strip_existing_wiring() { # <config>
     $0 == s { in_region=1; next }
     $0 == e { in_region=0; next }
     in_region { next }
-    /^\[mcp_servers\.iwiki(\]|\.)/ { in_stale=1; next }
+    /^\[mcp_servers\.iwiki(-local)?(\]|\.)/ { in_stale=1; next }
     /^\[/ { in_stale=0 }
     !in_stale { print }
   ' "$file"
@@ -238,21 +256,42 @@ ensure_iwiki_wiring() {
   remote_url="${ICODEX_IWIKI_REMOTE_URL:-}"
   remote_token="${ICODEX_IWIKI_REMOTE_TOKEN:-${IWIKI_REMOTE_TOKEN:-}}"
   ensure_iwiki_remote_scope_instructions
+  local remote_body="" local_body="" server_name="iwiki"
   if [[ -n "$remote_url" ]]; then
-    if [[ -z "$remote_token" ]]; then
-      log_warn "iwiki: remote URL is set but remote token is unresolved, skipping iwiki wiring"
-      return 0
+    if [[ -n "$remote_token" ]]; then
+      remote_body="$(_iwiki_remote_region_body iwiki "$remote_url")"
+    else
+      log_warn "iwiki: remote URL is set but remote token is unresolved, skipping the remote server"
     fi
-    body="$(_iwiki_remote_region_body "$remote_url")"
+  fi
+  if [[ -n "$project" ]] && _iwiki_project_uses_postgres "$project"; then
+    postgres=1
+  fi
+  local local_ready=1
+  if [[ -z "$cmd" || -z "$url" || -z "$key" || -z "$project" ]]; then
+    local_ready=0
+  elif [[ "$postgres" -eq 1 && -z "$db_password" ]]; then
+    local_ready=0
+  elif [[ "$postgres" -eq 0 && -z "$base" ]]; then
+    local_ready=0
+  fi
+  if [[ "$local_ready" -eq 1 ]]; then
+    if [[ -n "$remote_body" ]]; then
+      server_name="iwiki-local"
+    fi
+    local_body="$(_iwiki_region_body "$server_name" "$cmd" "$base" "$url" "$project")"
+  elif [[ -z "$remote_body" ]]; then
+    log_warn "iwiki: required setting unresolved, skipping iwiki wiring"
+  fi
+  if [[ -z "$remote_body" && -z "$local_body" ]]; then
+    return 0
+  fi
+  if [[ -n "$remote_body" && -n "$local_body" ]]; then
+    body="$remote_body"$'\n'"$local_body"
+  elif [[ -n "$remote_body" ]]; then
+    body="$remote_body"
   else
-    if [[ -n "$project" ]] && _iwiki_project_uses_postgres "$project"; then
-      postgres=1
-    fi
-    if [[ -z "$cmd" || -z "$url" || -z "$key" || -z "$project" || ( "$postgres" -eq 0 && -z "$base" ) || ( "$postgres" -eq 1 && -z "$db_password" ) ]]; then
-      log_warn "iwiki: required setting unresolved, skipping iwiki wiring"
-      return 0
-    fi
-    body="$(_iwiki_region_body "$cmd" "$base" "$url" "$project")"
+    body="$local_body"
   fi
   ensure_iwiki_gwt_hook
   tmp="$(mktemp)"

@@ -52,6 +52,8 @@ assert_contains "remote scope fails closed on binding mismatch" "$flat_agents" '
 assert_contains "remote scope gates hosted graph freshness and provenance" "$flat_agents" 'Use hosted code results only when `state == "ready"`, `fresh == true`, and `binding_source == "session"`.'
 assert_contains "remote scope constrains hosted publication" "$flat_agents" 'Hosted publication requires a writable primary, accepts neither client `domain` nor `iwiki_id`, and must obey the limits returned by `wiki_code_publish_begin`.'
 assert_contains "remote scope protects grant reads and mutations" "$flat_agents" 'Domain-grant reads require explicit hosted management work; `wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority.'
+assert_contains "scope: names the local server" "$agents" "iwiki-local"
+assert_contains "scope: names the outage rule" "$agents" "becomes the full server"
 assert_eq "remote scope excludes token" "0" "$(grep -c 'remote-test-token' "$ICODEX_HOME_DIR/AGENTS.md")"
 assert_eq "remote scope is idempotent" "1" "$(grep -c '<!-- icodex:iwiki-remote-scope:start -->' "$ICODEX_HOME_DIR/AGENTS.md")"
 

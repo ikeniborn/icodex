@@ -70,9 +70,26 @@ iwiki-mcp serve --transport streamable-http
 ```
 
 The endpoint is `/mcp`. Keep the listener on loopback and publish it through a TLS reverse
-proxy that forwards the exact `Origin` and does not log `Authorization`. This wrapper currently
-selects one managed transport per launch: remote configuration replaces local stdio when
-`ICODEX_IWIKI_REMOTE_URL` is set.
+proxy that forwards the exact `Origin` and does not log `Authorization`.
+
+A launch registers one or two managed iwiki servers, depending on what resolves.
+
+| Condition | Registered |
+|---|---|
+| Remote URL and token resolve, local settings incomplete | `[mcp_servers.iwiki]` over HTTP |
+| No usable remote block — no URL configured, or its token does not resolve | `[mcp_servers.iwiki]` over stdio |
+| Both resolve | `[mcp_servers.iwiki]` over HTTP and `[mcp_servers.iwiki-local]` over stdio |
+
+The name `iwiki` always belongs to the server that answers Markdown and specification
+calls, so instructions and hook matchers that reference `mcp__iwiki__*` hold in every
+mode. In the dual mode `iwiki-local` exists for `wiki_code_index` and the code readers,
+because a hosted server answers `source_unavailable` to an index request; it becomes the
+full server only while the remote one is unreachable.
+
+A remote URL whose token does not resolve does not cost the launch its wiki. The remote
+block is skipped with a warning and a complete local set is still registered — as
+`[mcp_servers.iwiki]`, since it is then the only server. Before this, an unresolved token
+skipped the whole wiring and left the session with no iwiki at all.
 
 ### External MCP client
 
@@ -84,8 +101,8 @@ ICODEX_IWIKI_REMOTE_URL=https://iwiki.example.com/mcp
 ICODEX_IWIKI_REMOTE_TOKEN=<bearer-token>
 ```
 
-When the remote URL is set, icodex replaces its managed local stdio server with the remote MCP
-configuration shown in `iwiki-remote-mcp.toml.example`. The token is mapped only at runtime to
+When the remote URL and token resolve, icodex registers the remote server as `[mcp_servers.iwiki]`
+with the configuration shown in `iwiki-remote-mcp.toml.example`. The token is mapped only at runtime to
 `IWIKI_REMOTE_TOKEN`, never written to TOML. The remote server resolves wiki identity and
 read/write scope from the token; database and model credentials remain server-only.
 
