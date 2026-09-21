@@ -279,4 +279,17 @@ export ICODEX_IWIKI_BASE_DIR="$tmp/wiki-base"
 export ICODEX_IWIKI_LLM_BASE_URL="http://test-llm:1234/v1"
 export ICODEX_IWIKI_LLM_KEY="test-key"
 
+# --- remote URL without a token falls back to the local server, named iwiki ---
+export ICODEX_HOME_DIR="$tmp/home-remote-untokened"
+mkdir -p "$ICODEX_HOME_DIR"
+printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
+unset ICODEX_IWIKI_REMOTE_TOKEN IWIKI_REMOTE_TOKEN
+assert_exit "untokened remote -> exit 0" 0 ensure_iwiki_wiring
+cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "untokened remote: local server present" "$cfg" "command = \"$tmp/bin/iwiki-mcp\""
+assert_eq "untokened remote: named iwiki" "1" "$(grep -cF '[mcp_servers.iwiki]' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "untokened remote: no suffixed table" "0" "$(grep -cF '[mcp_servers.iwiki-local]' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "untokened remote: no url" "0" "$(grep -c '^url =' "$ICODEX_HOME_DIR/config.toml")"
+export ICODEX_IWIKI_REMOTE_TOKEN="remote-test-token"
+
 finish
