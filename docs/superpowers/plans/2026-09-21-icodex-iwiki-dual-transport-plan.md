@@ -42,6 +42,11 @@ review:
 chain:
   intent: 5f9ea0d56abe70b3
   spec: 1d52a28f9e397e44
+result_check:
+  verdict: OK
+  plan_hash: 38b040a207796f8f
+  last_run: 2026-09-21
+  scope: phase A only; phases B-D land in other repositories by design
 workflow:
   route: chain
   continuation: full
