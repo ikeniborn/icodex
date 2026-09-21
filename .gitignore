@@ -13,6 +13,8 @@
 !.codex-isolated/caveman/**
 !.codex-isolated/rules/
 !.codex-isolated/rules/**
+!.codex-isolated/rules-no-prompt/
+!.codex-isolated/rules-no-prompt/**
 !.codex-isolated/agents/
 !.codex-isolated/agents/**
 !.codex-isolated/profiles/

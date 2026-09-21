@@ -1,0 +1,22 @@
+for cmd in [
+    "cp",
+    "mv",
+    "rm",
+    "rmdir",
+    "chmod",
+    "chown",
+    "truncate",
+    "shred",
+    "dd",
+    "mkfs",
+    "sudo",
+    "su",
+    "curl",
+    "wget",
+    "scp",
+    "rsync",
+    "nc",
+    "ncat",
+    "netcat",
+]:
+    prefix_rule(pattern = [cmd], decision = "prompt")

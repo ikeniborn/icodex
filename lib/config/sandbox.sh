@@ -99,6 +99,18 @@ _remove_toml_toplevel() { # <config> <key>
   rm -f "$tmp"
 }
 
+# Select command rules after resolving approval. A prompt rule cannot run under
+# approval_policy=never; Codex rejects the command before starting it.
+_select_execpolicy_rules() { # <approval>
+  local target="$ICODEX_HOME_DIR/rules" source="$ICODEX_SHARED_DIR/rules"
+  [[ "$1" == "never" ]] && source="$ICODEX_SHARED_DIR/rules-no-prompt"
+  if [[ -L "$target" && "$(readlink "$target")" == "$source" ]]; then
+    return 0
+  fi
+  rm -rf "$target"
+  ln -s "$source" "$target"
+}
+
 # Resolve the run mode and write it into the per-project config: sandbox_mode +
 # approval_policy (top-level upserts), default_permissions (upsert, or removed for
 # `none`), and the .git writability grant for the active managed profile. Warns on
@@ -109,6 +121,7 @@ apply_mode() {
   read -r sandbox approval permissions <<<"$triple"
   _upsert_toml_toplevel "$config" sandbox_mode "$sandbox"
   _upsert_toml_toplevel "$config" approval_policy "$approval"
+  _select_execpolicy_rules "$approval"
   if [[ "$permissions" == "none" ]]; then
     _remove_toml_toplevel "$config" default_permissions
     log_warn "permissions = none — managed permissions disabled; managed filesystem/network rules no longer apply (project: $(basename "$ICODEX_HOME_DIR"))"

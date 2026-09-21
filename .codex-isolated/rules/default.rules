@@ -33,29 +33,6 @@ for cmd in [
     prefix_rule(pattern = [cmd], decision = "allow")
 
 for cmd in [
-    "cp",
-    "mv",
-    "rm",
-    "rmdir",
-    "chmod",
-    "chown",
-    "truncate",
-    "shred",
-    "dd",
-    "mkfs",
-    "sudo",
-    "su",
-    "curl",
-    "wget",
-    "scp",
-    "rsync",
-    "nc",
-    "ncat",
-    "netcat",
-]:
-    prefix_rule(pattern = [cmd], decision = "prompt")
-
-for cmd in [
     "shutdown",
     "reboot",
 ]:
