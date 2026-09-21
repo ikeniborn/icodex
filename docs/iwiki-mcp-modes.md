@@ -77,7 +77,7 @@ A launch registers one or two managed iwiki servers, depending on what resolves.
 | Condition | Registered |
 |---|---|
 | Remote URL and token resolve, local settings incomplete | `[mcp_servers.iwiki]` over HTTP |
-| No remote URL, local settings complete | `[mcp_servers.iwiki]` over stdio |
+| No usable remote block — no URL configured, or its token does not resolve | `[mcp_servers.iwiki]` over stdio |
 | Both resolve | `[mcp_servers.iwiki]` over HTTP and `[mcp_servers.iwiki-local]` over stdio |
 
 The name `iwiki` always belongs to the server that answers Markdown and specification
@@ -85,6 +85,11 @@ calls, so instructions and hook matchers that reference `mcp__iwiki__*` hold in 
 mode. In the dual mode `iwiki-local` exists for `wiki_code_index` and the code readers,
 because a hosted server answers `source_unavailable` to an index request; it becomes the
 full server only while the remote one is unreachable.
+
+A remote URL whose token does not resolve does not cost the launch its wiki. The remote
+block is skipped with a warning and a complete local set is still registered — as
+`[mcp_servers.iwiki]`, since it is then the only server. Before this, an unresolved token
+skipped the whole wiring and left the session with no iwiki at all.
 
 ### External MCP client
 
