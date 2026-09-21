@@ -269,4 +269,14 @@ before="$(cat "$ICODEX_HOME_DIR/config.toml")"
 ensure_iwiki_wiring
 assert_eq "dual: idempotent second run" "$before" "$(cat "$ICODEX_HOME_DIR/config.toml")"
 
+# --- dual -> remote-only: the suffixed local table must not survive ---
+unset ICODEX_IWIKI_BASE_DIR ICODEX_IWIKI_LLM_BASE_URL ICODEX_IWIKI_LLM_KEY
+ensure_iwiki_wiring
+assert_eq "dual->remote: local table removed" "0" "$(grep -cF '[mcp_servers.iwiki-local]' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "dual->remote: local env table removed" "0" "$(grep -cF '[mcp_servers.iwiki-local.env]' "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "dual->remote: remote kept" "$(cat "$ICODEX_HOME_DIR/config.toml")" 'url = "https://iwiki.example.com/mcp"'
+export ICODEX_IWIKI_BASE_DIR="$tmp/wiki-base"
+export ICODEX_IWIKI_LLM_BASE_URL="http://test-llm:1234/v1"
+export ICODEX_IWIKI_LLM_KEY="test-key"
+
 finish

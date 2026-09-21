@@ -216,7 +216,7 @@ _iwiki_strip_existing_wiring() { # <config>
     $0 == s { in_region=1; next }
     $0 == e { in_region=0; next }
     in_region { next }
-    /^\[mcp_servers\.iwiki(\]|\.)/ { in_stale=1; next }
+    /^\[mcp_servers\.iwiki(-local)?(\]|\.)/ { in_stale=1; next }
     /^\[/ { in_stale=0 }
     !in_stale { print }
   ' "$file"
