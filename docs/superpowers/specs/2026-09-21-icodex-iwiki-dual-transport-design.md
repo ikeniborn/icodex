@@ -1,3 +1,40 @@
+---
+review:
+  spec_hash: 4b5000a79681cd75
+  last_run: 2026-09-21
+  phases:
+    structure: { status: passed }
+    coverage: { status: passed }
+    clarity: { status: passed }
+    consistency: { status: passed }
+  findings:
+    - id: F-001
+      phase: clarity
+      severity: WARNING
+      section: R9
+      section_hash: ad2fad1506b08c07
+      fragment: "the reference must either carry them or point at the page that does"
+      text: "The requirement allowed two readings - add full descriptions, or only cross-link - which would have produced different work."
+      fix: "Settled on one: every registered tool gets a table row; a tool with a dedicated page gets a one-line summary plus a link."
+      verdict: fixed
+      verdict_at: 2026-09-21
+    - id: F-002
+      phase: consistency
+      severity: WARNING
+      section: R6
+      section_hash: 32acff78ad733e26
+      fragment: "iwiki-local then becomes the full server, writes included"
+      text: "The intent's health metric says no page lands in the local Git base 'by accident'. R6 permits a deliberate write there during an outage, which widens the metric's meaning."
+      fix: "Accepted as the user's explicit choice; R6 requires every such write to be recorded on the ledger for later reconciliation, so it is never silent."
+      verdict: accepted
+      verdict_at: 2026-09-21
+chain:
+  intent: 5f9ea0d56abe70b3
+workflow:
+  route: chain
+  continuation: full
+---
+
 # Design: icodex-iwiki-dual-transport
 
 **Date:** 2026-09-21
@@ -129,9 +166,10 @@ it. This is finding F-002 from the intent gate.
 the nine code-graph tools (`wiki_code_status`, `wiki_code_search`, `wiki_code_context`,
 `wiki_code_index`, `wiki_code_refresh_links`, and the four `wiki_code_publish_*`), the
 three domain-grant tools, and the three specification tools. Some are covered by
-`docs/code-graph.md` and `docs/specifications.md`; the reference must either carry them or
-point at the page that does, so an agent reading one table does not conclude a tool does
-not exist.
+`docs/code-graph.md` and `docs/specifications.md`, but an agent reading the reference
+alone concludes those tools do not exist. Every registered tool gets a row in the
+reference table; a tool with a dedicated page gets a one-line summary there plus a link to
+that page, rather than a duplicated description that would drift.
 
 `wiki_code_refresh_links` is the sharpest case: it is registered in `server.py`, described
 in `docs/code-graph-publishing.md`, absent from `docs/tools-reference.md`, absent from the
