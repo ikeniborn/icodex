@@ -238,21 +238,42 @@ ensure_iwiki_wiring() {
   remote_url="${ICODEX_IWIKI_REMOTE_URL:-}"
   remote_token="${ICODEX_IWIKI_REMOTE_TOKEN:-${IWIKI_REMOTE_TOKEN:-}}"
   ensure_iwiki_remote_scope_instructions
+  local remote_body="" local_body="" server_name="iwiki"
   if [[ -n "$remote_url" ]]; then
-    if [[ -z "$remote_token" ]]; then
-      log_warn "iwiki: remote URL is set but remote token is unresolved, skipping iwiki wiring"
-      return 0
+    if [[ -n "$remote_token" ]]; then
+      remote_body="$(_iwiki_remote_region_body iwiki "$remote_url")"
+    else
+      log_warn "iwiki: remote URL is set but remote token is unresolved, skipping the remote server"
     fi
-    body="$(_iwiki_remote_region_body iwiki "$remote_url")"
+  fi
+  if [[ -n "$project" ]] && _iwiki_project_uses_postgres "$project"; then
+    postgres=1
+  fi
+  local local_ready=1
+  if [[ -z "$cmd" || -z "$url" || -z "$key" || -z "$project" ]]; then
+    local_ready=0
+  elif [[ "$postgres" -eq 1 && -z "$db_password" ]]; then
+    local_ready=0
+  elif [[ "$postgres" -eq 0 && -z "$base" ]]; then
+    local_ready=0
+  fi
+  if [[ "$local_ready" -eq 1 ]]; then
+    if [[ -n "$remote_body" ]]; then
+      server_name="iwiki-local"
+    fi
+    local_body="$(_iwiki_region_body "$server_name" "$cmd" "$base" "$url" "$project")"
+  elif [[ -z "$remote_body" ]]; then
+    log_warn "iwiki: required setting unresolved, skipping iwiki wiring"
+  fi
+  if [[ -z "$remote_body" && -z "$local_body" ]]; then
+    return 0
+  fi
+  if [[ -n "$remote_body" && -n "$local_body" ]]; then
+    body="$remote_body"$'\n'"$local_body"
+  elif [[ -n "$remote_body" ]]; then
+    body="$remote_body"
   else
-    if [[ -n "$project" ]] && _iwiki_project_uses_postgres "$project"; then
-      postgres=1
-    fi
-    if [[ -z "$cmd" || -z "$url" || -z "$key" || -z "$project" || ( "$postgres" -eq 0 && -z "$base" ) || ( "$postgres" -eq 1 && -z "$db_password" ) ]]; then
-      log_warn "iwiki: required setting unresolved, skipping iwiki wiring"
-      return 0
-    fi
-    body="$(_iwiki_region_body iwiki "$cmd" "$base" "$url" "$project")"
+    body="$local_body"
   fi
   ensure_iwiki_gwt_hook
   tmp="$(mktemp)"
