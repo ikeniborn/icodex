@@ -139,15 +139,18 @@ PostgreSQL writes are durable, so do not call Git-only
 `wiki_sync` or OKF maintenance tools. Domain-grant reads require explicit hosted
 management work; `wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority.
 
-When `iwiki-local` is registered beside `iwiki`, the two servers address different stores:
-`iwiki` is the hosted PostgreSQL wiki, `iwiki-local` is a local Git base. While `iwiki`
-answers, use `iwiki-local` only for `wiki_code_index` and the code readers
-`wiki_code_status`, `wiki_code_search`, and `wiki_code_context`; send every Markdown and
-specification call to `iwiki`. A misrouted write lands in the wrong store silently.
+When `iwiki-local` is registered beside `iwiki`, the two servers may address different
+stores: `iwiki` is the hosted PostgreSQL wiki, while `iwiki-local` serves whatever store
+this project's `.iwiki.toml` configures — usually a local Git base, and the same hosted
+wiki when the project declares PostgreSQL storage. While `iwiki` answers, use
+`iwiki-local` only for `wiki_code_index` and the code readers `wiki_code_status`,
+`wiki_code_search`, and `wiki_code_context`; send every Markdown and specification call
+to `iwiki`. Where the two stores differ, a misrouted write lands in the wrong one
+silently.
 If `iwiki` is unreachable — absent from the session, a failed `initialize`, or transport
-errors on every call — `iwiki-local` becomes the full server, writes included. Record each
-such write on the topic's ledger page as having landed in the local store, so it can be
-reconciled with the hosted copy afterwards.
+errors on every call — `iwiki-local` becomes the full server, writes included. When it
+backs a different store, record each such write on the topic's ledger page as having
+landed there, so it can be reconciled with the hosted copy afterwards.
 
 <!-- icodex:iwiki-remote-scope:end -->
 EOF
