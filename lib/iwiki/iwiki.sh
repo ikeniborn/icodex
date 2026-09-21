@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Wire the iwiki MCP server into the per-project Codex home config.toml at launch.
-# Always on: a delimited region registers [mcp_servers.iwiki]. The block is built
-# from ICODEX_IWIKI_* config: command falls back to `command -v iwiki-mcp`;
+# Wire the iwiki MCP server(s) into the per-project Codex home config.toml at
+# launch. Always on: a delimited region registers [mcp_servers.iwiki] alone, or
+# both [mcp_servers.iwiki] (remote) and [mcp_servers.iwiki-local] when a remote
+# URL and a complete local set both resolve. Each block is built from
+# ICODEX_IWIKI_* config: command falls back to `command -v iwiki-mcp`;
 # IWIKI_LLM_BASE_URL, generated IWIKI_PROJECT_DIR, and secret IWIKI_LLM_KEY are
 # required. Git bindings also require IWIKI_BASE_DIR; PostgreSQL bindings require
 # secret IWIKI_DB_PASSWORD instead. Every other IWIKI_* server var is written only
@@ -23,8 +25,9 @@ _IWIKI_GWT_POST='python3 "$CODEX_HOME/hooks/gwt-gate.py" --post'
 # the matching ICODEX_IWIKI_<NAME> is set. Extend this list to expose new vars.
 _IWIKI_OPTIONAL_VARS="EMBED_MODEL EMBED_DIMENSIONS TOP_K SCORE_THRESHOLD SEARCH_MODE RERANK_MODEL IDLE_TIMEOUT_SECONDS GRAPH_DEPTH SEED_TOP_K BFS_TOP_K SEED_THRESHOLD WRITE_SEED_THRESHOLD CHAT_MODEL CHUNK_SIZE CHUNK_OVERLAP SUMMARY_MAX_CHARS CODE_GRAPH_ENABLED CODE_GRAPH_MAX_FILE_BYTES CODE_GRAPH_MAX_FILES CODE_GRAPH_AUTO_REBUILD"
 
-# Emit the [mcp_servers.iwiki] block (without the region markers) from resolved
-# values. command/env_vars precede the [.env] subtable header so they bind to the
+# Emit one local [mcp_servers.<server>] block (without the region markers) from
+# resolved values; <server> is "iwiki" alone or "iwiki-local" beside a remote
+# block. command/env_vars precede the [.env] subtable header so they bind to the
 # parent table, not the subtable. Optional vars are appended only when set.
 _iwiki_region_body() { # <server-name> <command> <base_dir> <llm_base_url> <project_dir>
   local server="$1" cmd="$2" base="$3" url="$4" project="$5" name cfg val
