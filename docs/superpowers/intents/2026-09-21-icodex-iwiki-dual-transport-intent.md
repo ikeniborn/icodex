@@ -1,3 +1,39 @@
+---
+review:
+  intent_hash: 5f9ea0d56abe70b3
+  last_run: 2026-09-21
+  phases:
+    structure: { status: passed }
+    completeness: { status: passed }
+    clarity: { status: passed }
+    consistency: { status: passed }
+    alignment: { status: passed }
+  findings:
+    - id: F-001
+      phase: clarity
+      severity: WARNING
+      section: Health Metrics
+      section_hash: e4e485fc77323d1e
+      fragment: "Codex startup time does not visibly regress."
+      text: "Health Metric carried no measurable criterion: 'visibly' names a mood, not a number."
+      fix: "Bound it to 3 seconds of the current startup time, averaged over three runs before and after."
+      verdict: fixed
+      verdict_at: 2026-09-21
+    - id: F-002
+      phase: alignment
+      severity: WARNING
+      section: Objective
+      section_hash: ad4619955ecba179
+      fragment: "iwiki-mcp-integration#Required Settings states that rule as the contract"
+      text: "The wiki page icodex/iwiki-mcp-integration and docs/iwiki-mcp-modes.md both document 'exactly one transport per launch'. Implementing this intent makes both statements false."
+      fix: "Update both documents as part of the implementation, not after it."
+      verdict: accepted
+      verdict_at: 2026-09-21
+workflow:
+  route: chain
+  continuation: pending
+---
+
 # Intent: icodex-iwiki-dual-transport
 
 **Date:** 2026-09-21
@@ -48,8 +84,10 @@ resolve, keeping the remote server under its existing name.
 - `tests/test_iwiki_wiring.sh` (61), `tests/test_iwiki_binding.sh` (14),
   `tests/test_iwiki_remote_scope.sh` (44), and `tests/test_iwiki_agent_contract.sh` (147)
   keep passing with no failures.
-- Codex startup time does not visibly regress. A second stdio server runs its own
-  embedding probe at launch, so the cost is real and must be measured rather than assumed.
+- Codex startup stays within 3 seconds of its current time, measured as the wall clock
+  from launch to a usable session, averaged over three runs before and after. A second
+  stdio server runs its own embedding probe at launch, so the cost is real and must be
+  measured rather than assumed.
 - No page or scenario lands in the local Git base by accident. Wiki writes continue to
   reach hosted PostgreSQL.
 
