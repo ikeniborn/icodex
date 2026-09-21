@@ -180,13 +180,15 @@ def replace(event, command, matcher, status):
 replace(
     "PreToolUse",
     gate,
-    "mcp__iwiki__wiki_update_page|wiki_update_page",
+    "mcp__iwiki__wiki_update_page|mcp__iwiki-local__wiki_update_page|wiki_update_page",
     "Checking GWT context ordering",
 )
 replace(
     "PostToolUse",
     post,
-    "mcp__iwiki__wiki_status|wiki_status|mcp__iwiki__wiki_spec_context|wiki_spec_context|mcp__iwiki__wiki_update_page|wiki_update_page",
+    "mcp__iwiki__wiki_status|mcp__iwiki-local__wiki_status|wiki_status|"
+    "mcp__iwiki__wiki_spec_context|mcp__iwiki-local__wiki_spec_context|wiki_spec_context|"
+    "mcp__iwiki__wiki_update_page|mcp__iwiki-local__wiki_update_page|wiki_update_page",
     "Recording GWT context ordering",
 )
 json.dump(config, sys.stdout, indent=2)

@@ -314,4 +314,16 @@ assert_eq "untokened remote: no suffixed table" "0" "$(grep -cF '[mcp_servers.iw
 assert_eq "untokened remote: no url" "0" "$(grep -c '^url =' "$ICODEX_HOME_DIR/config.toml")"
 export ICODEX_IWIKI_REMOTE_TOKEN="remote-test-token"
 
+# --- the GWT hook gates writes through either server ---
+export ICODEX_HOME_DIR="$tmp/home-hook"
+mkdir -p "$ICODEX_HOME_DIR"
+printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
+printf '{\n  "hooks": {}\n}\n' > "$ICODEX_HOME_DIR/hooks.json"
+ensure_iwiki_wiring
+hooks="$(cat "$ICODEX_HOME_DIR/hooks.json")"
+assert_contains "hook: pre matches local update" "$hooks" 'mcp__iwiki-local__wiki_update_page'
+assert_contains "hook: pre still matches remote update" "$hooks" 'mcp__iwiki__wiki_update_page'
+assert_contains "hook: post matches local status" "$hooks" 'mcp__iwiki-local__wiki_status'
+assert_contains "hook: post matches local spec context" "$hooks" 'mcp__iwiki-local__wiki_spec_context'
+
 finish
