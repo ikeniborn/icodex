@@ -83,7 +83,7 @@ assert_eq "ensure_git_writable idempotent" "$before_git" "$(cat "$gcfg")"
 rm -rf "$gt"
 
 # --- apply_mode: writes the resolved triple into the per-project config ---
-mt="$(mktemp -d)"; ICODEX_HOME_DIR="$mt/home"; mkdir -p "$ICODEX_HOME_DIR"
+mt="$(mktemp -d)"; ICODEX_HOME_DIR="$mt/home"; ICODEX_SHARED_DIR="$ROOT/.codex-isolated"; mkdir -p "$ICODEX_HOME_DIR"
 seed_mode() {
   cat > "$ICODEX_HOME_DIR/config.toml" <<'EOF'
 sandbox_mode = "workspace-write"
@@ -106,6 +106,7 @@ assert_eq "safe sandbox" "1" "$(grep -cFx 'sandbox_mode = "workspace-write"' "$c
 assert_eq "safe approval" "1" "$(grep -cFx 'approval_policy = "on-request"' "$cfg")"
 assert_eq "safe permissions" "1" "$(grep -cFx 'default_permissions = "dev-safe"' "$cfg")"
 assert_eq "safe grants .git" "1" "$(grep -cFx '".git/" = "write"' "$cfg")"
+assert_eq "on-request loads prompt rules" "$ICODEX_SHARED_DIR/rules" "$(readlink "$ICODEX_HOME_DIR/rules")"
 
 # full-auto: removes default_permissions, approval never, danger sandbox
 clear_env; ICODEX_MODE=full-auto; seed_mode
@@ -115,6 +116,9 @@ assert_eq "full-auto approval never" "1" "$(grep -cFx 'approval_policy = "never"
 assert_eq "full-auto sandbox danger" "1" "$(grep -cFx 'sandbox_mode = "danger-full-access"' "$cfg")"
 assert_contains "full-auto warns danger" "$warn_auto" "full filesystem access enabled"
 assert_contains "full-auto warns no managed perms" "$warn_auto" "managed permissions disabled"
+assert_eq "never excludes prompt rules" "$ICODEX_SHARED_DIR/rules-no-prompt" "$(readlink "$ICODEX_HOME_DIR/rules")"
+assert_exit "never retains default rules" 0 test -f "$ICODEX_HOME_DIR/rules/default.rules"
+assert_exit "never has no prompt rules" 1 test -e "$ICODEX_HOME_DIR/rules/prompt.rules"
 
 # idempotent: second apply byte-identical
 clear_env; ICODEX_MODE=full-ask; seed_mode
@@ -122,6 +126,7 @@ apply_mode
 before_apply="$(cat "$cfg")"
 apply_mode
 assert_eq "apply_mode idempotent" "$before_apply" "$(cat "$cfg")"
+assert_eq "on-request restores prompt rules" "$ICODEX_SHARED_DIR/rules" "$(readlink "$ICODEX_HOME_DIR/rules")"
 
 # resolve failure propagates
 clear_env; ICODEX_MODE=bogus; seed_mode
