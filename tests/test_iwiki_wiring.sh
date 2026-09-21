@@ -279,6 +279,28 @@ export ICODEX_IWIKI_BASE_DIR="$tmp/wiki-base"
 export ICODEX_IWIKI_LLM_BASE_URL="http://test-llm:1234/v1"
 export ICODEX_IWIKI_LLM_KEY="test-key"
 
+# --- an unmarked stale iwiki-local table is removed before the managed region is added ---
+saved_home="$ICODEX_HOME_DIR"
+export ICODEX_HOME_DIR="$tmp/home-stale-local"
+mkdir -p "$ICODEX_HOME_DIR"
+cat > "$ICODEX_HOME_DIR/config.toml" <<'STALE'
+model = "x"
+[mcp_servers.iwiki-local]
+command = "/old/unmarked/iwiki-mcp"
+env_vars = ["IWIKI_LLM_KEY"]
+[mcp_servers.iwiki-local.env]
+IWIKI_BASE_DIR = "/old/wiki"
+
+[mcp_servers.other]
+command = "/bin/true"
+STALE
+ensure_iwiki_wiring
+cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "unmarked stale local: old command gone" "0" "$(grep -c '/old/unmarked/iwiki-mcp' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "unmarked stale local: exactly one local table" "1" "$(grep -cF '[mcp_servers.iwiki-local]' "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "unmarked stale local: other mcp kept" "$cfg" "[mcp_servers.other]"
+export ICODEX_HOME_DIR="$saved_home"
+
 # --- remote URL without a token falls back to the local server, named iwiki ---
 export ICODEX_HOME_DIR="$tmp/home-remote-untokened"
 mkdir -p "$ICODEX_HOME_DIR"
