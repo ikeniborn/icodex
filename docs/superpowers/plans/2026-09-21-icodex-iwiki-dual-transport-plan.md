@@ -1,3 +1,32 @@
+---
+review:
+  plan_hash: 22d9f9772fb9e79b
+  last_run: 2026-09-21
+  phases:
+    structure: { status: passed }
+    coverage: { status: passed }
+    dependencies: { status: passed }
+    verifiability: { status: passed }
+    consistency: { status: passed }
+  findings:
+    - id: F-001
+      phase: verifiability
+      severity: WARNING
+      section: Task 8
+      section_hash: dbbc1a6a21a60c8c
+      fragment: "time three launches to a usable session, recording wall clock each time"
+      text: "The health-metric task named a measurement with no command that performs it, and a codex launch cannot be timed non-interactively."
+      fix: "Measure what the change actually adds instead: three timed stdio initialize round-trips against the local server, including its embedding probe. The baseline is zero because no second server starts today."
+      verdict: fixed
+      verdict_at: 2026-09-21
+chain:
+  intent: 5f9ea0d56abe70b3
+  spec: 4b5000a79681cd75
+workflow:
+  route: chain
+  continuation: full
+---
+
 # icodex iwiki dual transport Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -503,21 +532,38 @@ git commit -m "docs: describe the three iwiki transport modes"
 
 **Files:** none — this is the intent's health metric.
 
-- [ ] **Step 1: Measure three launches before the change**
+- [ ] **Step 1: Measure what the second server actually costs**
 
-Check out `origin/master` in a scratch worktree and time three launches to a usable session, recording wall clock each time.
+The added cost is one more stdio server reaching the point where it answers `initialize`,
+which includes its embedding probe. Measure that directly, three times:
 
-- [ ] **Step 2: Measure three launches on this branch**
+```bash
+for i in 1 2 3; do
+  /usr/bin/time -f "%e" env \
+    IWIKI_BASE_DIR="$ICODEX_IWIKI_BASE_DIR" \
+    IWIKI_LLM_BASE_URL="$ICODEX_IWIKI_LLM_BASE_URL" \
+    IWIKI_LLM_KEY="$ICODEX_IWIKI_LLM_KEY" \
+    iwiki-mcp <<'JSON' > /dev/null
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"timing","version":"0"}}}
+JSON
+done
+```
 
-Same measurement, same machine, no other load.
+Expected: three wall-clock numbers in seconds, printed by `time` on stderr.
 
-- [ ] **Step 3: Compare against the threshold**
+- [ ] **Step 2: Compare against the budget**
 
-The average must be within 3 seconds of the baseline. Over that, stop and report — the intent says escalate rather than absorb it.
+The baseline is zero — today no second server starts at all in this mode, so the measured
+number *is* the regression. The threshold is 3 seconds.
+
+- [ ] **Step 3: Escalate rather than absorb an overrun**
+
+Over 3 seconds, stop and report it. The intent's stop rule names this case explicitly; do
+not lower the threshold to fit the measurement.
 
 - [ ] **Step 4: Record the numbers on the ledger page**
 
-Six numbers and the two averages, on `icodex/reference/tasks/icodex-iwiki-dual-transport`, section `Evidence`.
+The three numbers and their average, on `icodex/reference/tasks/icodex-iwiki-dual-transport`, section `Evidence`.
 
 ---
 
