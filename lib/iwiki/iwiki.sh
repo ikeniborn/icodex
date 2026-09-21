@@ -26,12 +26,12 @@ _IWIKI_OPTIONAL_VARS="EMBED_MODEL EMBED_DIMENSIONS TOP_K SCORE_THRESHOLD SEARCH_
 # Emit the [mcp_servers.iwiki] block (without the region markers) from resolved
 # values. command/env_vars precede the [.env] subtable header so they bind to the
 # parent table, not the subtable. Optional vars are appended only when set.
-_iwiki_region_body() { # <command> <base_dir> <llm_base_url> <project_dir>
-  local cmd="$1" base="$2" url="$3" project="$4" name cfg val
-  printf '[mcp_servers.iwiki]\n'
+_iwiki_region_body() { # <server-name> <command> <base_dir> <llm_base_url> <project_dir>
+  local server="$1" cmd="$2" base="$3" url="$4" project="$5" name cfg val
+  printf '[mcp_servers.%s]\n' "$server"
   printf 'command = "%s"\n' "$cmd"
   printf 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD"]\n'
-  printf '[mcp_servers.iwiki.env]\n'
+  printf '[mcp_servers.%s.env]\n' "$server"
   if [[ -n "$base" ]]; then
     printf 'IWIKI_BASE_DIR = "%s"\n' "$base"
   fi
@@ -49,9 +49,9 @@ _iwiki_region_body() { # <command> <base_dir> <llm_base_url> <project_dir>
   done
 }
 
-_iwiki_remote_region_body() { # <remote-url>
-  local remote_url="$1"
-  printf '[mcp_servers.iwiki]\n'
+_iwiki_remote_region_body() { # <server-name> <remote-url>
+  local server="$1" remote_url="$2"
+  printf '[mcp_servers.%s]\n' "$server"
   printf 'url = "%s"\n' "$remote_url"
   printf 'bearer_token_env_var = "IWIKI_REMOTE_TOKEN"\n'
 }
@@ -243,7 +243,7 @@ ensure_iwiki_wiring() {
       log_warn "iwiki: remote URL is set but remote token is unresolved, skipping iwiki wiring"
       return 0
     fi
-    body="$(_iwiki_remote_region_body "$remote_url")"
+    body="$(_iwiki_remote_region_body iwiki "$remote_url")"
   else
     if [[ -n "$project" ]] && _iwiki_project_uses_postgres "$project"; then
       postgres=1
@@ -252,7 +252,7 @@ ensure_iwiki_wiring() {
       log_warn "iwiki: required setting unresolved, skipping iwiki wiring"
       return 0
     fi
-    body="$(_iwiki_region_body "$cmd" "$base" "$url" "$project")"
+    body="$(_iwiki_region_body iwiki "$cmd" "$base" "$url" "$project")"
   fi
   ensure_iwiki_gwt_hook
   tmp="$(mktemp)"
