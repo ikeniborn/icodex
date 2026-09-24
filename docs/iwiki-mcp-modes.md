@@ -17,6 +17,23 @@ Start the local mode normally:
 ./icodex.sh
 ```
 
+### System One shadow
+
+The local stdio server can call a separate GPU System One endpoint during
+`wiki_write_page` without changing the write result or stored metadata. Configure it in
+the ignored `.codex_config`:
+
+```text
+ICODEX_IWIKI_SYSTEM1_SHADOW=true
+ICODEX_IWIKI_SYSTEM1_BASE_URL=http://127.0.0.1:8000
+ICODEX_IWIKI_SYSTEM1_KEY=<separate-bearer-key>
+```
+
+`ICODEX_IWIKI_SYSTEM1_KEY` is forwarded at runtime through Codex `env_vars`; it is never
+written into generated `config.toml`. All three values affect only the local server in
+local or dual mode. A hosted HTTP client does not send them because hosted inference is
+configured in the server environment.
+
 ### Code graph
 
 Code graph supports Python, TypeScript, JavaScript, and Bash. Bash is opt-in, scans `.sh`

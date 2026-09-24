@@ -35,6 +35,9 @@ export ICODEX_IWIKI_BFS_TOP_K="11"
 export ICODEX_IWIKI_SEED_THRESHOLD="0.17"
 export ICODEX_IWIKI_WRITE_SEED_THRESHOLD="0.37"
 export ICODEX_IWIKI_CHAT_MODEL="chat-test-model"
+export ICODEX_IWIKI_SYSTEM1_SHADOW="true"
+export ICODEX_IWIKI_SYSTEM1_BASE_URL="http://system1-gpu:8000"
+export ICODEX_IWIKI_SYSTEM1_KEY="system1-secret"
 export ICODEX_IWIKI_CODE_GRAPH_ENABLED="false"
 export ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES="2000000"
 export ICODEX_IWIKI_CODE_GRAPH_MAX_FILES="5000"
@@ -50,7 +53,7 @@ ensure_iwiki_wiring
 cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
 assert_contains "block header present"     "$cfg" "[mcp_servers.iwiki]"
 assert_contains "resolved command"         "$cfg" "command = \"$tmp/bin/iwiki-mcp\""
-assert_contains "secret env_vars present"  "$cfg" 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD"]'
+assert_contains "secret env_vars present"  "$cfg" 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD", "IWIKI_SYSTEM1_KEY"]'
 assert_contains "resolved base dir"        "$cfg" "IWIKI_BASE_DIR = \"$tmp/wiki-base\""
 assert_contains "resolved llm url"         "$cfg" 'IWIKI_LLM_BASE_URL = "http://test-llm:1234/v1"'
 assert_contains "resolved project dir"     "$cfg" "IWIKI_PROJECT_DIR = \"$tmp/project-root\""
@@ -64,6 +67,8 @@ assert_contains "set optional bfs top k" "$cfg" 'IWIKI_BFS_TOP_K = "11"'
 assert_contains "set optional seed threshold" "$cfg" 'IWIKI_SEED_THRESHOLD = "0.17"'
 assert_contains "set optional write seed threshold" "$cfg" 'IWIKI_WRITE_SEED_THRESHOLD = "0.37"'
 assert_contains "set optional chat model" "$cfg" 'IWIKI_CHAT_MODEL = "chat-test-model"'
+assert_contains "set System One shadow" "$cfg" 'IWIKI_SYSTEM1_SHADOW = "true"'
+assert_contains "set System One URL" "$cfg" 'IWIKI_SYSTEM1_BASE_URL = "http://system1-gpu:8000"'
 assert_contains "set code graph enabled" "$cfg" 'IWIKI_CODE_GRAPH_ENABLED = "false"'
 assert_contains "set code graph max file bytes" "$cfg" 'IWIKI_CODE_GRAPH_MAX_FILE_BYTES = "2000000"'
 assert_contains "set code graph max files" "$cfg" 'IWIKI_CODE_GRAPH_MAX_FILES = "5000"'
@@ -75,6 +80,7 @@ assert_eq "unset optional summary absent" "0" "$(grep -c 'IWIKI_SUMMARY_MAX_CHAR
 assert_eq "unset optional graph absent" "0" "$(grep -c 'IWIKI_GRAPH_DEPTH' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "unset optional score absent" "0" "$(grep -c 'IWIKI_SCORE_THRESHOLD' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "secret not written literally"  "0" "$(grep -c 'test-key' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "System One secret not written literally" "0" "$(grep -c 'system1-secret' "$ICODEX_HOME_DIR/config.toml")"
 assert_contains "original key kept"        "$cfg" 'model = "gpt-5.5"'
 assert_eq "no hardcoded home path" "0" "$(grep -c '/home/ikeniborn' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "exactly one start marker" "1" "$(grep -c '# icodex:iwiki:start' "$ICODEX_HOME_DIR/config.toml")"
@@ -185,6 +191,7 @@ assert_eq "absent config not created" "1" "$([[ -f "$ICODEX_HOME_DIR/config.toml
         ICODEX_IWIKI_SEARCH_MODE ICODEX_IWIKI_RERANK_MODEL ICODEX_IWIKI_SEED_TOP_K \
         ICODEX_IWIKI_BFS_TOP_K ICODEX_IWIKI_SEED_THRESHOLD \
         ICODEX_IWIKI_WRITE_SEED_THRESHOLD ICODEX_IWIKI_CHAT_MODEL \
+        ICODEX_IWIKI_SYSTEM1_SHADOW ICODEX_IWIKI_SYSTEM1_BASE_URL ICODEX_IWIKI_SYSTEM1_KEY \
         ICODEX_IWIKI_SCORE_THRESHOLD ICODEX_IWIKI_GRAPH_DEPTH ICODEX_IWIKI_CHUNK_SIZE \
         ICODEX_IWIKI_CHUNK_OVERLAP ICODEX_IWIKI_SUMMARY_MAX_CHARS \
         ICODEX_IWIKI_CODE_GRAPH_ENABLED ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES \
@@ -220,7 +227,7 @@ EOF
 ensure_iwiki_wiring
 cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
 assert_contains "postgres block present" "$cfg" '[mcp_servers.iwiki]'
-assert_contains "postgres forwards both secret names" "$cfg" 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD"]'
+assert_contains "postgres forwards secret names" "$cfg" 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD", "IWIKI_SYSTEM1_KEY"]'
 assert_eq "postgres has no Git base" "0" "$(grep -c 'IWIKI_BASE_DIR' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "postgres DB secret not written literally" "0" "$(grep -c 'db-test-secret' "$ICODEX_HOME_DIR/config.toml")"
 unset ICODEX_IWIKI_DB_PASSWORD

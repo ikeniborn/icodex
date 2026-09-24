@@ -168,6 +168,9 @@
 #                              IWIKI_DB_PASSWORD via `env_vars`. REQUIRED only
 #                              when the project .iwiki.toml has [storage]
 #                              type = "postgres". SECRET — never commit it.
+#   ICODEX_IWIKI_SYSTEM1_KEY    Separate System One bearer key, forwarded as
+#                              IWIKI_SYSTEM1_KEY via `env_vars`. REQUIRED when
+#                              ICODEX_IWIKI_SYSTEM1_SHADOW is enabled. SECRET.
 #
 # PostgreSQL binding lives in the project-root .iwiki.toml, not here. It must
 # define read/write/primary plus [storage] type, host, port, database, user,
@@ -201,6 +204,8 @@
 #   ICODEX_IWIKI_SEED_THRESHOLD           (default 0.15)
 #   ICODEX_IWIKI_WRITE_SEED_THRESHOLD     (default 0.35)
 #   ICODEX_IWIKI_CHAT_MODEL               (default empty; optional classifier model)
+#   ICODEX_IWIKI_SYSTEM1_SHADOW            (default disabled; true enables evaluation-only page-type observation)
+#   ICODEX_IWIKI_SYSTEM1_BASE_URL          (required when System One shadow is enabled)
 #   ICODEX_IWIKI_CHUNK_SIZE               (default 512)
 #   ICODEX_IWIKI_CHUNK_OVERLAP            (default 64)
 #   ICODEX_IWIKI_SUMMARY_MAX_CHARS        (default 400)
@@ -225,6 +230,9 @@
 #ICODEX_IWIKI_SEED_THRESHOLD=0.15
 #ICODEX_IWIKI_WRITE_SEED_THRESHOLD=0.35
 #ICODEX_IWIKI_CHAT_MODEL=
+#ICODEX_IWIKI_SYSTEM1_SHADOW=false
+#ICODEX_IWIKI_SYSTEM1_BASE_URL=http://127.0.0.1:8000
+#ICODEX_IWIKI_SYSTEM1_KEY=...
 #ICODEX_IWIKI_CODE_GRAPH_ENABLED=true
 #ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES=1000000
 #ICODEX_IWIKI_CODE_GRAPH_MAX_FILES=20000

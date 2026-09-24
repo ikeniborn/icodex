@@ -8,7 +8,7 @@
 # required. Git bindings also require IWIKI_BASE_DIR; PostgreSQL bindings require
 # secret IWIKI_DB_PASSWORD instead. Every other IWIKI_* server var is written only
 # when its ICODEX_IWIKI_* is set, else the
-# server default applies. The secret is forwarded via env_vars (mapped by
+# server default applies. Secrets are forwarded via env_vars (mapped by
 # apply_iwiki_env in lib/config/env.sh), never written literally. IWIKI_PROJECT_DIR
 # is generated from ICODEX_PROJECT_ROOT so Codex-spawned iwiki-mcp resolves the
 # project .iwiki.toml even when its cwd is CODEX_HOME. Mirrors the region
@@ -23,7 +23,7 @@ _IWIKI_GWT_POST='python3 "$CODEX_HOME/hooks/gwt-gate.py" --post'
 
 # Optional IWIKI_* server vars (each has a server-side default). Written only when
 # the matching ICODEX_IWIKI_<NAME> is set. Extend this list to expose new vars.
-_IWIKI_OPTIONAL_VARS="EMBED_MODEL EMBED_DIMENSIONS TOP_K SCORE_THRESHOLD SEARCH_MODE RERANK_MODEL IDLE_TIMEOUT_SECONDS GRAPH_DEPTH SEED_TOP_K BFS_TOP_K SEED_THRESHOLD WRITE_SEED_THRESHOLD CHAT_MODEL CHUNK_SIZE CHUNK_OVERLAP SUMMARY_MAX_CHARS CODE_GRAPH_ENABLED CODE_GRAPH_MAX_FILE_BYTES CODE_GRAPH_MAX_FILES CODE_GRAPH_AUTO_REBUILD"
+_IWIKI_OPTIONAL_VARS="EMBED_MODEL EMBED_DIMENSIONS TOP_K SCORE_THRESHOLD SEARCH_MODE RERANK_MODEL IDLE_TIMEOUT_SECONDS GRAPH_DEPTH SEED_TOP_K BFS_TOP_K SEED_THRESHOLD WRITE_SEED_THRESHOLD CHAT_MODEL SYSTEM1_SHADOW SYSTEM1_BASE_URL CHUNK_SIZE CHUNK_OVERLAP SUMMARY_MAX_CHARS CODE_GRAPH_ENABLED CODE_GRAPH_MAX_FILE_BYTES CODE_GRAPH_MAX_FILES CODE_GRAPH_AUTO_REBUILD"
 
 # Emit one local [mcp_servers.<server>] block (without the region markers) from
 # resolved values; <server> is "iwiki" alone or "iwiki-local" beside a remote
@@ -33,7 +33,7 @@ _iwiki_region_body() { # <server-name> <command> <base_dir> <llm_base_url> <proj
   local server="$1" cmd="$2" base="$3" url="$4" project="$5" name cfg val
   printf '[mcp_servers.%s]\n' "$server"
   printf 'command = "%s"\n' "$cmd"
-  printf 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD"]\n'
+  printf 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD", "IWIKI_SYSTEM1_KEY"]\n'
   printf '[mcp_servers.%s.env]\n' "$server"
   if [[ -n "$base" ]]; then
     printf 'IWIKI_BASE_DIR = "%s"\n' "$base"
