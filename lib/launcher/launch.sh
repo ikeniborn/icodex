@@ -6,9 +6,9 @@ launch_codex() { # <args...>
     return 1
   fi
   if [[ "${ICODEX_LAUNCH_NO_EXEC:-0}" == "1" ]]; then
-    "$ICODEX_BIN" "$@"
+    "$ICODEX_BIN" --dangerously-bypass-hook-trust "$@"
   else
-    exec "$ICODEX_BIN" "$@"
+    exec "$ICODEX_BIN" --dangerously-bypass-hook-trust "$@"
   fi
 }
 
@@ -73,11 +73,11 @@ launch_codex_wrapped() { # <args...>
   fi
 
   local child_pid="" rc=0 signal_status=0 pii_started=false
-  local codex_args=("$@")
+  local codex_args=(--dangerously-bypass-hook-trust "$@")
   if [[ "${ICODEX_USE_PII_PROXY_RESOLVED:-false}" == "true" ]]; then
     start_pii_proxy_server || return 1
     pii_started=true
-    codex_args=(-c "openai_base_url=\"http://127.0.0.1:${PII_PROXY_ACTIVE_PORT}/v1\"" "$@")
+    codex_args=(--dangerously-bypass-hook-trust -c "openai_base_url=\"http://127.0.0.1:${PII_PROXY_ACTIVE_PORT}/v1\"" "$@")
   fi
   trap 'signal_status=130; if [[ -n "${child_pid:-}" ]]; then kill -INT "$child_pid" 2>/dev/null || true; wait "$child_pid" 2>/dev/null || true; fi' INT
   trap 'signal_status=143; if [[ -n "${child_pid:-}" ]]; then kill -TERM "$child_pid" 2>/dev/null || true; wait "$child_pid" 2>/dev/null || true; fi' TERM

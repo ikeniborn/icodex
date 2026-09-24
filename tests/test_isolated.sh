@@ -14,7 +14,7 @@ mkdir -p "$ICODEX_SHARED_DIR/profiles"
 printf 'schema_version: 1\n' > "$ICODEX_SHARED_DIR/profiles/registry.yaml"
 mkdir -p "$ICODEX_SHARED_DIR/skills"
 mkdir -p "$ICODEX_SHARED_DIR/hooks"
-printf 'sandbox_mode = "workspace-write"\n' > "$ICODEX_SHARED_DIR/config.toml"
+printf 'bypass_hook_trust = true\nsandbox_mode = "workspace-write"\n' > "$ICODEX_SHARED_DIR/config.toml"
 printf '{"hooks":{}}\n' > "$ICODEX_SHARED_DIR/hooks.json"
 printf '#!/usr/bin/env python3\n' > "$ICODEX_SHARED_DIR/hooks/example.py"
 # skills fixture: a user skill plus a codex-managed .system dir
@@ -60,6 +60,7 @@ assert_eq  "hooks json -> shared" "$ICODEX_SHARED_DIR/hooks.json" "$(readlink "$
 assert_exit "auth symlink"       0 test -L "$ICODEX_HOME_DIR/auth.json"
 assert_eq  "auth -> shared"      "$ICODEX_SHARED_DIR/auth.json" "$(readlink "$ICODEX_HOME_DIR/auth.json")"
 assert_exit "config copied"      0 test -f "$ICODEX_HOME_DIR/config.toml"
+assert_eq "obsolete hook trust key removed" "0" "$(grep -c '^bypass_hook_trust[[:space:]]*=' "$ICODEX_HOME_DIR/config.toml")"
 assert_exit "skills symlink"     0 test -L "$ICODEX_HOME_DIR/skills"
 assert_eq  "skills -> shared"    "$ICODEX_SHARED_DIR/skills" "$(readlink "$ICODEX_HOME_DIR/skills")"
 assert_exit "rules symlink"      0 test -L "$ICODEX_HOME_DIR/rules"
@@ -74,9 +75,10 @@ assert_contains "AGENTS base marker end"   "$agents" "<!-- icodex:base:end -->"
 
 # idempotent: a second setup leaves the symlinks intact and does not clobber config edits
 printf 'edited = true\n' >> "$ICODEX_HOME_DIR/config.toml"
-before="$(cat "$ICODEX_HOME_DIR/config.toml")"
+printf 'bypass_hook_trust = true\n' >> "$ICODEX_HOME_DIR/config.toml"
 setup_codex_home
-assert_eq "config not clobbered on re-run" "$before" "$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "config edits preserved on re-run" "$(cat "$ICODEX_HOME_DIR/config.toml")" "edited = true"
+assert_eq "obsolete hook trust key migrated" "0" "$(grep -c '^bypass_hook_trust[[:space:]]*=' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "profiles target stable on re-run" "$profiles_link_target" "$(readlink "$ICODEX_HOME_DIR/profiles")"
 assert_eq "profiles link identity stable on re-run" "$profiles_link_stat" "$(stat -c '%i:%Y' "$ICODEX_HOME_DIR/profiles")"
 

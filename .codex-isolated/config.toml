@@ -16,10 +16,8 @@
 # env_key = "OPENAI_API_KEY"
 
 # --- Superpowers plugin (vendored under .codex-isolated/plugins/cache) ---
-# bypass_hook_trust is a TOP-LEVEL key: it must appear before any [section] so it
-# stays in the root table (a key after [features] would become features.bypass_…).
-# It lets the plugin's SessionStart hook fire non-interactively.
-bypass_hook_trust = true
+# The wrapper passes --dangerously-bypass-hook-trust so vetted bundled hooks can
+# run non-interactively; current Codex versions do not support a persistent key.
 model = "gpt-5.5"
 model_reasoning_effort = "high"
 sandbox_mode = "danger-full-access"
