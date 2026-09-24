@@ -76,13 +76,12 @@ A launch registers one or two managed iwiki servers, depending on what resolves.
 
 | Condition | Registered |
 |---|---|
-| Remote URL and token resolve, local settings incomplete | `[mcp_servers.iwiki]` over HTTP |
+| Remote URL and token resolve, local settings incomplete | `[mcp_servers.iwiki-remote]` over HTTP |
 | No usable remote block — no URL configured, or its token does not resolve | `[mcp_servers.iwiki]` over stdio |
-| Both resolve | `[mcp_servers.iwiki]` over HTTP and `[mcp_servers.iwiki-local]` over stdio |
+| Both resolve | `[mcp_servers.iwiki-remote]` over HTTP and `[mcp_servers.iwiki-local]` over stdio |
 
-The name `iwiki` always belongs to the server that answers Markdown and specification
-calls, so instructions and hook matchers that reference `mcp__iwiki__*` hold in every
-mode. In the dual mode `iwiki-local` exists for `wiki_code_index` and the code readers,
+The name `iwiki-remote` identifies hosted HTTP explicitly. In dual mode it answers Markdown
+and specification calls, while `iwiki-local` exists for `wiki_code_index` and code readers,
 because a hosted server answers `source_unavailable` to an index request; it becomes the
 full server only while the remote one is unreachable.
 
@@ -101,7 +100,7 @@ ICODEX_IWIKI_REMOTE_URL=https://iwiki.example.com/mcp
 ICODEX_IWIKI_REMOTE_TOKEN=<bearer-token>
 ```
 
-When the remote URL and token resolve, icodex registers the remote server as `[mcp_servers.iwiki]`
+When the remote URL and token resolve, icodex registers the remote server as `[mcp_servers.iwiki-remote]`
 with the configuration shown in `iwiki-remote-mcp.toml.example`. The token is mapped only at runtime to
 `IWIKI_REMOTE_TOKEN`, never written to TOML. The remote server resolves wiki identity and
 read/write scope from the token; database and model credentials remain server-only.

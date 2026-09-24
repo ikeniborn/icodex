@@ -60,7 +60,7 @@ ensure_iwiki_wiring
 ensure_iwiki_binding
 
 assert_contains "actual LoEn wiring composed" "$(cat "$ICODEX_HOME_DIR/config.toml")" '[plugins."loen@ikeniborn"]'
-assert_contains "actual iwiki wiring composed" "$(cat "$ICODEX_HOME_DIR/config.toml")" '[mcp_servers.iwiki]'
+assert_eq "actual iwiki wiring composed" "1" "$(grep -Ec '^\[mcp_servers\.iwiki(-remote)?\]$' "$ICODEX_HOME_DIR/config.toml")"
 assert_exit "actual iwiki binding composed" 0 test -L "$ICODEX_HOME_DIR/.iwiki.toml"
 
 before_entries="$(python3 - "$ICODEX_HOME_DIR/hooks.json" <<'PY'
