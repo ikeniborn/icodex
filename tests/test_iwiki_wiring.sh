@@ -236,6 +236,8 @@ printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
 ensure_iwiki_wiring
 cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
 assert_contains "remote URL configured" "$cfg" 'url = "https://iwiki.example.com/mcp"'
+assert_contains "remote server named iwiki-remote" "$cfg" '[mcp_servers.iwiki-remote]'
+assert_eq "remote legacy iwiki name absent" "0" "$(grep -cF '[mcp_servers.iwiki]' "$ICODEX_HOME_DIR/config.toml")"
 assert_contains "remote token env configured" "$cfg" 'bearer_token_env_var = "IWIKI_REMOTE_TOKEN"'
 assert_eq "remote has no stdio command" "0" "$(grep -c '^command =' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "remote has no local env vars" "0" "$(grep -c '^env_vars =' "$ICODEX_HOME_DIR/config.toml")"
@@ -255,7 +257,8 @@ mkdir -p "$ICODEX_HOME_DIR" "$ICODEX_PROJECT_ROOT"
 printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
 ensure_iwiki_wiring
 cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
-assert_contains "dual: remote table named iwiki" "$cfg" '[mcp_servers.iwiki]'
+assert_contains "dual: remote table named iwiki-remote" "$cfg" '[mcp_servers.iwiki-remote]'
+assert_eq "dual: legacy remote table absent" "0" "$(grep -cF '[mcp_servers.iwiki]' "$ICODEX_HOME_DIR/config.toml")"
 assert_contains "dual: remote url present" "$cfg" 'url = "https://iwiki.example.com/mcp"'
 assert_contains "dual: local table suffixed" "$cfg" '[mcp_servers.iwiki-local]'
 assert_contains "dual: local env table suffixed" "$cfg" '[mcp_servers.iwiki-local.env]'
@@ -268,6 +271,23 @@ assert_eq "dual: region at end of file" "# icodex:iwiki:end" "$(tail -n1 "$ICODE
 before="$(cat "$ICODEX_HOME_DIR/config.toml")"
 ensure_iwiki_wiring
 assert_eq "dual: idempotent second run" "$before" "$(cat "$ICODEX_HOME_DIR/config.toml")"
+
+# --- an unmarked legacy remote table is migrated to iwiki-remote ---
+cat > "$ICODEX_HOME_DIR/config.toml" <<'STALE'
+model = "x"
+[mcp_servers.iwiki]
+url = "https://old.example.com/mcp"
+bearer_token_env_var = "OLD_TOKEN"
+
+[mcp_servers.other]
+command = "/bin/true"
+STALE
+ensure_iwiki_wiring
+cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "legacy remote: old table removed" "0" "$(grep -cF '[mcp_servers.iwiki]' "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "legacy remote: renamed table present" "$cfg" '[mcp_servers.iwiki-remote]'
+assert_eq "legacy remote: old URL removed" "0" "$(grep -cF 'https://old.example.com/mcp' "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "legacy remote: other mcp kept" "$cfg" '[mcp_servers.other]'
 
 # --- dual -> remote-only: the suffixed local table must not survive ---
 unset ICODEX_IWIKI_BASE_DIR ICODEX_IWIKI_LLM_BASE_URL ICODEX_IWIKI_LLM_KEY
@@ -321,9 +341,10 @@ printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
 printf '{\n  "hooks": {}\n}\n' > "$ICODEX_HOME_DIR/hooks.json"
 ensure_iwiki_wiring
 hooks="$(cat "$ICODEX_HOME_DIR/hooks.json")"
-assert_contains "hook: pre matches local update" "$hooks" 'mcp__iwiki-local__wiki_update_page'
-assert_contains "hook: pre still matches remote update" "$hooks" 'mcp__iwiki__wiki_update_page'
-assert_contains "hook: post matches local status" "$hooks" 'mcp__iwiki-local__wiki_status'
-assert_contains "hook: post matches local spec context" "$hooks" 'mcp__iwiki-local__wiki_spec_context'
+assert_contains "hook: pre matches local update" "$hooks" 'mcp__iwiki_local__wiki_update_page'
+assert_contains "hook: pre matches remote update" "$hooks" 'mcp__iwiki_remote__wiki_update_page'
+assert_contains "hook: post matches local status" "$hooks" 'mcp__iwiki_local__wiki_status'
+assert_contains "hook: post matches remote status" "$hooks" 'mcp__iwiki_remote__wiki_status'
+assert_contains "hook: post matches local spec context" "$hooks" 'mcp__iwiki_local__wiki_spec_context'
 
 finish

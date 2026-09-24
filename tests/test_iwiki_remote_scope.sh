@@ -53,6 +53,8 @@ assert_contains "remote scope gates hosted graph freshness and provenance" "$fla
 assert_contains "remote scope constrains hosted publication" "$flat_agents" 'Hosted publication requires a writable primary, accepts neither client `domain` nor `iwiki_id`, and must obey the limits returned by `wiki_code_publish_begin`.'
 assert_contains "remote scope protects grant reads and mutations" "$flat_agents" 'Domain-grant reads require explicit hosted management work; `wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority.'
 assert_contains "scope: names the local server" "$agents" "iwiki-local"
+assert_contains "scope: names the remote server" "$agents" "iwiki-remote"
+assert_contains "scope: routes hosted writes to remote" "$agents" 'send every Markdown and specification call'
 assert_contains "scope: names the outage rule" "$agents" "becomes the full server"
 assert_eq "remote scope excludes token" "0" "$(grep -c 'remote-test-token' "$ICODEX_HOME_DIR/AGENTS.md")"
 assert_eq "remote scope is idempotent" "1" "$(grep -c '<!-- icodex:iwiki-remote-scope:start -->' "$ICODEX_HOME_DIR/AGENTS.md")"
@@ -71,6 +73,8 @@ assert_contains "GWT pre-hook is wired" "$hooks" 'gwt-gate.py'
 assert_contains "GWT hook matches status" "$hooks" 'wiki_status'
 assert_contains "GWT hook matches context" "$hooks" 'wiki_spec_context'
 assert_contains "GWT hook matches mutation" "$hooks" 'wiki_update_page'
+assert_contains "GWT hook matches normalized local namespace" "$hooks" 'mcp__iwiki_local__wiki_update_page'
+assert_contains "GWT hook matches normalized remote namespace" "$hooks" 'mcp__iwiki_remote__wiki_update_page'
 assert_eq "GWT hooks are idempotent" "2" "$(grep -c 'gwt-gate.py' "$ICODEX_HOME_DIR/hooks.json")"
 
 finish

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Wire the iwiki MCP server(s) into the per-project Codex home config.toml at
-# launch. Always on: a delimited region registers [mcp_servers.iwiki] alone, or
-# both [mcp_servers.iwiki] (remote) and [mcp_servers.iwiki-local] when a remote
-# URL and a complete local set both resolve. Each block is built from
+# launch. Always on: a delimited region registers [mcp_servers.iwiki] for a
+# local-only setup, [mcp_servers.iwiki-remote] for remote HTTP, and
+# [mcp_servers.iwiki-local] beside it when both transports resolve. Each block is built from
 # ICODEX_IWIKI_* config: command falls back to `command -v iwiki-mcp`;
 # IWIKI_LLM_BASE_URL, generated IWIKI_PROJECT_DIR, and secret IWIKI_LLM_KEY are
 # required. Git bindings also require IWIKI_BASE_DIR; PostgreSQL bindings require
@@ -139,15 +139,15 @@ PostgreSQL writes are durable, so do not call Git-only
 `wiki_sync` or OKF maintenance tools. Domain-grant reads require explicit hosted
 management work; `wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority.
 
-When `iwiki-local` is registered beside `iwiki`, the two servers may address different
-stores: `iwiki` is the hosted PostgreSQL wiki, while `iwiki-local` serves whatever store
+When `iwiki-local` is registered beside `iwiki-remote`, the two servers may address different
+stores: `iwiki-remote` is the hosted PostgreSQL wiki, while `iwiki-local` serves whatever store
 this project's `.iwiki.toml` configures — usually a local Git base, and the same hosted
-wiki when the project declares PostgreSQL storage. While `iwiki` answers, use
+wiki when the project declares PostgreSQL storage. While `iwiki-remote` answers, use
 `iwiki-local` only for `wiki_code_index` and the code readers `wiki_code_status`,
 `wiki_code_search`, and `wiki_code_context`; send every Markdown and specification call
-to `iwiki`. Where the two stores differ, a misrouted write lands in the wrong one
+to `iwiki-remote`. Where the two stores differ, a misrouted write lands in the wrong one
 silently.
-If `iwiki` is unreachable — absent from the session, a failed `initialize`, or transport
+If `iwiki-remote` is unreachable — absent from the session, a failed `initialize`, or transport
 errors on every call — `iwiki-local` becomes the full server, writes included. When it
 backs a different store, record each such write on the topic's ledger page as having
 landed there, so it can be reconciled with the hosted copy afterwards.
@@ -196,15 +196,15 @@ def replace(event, command, matcher, status):
 replace(
     "PreToolUse",
     gate,
-    "mcp__iwiki__wiki_update_page|mcp__iwiki-local__wiki_update_page|wiki_update_page",
+    "mcp__iwiki_remote__wiki_update_page|mcp__iwiki__wiki_update_page|mcp__iwiki_local__wiki_update_page|wiki_update_page",
     "Checking GWT context ordering",
 )
 replace(
     "PostToolUse",
     post,
-    "mcp__iwiki__wiki_status|mcp__iwiki-local__wiki_status|wiki_status|"
-    "mcp__iwiki__wiki_spec_context|mcp__iwiki-local__wiki_spec_context|wiki_spec_context|"
-    "mcp__iwiki__wiki_update_page|mcp__iwiki-local__wiki_update_page|wiki_update_page",
+    "mcp__iwiki_remote__wiki_status|mcp__iwiki__wiki_status|mcp__iwiki_local__wiki_status|wiki_status|"
+    "mcp__iwiki_remote__wiki_spec_context|mcp__iwiki__wiki_spec_context|mcp__iwiki_local__wiki_spec_context|wiki_spec_context|"
+    "mcp__iwiki_remote__wiki_update_page|mcp__iwiki__wiki_update_page|mcp__iwiki_local__wiki_update_page|wiki_update_page",
     "Recording GWT context ordering",
 )
 json.dump(config, sys.stdout, indent=2)
@@ -234,7 +234,7 @@ _iwiki_strip_existing_wiring() { # <config>
     $0 == s { in_region=1; next }
     $0 == e { in_region=0; next }
     in_region { next }
-    /^\[mcp_servers\.iwiki(-local)?(\]|\.)/ { in_stale=1; next }
+    /^\[mcp_servers\.iwiki(-(local|remote))?(\]|\.)/ { in_stale=1; next }
     /^\[/ { in_stale=0 }
     !in_stale { print }
   ' "$file"
@@ -259,7 +259,7 @@ ensure_iwiki_wiring() {
   local remote_body="" local_body="" server_name="iwiki"
   if [[ -n "$remote_url" ]]; then
     if [[ -n "$remote_token" ]]; then
-      remote_body="$(_iwiki_remote_region_body iwiki "$remote_url")"
+      remote_body="$(_iwiki_remote_region_body iwiki-remote "$remote_url")"
     else
       log_warn "iwiki: remote URL is set but remote token is unresolved, skipping the remote server"
     fi
