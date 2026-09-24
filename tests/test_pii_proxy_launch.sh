@@ -22,7 +22,7 @@ out_args() { cat "$ICODEX_BIN.args" 2>/dev/null || true; }
 
 export ICODEX_LAUNCH_NO_EXEC=1
 launch_codex --model test
-assert_eq "normal launch args" "--model"$'\n'"test" "$(out_args)"
+assert_eq "normal launch args" "--dangerously-bypass-hook-trust"$'\n'"--model"$'\n'"test" "$(out_args)"
 
 start_pii_proxy_server() { PII_PROXY_ACTIVE_PORT=23456; return 0; }
 stop_pii_proxy_server() { :; }

@@ -54,7 +54,7 @@ else
   echo "PASS [off launch does not return after exec]"
   PASS=$((PASS+1))
 fi
-assert_eq "off launch preserves direct arg" "<alpha beta>" "$(cat "$direct_args")"
+assert_eq "off launch preserves direct arg" "$(printf '<--dangerously-bypass-hook-trust>\n<alpha beta>')" "$(cat "$direct_args")"
 
 wrapped_cleanup="$tmp/wrapped-cleanup"
 telemetry_register_cleanup "printf cleanup > '$wrapped_cleanup'"
@@ -65,7 +65,7 @@ launch_codex_wrapped "one two" 'special!$&*' "--flag=value with space"
 wrapped_rc="$?"
 assert_eq "telemetry launch preserves child exit code" "23" "$wrapped_rc"
 assert_eq "telemetry launch runs cleanup" "cleanup" "$(cat "$wrapped_cleanup")"
-assert_eq "telemetry launch preserves passthrough args" "$(printf '<one two>\n<special!$&*>\n<--flag=value with space>')" "$(cat "$ICODEX_TEST_ARGS_FILE")"
+assert_eq "telemetry launch preserves passthrough args" "$(printf '<--dangerously-bypass-hook-trust>\n<one two>\n<special!$&*>\n<--flag=value with space>')" "$(cat "$ICODEX_TEST_ARGS_FILE")"
 
 pii_args="$tmp/pii-args"
 pii_stop="$tmp/pii-stop"

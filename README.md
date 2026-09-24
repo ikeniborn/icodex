@@ -309,11 +309,13 @@ Common `.codex-isolated/config.toml` keys:
 | `approval_policy` | When Codex asks before commands: `untrusted`, `on-request`, `never`; `on-failure` is deprecated |
 | `default_permissions` | Named managed permission profile from `[permissions.<name>]` |
 | `web_search` | Web search mode used by Codex |
-| `bypass_hook_trust` | Allows trusted bundled hooks to run without an interactive trust prompt |
 | `[marketplaces.*]` / `[plugins.*]` | Plugin marketplace paths and enabled plugins |
 | `[features]` | Feature flags, for example `multi_agent = true` |
 | `[projects."<path>"]` | Project trust settings (icodex auto-adds the launched project) |
 | `[tui]` | Terminal UI settings such as the status line |
+
+icodex passes `--dangerously-bypass-hook-trust` at launch so its vetted bundled hooks run
+non-interactively. Current Codex versions do not support a persistent equivalent in TOML.
 
 Useful launch safety presets:
 

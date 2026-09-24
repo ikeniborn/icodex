@@ -86,8 +86,6 @@ touch "$ICODEX_BIN"
 chmod +x "$ICODEX_BIN"
 
 cat > "$ICODEX_HOME_DIR/config.toml" <<'EOF_CONFIG'
-bypass_hook_trust = true
-
 [marketplaces.openai-curated]
 source_type = "local"
 source = "/keep/openai-curated"

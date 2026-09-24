@@ -56,6 +56,19 @@ _link_shared() { # <name>
 _AGENTS_BASE_REGION_START="<!-- icodex:base:start -->"
 _AGENTS_BASE_REGION_END="<!-- icodex:base:end -->"
 
+# Codex 0.156 removed the persistent bypass_hook_trust setting. Preserve the
+# rest of each project-local config while dropping that obsolete root key.
+_remove_obsolete_hook_trust_setting() { # <file>
+  local file="$1" tmp
+  [[ -f "$file" ]] || return 0
+  tmp="$(mktemp)"
+  awk '!/^[[:space:]]*bypass_hook_trust[[:space:]]*=/' "$file" > "$tmp"
+  if ! cmp -s "$tmp" "$file"; then
+    cat "$tmp" > "$file"
+  fi
+  rm -f "$tmp"
+}
+
 # Maintain a delimited base region in <file>, re-synced from the shared AGENTS.md
 # on every launch so edits to .codex-isolated/AGENTS.md propagate to every home.
 # Strips any existing base region and re-appends the current shared content; any
@@ -101,6 +114,7 @@ setup_codex_home() {
   _link_shared agents      # custom subagents → runtime
   [[ -f "$ICODEX_HOME_DIR/config.toml" ]] \
     || cp "$ICODEX_SHARED_DIR/config.toml" "$ICODEX_HOME_DIR/config.toml"
+  _remove_obsolete_hook_trust_setting "$ICODEX_HOME_DIR/config.toml"
   _sync_agents_base_region "$ICODEX_HOME_DIR/AGENTS.md"
   export CODEX_HOME="$ICODEX_HOME_DIR"
 }
