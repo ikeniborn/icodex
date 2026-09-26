@@ -206,6 +206,7 @@
 #   ICODEX_IWIKI_CHAT_MODEL               (default empty; optional classifier model)
 #   ICODEX_IWIKI_SYSTEM1_SHADOW            (default disabled; true enables evaluation-only page-type observation)
 #   ICODEX_IWIKI_SYSTEM1_BASE_URL          (API root ending in /v1; required when System One shadow is enabled)
+#   ICODEX_IWIKI_SYSTEM1_MODEL             (optional System One alias, e.g. laya-iwiki; empty = automatic routing)
 #   ICODEX_IWIKI_CHUNK_SIZE               (default 512)
 #   ICODEX_IWIKI_CHUNK_OVERLAP            (default 64)
 #   ICODEX_IWIKI_SUMMARY_MAX_CHARS        (default 400)
@@ -232,6 +233,7 @@
 #ICODEX_IWIKI_CHAT_MODEL=
 #ICODEX_IWIKI_SYSTEM1_SHADOW=false
 #ICODEX_IWIKI_SYSTEM1_BASE_URL=http://127.0.0.1:8000/v1
+#ICODEX_IWIKI_SYSTEM1_MODEL=laya-iwiki
 #ICODEX_IWIKI_SYSTEM1_KEY=...
 #ICODEX_IWIKI_CODE_GRAPH_ENABLED=true
 #ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES=1000000

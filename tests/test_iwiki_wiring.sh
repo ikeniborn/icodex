@@ -37,6 +37,7 @@ export ICODEX_IWIKI_WRITE_SEED_THRESHOLD="0.37"
 export ICODEX_IWIKI_CHAT_MODEL="chat-test-model"
 export ICODEX_IWIKI_SYSTEM1_SHADOW="true"
 export ICODEX_IWIKI_SYSTEM1_BASE_URL="http://system1-gpu:8000/v1"
+export ICODEX_IWIKI_SYSTEM1_MODEL="laya-iwiki"
 export ICODEX_IWIKI_SYSTEM1_KEY="system1-secret"
 export ICODEX_IWIKI_CODE_GRAPH_ENABLED="false"
 export ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES="2000000"
@@ -69,6 +70,7 @@ assert_contains "set optional write seed threshold" "$cfg" 'IWIKI_WRITE_SEED_THR
 assert_contains "set optional chat model" "$cfg" 'IWIKI_CHAT_MODEL = "chat-test-model"'
 assert_contains "set System One shadow" "$cfg" 'IWIKI_SYSTEM1_SHADOW = "true"'
 assert_contains "set System One URL" "$cfg" 'IWIKI_SYSTEM1_BASE_URL = "http://system1-gpu:8000/v1"'
+assert_contains "set System One model" "$cfg" 'IWIKI_SYSTEM1_MODEL = "laya-iwiki"'
 assert_contains "set code graph enabled" "$cfg" 'IWIKI_CODE_GRAPH_ENABLED = "false"'
 assert_contains "set code graph max file bytes" "$cfg" 'IWIKI_CODE_GRAPH_MAX_FILE_BYTES = "2000000"'
 assert_contains "set code graph max files" "$cfg" 'IWIKI_CODE_GRAPH_MAX_FILES = "5000"'
@@ -191,7 +193,7 @@ assert_eq "absent config not created" "1" "$([[ -f "$ICODEX_HOME_DIR/config.toml
         ICODEX_IWIKI_SEARCH_MODE ICODEX_IWIKI_RERANK_MODEL ICODEX_IWIKI_SEED_TOP_K \
         ICODEX_IWIKI_BFS_TOP_K ICODEX_IWIKI_SEED_THRESHOLD \
         ICODEX_IWIKI_WRITE_SEED_THRESHOLD ICODEX_IWIKI_CHAT_MODEL \
-        ICODEX_IWIKI_SYSTEM1_SHADOW ICODEX_IWIKI_SYSTEM1_BASE_URL ICODEX_IWIKI_SYSTEM1_KEY \
+        ICODEX_IWIKI_SYSTEM1_SHADOW ICODEX_IWIKI_SYSTEM1_BASE_URL ICODEX_IWIKI_SYSTEM1_MODEL ICODEX_IWIKI_SYSTEM1_KEY \
         ICODEX_IWIKI_SCORE_THRESHOLD ICODEX_IWIKI_GRAPH_DEPTH ICODEX_IWIKI_CHUNK_SIZE \
         ICODEX_IWIKI_CHUNK_OVERLAP ICODEX_IWIKI_SUMMARY_MAX_CHARS \
         ICODEX_IWIKI_CODE_GRAPH_ENABLED ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES \

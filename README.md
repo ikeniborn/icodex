@@ -150,7 +150,8 @@ the probe) entirely.
 > `ICODEX_IWIKI_BASE_DIR`; PostgreSQL bindings declare `[storage] type = "postgres"`
 > in the project `.iwiki.toml` and need the secret `ICODEX_IWIKI_DB_PASSWORD`.
 > Optional System One shadow classification uses `ICODEX_IWIKI_SYSTEM1_SHADOW`,
-> `ICODEX_IWIKI_SYSTEM1_BASE_URL` (API root ending in `/v1`), and secret
+> `ICODEX_IWIKI_SYSTEM1_BASE_URL` (API root ending in `/v1`), optional
+> `ICODEX_IWIKI_SYSTEM1_MODEL` (alias such as `laya-iwiki`), and secret
 > `ICODEX_IWIKI_SYSTEM1_KEY` in local
 > or dual mode. The wrapper forwards secrets through Codex `env_vars`, never writes
 > them into `config.toml`, and leaves existing project bindings unchanged. Hosted
