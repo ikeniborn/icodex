@@ -210,6 +210,8 @@
 #   ICODEX_IWIKI_SYSTEM1_GUIDANCE          (true adds an advisory warning when System One disagrees with an explicit type)
 #   ICODEX_IWIKI_SYSTEM1_SEARCH_BOOST      (query-type search boost weight; keep 0, no measured gain)
 #   ICODEX_IWIKI_SYSTEM1_MIN_CONFIDENCE    (minimum probability for guidance/boost; default 0.5)
+#   ICODEX_IWIKI_SYSTEM1_ASSIGN_TYPE       (true lets System One type pages written without `type`)
+#   ICODEX_IWIKI_SYSTEM1_DECISION_LOG      (absolute path of the private decision log for future training)
 #   ICODEX_IWIKI_CHUNK_SIZE               (default 512)
 #   ICODEX_IWIKI_CHUNK_OVERLAP            (default 64)
 #   ICODEX_IWIKI_SUMMARY_MAX_CHARS        (default 400)
@@ -238,6 +240,8 @@
 #ICODEX_IWIKI_SYSTEM1_BASE_URL=http://127.0.0.1:8000/v1
 #ICODEX_IWIKI_SYSTEM1_MODEL=laya-iwiki
 #ICODEX_IWIKI_SYSTEM1_GUIDANCE=true
+#ICODEX_IWIKI_SYSTEM1_ASSIGN_TYPE=true
+#ICODEX_IWIKI_SYSTEM1_DECISION_LOG=/home/<user>/.local/state/iwiki-mcp/system1-decisions.jsonl
 #ICODEX_IWIKI_SYSTEM1_KEY=...
 #ICODEX_IWIKI_CODE_GRAPH_ENABLED=true
 #ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES=1000000

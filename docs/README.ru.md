@@ -239,7 +239,9 @@ OTel/Langfuse храните только в `.codex_config` или окруже
 > `ICODEX_IWIKI_SYSTEM1_SHADOW`, `ICODEX_IWIKI_SYSTEM1_BASE_URL` (корень API,
 > оканчивающийся на `/v1`), необязательный `ICODEX_IWIKI_SYSTEM1_MODEL`
 > (алиас, например `laya-iwiki`), необязательный `ICODEX_IWIKI_SYSTEM1_GUIDANCE`
-> (рекомендательное предупреждение при расхождении с явным типом страницы) и секрет
+> (рекомендательное предупреждение при расхождении с явным типом страницы),
+> `ICODEX_IWIKI_SYSTEM1_ASSIGN_TYPE` (тип для страниц без `type`),
+> `ICODEX_IWIKI_SYSTEM1_DECISION_LOG` (абсолютный путь приватного журнала решений) и секрет
 > `ICODEX_IWIKI_SYSTEM1_KEY`. Обёртка передаёт секреты через Codex `env_vars`,
 > не записывает их в `config.toml` и не изменяет существующий project binding.
 > Hosted streamable HTTP использует
