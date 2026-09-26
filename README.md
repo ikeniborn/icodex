@@ -153,7 +153,9 @@ the probe) entirely.
 > `ICODEX_IWIKI_SYSTEM1_BASE_URL` (API root ending in `/v1`), optional
 > `ICODEX_IWIKI_SYSTEM1_MODEL` (alias such as `laya-iwiki`), optional
 > `ICODEX_IWIKI_SYSTEM1_GUIDANCE` (advisory warning when the model disagrees with an
-> explicit page type), and secret
+> explicit page type), `ICODEX_IWIKI_SYSTEM1_ASSIGN_TYPE` (types pages written without
+> `type`), `ICODEX_IWIKI_SYSTEM1_DECISION_LOG` (absolute path of the private decision
+> log), and secret
 > `ICODEX_IWIKI_SYSTEM1_KEY` in local
 > or dual mode. The wrapper forwards secrets through Codex `env_vars`, never writes
 > them into `config.toml`, and leaves existing project bindings unchanged. Hosted
