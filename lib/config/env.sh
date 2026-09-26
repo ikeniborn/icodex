@@ -44,6 +44,9 @@ apply_iwiki_env() {
   if [[ -n "${ICODEX_IWIKI_DB_PASSWORD:-}" ]]; then
     export IWIKI_DB_PASSWORD="${IWIKI_DB_PASSWORD:-$ICODEX_IWIKI_DB_PASSWORD}"
   fi
+  if [[ -n "${ICODEX_IWIKI_SYSTEM1_KEY:-}" ]]; then
+    export IWIKI_SYSTEM1_KEY="${IWIKI_SYSTEM1_KEY:-$ICODEX_IWIKI_SYSTEM1_KEY}"
+  fi
   if [[ -n "${ICODEX_IWIKI_REMOTE_TOKEN:-}" ]]; then
     export IWIKI_REMOTE_TOKEN="${IWIKI_REMOTE_TOKEN:-$ICODEX_IWIKI_REMOTE_TOKEN}"
   fi

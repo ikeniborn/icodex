@@ -18,15 +18,20 @@ assert_exit "ICODEX_PROXY still allowed"   0 _config_key_allowed ICODEX_PROXY
 # --- load_config exports the wrapper key; raw key in file is ignored ---
 cat > "$cfg" <<'EOF'
 ICODEX_IWIKI_LLM_KEY=sk-secret
+ICODEX_IWIKI_SYSTEM1_KEY=system1-secret
 ICODEX_IWIKI_RERANK_MODEL=rerank-test-model
 IWIKI_LLM_KEY=raw-should-be-ignored
+IWIKI_SYSTEM1_KEY=raw-system1-should-be-ignored
 IWIKI_RERANK_MODEL=raw-rerank-should-be-ignored
 EOF
-unset ICODEX_IWIKI_LLM_KEY IWIKI_LLM_KEY ICODEX_IWIKI_RERANK_MODEL IWIKI_RERANK_MODEL
+unset ICODEX_IWIKI_LLM_KEY IWIKI_LLM_KEY ICODEX_IWIKI_SYSTEM1_KEY IWIKI_SYSTEM1_KEY \
+      ICODEX_IWIKI_RERANK_MODEL IWIKI_RERANK_MODEL
 load_config "$cfg"
 assert_eq "wrapper key loaded"         "sk-secret"         "${ICODEX_IWIKI_LLM_KEY:-}"
+assert_eq "wrapper System One key loaded" "system1-secret"   "${ICODEX_IWIKI_SYSTEM1_KEY:-}"
 assert_eq "wrapper rerank loaded"      "rerank-test-model" "${ICODEX_IWIKI_RERANK_MODEL:-}"
 assert_eq "raw key in file ignored"    ""                  "${IWIKI_LLM_KEY:-}"
+assert_eq "raw System One key ignored" ""                  "${IWIKI_SYSTEM1_KEY:-}"
 assert_eq "raw rerank in file ignored" ""                  "${IWIKI_RERANK_MODEL:-}"
 
 # --- apply_iwiki_env: maps wrapper -> IWIKI_LLM_KEY when target unset ---
@@ -38,6 +43,15 @@ assert_eq "mapped to IWIKI_LLM_KEY" "sk-secret" "${IWIKI_LLM_KEY:-}"
 unset IWIKI_LLM_KEY; export IWIKI_LLM_KEY="sk-ambient"; ICODEX_IWIKI_LLM_KEY="sk-config"
 apply_iwiki_env
 assert_eq "ambient IWIKI_LLM_KEY wins" "sk-ambient" "${IWIKI_LLM_KEY:-}"
+
+# --- System One key follows the same wrapper-only secret path ---
+unset IWIKI_SYSTEM1_KEY; ICODEX_IWIKI_SYSTEM1_KEY="system1-secret"
+apply_iwiki_env
+assert_eq "mapped to IWIKI_SYSTEM1_KEY" "system1-secret" "${IWIKI_SYSTEM1_KEY:-}"
+
+unset IWIKI_SYSTEM1_KEY; export IWIKI_SYSTEM1_KEY="system1-ambient"; ICODEX_IWIKI_SYSTEM1_KEY="system1-config"
+apply_iwiki_env
+assert_eq "ambient IWIKI_SYSTEM1_KEY wins" "system1-ambient" "${IWIKI_SYSTEM1_KEY:-}"
 
 # --- no wrapper -> no-op returns 0, leaves IWIKI_LLM_KEY untouched ---
 unset IWIKI_LLM_KEY ICODEX_IWIKI_LLM_KEY

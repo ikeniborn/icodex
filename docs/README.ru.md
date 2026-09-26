@@ -235,8 +235,13 @@ OTel/Langfuse храните только в `.codex_config` или окруже
 > Ключи `ICODEX_IWIKI_*` настраивают MCP-сервер iwiki. Для Git binding нужен
 > `ICODEX_IWIKI_BASE_DIR`; PostgreSQL binding задаётся как `[storage] type = "postgres"`
 > в проектном `.iwiki.toml` и требует секрет `ICODEX_IWIKI_DB_PASSWORD`. Обёртка
-> передаёт оба секрета через Codex `env_vars`, не записывает их в `config.toml` и
-> не изменяет существующий project binding. Hosted streamable HTTP использует
+> Для опциональной shadow-классификации System One в local/dual mode используются
+> `ICODEX_IWIKI_SYSTEM1_SHADOW`, `ICODEX_IWIKI_SYSTEM1_BASE_URL` (корень API,
+> оканчивающийся на `/v1`), необязательный `ICODEX_IWIKI_SYSTEM1_MODEL`
+> (алиас, например `laya-iwiki`) и секрет
+> `ICODEX_IWIKI_SYSTEM1_KEY`. Обёртка передаёт секреты через Codex `env_vars`,
+> не записывает их в `config.toml` и не изменяет существующий project binding.
+> Hosted streamable HTTP использует
 > `ICODEX_IWIKI_REMOTE_URL` и `ICODEX_IWIKI_REMOTE_TOKEN`; binding scope,
 > PostgreSQL CAS, storage-specific tools, ограничения lint и code graph описаны
 > в `docs/iwiki-mcp-modes.md`.
