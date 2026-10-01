@@ -47,6 +47,8 @@ export ICODEX_IWIKI_CODE_GRAPH_ENABLED="false"
 export ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES="2000000"
 export ICODEX_IWIKI_CODE_GRAPH_MAX_FILES="5000"
 export ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD="off"
+export ICODEX_IWIKI_CODE_GRAPH_MCP_URL="https://iwiki.example.com/mcp"
+export ICODEX_IWIKI_CODE_GRAPH_MCP_TOKEN="code-graph-secret"
 unset ICODEX_IWIKI_EMBED_DIMENSIONS ICODEX_IWIKI_SCORE_THRESHOLD \
       ICODEX_IWIKI_GRAPH_DEPTH ICODEX_IWIKI_CHUNK_SIZE \
       ICODEX_IWIKI_CHUNK_OVERLAP ICODEX_IWIKI_SUMMARY_MAX_CHARS
@@ -58,7 +60,7 @@ ensure_iwiki_wiring
 cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
 assert_contains "block header present"     "$cfg" "[mcp_servers.iwiki]"
 assert_contains "resolved command"         "$cfg" "command = \"$tmp/bin/iwiki-mcp\""
-assert_contains "secret env_vars present"  "$cfg" 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD", "IWIKI_SYSTEM1_KEY"]'
+assert_contains "secret env_vars present"  "$cfg" 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD", "IWIKI_SYSTEM1_KEY", "IWIKI_CODE_GRAPH_MCP_TOKEN"]'
 assert_contains "resolved base dir"        "$cfg" "IWIKI_BASE_DIR = \"$tmp/wiki-base\""
 assert_contains "resolved llm url"         "$cfg" 'IWIKI_LLM_BASE_URL = "http://test-llm:1234/v1"'
 assert_contains "resolved project dir"     "$cfg" "IWIKI_PROJECT_DIR = \"$tmp/project-root\""
@@ -83,6 +85,7 @@ assert_contains "set code graph enabled" "$cfg" 'IWIKI_CODE_GRAPH_ENABLED = "fal
 assert_contains "set code graph max file bytes" "$cfg" 'IWIKI_CODE_GRAPH_MAX_FILE_BYTES = "2000000"'
 assert_contains "set code graph max files" "$cfg" 'IWIKI_CODE_GRAPH_MAX_FILES = "5000"'
 assert_contains "set code graph auto rebuild" "$cfg" 'IWIKI_CODE_GRAPH_AUTO_REBUILD = "off"'
+assert_contains "set code graph MCP URL" "$cfg" 'IWIKI_CODE_GRAPH_MCP_URL = "https://iwiki.example.com/mcp"'
 assert_eq "manual project dir ignored" "0" "$(grep -cF "$tmp/wrong-project" "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "unset optional dims absent"    "0" "$(grep -c 'IWIKI_EMBED_DIMENSIONS' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "unset optional chunk absent"   "0" "$(grep -c 'IWIKI_CHUNK_SIZE' "$ICODEX_HOME_DIR/config.toml")"
@@ -91,6 +94,7 @@ assert_eq "unset optional graph absent" "0" "$(grep -c 'IWIKI_GRAPH_DEPTH' "$ICO
 assert_eq "unset optional score absent" "0" "$(grep -c 'IWIKI_SCORE_THRESHOLD' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "secret not written literally"  "0" "$(grep -c 'test-key' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "System One secret not written literally" "0" "$(grep -c 'system1-secret' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "code graph MCP token not written literally" "0" "$(grep -c 'code-graph-secret' "$ICODEX_HOME_DIR/config.toml")"
 assert_contains "original key kept"        "$cfg" 'model = "gpt-5.5"'
 assert_eq "no hardcoded home path" "0" "$(grep -c '/home/ikeniborn' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "exactly one start marker" "1" "$(grep -c '# icodex:iwiki:start' "$ICODEX_HOME_DIR/config.toml")"
@@ -205,7 +209,8 @@ assert_eq "absent config not created" "1" "$([[ -f "$ICODEX_HOME_DIR/config.toml
         ICODEX_IWIKI_SCORE_THRESHOLD ICODEX_IWIKI_GRAPH_DEPTH ICODEX_IWIKI_CHUNK_SIZE \
         ICODEX_IWIKI_CHUNK_OVERLAP ICODEX_IWIKI_SUMMARY_MAX_CHARS \
         ICODEX_IWIKI_CODE_GRAPH_ENABLED ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES \
-        ICODEX_IWIKI_CODE_GRAPH_MAX_FILES ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD
+        ICODEX_IWIKI_CODE_GRAPH_MAX_FILES ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD \
+        ICODEX_IWIKI_CODE_GRAPH_MCP_URL ICODEX_IWIKI_CODE_GRAPH_MCP_TOKEN
   export ICODEX_HOME_DIR="$tmp/home-sete"
   mkdir -p "$ICODEX_HOME_DIR"
   printf 'model = "x"\n' > "$ICODEX_HOME_DIR/config.toml"
@@ -237,7 +242,7 @@ EOF
 ensure_iwiki_wiring
 cfg="$(cat "$ICODEX_HOME_DIR/config.toml")"
 assert_contains "postgres block present" "$cfg" '[mcp_servers.iwiki]'
-assert_contains "postgres forwards secret names" "$cfg" 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD", "IWIKI_SYSTEM1_KEY"]'
+assert_contains "postgres forwards secret names" "$cfg" 'env_vars = ["IWIKI_LLM_KEY", "IWIKI_DB_PASSWORD", "IWIKI_SYSTEM1_KEY", "IWIKI_CODE_GRAPH_MCP_TOKEN"]'
 assert_eq "postgres has no Git base" "0" "$(grep -c 'IWIKI_BASE_DIR' "$ICODEX_HOME_DIR/config.toml")"
 assert_eq "postgres DB secret not written literally" "0" "$(grep -c 'db-test-secret' "$ICODEX_HOME_DIR/config.toml")"
 unset ICODEX_IWIKI_DB_PASSWORD
