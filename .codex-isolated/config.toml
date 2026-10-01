@@ -5,25 +5,33 @@
 # Do NOT put secrets here. The API key goes in .codex_config as ICODEX_API_KEY
 # (git-ignored, chmod 600) or via `codex login` (auth.json, git-ignored).
 
-# Example — point the default provider at a custom OpenAI-compatible endpoint:
-#
-# model = "gpt-5-codex"
-# model_provider = "litellm"
-#
-# [model_providers.litellm]
-# name = "litellm"
-# base_url = "https://homelab.ikeniborn.ru/llm/v1"
-# env_key = "OPENAI_API_KEY"
+# Framework GPU API example. Keep the bearer token in git-ignored
+# `.codex_config` as ICODEX_FRAMEWORK_EDGE_TOKEN. Codex custom providers require
+# the Responses API. As of 2026-10-01, `ollama-glm-5-3-cloud` works through
+# `/v1/chat/completions` but Framework reports `unsupported_model_capability`
+# for `/v1/responses`; keep this example disabled until that capability exists.
+# After Responses support is ready, replace the active `model` value below with
+# `ollama-glm-5-3-cloud`, then uncomment `model_provider` and the provider table.
 
 # --- Superpowers plugin (vendored under .codex-isolated/plugins/cache) ---
 # The wrapper passes --dangerously-bypass-hook-trust so vetted bundled hooks can
 # run non-interactively; current Codex versions do not support a persistent key.
 model = "gpt-5.5"
+# model = "ollama-glm-5-3-cloud"
+# model_provider = "framework_gpu"
 model_reasoning_effort = "high"
 sandbox_mode = "danger-full-access"
 approval_policy = "on-request"
 default_permissions = "ssh-on-request"
 web_search = "cached"
+
+[model_providers.framework_gpu]
+name = "Framework GPU API"
+base_url = "https://homelab.ikeniborn.ru/v1"
+env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN"
+wire_api = "responses"
+requires_openai_auth = false
+supports_websockets = false
 
 # Run modes (set ICODEX_MODE in .codex_config; default is full-ask):
 # - ro:        read-only sandbox, on-request approval, dev-safe profile.
