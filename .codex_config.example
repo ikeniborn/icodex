@@ -17,6 +17,28 @@
 # takes precedence. Alternative: `codex login` (writes auth.json, also ignored).
 #ICODEX_API_KEY=sk-...
 
+# Framework GPU API bearer token. Keep the real value only in the git-ignored
+# `.codex_config`; never add it to Codex config.toml or Git.
+#
+# Pair it with a custom Responses provider in the target project's
+# `.codex-homes/<project>-<hash>/config.toml` (or in
+# `.codex-isolated/config.toml` as the template for new project homes):
+#
+#   model = "<framework-model-alias>"
+#   model_provider = "framework_gpu"
+#
+#   [model_providers.framework_gpu]
+#   name = "Framework GPU API"
+#   base_url = "https://homelab.ikeniborn.ru/v1"
+#   env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN"
+#   wire_api = "responses"
+#   requires_openai_auth = false
+#   supports_websockets = false
+#
+# Use a public alias returned by Framework `/v1/models`, not an internal
+# Lemonade model id. Restart icodex after changing either file.
+#ICODEX_FRAMEWORK_EDGE_TOKEN=<frameworkEdgeToken>
+
 # Run mode — bundles sandbox, approval, and managed permissions. Default: full-ask.
 #   ro        read-only sandbox, asks before commands, no network/SSH.
 #   safe      workspace-write, asks before commands, no network/SSH, .git writable.

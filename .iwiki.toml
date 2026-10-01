@@ -2,7 +2,7 @@
 # The code graph below indexes this repository's Bash and Python sources. It is
 # built by a local Git/stdio server, so a launch that registers only the remote
 # transport cannot refresh it and its published snapshot goes stale.
-read = ["iclaude", "icodex", "iwiki-mcp", "devops"]
+read = ["iclaude", "icodex", "iwiki-mcp", "devops", "framework"]
 write = ["icodex", "devops"]
 primary = "icodex"
 
