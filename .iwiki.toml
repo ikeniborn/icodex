@@ -3,7 +3,7 @@
 # built by a local Git/stdio server, so a launch that registers only the remote
 # transport cannot refresh it and its published snapshot goes stale.
 read = ["iclaude", "icodex", "iwiki-mcp", "devops", "framework"]
-write = ["icodex", "devops"]
+write = ["icodex", "devops", "framework"]
 primary = "icodex"
 
 # GWT specification policy for every visible local domain.

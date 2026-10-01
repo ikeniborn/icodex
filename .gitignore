@@ -71,3 +71,4 @@
 # Python verification artifacts
 __pycache__/
 *.pyc
+*.bak-*

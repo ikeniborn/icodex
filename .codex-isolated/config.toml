@@ -17,6 +17,7 @@
 # The wrapper passes --dangerously-bypass-hook-trust so vetted bundled hooks can
 # run non-interactively; current Codex versions do not support a persistent key.
 model = "gpt-5.5"
+# model = "ollama-glm-5-3-cloud"
 # model_provider = "framework_gpu"
 model_reasoning_effort = "high"
 sandbox_mode = "danger-full-access"
@@ -24,13 +25,13 @@ approval_policy = "on-request"
 default_permissions = "ssh-on-request"
 web_search = "cached"
 
-# [model_providers.framework_gpu]
-# name = "Framework GPU API"
-# base_url = "https://homelab.ikeniborn.ru/v1"
-# env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN"
-# wire_api = "responses"
-# requires_openai_auth = false
-# supports_websockets = false
+[model_providers.framework_gpu]
+name = "Framework GPU API"
+base_url = "https://homelab.ikeniborn.ru/v1"
+env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN"
+wire_api = "responses"
+requires_openai_auth = false
+supports_websockets = false
 
 # Run modes (set ICODEX_MODE in .codex_config; default is full-ask):
 # - ro:        read-only sandbox, on-request approval, dev-safe profile.
