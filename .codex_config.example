@@ -24,8 +24,9 @@
 # `.codex-homes/<project>-<hash>/config.toml` (or in
 # `.codex-isolated/config.toml` as the template for new project homes):
 #
-#   model = "<framework-model-alias>"
+#   model = "ollama-glm-5-3-cloud"
 #   model_provider = "framework_gpu"
+#   web_search = "disabled"
 #
 #   [model_providers.framework_gpu]
 #   name = "Framework GPU API"
@@ -35,8 +36,8 @@
 #   requires_openai_auth = false
 #   supports_websockets = false
 #
-# Use a public alias returned by Framework `/v1/models`, not an internal
-# Lemonade model id. Restart icodex after changing either file.
+# Use the full public alias returned by Framework `/v1/models`, not `glm` or an
+# internal Ollama model id. Restart icodex after changing either file.
 #ICODEX_FRAMEWORK_EDGE_TOKEN=<frameworkEdgeToken>
 
 # Run mode — bundles sandbox, approval, and managed permissions. Default: full-ask.
