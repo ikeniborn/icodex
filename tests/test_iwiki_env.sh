@@ -76,4 +76,13 @@ unset IWIKI_REMOTE_TOKEN; export IWIKI_REMOTE_TOKEN="remote-ambient"; ICODEX_IWI
 apply_iwiki_env
 assert_eq "ambient IWIKI_REMOTE_TOKEN wins" "remote-ambient" "${IWIKI_REMOTE_TOKEN:-}"
 
+# --- code-graph MCP token follows the wrapper-only secret path ---
+unset IWIKI_CODE_GRAPH_MCP_TOKEN; ICODEX_IWIKI_CODE_GRAPH_MCP_TOKEN="code-graph-secret"
+apply_iwiki_env
+assert_eq "mapped to IWIKI_CODE_GRAPH_MCP_TOKEN" "code-graph-secret" "${IWIKI_CODE_GRAPH_MCP_TOKEN:-}"
+
+unset IWIKI_CODE_GRAPH_MCP_TOKEN; export IWIKI_CODE_GRAPH_MCP_TOKEN="code-graph-ambient"; ICODEX_IWIKI_CODE_GRAPH_MCP_TOKEN="code-graph-config"
+apply_iwiki_env
+assert_eq "ambient IWIKI_CODE_GRAPH_MCP_TOKEN wins" "code-graph-ambient" "${IWIKI_CODE_GRAPH_MCP_TOKEN:-}"
+
 finish
