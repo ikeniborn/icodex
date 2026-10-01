@@ -241,6 +241,8 @@
 #   ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES (positive integer)
 #   ICODEX_IWIKI_CODE_GRAPH_MAX_FILES     (positive integer)
 #   ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD  (off|bounded)
+#   ICODEX_IWIKI_CODE_GRAPH_MCP_URL       (remote MCP endpoint for mcp publish/read modes)
+#   ICODEX_IWIKI_CODE_GRAPH_MCP_TOKEN     (bearer token for that endpoint)
 #
 #ICODEX_IWIKI_COMMAND=/home/you/.local/bin/iwiki-mcp
 #ICODEX_IWIKI_BASE_DIR=/home/you/Documents/Project/iwiki-personal
@@ -269,3 +271,5 @@
 #ICODEX_IWIKI_CODE_GRAPH_MAX_FILE_BYTES=1000000
 #ICODEX_IWIKI_CODE_GRAPH_MAX_FILES=20000
 #ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD=bounded
+#ICODEX_IWIKI_CODE_GRAPH_MCP_URL=https://iwiki.example.com/mcp
+#ICODEX_IWIKI_CODE_GRAPH_MCP_TOKEN=...

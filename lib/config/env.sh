@@ -50,6 +50,9 @@ apply_iwiki_env() {
   if [[ -n "${ICODEX_IWIKI_REMOTE_TOKEN:-}" ]]; then
     export IWIKI_REMOTE_TOKEN="${IWIKI_REMOTE_TOKEN:-$ICODEX_IWIKI_REMOTE_TOKEN}"
   fi
+  if [[ -n "${ICODEX_IWIKI_CODE_GRAPH_MCP_TOKEN:-}" ]]; then
+    export IWIKI_CODE_GRAPH_MCP_TOKEN="${IWIKI_CODE_GRAPH_MCP_TOKEN:-$ICODEX_IWIKI_CODE_GRAPH_MCP_TOKEN}"
+  fi
 }
 
 _pii_is_uint() { [[ "${1:-}" =~ ^[0-9]+$ ]]; }

@@ -50,6 +50,13 @@ results only when status is `ready` and `fresh`. The wrapper supports `ICODEX_IW
 `ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD` overrides; project TOML remains the primary source
 for languages, bounds, excludes, and publication/read modes.
 
+When `publish_mode = "mcp"` or `read_mode = "mcp"`, set
+`ICODEX_IWIKI_CODE_GRAPH_MCP_URL` and `ICODEX_IWIKI_CODE_GRAPH_MCP_TOKEN` in the ignored
+`.codex_config`. The wrapper writes the URL into the local MCP server environment and maps
+the token at runtime to `IWIKI_CODE_GRAPH_MCP_TOKEN`; it never writes the token into TOML.
+These transit credentials are separate from `ICODEX_IWIKI_REMOTE_URL` and
+`ICODEX_IWIKI_REMOTE_TOKEN`, which configure Codex's own hosted iwiki connection.
+
 PostgreSQL serves `wiki_code_status`, `wiki_code_search`, and `wiki_code_context` from a
 published snapshot. It cannot index the client checkout: `wiki_code_index` returns
 `source_unavailable`. Hosted graph results additionally require `binding_source: session`.
