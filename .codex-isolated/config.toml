@@ -13,13 +13,13 @@
 # --- Superpowers plugin (vendored under .codex-isolated/plugins/cache) ---
 # The wrapper passes --dangerously-bypass-hook-trust so vetted bundled hooks can
 # run non-interactively; current Codex versions do not support a persistent key.
-model = "ollama-glm-5-3-cloud"
-model_provider = "framework_gpu"
+# model = "ollama-glm-5-3-cloud"
+# model_provider = "framework_gpu"
 model_reasoning_effort = "high"
 sandbox_mode = "danger-full-access"
 approval_policy = "on-request"
 default_permissions = "ssh-on-request"
-web_search = "disabled"
+web_search = "enabled"
 
 [model_providers.framework_gpu]
 name = "Framework GPU API"
