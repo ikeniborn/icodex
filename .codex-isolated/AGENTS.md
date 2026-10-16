@@ -1,12 +1,41 @@
 # AGENTS.md
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+Use these instructions to reduce coding errors. Apply project-specific instructions where applicable.
+Prefer caution when a mistake can cause harm. Use judgment for trivial tasks.
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+## Instruction Style
+
+Use an ASD-STE100-inspired style for English agent instructions. This is a project adaptation, not a claim of full STE compliance.
+
+- Write one instruction per sentence. Use the imperative form.
+- Put a prerequisite or condition before the action that depends on it.
+- Aim for 20 words per instruction and 25 words per descriptive sentence.
+- Preserve necessary conditions and exceptions when you divide a sentence.
+- Use numbered steps for ordered actions. Use tables for alternative conditions.
+- Keep explanations separate from required actions.
+- Use complete sentences. Do not omit articles or connecting words to shorten the text.
+- Use the same term for the same concept. Preserve exact tool names, paths, fields, and state values.
+- Use literal descriptions instead of metaphors.
+
+These rules apply to instruction text. They do not change the language or conversation style selected by the user.
+
+## Terms
+
+| Term | Meaning |
+|------|---------|
+| Approval | The user's explicit authorization for an action or proposal. |
+| Confirmation | A question used to obtain or clarify approval. |
+| Accepted recommendation | A recommendation that the user has approved. |
+| Gate | A condition that must be satisfied before the specified action. |
+| Workflow route | `direct`, `chain`, or `loen`. |
+| Execution route | A capability and reasoning classification from the model table. |
+| Trusted binding | The complete configured project scope, accepted by the server and verified through `wiki_status`. Hosted bindings also require `binding_source: session`. |
+| Binding mismatch | A rejected or defaulted binding, an unexpected session identity, or a substituted project primary. |
+| Unaccepted policy mismatch | A configured policy that was not carried or is inconsistent with status after applying hosted precedence. A valid hosted override is accepted. |
 
 ## Getting Started
 
-**Load docs before exploring code — they encode decisions invisible in raw code.**
+Read project documentation before exploring code. Documentation records decisions that code alone does not explain.
 
 ## Skill Availability
 
@@ -15,79 +44,234 @@ Never mark a listed skill unavailable because a filesystem scan, `find`, or `rg`
 not locate its `SKILL.md`; use the catalog source locator instead. Report a skill as
 unavailable only when it is absent from that catalog or its listed source cannot be read.
 
-At the start of any task in an unfamiliar area, or after a gap of more than 1 day:
+## Project Context and Wiki Binding
 
-1. **One binding protocol applies to local stdio and remote HTTP.** When project-root `.iwiki.toml` exists, load its full normalized `read`, `write`, and `primary` scope before `wiki_status`, searches, task-ledger, or any other wiki call; never narrow to the project basename. Carry configured policy through `project_policy` as described below; omit both policy arguments for local stdio. If policy cannot be carried, or `wiki_status` reports an unaccepted mismatch under documented hosted precedence, report it and retain task lifecycle `completion-pending`; block mutating specification calls for specification-mode mismatches. A rejected bind blocks all mutations; ordinary Wiki work remains available only with a trusted binding. A `source: hosted_override` result is accepted under that precedence, not a mismatch. Treat live callable tool schemas and observed server responses as the operation contract. After hosted `wiki_bind`, require `wiki_status` to report `binding_source: session`. If an answer reports `token_default` or `binding_defaulted`, rebind the full project scope and repeat the affected read. `primary_substituted` with `requested_primary`, `binding_not_selected`, a rejected bind, or an unexpected session identity blocks mutations and retains `completion-pending` until the exact project binding is restored. Domain-named Markdown tools carry no provenance fields, but `wiki_search` does: without `domains` its search set is the bound read list, and `intent="write"` prefers the bound primary over any `domains` you pass, so both answer `binding_defaulted` under the fallback and must be repeated after a rebind. A refused call answers `access_denied` whose `data` carries your own `binding_source` and, when the gate can attribute it, a `reason`; read `binding_source` first, because `token_default` there means the selection was lost rather than that the call is forbidden. Then run `wiki_status`, `wiki_search "<task topic>"`, and `wiki_lint`. If the generated `Remote iwiki project scope` section is present, its fail-closed rules take precedence. Without a project binding or connected server, skip iwiki context.
-2. Map the `docs/` layout into context (complements iwiki's semantic search with a structural overview):
-   ```bash
-   tree -L 2 docs/ || find docs -maxdepth 2 | sort   # fallback when `tree` is absent
-   ```
-   Depth `-L 2` is chosen for the current project — its `docs/` nests at most 2 directory
-   levels (e.g. `docs/superpowers/specs/`), so level 2 shows the full directory skeleton plus
-   top-level files without flooding context with every leaf file. Raise the level for deeper trees.
+At task start, load context if the area is unfamiliar or more than one day has passed.
+Skip this context refresh only for a familiar area in the same session.
 
-Skip only when: familiar area, same session.
+1. If project-root `.iwiki.toml` exists, read its full normalized `read`, `write`, and `primary` scope.
+2. Apply the binding procedure below before any wiki call, including task-ledger calls.
+3. After binding, run `wiki_status`.
+4. Search the task topic with `wiki_search`.
+5. Run `wiki_lint`.
+6. Map the `docs/` layout with this command:
+
+```bash
+tree -L 2 docs/ || find docs -maxdepth 2 | sort
+```
+
+Use a greater depth when the documentation has deeper directories.
+Without a project binding or connected server, skip iwiki context.
+Follow [Wiki Task Ledger](#wiki-task-ledger) for unavailable task storage.
+
+### Binding procedure
+
+**One binding protocol applies to local stdio and remote HTTP.**
+Use live callable tool schemas and observed server responses as the operation contract.
+If the generated `Remote iwiki project scope` section exists, its fail-closed rules take precedence.
+
+1. Load the complete scope from `.iwiki.toml` before `wiki_bind`.
+2. Do not narrow the scope to the project basename.
+3. Select policy arguments from [Hosted project policy](#hosted-project-policy).
+4. Call `wiki_bind` with the complete scope.
+5. Verify the binding with `wiki_status`.
+6. For hosted HTTP, require `binding_source: session` and the configured primary.
+
+For local stdio, omit both policy arguments. The server reads project configuration.
+
+### Binding errors
+
+Apply the matching row before continuing.
+
+| Condition | Required action |
+|-----------|-----------------|
+| A response reports `token_default` or `binding_defaulted` | Rebind the complete project scope and policy. Repeat the affected read. |
+| `primary_substituted` includes `requested_primary` | Block mutations until the exact project binding is restored. Retain task lifecycle `completion-pending`. |
+| `binding_not_selected`, a rejected bind, or an unexpected session identity | Block all mutations until the exact project binding is restored. Retain task lifecycle `completion-pending`. |
+| Policy cannot be carried, or status shows an unaccepted mismatch under documented hosted precedence | Report the mismatch. Retain task lifecycle `completion-pending`. For a specification-mode mismatch, block specification mutations. |
+| Status reports `source: hosted_override` under documented precedence | Accept the override. This is not a policy mismatch. |
+
+With a trusted binding, ordinary Wiki work remains available during a specification-mode mismatch.
+
+When a call returns `access_denied`, read `data.binding_source` first.
+If it is `token_default`, restore the binding before interpreting the refusal.
+Read `data.reason` when the server provides it.
+An unexpected session identity means the response does not match the session established by the project bind.
+
+### Search provenance
+
+Domain-named Markdown tools do not return provenance fields. `wiki_search` does.
+
+| Search | Selected scope |
+|--------|----------------|
+| Read search without `domains` | The bound read list. |
+| Read search with `domains` | The explicit domains. |
+| `wiki_search(intent="write")` | The bound primary, even when `domains` is supplied. |
+
+Under a fallback binding, domain-free search and write-intent search report `binding_defaulted`.
+Rebind before repeating these calls.
 
 ## Hosted project policy
 
-For hosted HTTP, prefer `project_policy`: map explicitly configured `[specifications].mode`
-to `specification_mode`, and `[code_graph].max_snapshot_age_seconds` to its same-named
-policy field. `require_session_binding` is operator-only; never include it in `project_policy`.
-Read its effective server value from status. Send only the two client-settable
-policy values and the complete normalized scope, never the whole TOML. Never send both
-`project_policy` and the deprecated top-level `specification_mode` alias. A later bind
-replaces the policy wholesale: resend all configured policy fields on every rebind.
-Use the alias only when the live schema lacks `project_policy` and the project declares
-only specification mode; report any uncarried policy field instead of silently dropping it.
-Local stdio omits both policy arguments and reads project configuration.
+For hosted HTTP, prefer `project_policy`.
+Send only explicitly configured client policy fields:
 
-Read effective values and their sources from `wiki_status.policy.domains[]`, including
-`policy.domains[].suppressed`; keep specification mode checks against `specifications`.
-Precedence is per field: exact override, then tenant-wide override, then project value,
-then hosted default, then built-in value. Operator overrides are legitimate. Project
-values may only tighten policy: `disabled < optional < strict` and a
-smaller snapshot age (`0` means infinity). `allow_project_mode=false` disables the project
-tier for both client-settable fields. Session-binding enforcement has no project tier. Report suppression and honor the effective server value; never
-relax policy to make stale snapshots pass. An unaccepted specification-mode mismatch
-retains `completion-pending` and blocks specification mutations; ordinary Wiki work
-remains available with a trusted binding.
+| Project field | `project_policy` field |
+|---------------|------------------------|
+| `[specifications].mode` | `specification_mode` |
+| `[code_graph].max_snapshot_age_seconds` | `max_snapshot_age_seconds` |
+
+`require_session_binding` is operator-only; never include it in `project_policy`.
+Read its effective server value from status.
+Send the complete normalized scope with the configured policy fields. Do not send the whole TOML.
+
+- Never send both `project_policy` and the deprecated top-level `specification_mode` alias.
+- Use the alias only if the live schema lacks `project_policy` and only specification mode is configured.
+- Report any policy field that cannot be carried. Do not silently omit it.
+- On every rebind, resend all configured policy fields. A bind replaces the previous policy in full.
+- Local stdio reads project configuration and omits both policy arguments.
+
+### Effective policy
+
+Read values and sources from `wiki_status.policy.domains[]`.
+Read suppression from `policy.domains[].suppressed`.
+For specification checks, read the effective mode per domain from the `specifications` block of `wiki_status`.
+Do not use the project file as evidence of the effective mode.
+
+Apply this precedence separately to each field:
+
+1. Exact operator override.
+2. Tenant-wide override.
+3. Carried project value.
+4. Hosted default.
+5. Built-in value.
+
+The built-in specification mode is `optional`.
+`source: project` confirms that the project value applies.
+`source: hosted_override` outranks it and is a legitimate server decision.
+`project_mode_suppressed: true` reports a refused project mode.
+
+Project values can only tighten policy:
+
+- Specification modes increase in strictness: `disabled < optional < strict`.
+- A smaller maximum snapshot age is stricter. A value of `0` means infinity.
+- `allow_project_mode=false` disables the project tier for both client-settable fields.
+- Session-binding enforcement has no project tier.
+
+Report suppression. Honor the effective server values.
+Never relax policy to make a stale snapshot pass.
+For policy errors, apply [Binding errors](#binding-errors).
 
 ## Keep Docs Current (MANDATORY)
 
-**After every change that alters functionality, architecture, or behavior — and only when the iwiki MCP server reports a domain bound to this project (`wiki_status`) — update the wiki via the MCP tools before responding to the user.**
+Update the wiki after changes to functionality, architecture, or behavior, when `wiki_status` reports a domain bound to this project.
+Use MCP tools to update the wiki before your final response.
+Skip this update only for changes such as typos, comments, or formatting that do not alter behavior.
 
-Use `wiki_list_domains`, `wiki_list_pages`, and `wiki_related` for read-only discovery; `wiki_related` consumes a real section ID returned by retrieval. For `wiki_search`, explicit `domains` win. Use `scope="all"` only for an explicit whole-base search; `read=["all"]` is a literal domain, not a wildcard. Read search accepts `hybrid`, `lexical`, or `semantic`; use lexical for exact identifiers, hybrid for mixed discovery, and semantic for conceptual queries. Search returns locators, not page content: read the selected page/heading before relying on it. Lexical skips query embedding but can still rerank. Discovery does not authorize a write. `wiki_list_domain_grants` is limited to explicit hosted management work; `wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority. Never expand grants automatically.
+### Discovery and authorization
 
-- Pick the write tool by intent — each reindexes the touched domain on success, so no routine `wiki_index` follows:
-  - **New page** → `wiki_write_page(domain, slug, markdown, source=<changed-source>)`. Refuses to overwrite an existing page.
-  - **Rewrite / rename one `##` section** → `wiki_update_page(..., heading, new_body, new_heading=...)`.
-  - **Replace selector frontmatter only** → `wiki_update_page(..., code=...)`; body bytes stay unchanged and code-only calls omit `source`, `description`, `status`, `new_heading`, and `expected_section_hash`.
-  - **Change one section and selectors together** → pass paired section fields plus `code` atomically.
-  - **Add one `##` section** → `wiki_insert_section(..., heading, body, after_heading=... | before_heading=...)`.
-  - **Reorder one `##` section** → `wiki_move_section(..., heading, after_heading=... | before_heading=...)`.
-  - **Drop one `##` section** → `wiki_delete_section(..., heading)`.
-  - **Stale / removed source** → `wiki_delete_page(domain, slug)`. Drops the page and its vectors.
-- PostgreSQL page mutations are compare-and-swap. Read the page immediately before `wiki_update_page`, `wiki_insert_section`, `wiki_move_section`, `wiki_delete_section`, or `wiki_delete_page`, then pass its `revision` as `expected_revision`; omission returns `expected_revision_required`, and a stale value returns `conflict`. A heading-scoped `wiki_read_page(..., heading=...)` also returns `section_hash`; pass it as `expected_section_hash` when protecting that section, and re-read on `section_conflict`.
-- Call `wiki_index(domain)` only to rebuild after out-of-band edits (markdown changed on disk without a tool) or a sync conflict — never as a routine step after a write.
-- Run `wiki_lint`. Git reports links, structure, orphans, stale sources, frontmatter, and tag drift; task/history orphans are expected advisories. PostgreSQL lint does not compute orphan, stale-source, frontmatter, or tag-drift findings, so empty lists for them are not evidence of health.
-- Read `storage` and `transport` from `wiki_status` once. On Git, writes auto-commit and `wiki_sync` is Git-only publication. On PostgreSQL, writes are durable database transactions; `wiki_sync`, OKF tools, and `wiki_remediation_plan` return `unsupported_storage`. `wiki_create_domain` requires hosted creation authority under streamable HTTP, works normally on Git, and is unsupported for local PostgreSQL stdio. Domain-grant tools require hosted management authority.
-- Skip only for changes that touch no functionality, architecture, or behavior (typo, comment, formatting).
+Use `wiki_list_domains`, `wiki_list_pages`, and `wiki_related` for read-only discovery.
+For `wiki_related`, use a real section ID returned by retrieval.
 
-Always use the iwiki MCP tools exposed by the current session — including section operations, code-graph reads/publication, and hosted domain-authority tools where their storage/transport preconditions hold — never old plugin skills or the `iwiki_engine` CLI.
+- Use `scope="all"` only for an explicitly requested whole-base search.
+- `read=["all"]` is a literal domain, not a wildcard.
+- Search modes are `hybrid`, `lexical`, or `semantic`.
+- Use lexical search for exact identifiers, hybrid search for mixed queries, and semantic search for concepts.
+- Lexical search skips query embedding but can still rerank.
+- Search returns locators. Read the selected page or heading before relying on its content.
+- For search scope and binding recovery, follow [Search provenance](#search-provenance).
+
+Discovery does not authorize a write.
+Use `wiki_list_domain_grants` only for explicit hosted management work.
+`wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority.
+Never expand grants automatically.
+
+### Select a write tool
+
+Each successful mutation reindexes the touched domain. Do not call `wiki_index` after a normal tool write.
+
+| Intent | Tool |
+|--------|------|
+| Create a page | `wiki_write_page(domain, slug, markdown, source=<changed-source>)`. Existing pages cannot be overwritten. |
+| Rewrite or rename one `##` section | `wiki_update_page(..., heading, new_body, new_heading=...)` |
+| Replace selector frontmatter only | `wiki_update_page(..., code=...)` |
+| Change a section and its selectors | Pass paired section fields plus `code` atomically. |
+| Add a section | `wiki_insert_section(..., heading, body, after_heading=... \| before_heading=...)` |
+| Reorder a section | `wiki_move_section(..., heading, after_heading=... \| before_heading=...)` |
+| Remove a section | `wiki_delete_section(..., heading)` |
+| Remove a page for stale or removed source | `wiki_delete_page(domain, slug)`. This also removes the page vectors. |
+
+For selector-only changes, preserve body bytes.
+The code-only calls omit `source`, `description`, `status`, `new_heading`, and `expected_section_hash`.
+
+### PostgreSQL revision checks
+
+Before `wiki_update_page`, `wiki_insert_section`, `wiki_move_section`, `wiki_delete_section`, or `wiki_delete_page`:
+
+1. Read the current page immediately before the mutation.
+2. Pass its `revision` as `expected_revision`.
+3. To protect one section, also read that heading with `wiki_read_page(..., heading=...)`.
+4. Pass the returned `section_hash` as `expected_section_hash`.
+
+| Response | Meaning and action |
+|----------|--------------------|
+| `expected_revision_required` | The revision was omitted. Read the page before submitting the mutation with its revision. |
+| `conflict` | The revision is stale. Read the page again before retrying. |
+| `section_conflict` | The section changed. Read the section again before retrying. |
+
+### Storage and validation
+
+Read `storage` and `transport` from `wiki_status` once.
+
+| Storage or transport | Contract |
+|----------------------|----------|
+| Git | Writes auto-commit. `wiki_sync` is Git-only publication. |
+| PostgreSQL | Writes are durable database transactions. `wiki_sync`, OKF tools, and `wiki_remediation_plan` return `unsupported_storage`. |
+| Hosted HTTP | `wiki_create_domain` requires hosted creation authority. Domain-grant tools require hosted management authority. |
+| Local Git | Domain creation works normally. |
+| Local PostgreSQL stdio | Domain creation is unsupported. |
+
+Call `wiki_index(domain)` only after out-of-band Markdown edits or a sync conflict.
+Run `wiki_lint` after wiki changes.
+Git lint checks links, structure, orphans, stale sources, frontmatter, and tag drift.
+Task/history orphans are expected advisories.
+PostgreSQL lint does not compute orphan, stale-source, frontmatter, or tag-drift findings.
+Empty lists for those findings do not prove health.
+
+Always use the iwiki MCP tools exposed by the current session.
+Use section, code-graph, publication, and domain-authority tools only when their storage and transport requirements are met.
+Do not use old plugin skills or the `iwiki_engine` CLI.
 
 ## Keep Code Graph Current (MANDATORY)
 
-For Python, TypeScript, JavaScript, or Bash code analysis or planning, call `wiki_code_status` after binding. Treat graph-assisted analysis as available only when `state == "ready"` and `fresh == true`; hosted reads additionally require `binding_source == "session"`. Bash is opt-in, scans `.sh` files only, and uses the `sh:` entity prefix. Missing, stale, failed, unconfigured, default-bound, or source-unavailable graph state falls back to repository search without blocking ordinary Wiki work. The four-language code-analysis scope covers Python, TypeScript, JavaScript, and Bash.
+For Python, TypeScript, JavaScript, or Bash code analysis or planning, call `wiki_code_status` after binding.
 
-After a Python, TypeScript, JavaScript, or Bash symbol change, call `wiki_code_index` only when the active MCP server has the repository checkout. Hosted HTTP returns `source_unavailable`; its `wiki_code_status`, `wiki_code_search`, and `wiki_code_context` still read the published PostgreSQL snapshot. Publication tools require hosted HTTP, writable primary, and server-advertised batch limits from `wiki_code_publish_begin`; they accept neither client `domain` nor `iwiki_id`, and never raise those limits client-side.
+Use graph-assisted analysis only when `state == "ready"` and `fresh == true`.
+For hosted reads, also require `binding_source == "session"`.
+
+Bash is opt-in, scans `.sh` files only, and uses the `sh:` entity prefix.
+Missing, stale, failed, unconfigured, default-bound, or source-unavailable graph state falls back to repository search without blocking ordinary Wiki work.
+
+### Source changes
+
+After a Python, TypeScript, JavaScript, or Bash symbol change, call `wiki_code_index` only when the active MCP server has the repository checkout.
+Hosted HTTP returns `source_unavailable`; its `wiki_code_status`, `wiki_code_search`, and `wiki_code_context` still read the published PostgreSQL snapshot.
+
+Publication tools require hosted HTTP, writable primary, and server-advertised batch limits from `wiki_code_publish_begin`.
+They accept neither client `domain` nor `iwiki_id`.
+Never raise those limits client-side.
+
+### Local build completion
 
 For a local build, `wiki_code_index(wait_seconds=...)` bounds the caller wait, not the
-build deadline. A `rebuilding` answer with `job.id` means the worker continues; poll
-`wiki_code_status(job_id=...)` on the same server and binding. Inspect that job's terminal
+build deadline. If a response is `rebuilding` with `job.id`, the worker continues.
+Poll `wiki_code_status(job_id=...)` on the same server and binding. Inspect that job's terminal
 `ready`/`failed` state separately from graph `state`/`fresh`. `job_unknown` is not success;
 fall back to current graph status without claiming the requested build completed. A response
 without the requested `job` is not completion evidence, even without a `job_unknown` warning. A
 publication failure may fail the job even when the local graph is ready.
+
+### Wiki link freshness
 
 After Wiki edits, distinguish `wiki_links_stale` from code snapshot freshness. When the
 code snapshot is unchanged, `wiki_code_refresh_links(domain=...)` re-derives links against
@@ -105,69 +289,134 @@ business invariant. Do not require one for formatting, ordinary Wiki maintenance
 mechanical refactoring with unchanged behavior. Ordinary Wiki pages retain their existing
 validation, storage, search, and lint behavior in every specification mode.
 
-Use only the semantic tools `wiki_spec_search`, `wiki_spec_context`, and
-`wiki_spec_resolve`. All three carry `binding_source` on a hosted server. A
-`wiki_spec_search` without `domains` searches the bound read list, so under
-`token_default` it reports `binding_defaulted` and answers for the token's grants rather
-than the project scope: rebind and repeat, or name `domains`. Hosted `wiki_spec_resolve`
-accepts only the bound primary and attributes a refusal as `invalid_domain`,
-`primary_not_selected`, `primary_not_writable`, or `not_bound_primary`; `not_bound_primary`
-reports a scenario living outside the bound primary, not a missing grant, and is repaired
-by resolving from the project whose primary owns that domain. Call `wiki_spec_context`
-before changing an existing scenario.
-Preserve its scenario ID while the observable contract is unchanged; changing that
-contract or ID is proposal-first. Treat the scenario, executable test, `implements` and
-`verifies` bindings, and verification evidence as one coherent unit. Write or update the
-executable test before or with implementation, then run focused and relevant regression
-tests and record command, exit status, and repository revision in the task ledger.
+### Scenario tools and binding
 
-Author each scenario in one closed `iwiki-gwt` TOML fence. Include non-empty `id`,
-`given`, `when`, `then`, and `code` fields, with at least one `implements` and one
-`verifies` binding using canonical roles and selectors. Use `wiki_spec_context` or the
-canonical iwiki GWT authoring page instead of inventing grammar.
+Use only the semantic tools `wiki_spec_search`, `wiki_spec_context`, and `wiki_spec_resolve`.
+All three carry `binding_source` on a hosted server.
 
-When `wiki_code_status` reports a ready graph, call `wiki_spec_resolve` after code or test
-changes. Ambiguous, stale, or unresolved bindings are maintenance findings, never
-permission to guess. When the graph is absent, stale, failed, unreachable, or hosted
-source is unavailable, preserve declared selectors, use repository search, run executable
-tests, and record `graph_unavailable`; this never blocks ordinary Wiki work.
+A `wiki_spec_search` without `domains` searches the bound read list.
+Under `token_default`, it reports `binding_defaulted` and answers for the token's grants instead of the project scope.
+Rebind and repeat the search, or name `domains`.
 
-Agents must preserve the configured `disabled`, `optional`, or `strict` mode according to
-the transport-specific binding rule above, and read the effective mode per domain from the
-`specifications` block of `wiki_status`, never from the project file. Hosted precedence is
-exact override, then tenant-wide override, then the carried project mode, then hosted default,
-then the built-in `optional`; the server gates the carried mode with `allow_project_mode` and a tighten-only
-guard and reports a refused value as `project_mode_suppressed: true`. `source: project`
-confirms the carried mode answered, while `source: hosted_override` outranks it
-legitimately and is not a mismatch. `disabled` disables specification projection
-and semantic tools; `optional` keeps every specification finding advisory. `strict` blocks
-only a future mutation of the reported explicit specification page for
-`missing_scenario`, `invalid_scenario`, `duplicate_scenario_id`, or
-`incomplete_bindings`. Projection and resolution findings remain advisory. Hooks never
-infer that an uncontextualized fence is an existing scenario: they nudge the parent to
-obtain context, then enforce matching domain and scenario ID after `wiki_spec_context`.
+Hosted `wiki_spec_resolve` accepts only the bound primary.
+A refusal gives one of these reasons:
+
+- `invalid_domain`
+- `primary_not_selected`
+- `primary_not_writable`
+- `not_bound_primary`
+
+`not_bound_primary` reports a scenario living outside the bound primary, not a missing grant.
+Resolve it from the project whose primary owns that domain.
+
+### Scenario changes
+
+1. Call `wiki_spec_context` before changing an existing scenario.
+2. Preserve its scenario ID while the observable contract is unchanged.
+3. If the contract or ID must change, propose that change before implementation.
+4. Write or update the executable test before or with implementation.
+5. Run focused and relevant regression tests.
+6. Record command, exit status, and repository revision in the task ledger.
+
+Treat the scenario, executable test, `implements` and `verifies` bindings, and verification evidence as one coherent unit.
+
+Author each scenario in one closed `iwiki-gwt` TOML fence.
+Include non-empty `id`, `given`, `when`, `then`, and `code` fields.
+Include at least one `implements` and one `verifies` binding with canonical roles and selectors.
+Use `wiki_spec_context` or the canonical iwiki GWT authoring page for the grammar.
+
+### Binding resolution
+
+When `wiki_code_status` reports a ready graph, call `wiki_spec_resolve` after code or test changes.
+Treat ambiguous, stale, or unresolved bindings as maintenance findings. Do not guess selectors.
+
+If the graph is absent, stale, failed, unreachable, or hosted source is unavailable:
+
+1. Preserve declared selectors.
+2. Use repository search.
+3. Run executable tests.
+4. Record `graph_unavailable`.
+
+Graph unavailability never blocks ordinary Wiki work.
+
+### Specification modes
+
+Preserve the configured specification policy through [Hosted project policy](#hosted-project-policy).
+Use the effective mode from status to select the behavior below.
+
+| Effective mode | Behavior |
+|----------------|----------|
+| `disabled` | Specification projection and semantic tools are disabled. |
+| `optional` | Every specification finding is advisory. |
+| `strict` | Block only a future mutation of the reported explicit specification page for the findings listed below. |
+
+Strict mode blocks these findings: `missing_scenario`, `invalid_scenario`, `duplicate_scenario_id`, or `incomplete_bindings`.
+Projection and resolution findings remain advisory.
+
+Hooks never infer that an uncontextualized fence is an existing scenario.
+They request context from the parent.
+Then they enforce matching domain and scenario ID after `wiki_spec_context`.
 They never write to Wiki or replace interactive MCP calls owned by the parent agent.
 
 ## Wiki Task Ledger
 
-**Every direct, chain, and LoEn task, including read-only analysis, has one task-tagged iwiki page at `reference/tasks/<topic>`. It is the sole durable task index.**
+**Every direct, chain, and LoEn task, including read-only analysis, has one task-tagged iwiki page at `reference/tasks/<topic>`.**
+This page is the sole durable task index.
 
-- Bounded discovery may derive domain, topic, and route without a page. Before durable implementation or task-specific read-only analysis, parent creates or resolves the page through `task-ledger`.
-- Parent agent is the sole writer: it serializes page creation, lifecycle changes, durable evidence, and `Changelog` events. Before delegation record `dispatch`; each subagent returns its ID, role, outcome, changed paths, checks, blockers, and proposed changelog text; parent records `return` before the next transition.
-- Task pages use lifecycle `in-progress`, `blocked`, `completion-pending`, or `done`. `TODO` stays workflow-specific; chain gate outcomes and LoEn milestones are appended to `Changelog`, never stored as repository table cells.
-- Keep task history in linked, bounded history segments. The task page `Changelog` is a compact manifest; it links to the first and active `reference/task-history/<topic>-<sequence>` segment. Each segment holds at most 20 events and links to its successor, so no event is lost before close while each write stays bounded.
-- `reference/domain-changelog` records only domain-level changes (standards, releases, migrations, and cross-task decisions) with task-page links. It is not a task index and does not duplicate routine task events.
-- `wiki_lint` may report `reference/tasks/*` as an orphan because task status is found by tag search. Treat this expected advisory as non-blocking unless another finding targets that task page.
-- On iwiki MCP outage, execution may continue with redacted local spool evidence. Durable status is unavailable, spool state is non-authoritative, and the task must not report `done` until replay, successful page write, empty spool, and clean task-page lint.
-- When iwiki is connected but the project domain is absent, execution may continue with redacted local spool evidence; normal page resolution cannot occur. Durable status is unavailable, lifecycle is `completion-pending`, and the task must not report `done` until the domain and task page are available, replay succeeds, the spool is empty, and task-page lint is clean.
-- Do not add direct hooks that write wiki. MCP operations remain interactive parent actions. `task_spool.py` never calls MCP.
+Bounded discovery may derive domain, topic, and route without a page.
+Before durable implementation or task-specific read-only analysis, create or resolve the page through `task-ledger`.
+
+### Ownership and lifecycle
+
+The parent agent is the sole writer.
+It serializes page creation, lifecycle changes, durable evidence, and `Changelog` events.
+
+1. Before delegation, record `dispatch`.
+2. Require each subagent to return its ID, role, outcome, changed paths, checks, blockers, and proposed changelog text.
+3. Record `return` before the next transition.
+
+Use lifecycle `in-progress`, `blocked`, `completion-pending`, or `done`.
+Keep `TODO` specific to the workflow.
+Append chain gate outcomes and LoEn milestones to `Changelog`. Do not store them in repository table cells.
+
+### History
+
+Keep task history in linked segments at `reference/task-history/<topic>-<sequence>`.
+The task page `Changelog` links to the first and active segments.
+Limit each segment to 20 events. Link each completed segment to its successor.
+Preserve all events before closing the task.
+
+Use `reference/domain-changelog` only for standards, releases, migrations, and cross-task decisions.
+Link those entries to task pages. Do not duplicate routine task events there.
+
+If `wiki_lint` reports a task-page orphan, treat it as an expected advisory.
+Task status is found by tag search.
+Other findings on the task page still require attention.
+
+### Unavailable task storage
+
+On iwiki MCP outage, execution may continue with redacted local spool evidence.
+When iwiki is connected but the project domain is absent, execution may continue with the same local evidence.
+Normal page resolution is unavailable in that case.
+
+Durable status is unavailable. Spool evidence is non-authoritative. The lifecycle is `completion-pending`.
+The task must not report `done` until all these conditions are met:
+
+1. The domain and task page are available.
+2. Spool replay succeeds.
+3. The page write succeeds.
+4. The spool is empty.
+5. Task-page lint is clean.
+
+Do not add direct hooks that write wiki. MCP operations remain interactive parent actions.
+`task_spool.py` never calls MCP.
 
 ## Task Topic and Thread Title
 
 **Every task must define one canonical `<topic>` before durable work starts for the
 workflow artifacts the agent can control.**
 
-- `<topic>` is a semantic, English, lowercase kebab-case slug: words joined by hyphens, e.g. `thread-title-task-naming-policy`.
+- `<topic>` is a semantic, English, lowercase kebab-case slug: words joined by hyphens, for example `thread-title-task-naming-policy`.
 - Use the same `<topic>` across applicable controlled surfaces:
   - iwiki task-page slug `reference/tasks/<topic>`;
   - Superpowers chain topic, for IDD->SDD work;
@@ -195,8 +444,10 @@ Before selecting a workflow, perform bounded routing discovery from only the req
 project signals strictly necessary to derive domain, topic, and route. It creates no chain
 artifacts and is not implementation; it must not perform task-specific analysis, reproduction,
 or test execution before the task page is resolved. Resolve the wiki task page before any
-task-specific analysis or durable work. The interactive model-switch gate applies before
-implementation or durable artifact creation, not before routing discovery.
+task-specific analysis or durable work. Parent-session model recommendations do not block routing, implementation, or artifact creation.
+Apply the authority gates in [Model and Reasoning Recommendations](#model-and-reasoning-recommendations).
+
+### Select the workflow route
 
 Absence of evidence is not evidence for chain. Recommend **direct** when discovery shows
 the request or diagnosis is bounded, no chain trigger is evidenced, and a verification
@@ -210,6 +461,10 @@ schema or migration, security/concurrency/transaction/data-invariant behavior, o
 subsystem work. Chain does not imply spec and plan: that decision occurs only after
 `$check-chain intent` returns `OK`.
 
+Recommend **loen** only for tasks that operate a durable LoEn workspace through its own loop lifecycle.
+
+### Select the chain continuation
+
 After intent validation, perform intent-scoped repository analysis and recommend
 `execute` by default when implementation and verification are bounded. It implements
 directly from the approved intent and marks Spec and Plan n/a. Recommend `full` only when
@@ -219,13 +474,14 @@ schema/migration/security/concurrency/transaction/data-integrity invariant, or c
 subsystem design. Merely touching one of these areas is insufficient. General uncertainty,
 task size, or the word "non-trivial" are not triggers.
 
-Recommend **loen** only for tasks that operate a durable LoEn workspace through its own
-loop lifecycle.
+### Approval boundaries
 
 At task start, state the recommendation and its evidence. Do not invoke `fix-intent` or
 start chain until the user accepts that recommendation; an explicit chain request counts
 as acceptance. After intent validation, report `execute` or `full` with evidence and wait
 before starting `full`. Prefer `execute` when no full trigger is evidenced.
+
+### Direct work
 
 Direct work creates no formal intent, spec, plan, or `check-chain` artifact, but always resolves a wiki task page.
 The exception is an explicit direct topic: `@topic <kebab-case-topic>` is a user approval
@@ -445,7 +701,7 @@ Delegation: parent | child <exact model / effort>
 
 ## Project Status Reports
 
-**When the user asks for project status, progress, or "what's the state of X", read task-tagged iwiki pages only.**
+**When the user asks for project status, progress, or "what is the state of X", read task-tagged iwiki pages only.**
 
 - Bind the project domain, search task-tagged pages, and read relevant pages. Lead with lifecycle counts or requested topic; report lifecycle, `TODO`, pending delivery, evidence, and task-page lint findings.
 - Report `completion-pending` explicitly. List every `in-progress` task opened more than 14 days ago.
@@ -464,17 +720,17 @@ Delegation: parent | child <exact model / effort>
 - No leading indentation inside the fence. The first column is column 1, so copying grabs no stray spaces.
 - One command per line. No trailing whitespace.
 - No shell prompt prefixes (`$`, `>`, `#`) — they get copied too and break paste.
-- Don't wrap long commands with manual line breaks; let the terminal soft-wrap, or use explicit `\` continuations.
+- Do not wrap long commands with manual line breaks; let the terminal soft-wrap, or use explicit `\` continuations.
 
 ## Think Before Coding
 
-**Don't assume. Surface tradeoffs. Ask when unclear.**
+**State assumptions and tradeoffs. Ask when a requirement is unclear.**
 
 Before implementing:
 - State assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them — don't pick silently.
+- If multiple interpretations exist, present them — do not pick silently.
 - If a simpler approach exists, say so.
-- If something is unclear, stop. Name what's confusing. Ask.
+- If something is unclear, stop. Name what is confusing. Ask.
 
 ## Simplicity First
 
@@ -490,27 +746,27 @@ Ask yourself: "Would a senior engineer call this overcomplicated?" If yes, simpl
 
 ## Surgical Changes
 
-**Touch only what you must. Clean up only your own mess.**
+**Change only what the request requires. Remove unused code only when your changes made it unused.**
 
 When editing existing code:
-- Don't improve adjacent code or formatting — unrelated changes bloat diffs and risk regressions.
-- Don't refactor things that aren't broken — stability is a feature.
+- Do not improve adjacent code or formatting — unrelated changes bloat diffs and risk regressions.
+- Do not refactor things that are not broken — stability is a feature.
 - Match existing style — consistency beats personal preference.
-- If you notice unrelated dead code, mention it — don't delete it.
+- If you notice unrelated dead code, mention it — do not delete it.
 
 When your changes create orphans:
 - Remove imports/variables/functions YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
+- Do not remove pre-existing dead code unless asked.
 
 Test: every changed line must trace directly to the user's request.
 
 ## Branch Workflow
 
-**Don't commit to main. Develop on a branch. Merge back only via PR.**
+**Do not commit to main. Develop on a branch. Merge back only via PR.**
 
 - Never commit work directly to the main branch (`master` / `main` / `prod`), and never merge or push to it directly — close every branch through a PR into main.
 - **Branch naming is mandatory: `dev-<name>`, created from the selected up-to-date base branch (main by default).** Words inside `<name>` are joined with `-` (e.g. `dev-route-policy`). No exceptions.
-- **If the project has long-lived branches beyond `master` / `main` / `prod`** (e.g. `dev`, `develop`, `staging`, `release/*`), always ask first — which branch to base the new `dev-*` off, and which branch to open the PR against. Don't assume.
+- **If the project has long-lived branches beyond `master` / `main` / `prod`** (e.g. `dev`, `develop`, `staging`, `release/*`), always ask first — which branch to base the new `dev-*` off, and which branch to open the PR against. Do not assume.
 - **When creating a `dev-*` branch, check existing local `dev-*` branches first.**
   - **No existing `dev-*` branch** → do not offer or create a worktree; create the branch in the main worktree.
   - **Another `dev-*` branch already exists** → ask first: create a worktree for the new branch now?
@@ -597,10 +853,14 @@ priority; speed comes from removing checks that add no evidence.
 
 ## Mode: Piecemeal Growth
 
-Piecemeal growth designs from forces that exist now: executable requirements, current workflows, and failures that have actually occurred. Like a desire path, the shape follows observed traffic; it is not paved in anticipation of journeys nobody has taken.
+Design for current requirements, current workflows, and observed failures.
+Keep the implementation within the present contract.
 
-In this mode, keep the implementation as narrow as the present contract. Do not add configurability, concurrency, fallback paths, validation, or abstractions for possible future uses. Make assumptions explicit and let violations fail loudly, so new pressure is visible instead of being absorbed by speculative machinery.
+- Do not add configurability, concurrency, fallback paths, validation, or abstractions for hypothetical future needs.
+- State assumptions explicitly.
+- Make assumption violations visible instead of hiding them behind speculative handling.
+- When a new requirement or repeated failure appears, change the design locally.
+- Generalize only when observed needs show what the generalization must support.
 
-When a new requirement or repeated failure appears, repair the design locally. Generalize only once reality has shown what the generalization must support.
-
-This is not an argument against integrity at real boundaries: protect durable data, external callers, security, and failures with demonstrated likelihood or cost. It is an argument against paying complexity for imagined ones.
+Protect durable data, external callers, and security boundaries.
+Handle failures whose likelihood or cost is supported by evidence.

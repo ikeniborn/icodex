@@ -41,7 +41,11 @@ if [[ -f "$agents" ]]; then
   assert_contains "outage is fail-closed completion" "$agents_body" 'must not report `done`'
   assert_contains "missing task domain is fail-open execution" "$agents_body" "When iwiki is connected but the project domain is absent, execution may continue"
   assert_contains "missing task domain uses completion pending" "$agents_body" 'lifecycle is `completion-pending`'
-  assert_contains "missing task domain is fail-closed completion" "$agents_body" 'must not report `done` until the domain and task page are available'
+  assert_contains "missing task domain is fail-closed completion" "$agents_body" 'The domain and task page are available.'
+  assert_contains "completion requires every delivery condition" "$agents_body" 'must not report `done` until all these conditions are met:'
+  for condition in 'Spool replay succeeds.' 'The page write succeeds.' 'The spool is empty.' 'Task-page lint is clean.'; do
+    assert_contains "completion condition: $condition" "$agents_body" "$condition"
+  done
   assert_exit "no live repository task log" 1 grep -qF "Task Log (docs/TODO.md)" "$agents"
   assert_contains "routing discovery excludes task-specific analysis" "$flat_agents_body" 'must not perform task-specific analysis, reproduction, or test execution before the task page is resolved'
   assert_contains "direct creates no chain artifacts but resolves a task page" "$flat_agents_body" 'Direct work creates no formal intent, spec, plan, or `check-chain` artifact, but always resolves a wiki task page.'
@@ -76,6 +80,7 @@ if [[ -f "$agents" ]]; then
   assert_contains "delegation preserves authority boundaries" "$flat_agents_body" 'Delegation never bypasses user confirmation for destructive, risky, or external actions.'
   assert_exit "interactive policy has no status stop gate" 1 grep -qF 'request `/status` before asking the user to switch' "$agents"
   assert_exit "interactive policy has no switch halt" 1 grep -qF 'Halt before the next stage when a recommended switch requires user action.' "$agents"
+  assert_exit "routing has no obsolete interactive model-switch gate" 1 grep -qF 'The interactive model-switch gate applies before' "$agents"
   assert_contains "hook never selects model" "$flat_agents_body" "never selects or changes model"
   assert_contains "semantic route mechanical" "$agents_body" '`mechanical`'
   assert_contains "semantic route engineering" "$agents_body" '`engineering`'
