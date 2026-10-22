@@ -1,6 +1,6 @@
 topic: smoke-governance-merge-release
 mode: governance
-status: active
+status: complete
 objective: "Verify governance merge-release preflight accepts complete release policy in dry-run mode."
 current_stage: plan
 stage: plan

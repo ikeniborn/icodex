@@ -8,6 +8,7 @@ ICODEX_FULL_ACCESS=0
 ICODEX_USE_PII_PROXY_FLAG=0
 ICODEX_PROFILE_TOPIC=""
 ICODEX_PROFILE_TASK=""
+ICODEX_ROUTER_PRESET=""
 
 parse_args() {
   while (( $# )); do
@@ -15,6 +16,9 @@ parse_args() {
       --proxy)
         if [[ -z "${2:-}" ]]; then log_error "--proxy requires a url"; return 1; fi
         ICODEX_SET_PROXY="$2"; shift 2 ;;
+      --router)
+        if [[ -z "${2:-}" ]]; then log_error "--router requires a preset name"; return 1; fi
+        ICODEX_ROUTER_PRESET="$2"; shift 2 ;;
       --no-proxy) ICODEX_DISABLE_PROXY=1; shift ;;
       --pii-proxy) ICODEX_USE_PII_PROXY_FLAG=1; shift ;;
       --install-pii-proxy) ICODEX_CMD="install-pii-proxy"; shift ;;
@@ -56,6 +60,11 @@ Usage: icodex [icodex-flags] [-- codex-args...]
 
 icodex flags:
   --proxy <url>   Save ICODEX_PROXY to .codex_config and route codex through it
+  --router <preset>
+                  Run codex with the model + provider from one preset in
+                  .codex-isolated/router.toml, applied as one-run -c overrides
+                  (config files are not modified); without it the default model
+                  from config.toml is used
   --no-proxy      Disable the proxy for this run (ICODEX_NO_PROXY is the host
                   bypass list, NOT a disable switch)
   --pii-proxy     Enable local PII/secrets masking proxy for this run

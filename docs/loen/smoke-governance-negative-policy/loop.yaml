@@ -1,6 +1,6 @@
 topic: smoke-governance-negative-policy
 mode: governance
-status: active
+status: handoff
 objective: "Verify governance merge-release stops with handoff when release policy is incomplete."
 current_stage: plan
 stage: plan

@@ -13,7 +13,7 @@ ICODEX_ROOT="$(cd -P "$(dirname "$_src")" && pwd)"
 unset _src _dir
 export ICODEX_ROOT
 
-for m in core/logging core/init core/validation command/args \
+for m in core/logging core/init core/validation command/args command/router \
          binary/detect binary/lockfile binary/install \
          config/isolated config/permissions config/sandbox config/env config/ca_trust proxy/proxy symlink/symlink \
          plugin/superpowers plugin/loen caveman/caveman idd/idd iwiki/iwiki profile/wiring profile/profile \
@@ -92,10 +92,16 @@ main() {
     run_profile_dispatch
     return $?
   fi
+  local -a launch_args=()
+  if [[ -n "$ICODEX_ROUTER_PRESET" ]]; then
+    router_apply_preset "$ICODEX_ROUTER_PRESET" || exit 1
+    launch_args+=(${ICODEX_ROUTER_OVERRIDES[@]+"${ICODEX_ROUTER_OVERRIDES[@]}"})
+  fi
+  launch_args+=(${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"})
   if [[ "${ICODEX_TELEMETRY:-off}" == "off" ]]; then
-    launch_codex_with_optional_pii ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}
+    launch_codex_with_optional_pii ${launch_args[@]+"${launch_args[@]}"}
   else
-    launch_codex_wrapped ${ICODEX_PASSTHROUGH[@]+"${ICODEX_PASSTHROUGH[@]}"}
+    launch_codex_wrapped ${launch_args[@]+"${launch_args[@]}"}
     exit $?
   fi
 }

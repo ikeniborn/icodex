@@ -1,6 +1,6 @@
 topic: smoke-governance-report-only
 mode: governance
-status: active
+status: complete
 objective: "Verify governance report-only can produce evidence without product-file edits."
 current_stage: plan
 stage: plan
