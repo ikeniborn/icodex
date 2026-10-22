@@ -17,18 +17,8 @@
 # touched by the wrapper. Never move sandbox/approval/permission keys inside:
 # those are launch-managed separately (lib/config/sandbox.sh).
 # icodex:template-managed:start
-# model = "ollama-glm-5-3-cloud"
-# model_provider = "framework_gpu"
 model_reasoning_effort = "high"
-web_search = "enabled"
-
-[model_providers.framework_gpu]
-name = "Framework GPU API"
-base_url = "https://homelab.ikeniborn.ru/v1"
-env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN"
-wire_api = "responses"
-requires_openai_auth = false
-supports_websockets = false
+web_search = "live"
 # icodex:template-managed:end
 
 # --- Superpowers plugin (vendored under .codex-isolated/plugins/cache) ---
