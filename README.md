@@ -135,6 +135,18 @@ variable (set it in `.codex_config`), and icodex fails the launch loudly when a 
 `env_key` variable is unset. Without `--router`, the default model from `config.toml` is
 used unchanged.
 
+> **Framework GPU provider — multi-turn limitation (verified 2026-10-22, codex 0.163).**
+> Framework's `/v1/responses` answers the first turn of a chat, then rejects the history
+> replay codex sends on every later turn with
+> `"input contains an unsupported field"` (`param: input`): it refuses the `status`,
+> `annotations`, and `logprobs` fields inside replayed assistant items — the very fields
+> Framework itself emits in its own responses. Single-turn work (`codex exec` without
+> history) works fine; interactive TUI chats through `framework_gpu` fail from the
+> second message on. codex has no client-side switch to strip these fields
+> (`wire_api = "chat"` was removed), so the fix belongs in the Framework Responses
+> adapter. Use the OpenAI provider (or another compatible endpoint) for multi-turn chat
+> until then.
+
 ## Configuration variables
 
 Settings you want on every run live in a `.codex_config` file at the project root

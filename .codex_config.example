@@ -20,16 +20,29 @@
 # Framework GPU API bearer token. Keep the real value only in the git-ignored
 # `.codex_config`; never add it to Codex config.toml or Git.
 #
-# The provider itself lives in the template-managed region of
-# `.codex-isolated/config.toml` (between the `# icodex:template-managed`
-# markers), which every launch re-syncs into each per-project home, or in a
-# `--router` preset in `.codex-isolated/router.toml` (see
-# `.codex-isolated/router.toml.example`). A preset referencing a provider with
-# env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN" fails the launch loudly when this
-# variable is unset.
+# The provider itself lives in ONE of two places, never in this file:
+#   - the template-managed region of `.codex-isolated/config.toml` (between
+#     the `# icodex:template-managed` markers), which every launch re-syncs
+#     into each per-project home, or
+#   - a `--router` preset in `.codex-isolated/router.toml` (see
+#     `.codex-isolated/router.toml.example`), applied for one run via
+#     `./icodex.sh --router <preset>`. A preset referencing a provider with
+#     env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN" fails the launch loudly when
+#     this variable is unset.
 #
-# Use the full public alias returned by Framework `/v1/models`, not `glm` or an
-# internal Ollama model id. Restart icodex after changing either file.
+# KNOWN LIMITATION (verified 2026-10-22, codex 0.163): Framework's
+# `/v1/responses` answers the FIRST turn of a chat, then rejects the history
+# replay codex sends on every later turn — it refuses the `status`,
+# `annotations`, and `logprobs` fields inside `input` items with
+# "input contains an unsupported field", even though Framework itself emits
+# those exact fields in its own responses. Multi-turn chat through the
+# `framework_gpu` provider therefore fails from the second turn on, until
+# the Framework Responses adapter accepts (or ignores) them. codex has no
+# client-side switch to strip them (`wire_api = "chat"` is removed), so the
+# fix belongs on the Framework side.
+#
+# Use the full public alias returned by Framework `/v1/models`, not `glm` or
+# an internal Ollama model id. Restart icodex after changing either file.
 #ICODEX_FRAMEWORK_EDGE_TOKEN=<frameworkEdgeToken>
 
 # Run mode — bundles sandbox, approval, and managed permissions. Default: full-ask.
