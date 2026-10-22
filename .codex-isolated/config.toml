@@ -17,7 +17,7 @@
 # touched by the wrapper. Never move sandbox/approval/permission keys inside:
 # those are launch-managed separately (lib/config/sandbox.sh).
 # icodex:template-managed:start
-model_reasoning_effort = "high"
+model_reasoning_effort = "low"
 web_search = "live"
 # icodex:template-managed:end
 
