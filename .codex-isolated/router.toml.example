@@ -1,0 +1,37 @@
+# icodex --router presets — template.
+#
+# Copy this file to .codex-isolated/router.toml (git-ignored) and define one
+# [presets.<name>] table per --router preset:
+#
+#     cp .codex-isolated/router.toml.example .codex-isolated/router.toml
+#
+# Keys inside a preset:
+#   model            Model name passed to codex for this run (required).
+#   model_provider   Existing provider table id from config.toml (optional).
+#
+# A preset may also define or override a provider inline via a nested
+# [presets.<name>.providers.<id>] table. Provider keys mirror the codex
+# [model_providers.<id>] shape: name, base_url, env_key, wire_api,
+# requires_openai_auth, supports_websockets. Only the keys you list are
+# passed as -c overrides; the rest come from the effective config.
+#
+# SECRETS STAY IN ENVIRONMENT VARIABLES: env_key names the variable (e.g.
+# ICODEX_FRAMEWORK_EDGE_TOKEN in git-ignored .codex_config); icodex fails
+# the run when a provider's env_key variable is unset. Never put tokens
+# in this file.
+#
+# Usage:
+#     ./icodex.sh --router framework-glm
+# Without --router, the default model from config.toml is used unchanged.
+
+[presets.framework-glm]
+model = "ollama-glm-5-3-cloud"
+model_provider = "framework_gpu"
+
+[presets.framework-glm.providers.framework_gpu]
+name = "Framework GPU API"
+base_url = "https://homelab.ikeniborn.ru/v1"
+env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN"
+wire_api = "responses"
+requires_openai_auth = false
+supports_websockets = false

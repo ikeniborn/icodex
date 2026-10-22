@@ -1,6 +1,6 @@
 topic: smoke-governance-auto-fix
 mode: governance
-status: active
+status: complete
 objective: "Verify governance auto-fix can change only usable mutable scope and then pass verifier."
 current_stage: plan
 stage: plan

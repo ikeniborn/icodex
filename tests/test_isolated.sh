@@ -14,7 +14,20 @@ mkdir -p "$ICODEX_SHARED_DIR/profiles"
 printf 'schema_version: 1\n' > "$ICODEX_SHARED_DIR/profiles/registry.yaml"
 mkdir -p "$ICODEX_SHARED_DIR/skills"
 mkdir -p "$ICODEX_SHARED_DIR/hooks"
-printf 'bypass_hook_trust = true\nsandbox_mode = "workspace-write"\n' > "$ICODEX_SHARED_DIR/config.toml"
+cat > "$ICODEX_SHARED_DIR/config.toml" <<'TOML'
+bypass_hook_trust = true
+sandbox_mode = "workspace-write"
+# icodex:template-managed:start
+model_reasoning_effort = "high"
+web_search = "enabled"
+
+[model_providers.test_gpu]
+name = "Test GPU API"
+base_url = "https://gpu.example/v1"
+env_key = "ICODEX_TEST_TOKEN"
+wire_api = "responses"
+# icodex:template-managed:end
+TOML
 printf '{"hooks":{}}\n' > "$ICODEX_SHARED_DIR/hooks.json"
 printf '#!/usr/bin/env python3\n' > "$ICODEX_SHARED_DIR/hooks/example.py"
 # skills fixture: a user skill plus a codex-managed .system dir
@@ -61,6 +74,42 @@ assert_exit "auth symlink"       0 test -L "$ICODEX_HOME_DIR/auth.json"
 assert_eq  "auth -> shared"      "$ICODEX_SHARED_DIR/auth.json" "$(readlink "$ICODEX_HOME_DIR/auth.json")"
 assert_exit "config copied"      0 test -f "$ICODEX_HOME_DIR/config.toml"
 assert_eq "obsolete hook trust key removed" "0" "$(grep -c '^bypass_hook_trust[[:space:]]*=' "$ICODEX_HOME_DIR/config.toml")"
+
+# Template-managed region: present, synced, and the sole source of its keys.
+assert_contains "template region start marker" "$(cat "$ICODEX_HOME_DIR/config.toml")" "# icodex:template-managed:start"
+assert_contains "template region end marker" "$(cat "$ICODEX_HOME_DIR/config.toml")" "# icodex:template-managed:end"
+assert_contains "template region body synced" "$(cat "$ICODEX_HOME_DIR/config.toml")" 'model_reasoning_effort = "high"'
+assert_contains "template provider table synced" "$(cat "$ICODEX_HOME_DIR/config.toml")" '[model_providers.test_gpu]'
+assert_contains "template base_url synced" "$(cat "$ICODEX_HOME_DIR/config.toml")" 'base_url = "https://gpu.example/v1"'
+region_start_line="$(grep -n '^# icodex:template-managed:start' "$ICODEX_HOME_DIR/config.toml" | cut -d: -f1)"
+first_section_line="$(grep -n '^\[' "$ICODEX_HOME_DIR/config.toml" | head -1 | cut -d: -f1)"
+assert_eq "region placed before first section" "1" "$(( region_start_line < first_section_line ))"
+
+# Pre-region home migration: old top-level managed keys and a stray provider
+# table outside the region are removed when the region is installed.
+printf 'model_reasoning_effort = "medium"\nweb_search = "disabled"\nmodel = "gpt-old"\n\n[model_providers.framework_gpu]\nname = "Old"\n\n[features]\nmulti_agent = true\n' >> "$ICODEX_HOME_DIR/config.toml"
+setup_codex_home
+home_config="$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "pre-region managed keys removed" "0" "$(grep -c '^model_reasoning_effort[[:space:]]*=[[:space:]]*"medium"' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "pre-region stray model removed" "0" "$(grep -c '^model[[:space:]]*=[[:space:]]*"gpt-old"' "$ICODEX_HOME_DIR/config.toml")"
+assert_eq "pre-region stray provider table removed" "0" "$(grep -c '^\[model_providers.framework_gpu\]' "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "template keys re-synced after migration" "$home_config" 'model_reasoning_effort = "high"'
+assert_contains "unrelated table preserved" "$home_config" 'multi_agent = true'
+assert_eq "template keys not duplicated" "1" "$(grep -c '^model_reasoning_effort[[:space:]]*=' "$ICODEX_HOME_DIR/config.toml")"
+
+# Template edits propagate to existing homes on the next launch.
+printf '# icodex:template-managed:start\nmodel_reasoning_effort = "low"\nweb_search = "disabled"\n\n[model_providers.test_gpu]\nname = "Test GPU API v2"\nbase_url = "https://gpu.example/v1"\nenv_key = "ICODEX_TEST_TOKEN"\nwire_api = "responses"\n# icodex:template-managed:end\n' > "$ICODEX_SHARED_DIR/config.toml"
+setup_codex_home
+home_config="$(cat "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "template edit propagated" "$home_config" 'model_reasoning_effort = "low"'
+assert_contains "template provider edit propagated" "$home_config" 'name = "Test GPU API v2"'
+assert_eq "old template value gone" "0" "$(grep -c 'model_reasoning_effort = "high"' "$ICODEX_HOME_DIR/config.toml")"
+
+# Region removal in the template removes it from homes too.
+printf 'sandbox_mode = "workspace-write"\n' > "$ICODEX_SHARED_DIR/config.toml"
+setup_codex_home
+assert_eq "removed template region removed from home" "0" "$(grep -c 'icodex:template-managed' "$ICODEX_HOME_DIR/config.toml")"
+assert_contains "home-only content still present" "$(cat "$ICODEX_HOME_DIR/config.toml")" 'multi_agent = true'
 assert_exit "skills symlink"     0 test -L "$ICODEX_HOME_DIR/skills"
 assert_eq  "skills -> shared"    "$ICODEX_SHARED_DIR/skills" "$(readlink "$ICODEX_HOME_DIR/skills")"
 assert_exit "rules symlink"      0 test -L "$ICODEX_HOME_DIR/rules"

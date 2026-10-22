@@ -93,6 +93,7 @@ icodex keeps Codex state in two layers:
     icodex                      # same, once ~/.local/bin is on PATH
     ./icodex.sh --full-access   # launch with the filesystem sandbox fully open (warns)
     ./icodex.sh --proxy http://p:8080 -- exec "..."   # route via proxy, forward args to codex
+    ./icodex.sh --router framework-glm            # one-run model + provider preset (see below)
     ./icodex.sh --no-proxy      # skip the proxy for this run
     ./icodex.sh --install       # fetch the pinned binary + create the icodex symlink
     ./icodex.sh --update        # update + re-pin the codex binary only
@@ -107,6 +108,32 @@ if that version already matches the installed stamp and lockfile pin, it skips t
 download, extraction, and lockfile rewrite. When a newer release exists, `--update` prints
 each network/install stage with curl's download progress bar. The Superpowers plugin and
 skills ship through git and are updated only by maintainer scripts.
+
+### Model routing (`--router`)
+
+`--router <preset>` runs codex with a different model and/or model provider for one run,
+without editing any config file. Presets live in `.codex-isolated/router.toml`
+(git-ignored; start from the tracked `router.toml.example`):
+
+```toml
+[presets.framework-glm]
+model = "ollama-glm-5-3-cloud"
+model_provider = "framework_gpu"
+
+[presets.framework-glm.providers.framework_gpu]
+base_url = "https://homelab.ikeniborn.ru/v1"
+env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN"
+wire_api = "responses"
+```
+
+The selected preset is applied as one-run `-c` overrides on the codex command line, so a
+routed run never changes the per-project `config.toml` or the shared template. A preset
+may reference a provider that already exists in `config.toml` (just `model` +
+`model_provider`) or define/override provider parameters inline via the nested
+`providers.<id>` table. Secrets stay in environment variables: `env_key` names the
+variable (set it in `.codex_config`), and icodex fails the launch loudly when a provider's
+`env_key` variable is unset. Without `--router`, the default model from `config.toml` is
+used unchanged.
 
 ## Configuration variables
 
@@ -282,7 +309,7 @@ what must differ per project.
 | Command rules (`rules/`) | symlink | the `rules/default.rules` policy that auto-approves safe commands (e.g. `git`) and blocks dangerous ones (e.g. `shutdown`) applies in every project |
 | Plugins, login, hook scripts (`plugins/`, `auth.json`, `hooks/`) | symlink | one shared plugin cache, one login, one set of hook scripts for all projects |
 | Global guidance (`AGENTS.md`) | copy, re-synced every launch | carries the shared `AGENTS.md` instructions; refreshed on each launch so edits to `.codex-isolated/AGENTS.md` reach existing project homes, while leaving the optional caveman block in place |
-| Runtime config (`config.toml`) | copied once | each project may diverge — later runs only re-apply the sandbox and project trust, and never clobber your edits |
+| Runtime config (`config.toml`) | copied once, then managed-region sync | each project may diverge; the block between the `# icodex:template-managed` markers (model, provider, reasoning effort, web search, `[model_providers.*]`) is re-synced from the shared template on every launch, so template edits propagate to existing homes — everything outside the markers stays per-project and is never clobbered |
 | Sessions, logs, sqlite | created by Codex, per project | your history stays isolated — two repos never share session state |
 
 Because the shared parts are symlinks, editing a skill, a rule, or the global `AGENTS.md` in
@@ -303,8 +330,11 @@ icodex uses two config files:
 - `.codex-isolated/config.toml` — the **template** for Codex runtime settings: model, sandbox,
   approvals, permissions, plugins, projects, and UI. It is copied into each project's
   `CODEX_HOME` (`.codex-homes/<id>/config.toml`) on first launch; later runs only re-manage
-  `sandbox_mode` and project trust there and never clobber your edits to a project's copy.
-  Edit the template to change defaults for *new* project homes.
+  `sandbox_mode` and project trust there and never clobber your edits to a project's copy —
+  plus the block between the `# icodex:template-managed` markers, which is re-synced from
+  the template on every launch so model/provider settings propagate to existing homes.
+  Edit the template to change defaults for *all* project homes (model keys inside the
+  managed region) or for *new* homes only (everything else).
 
 Common `.codex-isolated/config.toml` keys:
 

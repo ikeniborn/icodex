@@ -1,6 +1,6 @@
 topic: smoke-delivery-pass
 mode: delivery
-status: active
+status: complete
 objective: "Verify a minimal delivery loop can run from approved plan to result."
 current_stage: plan
 stage: plan

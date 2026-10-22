@@ -69,6 +69,83 @@ _remove_obsolete_hook_trust_setting() { # <file>
   rm -f "$tmp"
 }
 
+# Top-level keys owned by the template-managed region. When the region is
+# installed into a home that still carries these keys outside the markers (a
+# home predating the region), each such top-level line is removed so the
+# region's value is the only one left; Codex rejects duplicate top-level keys.
+_TEMPLATE_MANAGED_KEYS="model model_provider model_reasoning_effort web_search"
+
+_TEMPLATE_REGION_START="# icodex:template-managed:start"
+_TEMPLATE_REGION_END="# icodex:template-managed:end"
+
+# Extract the managed region body (markers excluded) from the shared template;
+# empty when the template has no region.
+_template_region_body() { # <template>
+  local template="$1"
+  [[ -f "$template" ]] || return 0
+  awk -v s="$_TEMPLATE_REGION_START" -v e="$_TEMPLATE_REGION_END" '
+    $0 == s { in_region=1; next }
+    $0 == e { in_region=0; next }
+    in_region { print }
+  ' "$template"
+}
+
+# Strip any existing managed region, then drop top-level lines for the managed
+# keys and `[model_providers.*]` tables declared outside the region (pre-region
+# homes): the re-inserted region must be the sole source of both, since Codex
+# rejects a key or table declared twice. The region is inserted before the
+# first TOML section header so its keys stay top-level even when the file ends
+# inside a table (e.g. the appended iwiki region). Idempotent: writes only
+# when the result differs.
+_sync_template_managed_region() { # <home-config> <region-body>
+  local config="$1" body="$2" tmp
+  [[ -f "$config" ]] || return 0
+  tmp="$(mktemp)"
+  awk -v s="$_TEMPLATE_REGION_START" -v e="$_TEMPLATE_REGION_END" -v keys="$_TEMPLATE_MANAGED_KEYS" -v body="$body" '
+    BEGIN {
+      n = split(keys, k, " ")
+      for (i = 1; i <= n; i++) managed[k[i]] = 1
+    }
+    function emit_region() {
+      if (region_marker_printed) return
+      region_marker_printed = 1
+      if (body == "") return    # empty template region: remove, do not re-emit
+      print s
+      print body
+      print e
+      print ""
+    }
+    $0 == s { in_region=1; next }
+    $0 == e { in_region=0; next }
+    in_region { next }
+    /^[[:space:]]*\[/ {
+      if (!drop_provider_table) emit_region()
+      drop_provider_table = ($0 ~ /^[[:space:]]*\[model_providers\./)
+      if (drop_provider_table) next
+      in_table = 1
+      print
+      next
+    }
+    drop_provider_table { next }         # body lines of a dropped provider table
+    in_table { print; next }
+    /^[[:space:]]*$/ { next }          # top-level blank lines never round-trip;
+                                       # the emitted region supplies its own
+    {
+      line = $0
+      sub(/^[[:space:]]*/, "", line)
+      for (key in managed) {
+        if (line ~ ("^" key "[[:space:]]*=")) next
+      }
+      print
+    }
+    END { emit_region() }
+  ' "$config" > "$tmp"
+  if ! cmp -s "$tmp" "$config"; then
+    cat "$tmp" > "$config"
+  fi
+  rm -f "$tmp"
+}
+
 # Maintain a delimited base region in <file>, re-synced from the shared AGENTS.md
 # on every launch so edits to .codex-isolated/AGENTS.md propagate to every home.
 # Strips any existing base region and re-appends the current shared content; any
@@ -115,6 +192,9 @@ setup_codex_home() {
   [[ -f "$ICODEX_HOME_DIR/config.toml" ]] \
     || cp "$ICODEX_SHARED_DIR/config.toml" "$ICODEX_HOME_DIR/config.toml"
   _remove_obsolete_hook_trust_setting "$ICODEX_HOME_DIR/config.toml"
+  _sync_template_managed_region \
+    "$ICODEX_HOME_DIR/config.toml" \
+    "$(_template_region_body "$ICODEX_SHARED_DIR/config.toml")"
   _sync_agents_base_region "$ICODEX_HOME_DIR/AGENTS.md"
   export CODEX_HOME="$ICODEX_HOME_DIR"
 }

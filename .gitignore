@@ -4,6 +4,7 @@
 !.codex-isolated/AGENTS.md
 !.codex-isolated/AGENTS.override.md
 !.codex-isolated/config.toml
+!.codex-isolated/router.toml.example
 !.codex-isolated/hooks.json
 !.codex-isolated/hooks/
 !.codex-isolated/hooks/**

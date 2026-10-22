@@ -20,21 +20,13 @@
 # Framework GPU API bearer token. Keep the real value only in the git-ignored
 # `.codex_config`; never add it to Codex config.toml or Git.
 #
-# Pair it with a custom Responses provider in the target project's
-# `.codex-homes/<project>-<hash>/config.toml` (or in
-# `.codex-isolated/config.toml` as the template for new project homes):
-#
-#   model = "ollama-glm-5-3-cloud"
-#   model_provider = "framework_gpu"
-#   web_search = "disabled"
-#
-#   [model_providers.framework_gpu]
-#   name = "Framework GPU API"
-#   base_url = "https://homelab.ikeniborn.ru/v1"
-#   env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN"
-#   wire_api = "responses"
-#   requires_openai_auth = false
-#   supports_websockets = false
+# The provider itself lives in the template-managed region of
+# `.codex-isolated/config.toml` (between the `# icodex:template-managed`
+# markers), which every launch re-syncs into each per-project home, or in a
+# `--router` preset in `.codex-isolated/router.toml` (see
+# `.codex-isolated/router.toml.example`). A preset referencing a provider with
+# env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN" fails the launch loudly when this
+# variable is unset.
 #
 # Use the full public alias returned by Framework `/v1/models`, not `glm` or an
 # internal Ollama model id. Restart icodex after changing either file.
