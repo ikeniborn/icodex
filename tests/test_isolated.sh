@@ -157,6 +157,13 @@ before_agents="$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
 setup_codex_home
 assert_eq "AGENTS.md stable on re-run" "$before_agents" "$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
 
+# The shipped workflow policy reaches an existing home without losing local regions.
+cp "$ROOT/.codex-isolated/AGENTS.md" "$ICODEX_SHARED_DIR/AGENTS.md"
+setup_codex_home
+shipped_agents="$(sed -n '/^<!-- icodex:base:start -->$/,/^<!-- icodex:base:end -->$/{//!p;}' "$ICODEX_HOME_DIR/AGENTS.md")"
+assert_eq "shipped policy reaches existing home" "$(cat "$ROOT/.codex-isolated/AGENTS.md")" "$shipped_agents"
+assert_contains "shipped policy preserves local region" "$(cat "$ICODEX_HOME_DIR/AGENTS.md")" "CAVEMAN"
+
 # setup_shared_dirs makes the shared bin dir
 setup_shared_dirs
 assert_exit "shared bin dir" 0 test -d "$ICODEX_SHARED_DIR/bin"

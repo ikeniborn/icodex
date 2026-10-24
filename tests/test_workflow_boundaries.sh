@@ -65,37 +65,12 @@ if [[ -f "$agents" ]]; then
   assert_contains "focused test is not full-suite evidence" "$flat_agents_body" 'Never describe focused or related-test evidence as a full-suite pass.'
   assert_contains "high-risk verification stays strict" "$flat_agents_body" 'Security, migration, concurrency, and data-integrity changes retain their required enhanced verification.'
   assert_contains "verification budget changes strategy" "$flat_agents_body" 'A verification budget is a strategy-change threshold, never permission to skip a required check.'
-  assert_contains "LoEn gets model checkpoints" "$flat_agents_body" 'At LoEn loop start and after each check or review, classify the next work'
-  assert_contains "orchestrated transition branch" "$agents_body" "Orchestrated branch:"
-  assert_contains "orchestrated validates split policy" "$flat_agents_body" "runner validates shared registry and direct project manifest"
-  assert_contains "orchestrated accepts correlated local handoff" "$flat_agents_body" "hook accepts only correlated local handoff/session evidence"
-  assert_contains "orchestrated task bypass is scoped" "$flat_agents_body" "for that protected task only"
-  assert_contains "interactive transition branch" "$agents_body" "Interactive branch:"
-  assert_contains "interactive recommendations do not block parent" "$flat_agents_body" 'Parent-session model recommendations are informational and never block safe work.'
-  assert_contains "interactive work keeps active parent model" "$flat_agents_body" 'Continue on the active parent model without requesting `/status`, `/model`, downgrade confirmation, or escalation confirmation.'
-  assert_contains "delegation requires coordination benefit" "$flat_agents_body" 'Delegate only when the expected benefit exceeds coordination cost.'
-  assert_contains "delegated task gets explicit mapping" "$flat_agents_body" 'Pass the exact mapped `model` and `reasoning_effort` to `spawn_agent`'
-  assert_contains "mechanical child cannot use unjustified strong route" "$flat_agents_body" 'A delegated mechanical subtask must not use a stronger route without an evidenced trigger.'
-  assert_contains "missing child model does not block parent" "$flat_agents_body" 'An unavailable preferred child model never blocks safe parent work.'
-  assert_contains "delegation preserves authority boundaries" "$flat_agents_body" 'Delegation never bypasses user confirmation for destructive, risky, or external actions.'
-  assert_exit "interactive policy has no status stop gate" 1 grep -qF 'request `/status` before asking the user to switch' "$agents"
-  assert_exit "interactive policy has no switch halt" 1 grep -qF 'Halt before the next stage when a recommended switch requires user action.' "$agents"
-  assert_exit "routing has no obsolete interactive model-switch gate" 1 grep -qF 'The interactive model-switch gate applies before' "$agents"
-  assert_contains "hook never selects model" "$flat_agents_body" "never selects or changes model"
-  assert_contains "semantic route mechanical" "$agents_body" '`mechanical`'
-  assert_contains "semantic route engineering" "$agents_body" '`engineering`'
-  assert_contains "semantic route synthesis" "$agents_body" '`synthesis`'
-  assert_contains "semantic route deep" "$agents_body" '`deep`'
-  assert_contains "semantic route escalation" "$agents_body" '`escalation`'
-  assert_contains "semantic route parallel audit" "$agents_body" '`parallel-audit`'
-  assert_contains "single current catalog mapping" "$agents_body" '### Current Catalog Mapping'
-  assert_eq "one current catalog mapping section" "1" "$(grep -cF '### Current Catalog Mapping' "$agents")"
-  model_ids_outside_mapping="$(awk '
-    /^### Current Catalog Mapping$/ { in_mapping=1; next }
-    in_mapping && /^### / { in_mapping=0 }
-    !in_mapping { print }
-  ' "$agents" | grep -E 'gpt-[0-9]' || true)"
-  assert_eq "exact model ids only in current mapping" "" "$model_ids_outside_mapping"
+  assert_exit "no model recommendation section" 1 grep -qE 'Model and Reasoning Recommendations|Current Catalog Mapping|Recommended mapping:|Switch required:|Execution route:' "$agents"
+  assert_exit "no prescribed model ids" 1 grep -qE 'gpt-[0-9]|claude-(opus|sonnet|haiku)' "$agents"
+  assert_contains "critical migration retains independent review" "$flat_agents_body" 'For a critical migration, perform a separate final integration review.'
+  assert_contains "accepted artifacts remain protected" "$flat_agents_body" 'Implementers must not revise accepted intent, spec, or plan.'
+  assert_contains "delegation preserves approval requirements" "$flat_agents_body" 'Delegation does not bypass approval requirements.'
+
 fi
 
 if [[ -f "$readme" ]]; then

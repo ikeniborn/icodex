@@ -315,7 +315,8 @@ gate_queue="$(python3 "$helper" list --codex-home "$tmp/home" --project icodex -
 assert_eq "list preserves gate event" "gate" "$(python3 -c 'import json,sys; print(json.load(sys.stdin)["events"][0]["kind"])' <<<"$gate_queue")"
 
 assert_exit "legacy repository TODO removed" 1 test -e "$ROOT/docs/TODO.md"
-active_refs="$(rg -n 'docs/TODO\.md|LOEN_TODO_PATH|upsert_todo_row' "$ROOT/.codex-isolated" "$ROOT/plugins" "$ROOT/lib" "$ROOT/tests" "$ROOT/README.md" "$ROOT/docs/README.ru.md" 2>/dev/null | grep -vF 'legacy repository TODO removed' || true)"
+# Scan active guidance and runtime sources. Tests contain intentional negative assertions.
+active_refs="$(rg -n 'docs/TODO\.md|LOEN_TODO_PATH|upsert_todo_row' "$ROOT/.codex-isolated" "$ROOT/plugins" "$ROOT/lib" "$ROOT/README.md" "$ROOT/docs/README.ru.md" 2>/dev/null || true)"
 assert_eq "no active repository TODO dependency" "" "$active_refs"
 
 finish
