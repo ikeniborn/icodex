@@ -24,6 +24,12 @@ work does not select a workflow by itself. Workflow routing has three entries: `
   does not require `fix-intent`, `superpowers:*`, or `$check-chain` unless the user
   explicitly chooses chain for a separate non-LoEn change.
 
+Superpowers 6.3.0's `Spike`, `Bounded`, and `Architectural` paths do not replace these
+routes. `direct` and `chain/execute` skip brainstorming and reuse authorization for
+unchanged scope. `chain/full` enters `Architectural` without repeating path selection;
+its spec/plan checks and approvals remain required. LoEn keeps its own lifecycle.
+Project instructions do not prescribe models, reasoning levels, or model-switch confirmations.
+
 ### Verification economy
 
 Verification evidence is tied to relevant inputs and an exact code-state fingerprint,

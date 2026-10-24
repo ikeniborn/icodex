@@ -28,7 +28,6 @@ These rules apply to instruction text. They do not change the language or conver
 | Accepted recommendation | A recommendation that the user has approved. |
 | Gate | A condition that must be satisfied before the specified action. |
 | Workflow route | `direct`, `chain`, or `loen`. |
-| Execution route | A capability and reasoning classification from the model table. |
 | Trusted binding | The complete configured project scope, accepted by the server and verified through `wiki_status`. Hosted bindings also require `binding_source: session`. |
 | Binding mismatch | A rejected or defaulted binding, an unexpected session identity, or a substituted project primary. |
 | Unaccepted policy mismatch | A configured policy that was not carried or is inconsistent with status after applying hosted precedence. A valid hosted override is accepted. |
@@ -444,8 +443,7 @@ Before selecting a workflow, perform bounded routing discovery from only the req
 project signals strictly necessary to derive domain, topic, and route. It creates no chain
 artifacts and is not implementation; it must not perform task-specific analysis, reproduction,
 or test execution before the task page is resolved. Resolve the wiki task page before any
-task-specific analysis or durable work. Parent-session model recommendations do not block routing, implementation, or artifact creation.
-Apply the authority gates in [Model and Reasoning Recommendations](#model-and-reasoning-recommendations).
+task-specific analysis or durable work.
 
 ### Select the workflow route
 
@@ -505,6 +503,33 @@ Intent required: yes | no
 Confirmation required: yes | no
 ```
 
+### Superpowers 6.3.0 compatibility
+
+`Spike`, `Bounded`, and `Architectural` are brainstorming paths, not additional workflow routes.
+Apply the selected project route before the generic `using-superpowers`, `brainstorming`, and `writing-plans` triggers, including plan-mode triggers.
+Use this mapping instead of repeating the brainstorming path classification:
+
+| Selected route and task | Required behavior |
+|-------------------------|-------------------|
+| `direct`: feasibility question resembling `Spike` | Investigate within the authorized scope. Report findings without invoking brainstorming or retaining a throwaway implementation as an approved deliverable. |
+| `direct`: local change resembling `Bounded` | Implement the authorized request with focused verification. Do not invoke brainstorming or add its separate design-approval step. |
+| `chain/execute` | Implement the approved intent. Skip brainstorming and formal spec/plan creation. |
+| `chain/full` | Use brainstorming's `Architectural` path. Produce the checked spec and plan required by the chain. |
+| `loen` | Use the LoEn lifecycle and its approvals. Do not select a brainstorming path for the loop. |
+
+For `chain/full`, pass the approved intent and accepted continuation into brainstorming.
+Do not select `Spike` or `Bounded` after `full` has been accepted.
+Keep the required spec and plan checks and user approvals.
+
+For `direct` and `chain/execute`, reuse explicit authorization while its scope remains unchanged.
+Do not request approval again solely because Superpowers requires approval for its `Bounded` path.
+Preserve existing approval requirements for destructive actions, external actions, and scope changes.
+
+When evidence is incomplete, use bounded discovery instead of Superpowers' heavier-path default.
+Entering plan mode or using a scoped skill does not change the workflow route.
+If new evidence invalidates the selected route or continuation, report it and obtain the required approval before changing the workflow.
+Do not revise accepted artifacts to fit a newly selected path.
+
 ## Chain Order
 
 After the user accepts chain, keep selected transitions gated by `check-chain`:
@@ -525,7 +550,7 @@ separate non-LoEn change.
    frontmatter after the user accepts the continuation recommendation.
 4. For `execute`, skip brainstorming and writing-plans, implement from the approved
    intent with scoped implementation skills, then run `$check-chain result <intent>`.
-5. For `full`, run `superpowers:brainstorming` -> `$check-chain spec` ->
+5. For `full`, use the `Architectural` path in `superpowers:brainstorming` -> `$check-chain spec` ->
    `superpowers:writing-plans` -> `$check-chain plan` -> plan execution.
 6. Run `$check-chain result <plan>` for `full`; result reconciliation always precedes
    branch finishing.
@@ -536,168 +561,17 @@ signals such as reading `skills/<name>/SKILL.md` through `Read` or `Bash`. It is
 transition gate only: validation state still comes from frontmatter written by the
 `check-chain` skill.
 
-## Model and Reasoning Recommendations
+## Execution Safeguards
 
-Classify each task, but keep parent-session recommendations informational. Never edit
-TOML, select profiles, start sessions, operate `/model`, or claim a switch. Parent-session
-model recommendations are informational and never block safe work.
+Preserve user approval requirements for destructive actions, external actions, and scope changes.
+Delegate only when explicit ownership and verification justify the coordination cost.
+Delegation does not bypass approval requirements.
 
-### Execution Routes
-
-Rules refer only to stable semantic routes, never model branding:
-
-| Route | Capability target | Effort target |
-|-------|-------------------|---------------|
-| `mechanical` | Lowest-cost capable coding model | baseline |
-| `engineering` | Balanced general coding model | baseline |
-| `synthesis` | Strongest reasoning model for design synthesis | baseline |
-| `deep` | Strongest single-agent reasoning model | deep |
-| `escalation` | Strongest model after evidenced failure | maximum |
-| `parallel-audit` | Strongest agentic model for independent audits | parallel |
-
-### Current Catalog Mapping
-
-Exact model IDs live only here. Update this table when the Codex catalog changes; do not
-rewrite classification or workflow rules.
-
-| Route | Current model | Current effort |
-|-------|---------------|----------------|
-| `mechanical` | `gpt-5.6-luna` | `medium` |
-| `engineering` | `gpt-5.6-terra` | `medium` |
-| `synthesis` | `gpt-5.6-sol` | `medium` |
-| `deep` | `gpt-5.6-sol` | `high` |
-| `escalation` | `gpt-5.6-sol` | `max` |
-| `parallel-audit` | `gpt-5.6-sol` | `ultra` |
-
-Resolve the semantic route through the current catalog before reporting a parent
-recommendation or spawning a delegated agent. If the mapped entry is unavailable, keep
-the semantic route and mark resolution `unresolved`; do not invent a replacement model.
-An unavailable preferred child model never blocks safe parent work.
-
-### Checkpoints
-
-Reassess at direct task start, after chain or LoEn checks/reviews, and before next work:
-
-| Boundary | Baseline |
-|----------|----------|
-| Direct task start -> execution | Classify task |
-| Direct check/review -> next work | Reclassify if evidence changed |
-| Start -> chain intent or coordination | `engineering` |
-| Intent OK -> continuation decision | `engineering` |
-| Intent execute -> implementation | Classify task |
-| Intent full -> spec | `synthesis` |
-| Spec OK -> plan | `synthesis` |
-| Plan OK -> implementation | Classify each task |
-| Implementation task complete -> task review | `engineering` |
-| Task review complete -> next task | Classify next task |
-| Execution -> bounded result check | `engineering` |
-| Execution -> cross-system or critical result check | `deep` |
-| Result OK -> routine follow-up | `engineering` |
-
-At LoEn loop start and after each check or review, classify the next work with the same
-execution routes. LoEn workflow selection never implies a stronger model.
-
-For `needs_work`, remain in the stage, change strategy, rerun, and reassess. The verdict
-alone never requires escalation.
-
-Workflow and execution routes are independent: direct does not imply `mechanical`, and
-chain does not imply `deep`. Repeat classification after failed checks, scope changes,
-or newly discovered invariants.
-
-### Task Transition Gate
-
-A task-scoped recommendation expires when that task reaches review or completion, or
-when execution moves to another plan task. Never assume that the active session profile
-or the recommendation for the previous task is suitable for the next task.
-
-**Orchestrated branch:** the runner validates shared registry and direct project manifest,
-then the hook accepts only correlated local handoff/session evidence. Matching
-routed evidence authorizes work for that protected task only. The hook validates evidence; it
-never selects or changes model.
-
-**Interactive branch:** retain route classification and report the resolved mapping as
-cost/capability guidance. Continue on the active parent model without requesting
-`/status`, `/model`, downgrade confirmation, or escalation confirmation. Human authority
-gates still apply to destructive, risky, or external actions.
-
-**Delegated-agent branch:** when delegation is explicitly authorized, resolve the
-subtask's semantic execution route independently before spawning. Pass the exact mapped
-`model` and `reasoning_effort` to `spawn_agent` with `fork_turns` set to `none` or a
-positive value. Delegate only when the expected benefit exceeds coordination cost. The
-parent records the route, evidence, resolved mapping, ownership, and authority limits in
-its delegation request. A delegated mechanical subtask must not use a stronger route
-without an evidenced trigger. Delegation never bypasses user confirmation for
-destructive, risky, or external actions. Do not inherit the parent route automatically.
-Reclassify before every follow-up task whose scope or evidence changes. If no sufficient
-mapped child is available, keep safe work in the parent.
-
-For interactive work:
-
-1. Identify the next work and classify its execution route from current evidence.
-2. Resolve and report the recommended exact model and effort when available.
-3. Continue on the active parent model; never pause solely for model or effort alignment.
-4. Delegate bounded independent work only when explicit ownership and verification make
-   coordination worthwhile.
-5. Stop only at existing authority, artifact, safety, or irreversible-action gates—not
-   at model recommendation boundaries.
-
-### Classification
-
-Choose the lowest sufficient route:
-
-1. **`mechanical`** only if work is fully defined, single-component, has known cause and
-   verification, and changes no contract, schema, migration, concurrency, security, or
-   data invariant.
-2. **`synthesis`** for specification or planning synthesis without a deep trigger.
-3. **`deep`** when evidence shows an unknown reproduced-defect cause, artifact/code
-   contradiction, public compatibility change, transactional/concurrent/distributed
-   invariants, migration/security/data risk, two or more coupled subsystem boundaries,
-   or result reconciliation across coupled invariants.
-4. **`engineering`** otherwise.
-
-Never inherit a higher route. File count, task length, one failure, or a stage name are
-not triggers. Gather ambiguous evidence at the lower route.
-
-### Exceptional Routes
-
-Use **`escalation`** only after two different `deep` strategies fail, reviewers
-contradict the same invariant, a required test remains unexplained after strategy
-change, an enumerated critical invariant set cannot be decomposed safely, or critical
-migration reconciliation has credible data-loss risk.
-
-Every critical migration requires a separate final integration review at `deep` or
-higher, regardless of its implementation route.
-
-Use **`parallel-audit`** only as a separate run with at least two independent read-only
-audit directions, no shared writes, and one consolidation step. Never use it inside
-active subagent orchestration.
-
-Implementers never revise accepted intent, spec, or plan. Return drift to the earliest
-gate. Never retry without changing strategy.
-
-### Recommendation Handling
-
-Use `keep`, `downgrade`, `escalate`, or `separate-run` (`parallel-audit`) to explain the
-cost/capability relationship between the active parent model, when known, and the semantic
-route. The decision is informational for parent execution. Never request status or a model
-switch as a continuation condition. A risk that independently crosses a proposal-first or
-no-go authority boundary still requires user action. Critical-migration final review cannot
-be waived.
-
-```text
-Workflow: direct | chain | loen
-Continuation: execute | full | n/a
-Checkpoint: <check and verdict>
-Next work: <stage or task>
-Execution route: <semantic route>
-Current mapping: <exact model / effort | unknown>
-Recommended mapping: <exact model / effort | unresolved>
-Decision: keep | downgrade | escalate | separate-run
-Evidence: <artifact, finding, failure, invariant, or risk>
-Higher route rejected because: <reason or n/a for parallel-audit>
-Parent action: continue
-Delegation: parent | child <exact model / effort>
-```
+For a critical migration, perform a separate final integration review.
+Do not waive that review.
+Implementers must not revise accepted intent, spec, or plan.
+Return artifact drift to the earliest affected gate.
+After a failed check, change the diagnostic strategy before retrying.
 
 ## Project Status Reports
 
@@ -844,7 +718,7 @@ Never describe focused or related-test evidence as a full-suite pass. If a check
 diagnose with the narrow failing check and rerun it after a relevant change; return to the
 full suite only after focused evidence passes. Do not repeat an unchanged failing command
 without a new diagnostic hypothesis. After two different strategies fail to explain the
-same result, reclassify or escalate instead of looping.
+same result, report the unresolved evidence and seek an independent review instead of looping.
 
 A verification budget is a strategy-change threshold, never permission to skip a required
 check. When verification exceeds its expected cost or repeats, stop broad reruns, identify
