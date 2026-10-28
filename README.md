@@ -401,3 +401,9 @@ Codex runs with managed permissions or `workspace-write`.
 > `sandbox_mode` in the template is the **starting** value for a new project home; on each run
 > icodex re-applies the effective sandbox (see [Sandbox and trust](#sandbox-and-trust)) into
 > that home's `config.toml`.
+
+### Session search policy
+
+Set `ICODEX_SEARCH_MODE` for ordinary launches and `ICODEX_ROUTER_SEARCH_MODE` for routed launches. Values: `inherit` (default), `native`, `framework`, `disabled`. A selected router preset's `search_mode` overrides the routed default, including explicit `inherit`. Policy stays fixed for the process.
+
+Framework mode requires `ICODEX_SEARCH_MCP_COMMAND` (absolute installed `framework-websearch-mcp` executable), `ICODEX_SEARCH_API_URL` (full HTTPS endpoint), and `ICODEX_SEARCH_API_ENV_KEY` (token environment variable name). Credentials pass through child environment only. Search MCP calls go directly to the endpoint; PII proxy masking does not cover them. Managed modes reject competing profiles, search overrides, and reserved `framework-search` registrations. Unrelated MCP servers remain available.

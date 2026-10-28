@@ -35,3 +35,5 @@ env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN"
 wire_api = "responses"
 requires_openai_auth = false
 supports_websockets = false
+# Inside a preset, optionally select search independently of provider settings:
+# search_mode = "framework" # inherit | native | framework | disabled

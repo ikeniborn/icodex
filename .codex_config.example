@@ -279,3 +279,10 @@
 #ICODEX_IWIKI_CODE_GRAPH_AUTO_REBUILD=bounded
 #ICODEX_IWIKI_CODE_GRAPH_MCP_URL=https://iwiki.example.com/mcp
 #ICODEX_IWIKI_CODE_GRAPH_MCP_TOKEN=...
+
+# Session search policy; unset preserves native client configuration.
+# ICODEX_SEARCH_MODE=inherit
+# ICODEX_ROUTER_SEARCH_MODE=inherit
+# ICODEX_SEARCH_MCP_COMMAND=/opt/framework/bin/framework-websearch-mcp
+# ICODEX_SEARCH_API_URL=https://search.example/v1/websearch
+# ICODEX_SEARCH_API_ENV_KEY=FRAMEWORK_SEARCH_TOKEN
