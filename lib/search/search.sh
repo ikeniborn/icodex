@@ -59,7 +59,10 @@ try:
             continue
         parsed = tomllib.loads(override)
         check(parsed)
-        if any(key in parsed for key in ("web_search", "profile", "profiles", "plugins", "features")):
+        if any(key in parsed for key in ("web_search", "profile", "profiles")):
+            raise ValueError
+        features = parsed.get("features", {})
+        if isinstance(features, dict) and any(key.startswith("web_search") for key in features):
             raise ValueError
 except (ValueError, OSError, StopIteration):
     sys.exit(1)

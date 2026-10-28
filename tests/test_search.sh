@@ -91,3 +91,5 @@ for bad in http://search.example/v1/websearch https://user:pass@search.example/v
 done
 ICODEX_SEARCH_API_URL=https://search.example/v1/websearch
 search_prepare_launch false '' 'explain framework-search usage'
+ICODEX_SEARCH_MODE=disabled
+search_prepare_launch false '' -c 'features.unrelated_feature=true'
