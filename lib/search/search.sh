@@ -58,6 +58,10 @@ try:
         else:
             continue
         parsed = tomllib.loads(override)
+        # A whole-table override erases the managed MCP registration.
+        key_shape = tomllib.loads(override.split("=", 1)[0] + "=false")
+        if key_shape.get("mcp_servers") is False:
+            raise ValueError
         check(parsed)
         if any(key in parsed for key in ("web_search", "profile", "profiles")):
             raise ValueError

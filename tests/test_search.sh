@@ -93,3 +93,5 @@ ICODEX_SEARCH_API_URL=https://search.example/v1/websearch
 search_prepare_launch false '' 'explain framework-search usage'
 ICODEX_SEARCH_MODE=disabled
 search_prepare_launch false '' -c 'features.unrelated_feature=true'
+ICODEX_SEARCH_MODE=framework
+if search_prepare_launch false '' -c 'mcp_servers={}'; then exit 1; fi
