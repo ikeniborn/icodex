@@ -138,7 +138,7 @@ enabled = false
 # Sites: website building, editing, deployment, and hosting.
 # Namespace: mcp__codex_apps__sites.
 [apps.connector_20205bf7d4e99a89d7154bb849718324]
-enabled = false
+enabled = true
 #
 # Pets: animated ChatGPT pet creation, selection, and updates.
 # Namespace: mcp__codex_apps__pets.
