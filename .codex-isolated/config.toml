@@ -4,6 +4,17 @@
 #
 # Do NOT put secrets here. The API key goes in .codex_config as ICODEX_API_KEY
 # (git-ignored, chmod 600) or via `codex login` (auth.json, git-ignored).
+#
+# Tool selection guide (Codex CLI 0.166.0):
+# - Find editable controls under [features] and in the commented guide below it.
+# - Set a feature or connector enabled field to false to remove its tools.
+# - Use MCP enabled_tools to expose only selected server functions.
+# - Start a new session after changing tool availability.
+# This file is a template. Settings outside the managed region initialize NEW
+# project homes only. For an existing project, edit its effective config.toml
+# under .codex-homes/<project>-<hash>/ or pass one-run -c overrides.
+# Do not add tool tables to the managed region; its synchronizer does not own them.
+# Reference: https://developers.openai.com/codex/config-reference/
 
 # Framework GPU API example. Keep the bearer token in git-ignored
 # `.codex_config` as ICODEX_FRAMEWORK_EDGE_TOKEN. Codex custom providers require
@@ -19,6 +30,8 @@
 # icodex:template-managed:start
 model_reasoning_effort = "low"
 web_search = "live"
+# Native web_search accepts "live", "cached", or "disabled".
+# A selected launcher search policy can override this value; see the guide below.
 # icodex:template-managed:end
 
 # --- Superpowers plugin (vendored under .codex-isolated/plugins/cache) ---
@@ -53,7 +66,183 @@ source = "/home/ikeniborn/Documents/Project/icodex/.codex-isolated/tmp/marketpla
 enabled = true
 
 [features]
+# Agent collaboration: spawn_agent, send_input, resume_agent, wait_agent,
+# close_agent, and other model-dependent agent tools. Set false to remove them.
 multi_agent = true
+
+# Uncomment the desired flags inside this existing [features] table.
+# Values below reflect available defaults, not a guarantee of model support.
+# apps = true
+#   Connected Apps: Figma, GitHub, Drive, Gmail, Pages, Sites, Pets, and helpers.
+#   Set false to remove the entire connected-App tool catalog.
+# shell_tool = true
+#   Command execution tools, including exec_command and write_stdin.
+# unified_exec = true
+#   Selects the unified command/session implementation. Disabling it can select
+#   another shell implementation; use shell_tool=false to disable shell tools.
+# goals = true
+#   Goal tracking: get_goal, create_goal, update_goal.
+# view_image = true
+#   Local image inspection. A separate [tools].view_image setting also exists.
+# skill_mcp_dependency_install = true
+#   Allows prompts/installations for missing MCP dependencies required by skills.
+#   request_plugin_install is an installation helper, not a third-party service.
+# tool_suggest = true
+#   Suggestions for additional connectors/plugins; not a filter for loaded tools.
+# browser_use = true
+# browser_use_external = true
+# computer_use = true
+# image_generation = true
+#   Browser, desktop, and image-generation capabilities depend on model/account
+#   support. These native tools were absent from the measured Qwen Flash request.
+#   Apps such as Figma can still provide their own browser/image-related tools.
+
+# --- Connected Apps: select services or individual functions ---
+# Keep features.apps=true when using individual App controls below.
+# These are commented examples; uncomment only the settings you want to change.
+# To start with no Apps, uncomment this default and explicitly enable needed IDs:
+#
+# [apps._default]
+# enabled = false
+#
+# Connector IDs below come from installed plugin .app.json manifests.
+# They are public identifiers, not credentials. Recheck them after plugin updates.
+# Set enabled=true to keep a service when the default above is false.
+# Set enabled=false to remove a service when Apps otherwise remain enabled.
+#
+# GitHub: repositories, issues, PRs, reviews, CI, and workflow logs.
+# Namespace: mcp__codex_apps__github.
+# [apps.connector_76869538009648d5b282a4bb21c3d157]
+# enabled = false
+#
+# Figma: design reads/writes, diagrams, components, specs, and code workflows.
+# Namespace: mcp__codex_apps__figma.
+[apps.connector_68df038e0ba48191908c8434991bbac2]
+enabled = false
+#
+# Google Drive: file search, Docs, Sheets, Slides, sharing, and comments.
+# Namespace: mcp__codex_apps__google_drive.
+[apps.connector_5f3c8c41a1e54ad7a76272c89e2554fa]
+enabled = false
+#
+# Gmail: message/thread search, reading, drafts, and mailbox actions.
+# Namespace: mcp__codex_apps__gmail.
+[apps.connector_2128aebfecb84f64a069897515042a44]
+enabled = false
+#
+# Pages: ChatGPT Pages/Spaces content, organization, and schedules.
+# Namespace: mcp__codex_apps__chatgpt_space.
+[apps.connector_openai_pages]
+enabled = false
+#
+# Sites: website building, editing, deployment, and hosting.
+# Namespace: mcp__codex_apps__sites.
+[apps.connector_20205bf7d4e99a89d7154bb849718324]
+enabled = false
+#
+# Pets: animated ChatGPT pet creation, selection, and updates.
+# Namespace: mcp__codex_apps__pets.
+[apps.connector_openai_chatgpt_pets]
+enabled = false
+#
+# Plugin Management: discovery, permissions, dependencies, and connections.
+# Namespace: mcp__codex_apps__plugin_management.
+# [apps.connector_openai_plugin_management]
+# enabled = false
+#
+# Other App namespaces observed in the full request:
+# - mcp__codex_apps__codex_document_control: document-control helpers.
+# - mcp__codex_apps__hotline: service-provided assistance helpers.
+# - mcp__codex_apps__safety_settings: safety-settings helpers.
+# - mcp__codex_apps__search_service: web-search helpers.
+# Their individual connector IDs are not established by local plugin manifests.
+# Use features.apps=false to remove the complete catalog without guessing IDs.
+#
+# To allow only named functions in one enabled App, use its actual connector ID
+# and raw tool names. Replace APP_ID and TOOL_NAME before uncommenting:
+#
+# [apps."APP_ID"]
+# enabled = true
+# default_tools_enabled = false
+# [apps."APP_ID".tools."TOOL_NAME"]
+# enabled = true
+#
+# A prompt such as "do not use Figma" does not remove Figma schemas from context.
+# App filtering does not remove explicit MCP servers or native tools.
+
+# --- MCP: server switches and function allowlists ---
+# Normal MCP tables accept enabled, enabled_tools, and disabled_tools.
+# Use raw server tool names, such as wiki_search, without an mcp__ prefix.
+# An omitted enabled_tools exposes all available server functions.
+# disabled_tools excludes functions after the allowlist is applied.
+# Example for an already configured, manually maintained server:
+#
+# [mcp_servers.my_server]
+# enabled = true
+# enabled_tools = ["search", "read"]
+# disabled_tools = ["delete"]
+#
+# Preserve the server's command/url/auth fields. Do not create this placeholder
+# table without a real server definition. enabled=false disables the whole server.
+# MCP resource helpers list_mcp_resources, list_mcp_resource_templates, and
+# read_mcp_resource are built-in discovery tools, not names in a server allowlist.
+# request_user_input is also built in; these examples do not define per-tool flags
+# for built-ins that lack a documented dedicated switch.
+#
+# icodex-managed iwiki servers:
+# - iwiki-remote: hosted wiki Markdown, task ledger, and specifications.
+# - iwiki-local: local code graph build/read operations beside the remote server.
+# - iwiki: the registration name for a local-only setup.
+# The wrapper recreates these tables on every launch and strips manual duplicates.
+# Therefore, editing their enabled_tools here or in a home config is not durable.
+# Apply one-run overrides AFTER --router and other icodex options instead:
+# These examples use the framework preset from router.toml.example.
+# Replace the preset name if your private router.toml uses another name.
+#
+#     ./icodex.sh --router framework -c 'mcp_servers.iwiki-local.enabled=false'
+#     ./icodex.sh --router framework -c 'mcp_servers.iwiki-remote.enabled_tools=["wiki_bind","wiki_status","wiki_search","wiki_read_page","wiki_lint"]'
+#
+# The remote allowlist above is a read-only example. Project task-ledger work also
+# needs its write/update tools. Specifications and code work need their own tools.
+# Preserve binding and required project workflows when selecting the allowlist.
+#
+# Framework web search is a separate, session-managed MCP server:
+# - framework-search exposes public-web search through the configured service.
+# - Native web_search is controlled by the top-level web_search value above.
+# Select ICODEX_SEARCH_MODE or ICODEX_ROUTER_SEARCH_MODE in .codex_config:
+# inherit = keep native config; native = native search; framework = search MCP;
+# disabled = neither native nor Framework search for this launcher policy.
+# A preset's search_mode overrides the routed default, including explicit inherit.
+# Do not persist a [mcp_servers.framework-search] table in this template.
+# Non-inherit search policy rejects competing registrations and search overrides.
+
+# --- Plugins and skills are separate from App tool schemas ---
+# The enabled Superpowers plugin table is above; set its enabled=false to disable
+# that local-marketplace plugin. The launcher manages LoEn wiring separately.
+# Disabling a local plugin does not universally disable connected-App tools.
+# To filter a plugin-provided MCP server, use its actual installed plugin/server:
+#
+# [plugins."PLUGIN@MARKETPLACE".mcp_servers."SERVER"]
+# enabled = true
+# enabled_tools = ["search", "read"]
+#
+# Skills are instruction metadata, not callable tool schemas. Disabling Apps
+# alone does not remove the shared skill catalog or AGENTS.md instructions.
+# Disable an individual skill with its actual installed folder path:
+#
+# [[skills.config]]
+# path = "/absolute/path/to/skill-folder"
+# enabled = false
+#
+# --- Measured context impact and one-run lightweight launch ---
+# The full Qwen Flash request exposed 378 leaf tools. Disabling Apps and agents
+# left 83; serialized tool schemas shrank from 496882 to 42807 characters.
+# These are character counts, not token counts. Instruction text remained large.
+#
+#     ./icodex.sh --router framework --disable apps --disable multi_agent -c model_providers.framework-api-gpu.stream_idle_timeout_ms=3600000
+#
+# This command preserves iwiki and launcher-selected search.
+# Commented examples take effect only after editing the applicable config layer.
 
 [permissions.dev-safe.filesystem]
 glob_scan_max_depth = 4

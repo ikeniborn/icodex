@@ -1,13 +1,17 @@
 # icodex --router presets — template.
 #
-# Copy this file to .codex-isolated/router.toml (git-ignored) and define one
-# [presets.<name>] table per --router preset:
+# 1. Copy this template to the git-ignored presets file:
 #
 #     cp .codex-isolated/router.toml.example .codex-isolated/router.toml
 #
+# 2. Define one [presets.<name>] table per preset.
+# Use any descriptive preset name; it does not determine the model.
+# To change only the model, edit model in the selected preset.
+# Use the exact model identifier advertised by the provider.
+#
 # Keys inside a preset:
-#   model            Model name passed to codex for this run (required).
-#   model_provider   Existing provider table id from config.toml (optional).
+#   model            Model identifier passed to codex for this run.
+#   model_provider   Provider id from config.toml or an inline table (optional).
 #
 # A preset may also define or override a provider inline via a nested
 # [presets.<name>.providers.<id>] table. Provider keys mirror the codex
@@ -15,25 +19,63 @@
 # requires_openai_auth, supports_websockets. Only the keys you list are
 # passed as -c overrides; the rest come from the effective config.
 #
-# SECRETS STAY IN ENVIRONMENT VARIABLES: env_key names the variable (e.g.
-# ICODEX_FRAMEWORK_EDGE_TOKEN in git-ignored .codex_config); icodex fails
-# the run when a provider's env_key variable is unset. Never put tokens
-# in this file.
+# To add another provider, replace these example values:
 #
-# Usage:
-#     ./icodex.sh --router framework-glm
+# [presets.other-model]
+# model = "model-name-from-provider"
+# model_provider = "other_provider"
+#
+# [presets.other-model.providers.other_provider]
+# name = "Other provider"
+# base_url = "https://api.provider.example/v1"
+# env_key = "ICODEX_OTHER_API_KEY"
+# wire_api = "responses"
+#
+# Match model_provider to the final id in the nested provider table.
+# Set base_url to the API base URL, usually ending in /v1, without /responses.
+# Use a provider that supports the Responses API; wire_api="chat" is unsupported.
+# Inline provider settings belong only to their preset, not to other presets.
+#
+# If the provider already exists in the effective config.toml, use only:
+#
+# [presets.other-model]
+# model = "another-model-name"
+# model_provider = "existing_provider"
+#
+# 3. Put the API key in git-ignored .codex_config or export its variable.
+# env_key contains the variable name, never the key itself:
+#
+#     ICODEX_OTHER_API_KEY=your-secret-key
+#
+# Keep secrets out of this template and router.toml.
+# icodex rejects an unset or empty env_key variable declared in the preset.
+#
+# 4. Launch the selected preset:
+#
+#     ./icodex.sh --router other-model
+#     ./icodex.sh --router framework
+#
+# Preset overrides apply only to this run; they do not rewrite config.toml.
 # Without --router, the default model from config.toml is used unchanged.
+#
+# For slow models, allow up to one hour without SSE stream activity:
+#
+#     ./icodex.sh --router other-model -c model_providers.other_provider.stream_idle_timeout_ms=3600000
+#
+# Replace other_provider with the selected provider id.
+# The router does not forward stream_idle_timeout_ms from this file.
+# Pass this setting with -c or configure it in the effective config.toml.
 
-[presets.framework-glm]
+[presets.framework]
 model = "ollama-glm-5-3-cloud"
-model_provider = "framework_gpu"
+model_provider = "framework-api-gpu"
+# Inside a preset, optionally select search independently of provider settings:
+# search_mode = "framework" # inherit | native | framework | disabled
 
-[presets.framework-glm.providers.framework_gpu]
+[presets.framework.providers.framework-api-gpu]
 name = "Framework GPU API"
 base_url = "https://homelab.ikeniborn.ru/v1"
 env_key = "ICODEX_FRAMEWORK_EDGE_TOKEN"
 wire_api = "responses"
 requires_openai_auth = false
 supports_websockets = false
-# Inside a preset, optionally select search independently of provider settings:
-# search_mode = "framework" # inherit | native | framework | disabled
