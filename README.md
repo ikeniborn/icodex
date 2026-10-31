@@ -53,6 +53,12 @@ LoEn topic directory, and `dev-<topic>` branch suffix. Thread titles are best-ef
 if the Codex surface cannot change or request a UI title, the agent records the
 chosen topic in the conversation and continues.
 
+After a successful task-ledger write, icodex sets the current thread title to
+`<topic>-inprogress` for lifecycle `in-progress` and `<topic>-done` for `done`.
+Reopening a task restores `-inprogress`. Other lifecycle states retain the last title.
+The canonical topic and branch name do not acquire these suffixes. See
+[thread lifecycle titles](docs/thread-topic-lifecycle-title.md) for scope and limitations.
+
 ## How isolation works
 
 icodex keeps Codex state in two layers:

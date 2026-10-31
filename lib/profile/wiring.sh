@@ -32,6 +32,8 @@ script = "$CODEX_HOME/hooks/profile-transition.py"
 command = f'{shlex.quote(str(interpreter))} "{script}"'
 direct_script = "$CODEX_HOME/hooks/direct-topic.py"
 direct_command = f'{shlex.quote(str(interpreter))} "{direct_script}"'
+title_script = "$CODEX_HOME/hooks/thread-title.py"
+title_command = f'{shlex.quote(str(interpreter))} "{title_script}"'
 
 def is_profile_command(value):
     if not isinstance(value, str):
@@ -46,7 +48,7 @@ def is_profile_command(value):
         and (arguments[0] == "python3" or Path(arguments[0]).is_absolute())
     )
 
-def is_direct_command(value):
+def is_direct_command(value, expected_script=direct_script):
     if not isinstance(value, str):
         return False
     try:
@@ -55,7 +57,7 @@ def is_direct_command(value):
         return False
     return (
         len(arguments) == 2
-        and arguments[1] == direct_script
+        and arguments[1] == expected_script
         and (arguments[0] == "python3" or Path(arguments[0]).is_absolute())
     )
 
@@ -100,6 +102,24 @@ entries.append({
     }],
 })
 hooks["UserPromptSubmit"] = entries
+
+entries = []
+for entry in hooks.get("PostToolUse", []):
+    kept_hooks = [hook for hook in entry.get("hooks", []) if not is_direct_command(hook.get("command"), title_script)]
+    if kept_hooks:
+        replacement = dict(entry)
+        replacement["hooks"] = kept_hooks
+        entries.append(replacement)
+entries.append({
+    "matcher": r"^(?:mcp__(?:iwiki_remote|iwiki_local|iwiki)__)?wiki_(?:write|update)_page$",
+    "hooks": [{
+        "type": "command",
+        "command": title_command,
+        "timeout": 20,
+        "statusMessage": "Updating task thread title",
+    }],
+})
+hooks["PostToolUse"] = entries
 
 json.dump(config, sys.stdout, indent=2)
 sys.stdout.write("\n")

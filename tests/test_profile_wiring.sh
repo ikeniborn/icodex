@@ -163,6 +163,10 @@ data["hooks"]["UserPromptSubmit"] = [
     entry for entry in data["hooks"]["UserPromptSubmit"]
     if not any(hook.get("command", "").endswith('"$CODEX_HOME/hooks/direct-topic.py"') for hook in entry.get("hooks", []))
 ]
+data["hooks"]["PostToolUse"] = [
+    entry for entry in data["hooks"]["PostToolUse"]
+    if not any(hook.get("command", "").endswith('"$CODEX_HOME/hooks/thread-title.py"') for hook in entry.get("hooks", []))
+]
 print(json.dumps(data["hooks"], separators=(",", ":")))
 PY
 )"
@@ -175,7 +179,7 @@ command = sys.argv[2]
 for event, entries in data["hooks"].items():
     kept = [entry for entry in entries if not any(
         hook.get("command") == command
-        or hook.get("command", "").endswith('"$CODEX_HOME/hooks/direct-topic.py"')
+        or hook.get("command", "").endswith(('"$CODEX_HOME/hooks/direct-topic.py"', '"$CODEX_HOME/hooks/thread-title.py"'))
         for hook in entry.get("hooks", [])
     )]
     for position, entry in enumerate(kept):
