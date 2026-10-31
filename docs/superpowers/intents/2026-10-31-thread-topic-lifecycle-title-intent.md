@@ -12,6 +12,13 @@ review:
 workflow:
   route: chain
   continuation: execute
+result_check:
+  verdict: OK
+  source: intent
+  intent_hash: e76b5047a3b650d6
+  last_run: 2026-10-31
+  reviewed: true
+  docs_checked: true
 ---
 # Intent: thread-topic-lifecycle-title
 
