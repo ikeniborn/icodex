@@ -29,6 +29,9 @@ main() {
   apply_api_key
   apply_iwiki_env
   parse_args "$@"
+  if (( ICODEX_DISABLE_PROXY )); then
+    proxy_disable
+  fi
 
   case "$ICODEX_CMD" in
     help)

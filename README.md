@@ -186,10 +186,33 @@ ordinary environment variable.
 writes `ICODEX_PROXY` into `.codex_config` (preserving other keys); `./icodex.sh --clear`
 removes the file.
 
-If `ICODEX_PROXY` is set but the proxy is unreachable, icodex warns and — when run
-interactively — asks whether to continue without the proxy (default yes) or exit;
-without a TTY it continues without the proxy. Use `--no-proxy` to skip the proxy (and
-the probe) entirely.
+Proxy URLs support `http`, `https`, `socks4`, `socks4a`, `socks5`, and `socks5h`.
+A URL without a scheme uses HTTP. Unsupported schemes (including `socks5s`) and
+invalid hosts or ports are rejected before a CLI URL is saved.
+
+Before launch, icodex makes an HTTPS request through the configured proxy to
+`https://chatgpt.com/backend-api/wham/accounts/check`. The probe uses proxy
+credentials but sends no account token. It ignores curlrc and `NO_PROXY`, verifies
+TLS, and takes at most 8 seconds. HTTP 401 from this unauthenticated endpoint is
+expected. This checks the tunnel, not account access or later model connections.
+
+Failures distinguish TCP, DNS, proxy authentication, TLS, SOCKS negotiation, timeout,
+and target HTTP errors without printing the proxy URL or credentials. For a failed
+probe, interactive runs ask whether to continue directly (default yes); without a
+TTY, icodex warns and continues directly. Direct fallback clears inherited proxy
+variables. Invalid proxy configuration stops the launch instead.
+
+`--no-proxy` skips the probe and clears `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and
+their lowercase variants before wrapper network operations. It preserves saved
+configuration and the `NO_PROXY` bypass list.
+
+The probe uses curl; its protocol support can exceed the installed Codex client's.
+With Codex 0.166.0, HTTP CONNECT passed repeated account bootstrap, interactive TUI,
+and a real model request. HTTPS proxying passed account bootstrap and a model request,
+but WebSocket attempts reported `Proxy URL scheme not supported` before transport
+fallback. Direct SOCKS5 failed workspace discovery: this release does not enable
+reqwest's `socks` feature. Use the HTTP endpoint for this release. A passing curl probe
+alone does not establish Codex transport compatibility.
 
 > `ICODEX_IWIKI_*` keys configure the iwiki MCP server. Git bindings need
 > `ICODEX_IWIKI_BASE_DIR`; PostgreSQL bindings declare `[storage] type = "postgres"`
