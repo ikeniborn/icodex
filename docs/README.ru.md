@@ -252,9 +252,21 @@ registry, manifest или context отличаются от committed HEAD; не
 `./icodex.sh --proxy <url>` пишет `ICODEX_PROXY` в `.codex_config` (сохраняя другие ключи);
 `./icodex.sh --clear` удаляет файл.
 
-Если `ICODEX_PROXY` задан, но прокси недоступен, icodex предупреждает и — при интерактивном
-запуске — спрашивает, продолжить ли без прокси (по умолчанию да) или выйти; без TTY
-продолжает без прокси. `--no-proxy` пропускает прокси (и проверку) целиком.
+Proxy preflight now checks an HTTPS tunnel to ChatGPT without an account token.
+It verifies TLS, ignores curlrc and bypass rules, and has an 8-second deadline.
+HTTP 401 is expected for this unauthenticated check. A successful probe does not
+verify account access or later model connections. Failures identify the stage
+without printing credentials. Interactive runs retain the direct-fallback prompt;
+non-interactive runs warn and continue directly. Invalid URLs stop the launch.
+
+`--no-proxy` and direct fallback clear `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`,
+and their lowercase variants. Saved settings and `NO_PROXY` are preserved.
+Supported schemes: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h`.
+`socks5s` is rejected. See the [English reference](../README.md) for details.
+
+Codex 0.166.0 compatibility differs from curl: HTTP CONNECT is verified end to end;
+HTTPS requires fallback after WebSocket scheme errors; direct SOCKS5 fails workspace
+discovery because reqwest SOCKS support is not enabled in that release. Use HTTP.
 
 ### Телеметрия
 

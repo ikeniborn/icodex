@@ -57,9 +57,6 @@ assert_eq "socks5 default port"     "h 1080" "$(_proxy_host_port socks5://h)"
 assert_eq "userinfo and path strip" "h 3128" "$(_proxy_host_port http://MASKING@h:3128/x)"
 assert_eq "schemeless host:port"    "h 9"    "$(_proxy_host_port h:9)"
 
-# --- proxy_reachable: closed port is unreachable (Task 2) ---
-assert_exit "closed port unreachable" 1 proxy_reachable 127.0.0.1 65000 2
-
 # --- _proxy_unreachable_action: decision logic (Task 2) ---
 assert_eq "tty + n -> exit"        "exit"     "$(_proxy_unreachable_action 1 n)"
 assert_eq "tty + N -> exit"        "exit"     "$(_proxy_unreachable_action 1 N)"
@@ -81,23 +78,15 @@ assert_eq "unreachable -> proxy not applied" "" "${HTTPS_PROXY:-}"
 
 # reachable (stub) -> proxy applied
 unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
-proxy_reachable() { return 0; }                # stub: force reachable
+_proxy_probe() { return 0; }                   # stub: successful tunnel
 ICODEX_PROXY="http://p:8080" proxy_ensure </dev/null
 assert_eq "reachable -> proxy applied" "http://p:8080" "${HTTPS_PROXY:-}"
-source "$ROOT/lib/proxy/proxy.sh"              # restore the real proxy_reachable
+source "$ROOT/lib/proxy/proxy.sh"              # restore the real tunnel probe
 
-# --- proxy_ensure: a hostless proxy URL is treated as immediately unreachable (post-review fix) ---
-# _proxy_host_port emits an empty host for a hostless URL (documented interface)
-assert_eq "hostless url -> empty host, port 80" " 80" "$(_proxy_host_port http://)"
-
-# guard: with an empty host, proxy_ensure must short-circuit BEFORE probing.
-# A stub that reports "reachable" proves the guard: if the probe were reached,
-# the proxy would be applied; the guard skips it, so HTTPS_PROXY stays unset.
+# Invalid URLs stop before network access and cannot be applied.
+assert_exit "hostless url parser rejects input" 1 _proxy_host_port http://
 unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
-proxy_reachable() { return 0; }                # stub: would say reachable if reached
-ICODEX_PROXY="http://" proxy_ensure </dev/null
-assert_eq "hostless url -> proxy not applied" "" "${HTTPS_PROXY:-}"
-source "$ROOT/lib/proxy/proxy.sh"              # restore the real proxy_reachable
-
+ICODEX_PROXY="http://"
+assert_exit "hostless URL rejected" 1 proxy_ensure
 rm -rf "$tmp"
 finish
