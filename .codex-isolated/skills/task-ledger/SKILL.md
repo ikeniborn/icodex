@@ -32,6 +32,36 @@ Input schema is exactly `{kind, occurred_at, actor, summary, evidence}`; persist
 
 Idempotency key: SHA-256 of topic, kind, and canonical redacted evidence hash, truncated to 16 hex characters. Exclude timestamp, actor, and summary. Page replay happens outside helper: skip page keys already durable, then acknowledge confirmed events.
 
+## Thread lifecycle titles
+
+1. In `## Current State`, write exactly one plain `Lifecycle: <state>` field outside code fences.
+2. Use `in-progress`, `blocked`, `completion-pending`, or `done` as the state.
+3. When updating lifecycle, replace `Current State` through `wiki_update_page`.
+4. Preserve the existing completion gates before writing `Lifecycle: done`.
+5. Keep title suffixes out of the canonical topic, task-page slug, profile name, and branch name.
+6. Do not replace an automatic lifecycle title with the bare topic.
+7. If naming fails, report the failure and continue the task.
+
+Use this field layout within the section:
+
+```text
+Topic: example-topic. Route: direct. Lifecycle: in-progress.
+```
+
+The installed icodex `thread-title.py` hook observes successful task-page writes in the project's configured primary domain.
+Page creation reads `Current State`; updates must replace that section.
+Other sections, failed writes, and history pages do not trigger naming.
+
+| Lifecycle | Thread title |
+|---|---|
+| `in-progress` | `<topic>-inprogress` |
+| `done` | `<topic>-done` |
+| `blocked` or `completion-pending` | Previous title retained. |
+
+Naming is best effort and does not establish task completion.
+Existing sessions need a restart to load a newly installed hook; clients may need a refresh to display titles.
+See `docs/thread-topic-lifecycle-title.md` in the icodex repository for runtime boundaries and verification commands.
+
 ## History segments and domain journal
 
 Keep complete task history in linked history segments. The task page `Changelog` is a small manifest that links to the first and bounded active segment; it does not repeat past events. Each segment has exactly `## Events` and `## Next`, carries up to 20 events, and names its successor or `none`. A new event rewrites only the bounded active segment. On replay, the parent traverses history segments, loads their durable event IDs, then appends only missing events. Closing a topic leaves every segment reachable from the task page and preserves its full history.

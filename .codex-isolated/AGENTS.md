@@ -421,10 +421,20 @@ workflow artifacts the agent can control.**
   - Superpowers chain topic, for IDD->SDD work;
   - LoEn topic directory, for LoEn loop work;
   - git branch suffix: `dev-<topic>`.
-- Thread title is best-effort only: if the platform exposes a title-control
-  mechanism, set or request the same `<topic>` there. If no such mechanism is
-  available, state the chosen `<topic>` in the conversation and do not block
-  work merely because the UI title cannot be changed.
+- Use task-ledger lifecycle writes to trigger the installed `thread-title.py` hook.
+- Write exactly one plain `Lifecycle: <state>` field in `## Current State`.
+- Use `in-progress`, `done`, `blocked`, or `completion-pending` as the state.
+- Expect `<topic>-inprogress` for `in-progress` and `<topic>-done` for `done`.
+- Expect `blocked` and `completion-pending` to retain the previous title.
+- Keep these title suffixes out of canonical topics, task-page slugs, profiles, and branch names.
+- Do not overwrite the lifecycle title with the bare topic.
+- If title automation is unavailable, state the topic and continue the task.
+
+The hook observes successful `wiki_write_page` and `wiki_update_page` calls in the configured primary domain.
+Updates must replace `Current State` to trigger renaming.
+Naming is best effort; a client refresh may be required.
+See `docs/thread-topic-lifecycle-title.md` in the icodex repository for runtime and verification details.
+
 - Do not use vague topics such as `fix`, `update`, `work`, `misc`, `phase1`, or `changes`.
 - Prefer topics that describe the task domain and intended outcome, not just the implementation step.
 - If a branch already exists, derive `<topic>` from the branch suffix unless it is vague.
