@@ -11,6 +11,8 @@
 
 ## Review flow для IDD -> SDD
 
+Причины отказов хуков, поддерживаемые heredoc и восстановление после блокировки описаны в [Hook Refusals and Recovery](hook-refusals.md).
+
 В workflow `chain` английские markdown-артефакты остаются source of truth. Ветка `execute` использует `intent -> result`, а ветка `full` — `intent -> spec -> plan -> result`.
 
 Перед выполнением работ пользователь принимает смысл на русском: `check-chain intent`, `check-chain spec` и `check-chain plan` после проверки печатают русское резюме в терминале. Если нужны правки, они вносятся в английский artifact, затем соответствующий `check-chain <stage>` запускается снова и печатает новое резюме.
