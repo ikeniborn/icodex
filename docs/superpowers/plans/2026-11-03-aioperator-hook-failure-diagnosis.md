@@ -2,7 +2,7 @@
 topic: aioperator-hook-failure-diagnosis
 status: approved
 result_check:
-  verdict: needs_work
+  verdict: OK
   source: plan
   plan_hash: 31d04a9fe2e56b83
   last_run: '2026-11-03'
