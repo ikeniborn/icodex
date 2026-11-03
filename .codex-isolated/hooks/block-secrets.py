@@ -168,6 +168,10 @@ def heredoc_operator_line(command):
         if char == "\\":
             # In double quotes only these characters can be escaped.
             if mode != "double" or (i + 1 < len(command) and command[i + 1] in '$`"\\\n'):
+                boundary_before = i == 0 or (i - 1 not in word_ends and (
+                    command[i - 1].isspace() or command[i - 1] in ';|&()'))
+                if i + 1 < len(command) and (command[i + 1] != '\n' or not boundary_before):
+                    word_ends.add(i + 1)
                 i += 2
                 continue
         if mode == "double" and char == '"':
@@ -197,8 +201,8 @@ def heredoc_operator_line(command):
             stack.append(["single" if char == "'" else "double", 0, False])
             i += 1
             continue
-        boundary = i == 0 or command[i - 1].isspace() or (
-            command[i - 1] in ';|&()' and i - 1 not in word_ends)
+        boundary = i == 0 or (i - 1 not in word_ends and (
+            command[i - 1].isspace() or command[i - 1] in ';|&()'))
         if mode != "arithmetic" and char == '#' and boundary:
             newline = command.find('\n', i)
             i = len(command) if newline == -1 else newline + 1
