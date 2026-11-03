@@ -121,7 +121,7 @@ def main():
     if not label:
         sys.exit(0)
 
-    reason = "secret content blocked: %s detected in %s input" % (label, tool or "tool")
+    reason = "redact-secrets.py: secret_content; kind=%s. Remove secret values from tool input." % label
     print(reason, file=sys.stderr)
     print(json.dumps({"reason": reason}))
     sys.exit(2)

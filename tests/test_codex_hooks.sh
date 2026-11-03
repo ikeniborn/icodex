@@ -64,4 +64,88 @@ assert_contains "hooks json matches GWT mutation" "$hooks_config" 'wiki_update_p
 assert_contains "hooks json matches Bash" "$hooks_config" 'Bash'
 assert_contains "hooks json matches apply_patch" "$hooks_config" 'apply_patch'
 
+check_heredoc_regressions() {
+  python3 - "$ROOT" <<'PY'
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+hooks = Path(sys.argv[1]) / '.codex-isolated/hooks'
+
+def invoke(command, name='block-secrets.py', tool='Bash', params=None):
+    payload = {'tool_name': tool, 'tool_input': params if params is not None else {'command': command}}
+    return subprocess.run([sys.executable, str(hooks / name)], input=json.dumps(payload),
+                          text=True, capture_output=True)
+
+cases = [
+    ('append literal prose', "cat >> note.md <<'EOF'\n/tmp/check.pyPASSneverprintssecret/body\nEOF", 0, None),
+    ('reverse redirections', 'cat <<"EOF" > "note file.md"\n/secret prose\nEOF\n', 0, None),
+    ('protected destination', "cat > .env <<'EOF'\nplain\nEOF", 2, 'protected_path'),
+    ('relative credentials', "cat > config/credentials.txt <<'EOF'\nplain\nEOF", 2, 'protected_path'),
+    ('unquoted delimiter', 'cat > note.md <<EOF\n$(cat /run/secrets/demo)\nEOF', 2, 'ambiguous_heredoc'),
+    ('shell consumer', "bash <<'EOF'\ncat /run/secrets/demo\nEOF", 2, 'ambiguous_heredoc'),
+    ('python consumer', "python3 <<'EOF'\nprint('plain')\nEOF", 2, 'ambiguous_heredoc'),
+    ('pipeline', "cat <<'EOF' | bash\necho ok\nEOF", 2, 'ambiguous_heredoc'),
+    ('multiple bodies', "cat <<'A' <<'B'\na\nA\nb\nB", 2, 'ambiguous_heredoc'),
+    ('unterminated body', "cat > note.md <<'EOF'\nplain", 2, 'unterminated_heredoc'),
+    ('first terminator', "cat > note.md <<'EOF'\nplain\nEOF\necho suffix\nEOF", 2, 'ambiguous_heredoc'),
+    ('literal operator', "printf '%s' '<<EOF'", 0, None),
+    ('comment', 'echo ok # <<EOF', 0, None),
+    ('arithmetic shift', 'echo $((1 << 2))', 0, None),
+    ('arithmetic assignment', '((value <<= 1))', 0, None),
+    ('here-string', 'cat <<< plain', 0, None),
+    ('protected here-string', 'cat <<< /run/secrets/demo', 2, 'protected_path'),
+    ('tab stripping', "cat > note.md <<-'EOF'\nplain\nEOF", 2, 'ambiguous_heredoc'),
+    ('descriptor override', "cat > note.md 3<<'EOF'\nplain\nEOF", 2, 'ambiguous_heredoc'),
+    ('escaped delimiter', "cat > note.md <<\\EOF\nplain\nEOF", 2, 'ambiguous_heredoc'),
+    ('mixed delimiter', "cat > note.md <<E'OF'\nplain\nEOF", 2, 'ambiguous_heredoc'),
+    ('substitution consumer', "echo $(cat <<'EOF'\n/secret prose\nEOF\n)", 2, 'ambiguous_heredoc'),
+    ('quoted substitution', 'echo "$(cat <<\'EOF\'\nplain\nEOF\n)"', 2, 'ambiguous_heredoc'),
+    ('hash after substitution is a word', "echo $(echo x)#word <<'EOF'\nplain\nEOF", 2, 'ambiguous_heredoc'),
+    ('arithmetic substitution', "echo $(( $(cat <<'EOF'\n1\nEOF\n) << 2))", 2, 'ambiguous_heredoc'),
+    ('malformed quotation', 'echo "bad <<EOF', 2, 'ambiguous_heredoc'),
+    ('line continuation', "cat > note.md \\\n<<'EOF'\nplain\nEOF", 2, 'ambiguous_heredoc'),
+]
+for cat in ('cat', '/bin/cat', '/usr/bin/cat'):
+    for quote in ("'", '"'):
+        cases.append(('literal substitutions', cat + ' >> "note file.md" <<' + quote + 'END' + quote +
+                      '\n$(cat /run/secrets/demo) `echo secret`\nEND\n  \n', 0, None))
+
+failures = []
+for label, command, code, category in cases:
+    result = invoke(command)
+    if result.returncode != code or (category and category not in result.stderr):
+        failures.append((label, result.returncode, code, category))
+    if result.returncode == 2 and category:
+        if 'block-secrets.py' not in result.stderr or not json.loads(result.stdout).get('reason'):
+            failures.append((label, 'missing hook attribution'))
+
+marker = 'DO_NOT_ECHO_7e42'
+for tool, params in [('Bash', {'command': 'cat /run/secrets/' + marker}),
+                     ('Read', {'file_path': '/run/secrets/' + marker}),
+                     ('apply_patch', {'patch': '*** Add File: /run/secrets/' + marker})]:
+    result = invoke('', tool=tool, params=params)
+    if result.returncode != 2 or marker in result.stdout + result.stderr:
+        failures.append(('secret-safe path diagnostics', tool))
+
+secret = 'sk-proj-' + 'A' * 32 + marker
+command = "cat > note.md <<'EOF'\n" + secret + '\nEOF'
+assert invoke(command).returncode == 0
+result = invoke(command, 'redact-secrets.py')
+if result.returncode != 2 or 'redact-secrets.py' not in result.stderr or 'secret_content' not in result.stderr:
+    failures.append(('content still denied', result.returncode))
+assert marker not in result.stdout + result.stderr
+
+with tempfile.TemporaryDirectory() as directory:
+    target = Path(directory) / 'must-not-exist'
+    result = invoke("bash <<'EOF'\ntouch " + str(target) + '\nEOF')
+    assert result.returncode == 2 and not target.exists()
+
+assert not failures, failures
+PY
+}
+assert_exit "literal heredoc and secret-safe diagnostics regressions" 0 check_heredoc_regressions
+
 finish
