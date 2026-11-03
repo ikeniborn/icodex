@@ -109,6 +109,8 @@ cases = [
     ('escaped space inside substitution', 'echo "$(echo x\\ # <<EOF\nordinary\nEOF\n)"', 2, 'ambiguous_heredoc'),
     ('continued comment boundary', 'echo \\\n# <<EOF', 0, None),
     ('continued word before hash', 'echo x\\\n#word <<EOF\nordinary\nEOF', 2, 'ambiguous_heredoc'),
+    ('continued heredoc operator', 'bash <\\\n<EOF\necho ordinary\nEOF', 2, 'ambiguous_heredoc'),
+    ('escaped backslash before operator', 'bash \\\\\n<<EOF\necho ordinary\nEOF', 2, 'ambiguous_heredoc'),
     ('arithmetic substitution', "echo $(( $(cat <<'EOF'\n1\nEOF\n) << 2))", 2, 'ambiguous_heredoc'),
     ('malformed quotation', 'echo "bad <<EOF', 2, 'ambiguous_heredoc'),
     ('line continuation', "cat > note.md \\\n<<'EOF'\nplain\nEOF", 2, 'ambiguous_heredoc'),

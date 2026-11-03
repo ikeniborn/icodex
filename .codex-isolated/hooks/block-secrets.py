@@ -207,18 +207,28 @@ def heredoc_operator_line(command):
             newline = command.find('\n', i)
             i = len(command) if newline == -1 else newline + 1
             continue
-        prefix = command[:i].rstrip(' \t')
-        command_start = not prefix or prefix[-1] in ';\n|&('
-        if mode != "arithmetic" and command.startswith('((', i) and command_start:
-            stack.append(["arithmetic", 2, False])
-            i += 2
-            continue
-        if mode != "arithmetic":
-            if command.startswith('<<<', i):
-                i += 3
+        if mode != "arithmetic" and command.startswith('((', i):
+            prefix = command[:i].rstrip(' \t')
+            if not prefix or prefix[-1] in ';\n|&(':
+                stack.append(["arithmetic", 2, False])
+                i += 2
                 continue
-            if command.startswith('<<', i):
-                return command.count('\n', 0, i) + 1
+        if mode != "arithmetic":
+            if char == '<':
+                end, count = i, 0
+                while end < len(command) and count < 3:
+                    if command[end] == '<':
+                        count += 1
+                        end += 1
+                    elif command.startswith('\\\n', end):
+                        end += 2
+                    else:
+                        break
+                if count == 3:
+                    i = end
+                    continue
+                if count == 2:
+                    return command.count('\n', 0, i) + 1
         if char == '(' and (depth or mode == "arithmetic"):
             stack[-1][1] += 1
         elif char == ')' and depth:
