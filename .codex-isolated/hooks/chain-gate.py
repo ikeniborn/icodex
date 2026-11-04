@@ -38,6 +38,7 @@ import time
 import subprocess
 import fnmatch
 import re
+import hashlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _codex_paths import extract_paths, patch_text_from_input  # noqa: E402
@@ -276,12 +277,18 @@ def gate_reason(path, rule):
     if not isinstance(block_data, dict):
         return "no %s: block" % rule["block"]
 
-    if block_data.get(rule["hash_key"]) != body_hash(path):
-        return "hash stale (edited after last check)"
+    key = rule['hash_key']
+    if key not in block_data:
+        return 'missing_hash: ' + rule['block'] + '.' + key
+    value = block_data[key]
+    if not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{16}', value):
+        return 'invalid_hash: ' + rule['block'] + '.' + key
+    if value != body_hash(path):
+        return 'stale_hash: ' + rule['block'] + '.' + key
 
     if rule["block"] == "result_check":
         if block_data.get("verdict") != "OK":
-            return "result_check verdict: %s" % block_data.get("verdict")
+            return "result_not_passed"
         return None
 
     phases = block_data.get("phases")
@@ -291,10 +298,10 @@ def gate_reason(path, rule):
     if not isinstance(findings, list):
         return "malformed findings"
 
-    for name, ph in phases.items():
+    for ph in phases.values():
         status = ph.get("status") if isinstance(ph, dict) else None
         if status != "passed":
-            return "phase %s: %s" % (name, status)
+            return "phase_not_passed"
 
     open_critical = [
         f.get("id", "?")
@@ -304,7 +311,7 @@ def gate_reason(path, rule):
         and f.get("verdict") == "open"
     ]
     if open_critical:
-        return "open CRITICAL: " + ", ".join(open_critical)
+        return "open_critical"
 
     return None
 
@@ -313,15 +320,19 @@ def validated(path, rule):
     return gate_reason(path, rule) is None
 
 
+def artifact_locator(candidate):
+    return hashlib.sha256(os.fsencode(os.path.abspath(candidate))).hexdigest()
+
+
 def block(candidate, reason, fix):
     stage = fix.split()[-1]
     sys.stderr.write(
-        "🚧 IDD gate: %s has not passed validation.\n"
+        "chain-gate.py: IDD gate; stage=%s; artifact_path_sha256=%s\n"
         "Reason: %s\n"
         "Action: dispatch a clean-context subagent to invoke the check-chain skill\n"
-        "with argument %s on %s, collect verdicts in the main session, resolve the\n"
+        "with argument %s on the artifact resolved by the documented local lookup, collect verdicts in the main session, resolve the\n"
         "CRITICAL findings, then retry.\n"
-        % (candidate, reason, stage, candidate)
+        % (stage, artifact_locator(candidate), reason, stage)
     )
     sys.exit(2)
 
@@ -411,10 +422,11 @@ def rule_for(path):
 def emit_nudge(path, fix):
     stage = fix.split()[-1]
     msg = (
-        "IDD artifact %s was just written and has not passed validation yet. "
+        "chain-gate.py: IDD artifact stage=%s; artifact_path_sha256=%s has not passed validation yet. "
         "Dispatch a clean-context subagent to invoke the check-chain skill with "
         "argument %s on it, then collect verdicts in the main session, so the IDD "
-        "gate is open before the next chain transition." % (path, stage)
+        "gate is open before the next chain transition. Resolve the artifact with the documented local lookup."
+        % (stage, artifact_locator(path), stage)
     )
     print(json.dumps({
         "hookSpecificOutput": {
@@ -440,12 +452,42 @@ def handle_nudge(data):
         return  # one nudge per write is enough
 
 
+def invalid_directory(source):
+    print('chain-gate.py: invalid_workdir; source=%s. Supply an absolute existing directory.' % source,
+          file=sys.stderr)
+    sys.exit(2)
+
+
+def resolve_workdir(data):
+    params = data.get('tool_input') or {}
+    if isinstance(params, dict) and 'workdir' in params:
+        directory, source = params['workdir'], 'tool_input.workdir'
+    elif 'cwd' in data:
+        directory, source = data['cwd'], 'event.cwd'
+    else:
+        directory, source = os.getcwd(), 'process.cwd'
+    if not isinstance(directory, str) or not os.path.isabs(directory) or not os.path.isdir(directory):
+        invalid_directory(source)
+    command = (params.get('cmd') or params.get('command') or '') if isinstance(params, dict) else ''
+    if data.get('tool_name') == 'Bash' and isinstance(command, str) and re.match(r'^\s*cd\s', command):
+        match = re.match(r'''^\s*cd[ \t]+(?:--[ \t]+)?('([^'\n]*)'|"([^"\n]*)"|([^ \t\n;&|]+))[ \t]*&&''', command)
+        if match:
+            target = next(value for value in match.groups()[1:] if value is not None)
+            if not any(char in target for char in '$`\\\n\r') and os.path.isabs(target) and os.path.isdir(target):
+                return target, 'leading_cd'
+        if skill_from_event(data, 'Bash') in GATE_MAP:
+            invalid_directory('leading_cd')
+    return directory, source
+
+
 def main():
     post = "--post" in sys.argv[1:]
     try:
         data = json.loads(sys.stdin.read())
     except (json.JSONDecodeError, ValueError):
         sys.exit(0)  # broken stdin → fail-open
+    if not isinstance(data, dict):
+        sys.exit(0)
 
     if post:
         event = "PostToolUse"
@@ -455,6 +497,11 @@ def main():
 
     tool = data.get("tool_name")
     sid = data.get("session_id")
+    workdir, source = resolve_workdir(data)
+    try:
+        os.chdir(workdir)
+    except OSError:
+        invalid_directory(source)
     try:
         if event == "PostToolUse":
             handle_nudge(data)
@@ -466,8 +513,8 @@ def main():
             handle_write(data, tool, sid)
         else:
             sys.exit(0)
-    except Exception as exc:  # fail-open
-        print("chain-gate: internal error, skipping (fail-open): %s" % exc,
+    except Exception:  # fail-open
+        print("chain-gate.py: internal_error; skipping (fail-open).",
               file=sys.stderr)
         sys.exit(0)
 

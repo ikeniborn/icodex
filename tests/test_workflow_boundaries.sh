@@ -27,7 +27,7 @@ if [[ -f "$agents" ]]; then
   assert_contains "LoEn state path" "$agents_body" "\`docs/loen/<topic>/\`"
   assert_contains "topic rule is controllable-artifact scoped" "$agents_body" "workflow artifacts the agent can control"
   assert_contains "topic rule includes LoEn topic directory" "$agents_body" "LoEn topic directory, for LoEn loop work"
-  assert_contains "thread title is best effort" "$agents_body" "Thread title is best-effort only"
+  assert_contains "thread title is best effort" "$agents_body" "Naming is best effort"
   assert_contains "inaccessible thread title is not blocking" "$flat_agents_body" "Do not treat an inaccessible UI thread title as a blocking artifact"
   assert_contains "workflow has three external routes" "$agents_body" 'Workflow recommendation: direct | chain | loen'
   assert_contains "workflow requires routing discovery" "$flat_agents_body" 'Before selecting a workflow, perform bounded routing discovery'

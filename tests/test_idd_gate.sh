@@ -185,4 +185,107 @@ assert_eq "malformed stdin fail-open" "0" "$(run_gate 'not json')"
 skill2='{"session_id":"s2","tool_name":"Skill","tool_input":{"skill":"superpowers:writing-plans"}}'
 assert_eq "unowned spec does not gate other session" "0" "$(run_gate "$skill2")"
 
+check_directory_and_reason_regressions() {
+  python3 - "$ROOT" <<'PY'
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+from unittest.mock import patch
+
+hook = Path(sys.argv[1]) / '.codex-isolated/hooks/chain-gate.py'
+marker = 'DO_NOT_ECHO_7e42'
+failures = []
+with tempfile.TemporaryDirectory() as temp:
+    base = Path(temp)
+    own, foreign, home = base/'own space', base/'foreign', base/'home'
+    def plan(root, value):
+        p = root/'docs/superpowers/plans'/('fixture-' + marker + '.md')
+        p.parent.mkdir(parents=True, exist_ok=True)
+        body = '# Plan\n'
+        field = '  plan_hash: ' + value + '\n' if value is not None else '  body_sha256: unused\n'
+        p.write_text('---\nreview:\n' + field + '  phases:\n    structure: {status: passed}\n  findings: []\n---\n' + body)
+        return p
+    digest = hashlib.sha256(b'# Plan\n').hexdigest()[:16]
+    target = plan(own, '"' + digest + '"')
+    bad = plan(foreign, '"0000000000000000"')
+    env = dict(os.environ, CODEX_HOME=str(home))
+    ledger = home/'state/idd-sessions.json'
+    def call(label, params, cwd_value='absent', expected=0, category=None, extra=None):
+        event = {'tool_name': 'Skill', 'session_id': label, 'tool_input': dict(skill='executing-plans', **params)}
+        if cwd_value != 'absent':
+            event['cwd'] = cwd_value
+        if extra:
+            event.update(extra)
+        before = ledger.read_bytes() if ledger.exists() else None
+        result = subprocess.run([sys.executable, str(hook)], cwd=foreign, env=env,
+                                input=json.dumps(event), text=True, capture_output=True)
+        if result.returncode != expected or (category and category not in result.stderr):
+            failures.append((label, result.returncode, expected, category))
+        if result.returncode == 2:
+            if 'chain-gate.py' not in result.stderr or marker in result.stdout + result.stderr:
+                failures.append((label, 'unsafe or unattributed diagnostic'))
+        if category == 'invalid_workdir':
+            after = ledger.read_bytes() if ledger.exists() else None
+            if before != after:
+                failures.append((label, 'ledger mutated'))
+        return result
+    call('event cwd', {}, str(own))
+    call('explicit wins', {'workdir':str(own)}, str(foreign))
+    call('ignore lower invalid', {'workdir':str(own)}, None)
+    for value in (None, '', 'relative', str(base/'missing'), str(target), 1):
+        call('bad workdir ' + str(value), {'workdir':value}, str(own), 2, 'invalid_workdir')
+    call('invalid event', {}, str(base/marker), 2, 'invalid_workdir')
+    call('no fields', {}, expected=2, category='stale_hash')
+    for prefix in ('cd "' + str(own) + '" && ', 'cd -- "' + str(own) + '" && '):
+        call('leading cd '+prefix, {'command':prefix+'cat /skills/executing-plans/SKILL.md'},
+             extra={'tool_name':'Bash'})
+    for prefix in ('cd ../own && ', 'cd "$TARGET" && '):
+        call('unsupported cd '+prefix, {'command':prefix+'cat /skills/executing-plans/SKILL.md'},
+             expected=2, category='invalid_workdir', extra={'tool_name':'Bash'})
+    for value, category in [(None,'missing_hash'), ('null','invalid_hash'), ('123','invalid_hash'),
+                            ('"BAD"','invalid_hash'), ('"0000000000000000"','stale_hash')]:
+        plan(own, value)
+        result = call('hash '+str(value), {'workdir':str(own)}, expected=2, category=category)
+        wanted = hashlib.sha256(os.fsencode(os.path.abspath(target))).hexdigest()
+        if wanted not in result.stderr:
+            failures.append(('artifact locator mismatch', category))
+    plan(own, '"' + digest + '"')
+    for fragment in ('{status: '+marker+'}',):
+        text=target.read_text(); target.write_text(text.replace('{status: passed}', fragment))
+        call('phase secret', {'workdir':str(own)}, expected=2, category='phase_not_passed')
+        target.write_text(text)
+    text=target.read_text();target.write_text(text.replace('findings: []', 'findings:\n    - {id: '+marker+', severity: CRITICAL, verdict: open}'))
+    call('finding secret', {'workdir':str(own)}, expected=2, category='open_critical')
+    target.write_text(text)
+    call('write directory', {'workdir':str(own)}, str(foreign),
+         extra={'tool_name':'Write','tool_input':{'file_path':str(target.relative_to(own)), 'workdir':str(own), 'content':'x'}})
+    # A draft body triggers a nudge from the selected checkout without echoing its name.
+    plan(own, None)
+    result=call('post directory', {}, str(own), extra={'tool_name':'Write','tool_input':{'file_path':str(target.relative_to(own))}, 'hook_event_name':'PostToolUse'})
+    if 'chain-gate.py' not in result.stdout or marker in result.stdout+result.stderr:
+        failures.append(('unsafe or missing nudge',))
+    spec=importlib.util.spec_from_file_location('directory_fixture_gate',hook)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    payload=json.dumps({'tool_name':'Skill','tool_input':{'workdir':str(own),'skill':'executing-plans'}})
+    import io
+    from contextlib import redirect_stderr
+    err=io.StringIO()
+    with patch.object(sys, 'stdin', io.StringIO(payload)), patch.object(sys, 'argv', [str(hook)]), patch.object(module.os,'chdir',side_effect=OSError(marker)), redirect_stderr(err):
+        try:
+            module.main()
+        except SystemExit as exc:
+            if exc.code!=2:failures.append(('chdir error exit',exc.code))
+        else:failures.append(('chdir error allowed',))
+    if marker in err.getvalue() or 'invalid_workdir' not in err.getvalue():failures.append(('chdir diagnostic',))
+assert not failures, failures
+PY
+}
+assert_exit "directory selection and safe validation reasons" 0 check_directory_and_reason_regressions
+
 finish
