@@ -4,8 +4,7 @@
 Codex's edit tool is `apply_patch` (its payload carries a `patch` string with
 `*** Add/Update/Delete File:` headers), unlike Claude Code's `file_path`-keyed
 Edit/Write. These helpers normalise both shapes to a list of touched paths.
-Mirrors the predicate already used by block-secrets.py (kept separate so the
-secret-guard is never imported for its side effects)."""
+The helpers are independent of hook entrypoints."""
 
 import re
 
