@@ -11,13 +11,13 @@ export ICODEX_SHARED_DIR="$tmp/.codex-isolated"
 export ICODEX_HOME_DIR="$tmp/.codex-homes/proj"
 mkdir -p "$ICODEX_SHARED_DIR/caveman" "$ICODEX_HOME_DIR"
 
-# Shared hooks.json with the existing secret-guard hook (the merge must preserve it).
+# Shared hooks.json with the existing secret-content hook (the merge must preserve it).
 cat > "$ICODEX_SHARED_DIR/hooks.json" <<'EOF'
 {
   "hooks": {
     "PreToolUse": [
       { "matcher": "Bash", "hooks": [
-        { "type": "command", "command": "python3 \"$CODEX_HOME/hooks/block-secrets.py\"" } ] }
+        { "type": "command", "command": "python3 \"$CODEX_HOME/hooks/redact-secrets.py\"" } ] }
     ]
   }
 }
@@ -38,7 +38,7 @@ assert_contains "agents has region start" "$(cat "$agents")" "icodex:caveman:sta
 assert_contains "agents substitutes mode" "$(cat "$agents")" "Active mode: **full**"
 assert_exit "home hooks.json is a real file" 0 test -f "$hooks"
 assert_eq  "home hooks.json is not a symlink" "1" "$([[ -L "$hooks" ]] && echo 0 || echo 1)"
-assert_contains "merge keeps secret guard" "$(cat "$hooks")" "block-secrets.py"
+assert_contains "merge keeps secret content guard" "$(cat "$hooks")" "redact-secrets.py"
 assert_contains "merge adds caveman hook"  "$(cat "$hooks")" "caveman-hook.py"
 assert_contains "merge wires UserPromptSubmit" "$(cat "$hooks")" "UserPromptSubmit"
 

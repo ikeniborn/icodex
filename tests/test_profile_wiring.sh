@@ -218,7 +218,6 @@ ensure_profile_wiring
 after_hash="$(sha256sum "$hooks_file" | awk '{print $1}')"
 assert_eq "profile wiring idempotent full bytes" "$before_hash" "$after_hash"
 assert_eq "profile command remains unique" "1" "$(grep -c 'profile-transition.py' "$hooks_file")"
-assert_contains "base secret hook preserved" "$(cat "$hooks_file")" "block-secrets.py"
 assert_contains "base redaction hook preserved" "$(cat "$hooks_file")" "redact-secrets.py"
 assert_contains "actual caveman hook preserved" "$(cat "$hooks_file")" "caveman-hook.py"
 assert_contains "actual chain gate preserved" "$(cat "$hooks_file")" "chain-gate.py"

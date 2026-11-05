@@ -27,7 +27,7 @@ Exit codes:
   2 — block (gate only)
 
 Fail-open: any internal exception → exit 0. A bug here must never break a real tool
-call. (This is the opposite of block-secrets.py, which is fail-closed.)
+call.
 """
 
 import sys

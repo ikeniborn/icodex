@@ -56,7 +56,6 @@ PY
 assert_contains "default-on gates Read events" "$gate_matcher" "Read"
 assert_contains "default-on gates Bash events" "$gate_matcher" "Bash"
 assert_exit "result is valid json" 0 python3 -c "import json; json.load(open('$ICODEX_HOME_DIR/hooks.json'))"
-assert_contains "base block-secrets preserved" "$hooks" "block-secrets.py"
 assert_contains "base redact-secrets preserved" "$hooks" "redact-secrets.py"
 assert_contains "caveman hook preserved" "$hooks" "caveman-hook.py"
 assert_contains "caveman event preserved" "$hooks" "UserPromptSubmit"
@@ -70,7 +69,6 @@ ensure_idd_wiring
 hooks_off="$(cat "$ICODEX_HOME_DIR/hooks.json")"
 assert_exit "opt-out result is valid json" 0 python3 -c "import json; json.load(open('$ICODEX_HOME_DIR/hooks.json'))"
 assert_eq "opt-out removes chain-gate" "0" "$(grep -c 'chain-gate.py' <<<"$hooks_off")"
-assert_contains "opt-out keeps block-secrets" "$hooks_off" "block-secrets.py"
 assert_contains "opt-out keeps redact-secrets" "$hooks_off" "redact-secrets.py"
 assert_contains "opt-out keeps caveman hook" "$hooks_off" "caveman-hook.py"
 
