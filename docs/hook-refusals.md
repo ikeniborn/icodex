@@ -6,13 +6,12 @@ The shared icodex hooks inspect tool requests before execution. Exit 0 allows a 
 
 `block-secrets.py` and its diagnostic heredoc analyzer were retired on 2026-11-05. The hook no longer restricts filesystem paths or diagnostic interpreter syntax. Registrations and dedicated tests were removed. A no-op entrypoint remains for cached registrations until existing sessions restart.
 
-`redact-secrets.py` remains active. It scans tool input, including heredoc bodies, for secret content. The chain and GWT gates remain independent of the retired path guard.
+`redact-secrets.py` was also retired on 2026-11-05. Its registrations and content-guard tests were removed. A no-op entrypoint remains for cached sessions. Tool input is no longer scanned for secret patterns by this hook. The chain and GWT gates remain active.
 
 ## Reason Categories
 
 | Hook | Category | Recovery |
 |---|---|---|
-| `redact-secrets.py` | `secret_content` | Remove secret values from the tool input |
 | `chain-gate.py` | `invalid_workdir` | Supply an absolute existing directory in the named field or leading directory command |
 | `chain-gate.py` | `missing_hash` | Run the applicable `check-chain` stage to produce its canonical hash field |
 | `chain-gate.py` | `invalid_hash` | Correct the field through the applicable validation stage; it must be a lowercase 16-character hex string |
@@ -66,4 +65,4 @@ Entering a directory symlink follows process-cwd semantics. A candidate-file sym
 
 ## Security Boundary
 
-The remaining hooks inspect request content and workflow state. They do not enforce filesystem access restrictions or validate arbitrary shell and Python syntax. The retired path guard no longer blocks unsupported diagnostic syntax.
+The remaining hooks inspect workflow state. They do not enforce filesystem access restrictions or validate arbitrary shell and Python syntax. The retired path guard no longer blocks unsupported diagnostic syntax.
