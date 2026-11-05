@@ -11,6 +11,8 @@ import re
 import shlex
 import sys
 
+from _diagnostic_heredoc import analyze_bash, analyze_python
+
 
 EXCLUDE_DIRS = (
     ".codex-isolated/hooks",
@@ -264,9 +266,22 @@ def classify_heredoc(command):
                     destination = destination[1:-1]
                 return 'literal_write', destination, None, 1
         return 'deny', None, 'unterminated_heredoc', 1
+    interpreter = re.fullmatch(r"[ \t]*(?P<consumer>(?:python3|/usr/bin/python3)(?:[ \t]+-)?|(?:bash|/bin/bash)(?:[ \t]+--noprofile)?(?:[ \t]+--norc)?)[ \t]+<<[ \t]*(?P<quote>['\"])(?P<delimiter>[A-Za-z_][A-Za-z0-9_]*)(?P=quote)[ \t]*", header)
+    if interpreter:
+        lines = body.split('\n') if separator else []
+        for index, line in enumerate(lines):
+            if line == interpreter.group('delimiter'):
+                if ''.join(lines[index + 1:]).strip():
+                    return 'deny', None, 'indeterminate_access', index + 3
+                analyzer = analyze_bash if 'bash' in interpreter.group('consumer') else analyze_python
+                category, rule, source_line = analyzer('\n'.join(lines[:index]), is_sensitive_path)
+                if category:
+                    return 'deny', None, category, source_line + 1
+                return 'diagnostic', None, None, 1
+        return 'deny', None, 'unterminated_heredoc', 1
     line = heredoc_operator_line(command)
     if line is not None:
-        return 'deny', None, 'ambiguous_heredoc', line
+        return 'deny', None, 'indeterminate_access', line
     return 'none', None, None, 1
 
 
@@ -282,6 +297,7 @@ def patch_paths(patch):
 def deny(category, locator, rule=None):
     actions = {
         'protected_path': 'Use a non-sensitive target.',
+        'indeterminate_access': 'Use explicit paths and supported diagnostic operations; access could not be determined.',
         'ambiguous_heredoc': 'Use the documented single-cat literal-write form.',
         'unterminated_heredoc': 'Close the quoted delimiter on its own line.',
     }
@@ -305,6 +321,8 @@ def main():
         kind, destination, category, line = classify_heredoc(command)
         if kind == 'deny':
             deny(category, 'command line %d' % line)
+        if kind == 'diagnostic':
+            sys.exit(0)
         paths.extend([destination] if kind == 'literal_write' else command_path_tokens(command))
     elif tool in {"apply_patch", "Edit", "Write", "Read"}:
         paths.extend(path_fields(params))
