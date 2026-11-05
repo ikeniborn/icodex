@@ -2,17 +2,6 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|apply_patch|Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CODEX_HOME/hooks/redact-secrets.py\"",
-            "timeout": 30,
-            "statusMessage": "Checking secret content"
-          }
-        ]
-      },
-      {
         "matcher": "mcp__iwiki_remote__wiki_update_page|mcp__iwiki__wiki_update_page|mcp__iwiki_local__wiki_update_page|wiki_update_page",
         "hooks": [
           {
