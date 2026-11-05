@@ -22,11 +22,36 @@ The destination is still checked for protected-path rules, including relative pa
 
 The destination may contain letters, digits, `_`, `-`, `.`, and `/`. Quoted destinations may also contain spaces. The delimiter must match `[A-Za-z_][A-Za-z0-9_]*`. The first complete matching line ends the body. Only whitespace may follow it.
 
+## Diagnostic Interpreter Heredocs
+
+One complete quoted heredoc can feed `python3`, `/usr/bin/python3`, `bash`, or `/bin/bash`. Python accepts an optional `-`; Bash accepts `--noprofile` and `--norc`. The hook analyzes the body without running it or reading its files.
+
+```bash
+python3 <<'END'
+from pathlib import Path
+text = Path('README.md').read_text()
+print(len(text.splitlines()))
+END
+```
+
+```bash
+bash <<'END'
+wc -l README.md
+printf '%s\n' 'diagnostic complete'
+END
+```
+
+Python supports literal paths, path joins, read-only Path methods, primitive/container data processing, and a restricted set of builtins. Supported imports are pathlib, json, and collections.Counter. Both branches and loop bodies are inspected. Unknown calls, reflection, callable aliases, subprocesses, environment reads, and unresolved paths produce `indeterminate_access`. Generator bodies cannot rely on mutable current path bindings. See the [approved subset](superpowers/specs/2026-11-04-secret-access-hook-diagnostics-design.md#r2-python-diagnostic-subset) for exact operations.
+
+Bash supports simple literal commands separated by newlines or semicolons: echo, printf, pwd, cat, head, tail, wc, and ls, including their /bin and /usr/bin paths. Filesystem commands accept only the documented short flags. Expansions, globbing, assignments (including printf -v), redirections, unknown commands, and pipelines remain indeterminate. Quoted literal text is distinguished from executable syntax.
+
+Resolved protected accesses receive `protected_path`. A path derived from file contents receives `indeterminate_access`. Printing a literal path name alone is not filesystem access. The independent content hook continues to scan the entire submitted body.
+
 ## Unsupported Heredoc Forms
 
-The literal-data exemption does not cover unquoted or mixed delimiters, `<<-`, multiple bodies, descriptor overrides, wrappers, pipelines, compound commands, or trailing commands. Heredoc input to `python3` or `bash` is blocked, even with a quoted delimiter. This is an intentional conservative restriction.
+Unquoted or mixed delimiters, `<<-`, multiple bodies, descriptor overrides, wrappers, pipelines, and executable suffixes do not qualify for interpreter analysis. Unsupported interpreter envelopes receive `indeterminate_access`. The existing literal-cat exemption remains unchanged; a suffix after its first terminator receives `ambiguous_heredoc`. A recognized envelope without its closing delimiter receives `unterminated_heredoc`.
 
-Move executable code into an ordinary reviewed script and invoke that script separately. Do not disable the hooks to force a request through. A missing closing delimiter produces `unterminated_heredoc`; unsupported or uncertain analysis produces `ambiguous_heredoc`.
+Use explicit static paths and supported diagnostic operations when analysis is indeterminate. Move unsupported executable code into an ordinary reviewed script when appropriate. Do not disable the hooks to force a request through.
 
 Quoted/commented `<<` text and arithmetic shifts are not heredoc operators. Here-strings (`<<<`) retain the previous path and content checks; they receive no literal-data exemption.
 
@@ -36,6 +61,7 @@ Quoted/commented `<<` text and arithmetic shifts are not heredoc operators. Here
 |---|---|---|
 | `block-secrets.py` | `protected_path` | Inspect the rule and numeric source locator locally; choose a non-sensitive target |
 | `block-secrets.py` | `ambiguous_heredoc` | Use the supported single-cat form for data, or a reviewed script for executable input |
+| `block-secrets.py` | `indeterminate_access` | Use explicit paths and supported diagnostic operations; this category does not claim a secret was found |
 | `block-secrets.py` | `unterminated_heredoc` | Close the quoted delimiter on its own line |
 | `redact-secrets.py` | `secret_content` | Remove secret values from the tool input |
 | `chain-gate.py` | `invalid_workdir` | Supply an absolute existing directory in the named field or leading directory command |
