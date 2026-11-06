@@ -284,7 +284,8 @@ Fedora/RHEL derivatives use `dnf`; Arch uses `pacman`; openSUSE uses `zypper`;
 Alpine uses `apk`. Availability depends on enabled distribution repositories.
 Installation requires explicit consent and may request sudo. Native package scripts
 can run; icodex does not enable a system stunnel service or add repositories.
-The package transaction uses host repository settings, independently of proxy selection.
+APT installation connects directly, ignoring proxy settings for this transaction only.
+System APT configuration remains unchanged. Other package managers use host repository settings.
 An HTTPS-only network can therefore require manual installation beforehand.
 Refusal, installation failure, unsupported installation, or absent TTY skips candidates
 requiring the missing executable. HTTP candidates remain available.

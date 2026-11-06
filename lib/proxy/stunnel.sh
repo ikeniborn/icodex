@@ -16,16 +16,34 @@ _proxy_stunnel_install_command() {
   esac
 }
 
-_proxy_stunnel_install() {
+_proxy_stunnel_install() (
   local -a privilege=()
   if (( EUID != 0 )); then
     command -v sudo >/dev/null || { log_warn "sudo unavailable; install stunnel manually"; return 1; }
     privilege=(sudo)
   fi
-  # Package repositories use host configuration, not an unselected proxy list.
+  local apt_config=""
+  local -a command=("${ICODEX_STUNNEL_INSTALL_CMD[@]}")
+  if [[ "${command[0]}" == apt-get ]]; then
+    apt_config="$(mktemp)" || return 1
+    trap 'rm -f -- "$apt_config"' EXIT
+    # Clear host-specific and automatic proxy settings as well as the defaults.
+    cat > "$apt_config" <<'CONF'
+#clear Acquire::http::Proxy;
+#clear Acquire::https::Proxy;
+#clear Acquire::http::Proxy-Auto-Detect;
+#clear Acquire::https::Proxy-Auto-Detect;
+#clear Acquire::http::ProxyAutoDetect;
+#clear Acquire::https::ProxyAutoDetect;
+Acquire::http::Proxy "DIRECT";
+Acquire::https::Proxy "DIRECT";
+CONF
+    command+=(-c "$apt_config")
+  fi
+  # Keep other package managers on their native repository configuration.
   env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy \
-    "${privilege[@]}" "${ICODEX_STUNNEL_INSTALL_CMD[@]}"
-}
+    "${privilege[@]}" "${command[@]}"
+)
 
 proxy_stunnel_require() {
   proxy_stunnel_find >/dev/null && return 0
@@ -41,7 +59,9 @@ proxy_stunnel_require() {
     log_warn "automatic stunnel installation unavailable; install the package manually"
     return 1
   fi
-  printf '[icodex] Install stunnel using %s? Administrator privileges and native package scripts may be required. Repository access uses host settings. [y/N] ' "${ICODEX_STUNNEL_INSTALL_CMD[*]}" >&2
+  local routing="Repository access uses host settings."
+  [[ "${ICODEX_STUNNEL_INSTALL_CMD[0]}" != apt-get ]] || routing="APT repository access is direct, without a proxy."
+  printf '[icodex] Install stunnel using %s? Administrator privileges and native package scripts may be required. %s [y/N] ' "${ICODEX_STUNNEL_INSTALL_CMD[*]}" "$routing" >&2
   read -r reply || reply=""
   [[ "$(_proxy_unreachable_action 1 "$reply")" == continue ]] || return 1
   _proxy_stunnel_install || { log_warn "stunnel installation failed; trying the next proxy"; return 1; }
