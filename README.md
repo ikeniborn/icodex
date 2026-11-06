@@ -179,7 +179,7 @@ ordinary environment variable.
 | `ICODEX_SANDBOX` | Granular override: filesystem sandbox only — `read-only`, `workspace-write`, or `danger-full-access`; takes precedence over `ICODEX_MODE` for the sandbox field | — |
 | `ICODEX_APPROVAL` | Granular override: approval policy only — `untrusted`, `on-failure`, `on-request`, or `never`; takes precedence over `ICODEX_MODE` for the approval field | — |
 | `ICODEX_PERMISSIONS` | Granular override: managed permission profile only — `dev-safe`, `ssh-on-request`, or `none`; takes precedence over `ICODEX_MODE` for the permissions field | — |
-| `ICODEX_PROXY` | Proxy URL, exported as `HTTPS_PROXY` / `HTTP_PROXY` for codex | — |
+| `ICODEX_PROXY` | Ordered comma-separated proxy URLs; selected route exported for Codex | — |
 | `ICODEX_NO_PROXY` | Comma-separated host bypass list, exported as `NO_PROXY` (e.g. `localhost,127.0.0.1,github.com`) | — |
 | `ICODEX_CA_FIX` | curl TLS-trust workaround: `auto` detects an OpenSSL bundle it can't decode and routes curl via a filtered copy; `off` disables it | `auto` |
 | `ICODEX_CA_BUNDLE` | Explicit CA bundle for curl/OpenSSL — exported as `CURL_CA_BUNDLE` / `SSL_CERT_FILE`; skips detection | — |
@@ -192,33 +192,54 @@ ordinary environment variable.
 writes `ICODEX_PROXY` into `.codex_config` (preserving other keys); `./icodex.sh --clear`
 removes the file.
 
-Proxy URLs support `http`, `https`, `socks4`, `socks4a`, `socks5`, and `socks5h`.
-A URL without a scheme uses HTTP. Unsupported schemes (including `socks5s`) and
-invalid hosts or ports are rejected before a CLI URL is saved.
+Proxy settings accept one URL or a comma-separated list in priority order:
 
-Before launch, icodex makes an HTTPS request through the configured proxy to
-`https://chatgpt.com/backend-api/wham/accounts/check`. The probe uses proxy
-credentials but sends no account token. It ignores curlrc and `NO_PROXY`, verifies
-TLS, and takes at most 8 seconds. HTTP 401 from this unauthenticated endpoint is
-expected. This checks the tunnel, not account access or later model connections.
+```bash
+./icodex.sh --proxy 'https://proxy-one.example:443,http://proxy-two.example:8080'
+```
 
-Failures distinguish TCP, DNS, proxy authentication, TLS, SOCKS negotiation, timeout,
-and target HTTP errors without printing the proxy URL or credentials. For a failed
-probe, interactive runs ask whether to continue directly (default yes); without a
-TTY, icodex warns and continues directly. Direct fallback clears inherited proxy
-variables. Invalid proxy configuration stops the launch instead.
+The list is saved unchanged. Spaces around entries are allowed; empty entries and
+invalid URLs are rejected before saving. Encode commas inside credentials as `%2C`.
+Supported schemes remain `http`, `https`, `socks4`, `socks4a`, `socks5`, and `socks5h`;
+a schemeless URL uses HTTP. SOCKS support still depends on the installed Codex client.
 
-`--no-proxy` skips the probe and clears `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and
-their lowercase variants before wrapper network operations. It preserves saved
-configuration and the `NO_PROXY` bypass list.
+Before network downloads or launch, icodex checks candidates sequentially. Each probe
+uses an authenticated tunnel to `https://chatgpt.com/backend-api/wham/accounts/check`
+without an account token. It ignores curlrc and bypass rules, verifies TLS, and has
+an 8-second deadline (3 seconds to connect). HTTP 401 is expected. The first passing
+candidate is selected for this invocation; later candidates are not probed.
 
-The probe uses curl; its protocol support can exceed the installed Codex client's.
-With Codex 0.166.0, HTTP CONNECT passed repeated account bootstrap, interactive TUI,
-and a real model request. HTTPS proxying passed account bootstrap and a model request,
-but WebSocket attempts reported `Proxy URL scheme not supported` before transport
-fallback. Direct SOCKS5 failed workspace discovery: this release does not enable
-reqwest's `socks` feature. Use the HTTP endpoint for this release. A passing curl probe
-alone does not establish Codex transport compatibility.
+HTTP connects directly to the proxy. HTTPS starts a dedicated foreground stunnel child
+and gives Codex a local HTTP CONNECT endpoint on `127.0.0.1`. stunnel verifies the
+remote certificate chain and DNS name or IP identity. This avoids exposing the HTTPS
+proxy scheme to Codex WebSocket clients. Trust selection is `ICODEX_CA_BUNDLE`, then
+`SSL_CERT_FILE`, then `CURL_CA_BUNDLE`, then system CA discovery. Invalid explicit
+trust settings fail that HTTPS candidate; verification is never disabled.
+
+If stunnel is missing, an interactive Linux invocation offers installation once.
+Debian/Ubuntu use `apt-get` with `stunnel4`; ALT uses `apt-get` with `stunnel`;
+Fedora/RHEL derivatives use `dnf`; Arch uses `pacman`; openSUSE uses `zypper`;
+Alpine uses `apk`. Availability depends on enabled distribution repositories.
+Installation requires explicit consent and may request sudo. Native package scripts
+can run; icodex does not enable a system stunnel service or add repositories.
+The package transaction uses host repository settings, independently of proxy selection.
+An HTTPS-only network can therefore require manual installation beforehand.
+Refusal, installation failure, unsupported installation, or absent TTY skips candidates
+requiring the missing executable. HTTP candidates remain available.
+
+If every candidate fails, icodex asks whether to continue directly, with default **No**.
+Only an explicit `y` or `yes` allows direct access. Empty input, EOF, refusal, or no TTY
+stops the invocation. Consenting to package installation does not authorize direct launch.
+Direct fallback and `--no-proxy` clear inherited HTTP/HTTPS/ALL_PROXY variables and their
+lowercase variants. Saved settings and the `NO_PROXY` host bypass list remain unchanged.
+
+Each selected stunnel belongs to one invocation. Rejected tunnels are stopped before
+trying the next candidate. Normal exits and handled INT/TERM clean up the owned child
+and private runtime files. PII, telemetry, and profile launches retain their existing
+behavior while sharing tunnel cleanup. SIGKILL and host failure cannot guarantee cleanup.
+There is no live session migration or automatic direct fallback after launch.
+Diagnostics identify candidate number and failure stage without printing credentials.
+A passing probe does not guarantee account access or every later model connection.
 
 > `ICODEX_IWIKI_*` keys configure the iwiki MCP server. Git bindings need
 > `ICODEX_IWIKI_BASE_DIR`; PostgreSQL bindings declare `[storage] type = "postgres"`
