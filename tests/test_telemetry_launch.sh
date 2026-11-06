@@ -102,6 +102,8 @@ chmod +x "$long_child"
 
 signal_cleanup="$tmp/signal-cleanup"
 (
+  # The parent owns the fixture directory; restored child traps must not remove it.
+  trap - EXIT
   source "$ROOT/lib/core/logging.sh"
   source "$ROOT/lib/telemetry/telemetry.sh"
   source "$ROOT/lib/launcher/launch.sh"

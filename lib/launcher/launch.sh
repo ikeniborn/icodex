@@ -13,6 +13,10 @@ launch_codex() { # <args...>
 }
 
 launch_codex_with_optional_pii() {
+  if [[ -n "${ICODEX_STUNNEL_PID:-}" ]]; then
+    launch_codex_wrapped "$@"
+    return $?
+  fi
   if [[ "${ICODEX_USE_PII_PROXY_RESOLVED:-false}" != "true" ]]; then
     launch_codex "$@"
     return $?
@@ -66,35 +70,65 @@ stop_pii_proxy_server() {
   fi
 }
 
+# Signal only the owned application child; bound termination before helper cleanup.
+_launch_signal_child() { # <pid> <signal>
+  local pid="$1" signal_name="$2" tick
+  [[ -n "$pid" ]] || return 0
+  kill -"$signal_name" "$pid" 2>/dev/null || true
+  for ((tick=0; tick<50; tick++)); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -TERM "$pid" 2>/dev/null || true
+    for ((tick=0; tick<20; tick++)); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.1
+    done
+  fi
+  if kill -0 "$pid" 2>/dev/null; then kill -KILL "$pid" 2>/dev/null || true; fi
+  wait "$pid" 2>/dev/null || true
+}
+
+_launch_owned_cleanup() {
+  if [[ "${pii_started:-false}" == true ]]; then
+    stop_pii_proxy_server
+    pii_started=false
+  fi
+  if declare -F proxy_cleanup >/dev/null; then proxy_cleanup; fi
+  if declare -F telemetry_cleanup >/dev/null; then telemetry_cleanup || true; fi
+}
+
 launch_codex_wrapped() { # <args...>
   if [[ ! -x "$ICODEX_BIN" ]]; then
     log_error "codex binary missing — run: ./icodex.sh --install"
+    if declare -F proxy_cleanup >/dev/null; then proxy_cleanup; fi
     return 1
   fi
-
   local child_pid="" rc=0 signal_status=0 pii_started=false
+  local old_exit old_int old_term
+  old_exit="$(trap -p EXIT)"; old_int="$(trap -p INT)"; old_term="$(trap -p TERM)"
+  trap '_launch_owned_cleanup' EXIT
+  trap 'signal_status=130; _launch_signal_child "$child_pid" INT' INT
+  trap 'signal_status=143; _launch_signal_child "$child_pid" TERM' TERM
   local codex_args=(--dangerously-bypass-hook-trust "$@")
-  if [[ "${ICODEX_USE_PII_PROXY_RESOLVED:-false}" == "true" ]]; then
-    start_pii_proxy_server || return 1
-    pii_started=true
-    codex_args=(--dangerously-bypass-hook-trust -c "openai_base_url=\"http://127.0.0.1:${PII_PROXY_ACTIVE_PORT}/v1\"" "$@")
+  if [[ "${ICODEX_USE_PII_PROXY_RESOLVED:-false}" == true ]]; then
+    if start_pii_proxy_server; then
+      pii_started=true
+      codex_args=(--dangerously-bypass-hook-trust -c "openai_base_url=\"http://127.0.0.1:${PII_PROXY_ACTIVE_PORT}/v1\"" "$@")
+    else
+      rc=1
+    fi
   fi
-  trap 'signal_status=130; if [[ -n "${child_pid:-}" ]]; then kill -INT "$child_pid" 2>/dev/null || true; wait "$child_pid" 2>/dev/null || true; fi' INT
-  trap 'signal_status=143; if [[ -n "${child_pid:-}" ]]; then kill -TERM "$child_pid" 2>/dev/null || true; wait "$child_pid" 2>/dev/null || true; fi' TERM
-
-  "$ICODEX_BIN" "${codex_args[@]}" &
-  child_pid="$!"
-  wait "$child_pid" || rc=$?
-  if (( signal_status != 0 )); then
-    rc="$signal_status"
+  (( signal_status == 0 )) || rc="$signal_status"
+  if (( rc == 0 )); then
+    "$ICODEX_BIN" "${codex_args[@]}" <&0 &
+    child_pid=$!
+    wait "$child_pid" || rc=$?
+    (( signal_status == 0 )) || rc="$signal_status"
   fi
-  trap - INT TERM
-  if [[ "$pii_started" == "true" ]]; then
-    stop_pii_proxy_server
-  fi
-
-  if declare -F telemetry_cleanup >/dev/null 2>&1; then
-    telemetry_cleanup || true
-  fi
+  _launch_owned_cleanup
+  trap - EXIT INT TERM
+  eval "$old_exit"; eval "$old_int"; eval "$old_term"
   return "$rc"
 }

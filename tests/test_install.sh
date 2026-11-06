@@ -36,13 +36,13 @@ source "$ROOT/lib/binary/install.sh"
 
 # _curl_proxy_args emits "--proxy <url>" only when a proxy is set and not disabled
 unset ICODEX_DISABLE_PROXY
-out="$(ICODEX_PROXY='http://p:8080' _curl_proxy_args | tr '\n' ' ')"
-assert_eq "proxy args when set"     "--proxy http://p:8080 " "$out"
+out="$(ICODEX_PROXY='http://p:8080' _curl_proxy_config | tr '\n' ' ')"
+assert_eq "proxy args when set"     'proxy = "http://p:8080" ' "$out"
 
-out="$(ICODEX_PROXY='http://p:8080' ICODEX_DISABLE_PROXY=1 _curl_proxy_args | tr '\n' ' ')"
+out="$(ICODEX_PROXY='http://p:8080' ICODEX_DISABLE_PROXY=1 _curl_proxy_config | tr '\n' ' ')"
 assert_eq "no args when disabled"   "" "$out"
 
-out="$(unset ICODEX_PROXY; _curl_proxy_args | tr '\n' ' ')"
+out="$(unset ICODEX_PROXY; _curl_proxy_config | tr '\n' ' ')"
 assert_eq "no args when unset"      "" "$out"
 
 # --- uv dependency: copied into the permanent icodex install dir; UV_BIN exported, nothing persisted ---
@@ -197,20 +197,23 @@ assert_exit "empty sha trust-on-first-use" 0 install_ensure
 assert_exit "empty sha binary present" 0 test -x "$ICODEX_BIN"
 rm -rf "$tmp"
 
-# --- _wget_proxy_args mirrors _curl_proxy_args, emitting wget -e directives ---
-unset ICODEX_DISABLE_PROXY
-out="$(ICODEX_PROXY='http://p:8080' _wget_proxy_args | tr '\n' ' ')"
-assert_eq "wget proxy args when set" "-e use_proxy=yes -e https_proxy=http://p:8080 -e http_proxy=http://p:8080 " "$out"
-out="$(ICODEX_PROXY='http://p:8080' ICODEX_DISABLE_PROXY=1 _wget_proxy_args | tr '\n' ' ')"
-assert_eq "wget no args when disabled" "" "$out"
-out="$(unset ICODEX_PROXY; _wget_proxy_args | tr '\n' ' ')"
-assert_eq "wget no args when unset" "" "$out"
-
 # Earlier cases stubbed the _download/_resolve_latest seams; re-source to restore
 # the real functions, then stub curl/wget as shell functions to drive the
 # curl-primary / wget-fallback branches offline. Not run in a subshell so the
 # PASS/FAIL counters aggregate; curl/wget stubs are unset at the end.
 source "$ROOT/lib/binary/install.sh"
+
+# The selected effective URL reaches curl stdin, never argv or a list.
+setup_case
+ICODEX_PROXY='http://first:1,http://second:2'
+ICODEX_PROXY_ACTIVE='http://test:secret@localhost:1234'
+curl() { printf '%s\n' "$@" > "$tmp/argv"; cat > "$tmp/stdin"; }
+_download https://example/x "$tmp/out" 0
+assert_contains 'selected proxy in curl config' "$(cat "$tmp/stdin")" 'localhost:1234'
+assert_eq 'credentials absent from argv' 0 "$(grep -c secret "$tmp/argv" || true)"
+assert_eq 'list absent from config' 0 "$(grep -c first "$tmp/stdin" || true)"
+unset ICODEX_PROXY_ACTIVE ICODEX_PROXY
+rm -rf "$tmp"
 
 # --- _download: curl is primary; wget is not touched when curl succeeds ---
 setup_case
