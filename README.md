@@ -188,14 +188,48 @@ ordinary environment variable.
 | `ICODEX_UNAME_S` / `ICODEX_UNAME_M` | Force the release-asset platform instead of auto-detecting via `uname` | auto |
 
 `ICODEX_NO_PROXY` is a bypass list (standard `NO_PROXY` semantics), **not** a disable switch
-— to skip the proxy for a single run use the `--no-proxy` flag. `./icodex.sh --proxy <url>`
+— to skip the proxy for a single run use the `--no-proxy` flag. `./icodex.sh --proxy <urls>`
 writes `ICODEX_PROXY` into `.codex_config` (preserving other keys); `./icodex.sh --clear`
 removes the file.
 
-Proxy settings accept one URL or a comma-separated list in priority order:
+Proxy settings accept one URL or a comma-separated list in priority order.
+Save two HTTPS candidates; icodex tries the second only if the first fails:
+
+```bash
+./icodex.sh --proxy 'https://proxy-one.example:443,https://proxy-two.example:443'
+```
+
+Alternatively, set the same value in the ignored `.codex_config`:
+
+```ini
+ICODEX_PROXY=https://proxy-one.example:443,https://proxy-two.example:443
+```
+
+Use a single HTTPS endpoint with authentication:
+
+```bash
+./icodex.sh --proxy 'https://username:password@proxy-one.example:443'
+```
+
+Use HTTPS first with an explicit HTTP fallback, or HTTP alone:
 
 ```bash
 ./icodex.sh --proxy 'https://proxy-one.example:443,http://proxy-two.example:8080'
+./icodex.sh --proxy 'http://proxy-one.example:8080'
+```
+
+These are alternative configurations; each `--proxy` command replaces the saved list.
+Use the proxy's actual TLS listener port for `https://`. Changing the scheme of a
+plain HTTP listener does not enable TLS. HTTP adds no TLS protection between the
+client and proxy; choose two HTTPS endpoints when both routes must protect that link.
+Percent-encode reserved characters in credentials, including `@` as `%40` and commas
+as `%2C`. For real credentials, edit `.codex_config` with mode 600 to avoid shell history.
+
+Launch with the saved configuration, or bypass proxies for one invocation:
+
+```bash
+./icodex.sh
+./icodex.sh --no-proxy
 ```
 
 The list is saved unchanged. Spaces around entries are allowed; empty entries and
@@ -223,7 +257,9 @@ Alpine uses `apk`. Availability depends on enabled distribution repositories.
 Installation requires explicit consent and may request sudo. Native package scripts
 can run; icodex does not enable a system stunnel service or add repositories.
 APT installation connects directly, ignoring proxy settings for this transaction only.
-System APT configuration remains unchanged. Other package managers use host repository settings.
+APT ignores generic, per-host, and automatic HTTP/HTTPS proxy settings through a
+temporary configuration. System APT configuration remains unchanged. Other package
+managers use host repository settings.
 An HTTPS-only network can therefore require manual installation beforehand.
 Refusal, installation failure, unsupported installation, or absent TTY skips candidates
 requiring the missing executable. HTTP candidates remain available.
@@ -234,7 +270,11 @@ stops the invocation. Consenting to package installation does not authorize dire
 Direct fallback and `--no-proxy` clear inherited HTTP/HTTPS/ALL_PROXY variables and their
 lowercase variants. Saved settings and the `NO_PROXY` host bypass list remain unchanged.
 
-Each selected stunnel belongs to one invocation. Rejected tunnels are stopped before
+Each selected stunnel belongs to one invocation. Concurrent launches have separate
+stunnel processes, loopback ports, and private configuration directories. Closing one
+invocation cleans up its own tunnel without stopping the others. Codex receives an
+HTTP loopback proxy URL even when the remote connection uses TLS; this is expected.
+Rejected tunnels are stopped before
 trying the next candidate. Normal exits and handled INT/TERM clean up the owned child
 and private runtime files. PII, telemetry, and profile launches retain their existing
 behavior while sharing tunnel cleanup. SIGKILL and host failure cannot guarantee cleanup.

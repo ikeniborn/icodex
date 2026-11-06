@@ -66,13 +66,33 @@
 # single run (with a warning). An invalid value is rejected with an error.
 #ICODEX_SANDBOX=workspace-write
 
-# Route Codex through the first working proxy in this ordered list.
-# HTTP connects directly. HTTPS starts a verified, per-invocation stunnel child.
-# Missing stunnel prompts for installation on interactive Linux only.
-# Refusal skips HTTPS candidates. Direct fallback always requires explicit consent.
-# Encode commas inside credentials as %2C. Do not commit credentials.
-# Equivalent to a persisted ./icodex.sh --proxy '<url>,<url>'.
+# Proxy selection: check candidates from left to right and use the first working one.
+# Uncomment ONE ICODEX_PROXY example below and replace the example hosts/credentials.
+# HTTPS protects the client-to-proxy connection with verified TLS through stunnel.
+# HTTP uses no stunnel and adds no TLS protection to the client-to-proxy connection.
+# Each HTTPS invocation owns a separate child, loopback port, and temporary config.
+# Normal exit and handled INT/TERM stop that child and remove its temporary files.
+# Selection happens at startup only; a running session does not switch proxies.
+#
+# Two HTTPS proxies (preferred when both endpoints support TLS):
+#ICODEX_PROXY=https://proxy-one.example:443,https://proxy-two.example:443
+# One HTTPS proxy with authentication (use URL-encoded username and password):
+#ICODEX_PROXY=https://username:password@proxy-one.example:443
+# HTTPS first, then HTTP if the HTTPS candidate fails:
 #ICODEX_PROXY=https://proxy-one.example:443,http://proxy-two.example:8080
+# One HTTP proxy, without stunnel:
+#ICODEX_PROXY=http://proxy-one.example:8080
+#
+# Use the proxy's TLS listener port for https://; changing the scheme alone is not enough.
+# Encode reserved characters in credentials, including commas as %2C and @ as %40.
+# Keep real credentials only in the ignored .codex_config with mode 600.
+# --proxy '<url>,<url>' saves the list in .codex_config, not the selected URL.
+# Missing stunnel prompts for installation once per interactive Linux invocation.
+# APT downloads directly, ignoring its proxy settings for this transaction only.
+# System APT settings remain unchanged. Other package managers use host settings.
+# Refusal or installation failure skips candidates that require missing stunnel.
+# If all candidates fail, only explicit y/yes permits direct launch (default No).
+# Empty input, EOF, or no interactive terminal stops launch after all candidates fail.
 
 # Comma-separated host bypass list, exported as NO_PROXY (standard semantics):
 # requests to these hosts skip the proxy. To disable the proxy for a single run,
