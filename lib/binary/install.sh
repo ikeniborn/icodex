@@ -5,51 +5,55 @@
 
 # --- Seams (overridable in tests) ---
 
-# Emit curl proxy args from .codex_config (ICODEX_PROXY), honoring --no-proxy.
-# One arg per line so callers can read it into an array.
-_curl_proxy_args() {
-  [[ -n "${ICODEX_PROXY:-}" ]] || return 0
-  (( ${ICODEX_DISABLE_PROXY:-0} )) && return 0
-  printf '%s\n' "--proxy" "$ICODEX_PROXY"
+# Serialize the selected route to curl stdin. Never expose credentials in argv.
+_download_proxy_url() {
+  (( ${ICODEX_DISABLE_PROXY:-0} == 0 )) || return 0
+  local active="${ICODEX_PROXY_ACTIVE-${ICODEX_PROXY:-}}"
+  [[ "$active" != *,* ]] || { log_error "proxy list must be selected before downloading"; return 1; }
+  printf '%s' "$active"
 }
 
-# Wget counterpart of _curl_proxy_args, used by the download fallback below.
-# wget takes the proxy via -e directives rather than curl's single --proxy flag.
-_wget_proxy_args() {
-  [[ -n "${ICODEX_PROXY:-}" ]] || return 0
-  (( ${ICODEX_DISABLE_PROXY:-0} )) && return 0
-  printf '%s\n' "-e" "use_proxy=yes" "-e" "https_proxy=$ICODEX_PROXY" "-e" "http_proxy=$ICODEX_PROXY"
+_curl_proxy_config() {
+  local active
+  active="$(_download_proxy_url)" || return 1
+  [[ -n "$active" ]] || return 0
+  active="${active//\\/\\\\}"
+  active="${active//\"/\\\"}"
+  printf 'proxy = "%s"\n' "$active"
 }
 
-# Download <url> to <dest>. curl is the primary path; on any curl failure we
-# retry with wget when it is present. The fallback matters on hosts whose curl
-# is linked against an OpenSSL build that cannot decode a GOST (or otherwise
-# unsupported) CA in the concatenated system trust bundle: curl aborts the whole
-# TLS handshake (x509_pubkey_decode: unsupported algorithm), while wget reads the
-# hashed CApath and only touches the issuer it needs, so it succeeds.
+# Wget reads proxy credentials from its child environment, not -e arguments.
+_proxy_wget() (
+  local active
+  active="$(_download_proxy_url)" || return 1
+  if [[ -n "$active" ]]; then
+    export https_proxy="$active" http_proxy="$active"
+  fi
+  wget "$@"
+)
+
 _download() { # <url> <dest> [show_progress]
-  local cargs=(); while IFS= read -r a; do cargs+=("$a"); done < <(_curl_proxy_args)
+  local config
+  config="$(_curl_proxy_config)" || return 1
   if (( ${3:-0} )); then
-    curl -fL --progress-bar ${cargs[@]+"${cargs[@]}"} "$1" -o "$2" && return 0
+    curl -q --config - -fL --progress-bar "$1" -o "$2" <<< "$config" && return 0
   else
-    curl -fsSL ${cargs[@]+"${cargs[@]}"} "$1" -o "$2" && return 0
+    curl -q --config - -fsSL "$1" -o "$2" <<< "$config" && return 0
   fi
   command -v wget >/dev/null 2>&1 || return 1
-  local wargs=(); while IFS= read -r a; do wargs+=("$a"); done < <(_wget_proxy_args)
   if (( ${3:-0} )); then
-    wget -q --show-progress ${wargs[@]+"${wargs[@]}"} -O "$2" "$1"
+    _proxy_wget -q --show-progress -O "$2" "$1"
   else
-    wget -q ${wargs[@]+"${wargs[@]}"} -O "$2" "$1"
+    _proxy_wget -q -O "$2" "$1"
   fi
 }
 
 _resolve_latest() {
-  local api="https://api.github.com/repos/$ICODEX_REPO/releases/latest" body
-  local cargs=(); while IFS= read -r a; do cargs+=("$a"); done < <(_curl_proxy_args)
-  if ! body="$(curl -fsSL ${cargs[@]+"${cargs[@]}"} "$api")"; then
+  local api="https://api.github.com/repos/$ICODEX_REPO/releases/latest" body config
+  config="$(_curl_proxy_config)" || return 1
+  if ! body="$(curl -q --config - -fsSL "$api" <<< "$config")"; then
     command -v wget >/dev/null 2>&1 || return 1
-    local wargs=(); while IFS= read -r a; do wargs+=("$a"); done < <(_wget_proxy_args)
-    body="$(wget -qO- ${wargs[@]+"${wargs[@]}"} "$api")" || return 1
+    body="$(_proxy_wget -qO- "$api")" || return 1
   fi
   printf '%s\n' "$body" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
 }

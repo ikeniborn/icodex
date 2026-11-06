@@ -235,7 +235,7 @@ registry, manifest или context отличаются от committed HEAD; не
 | `ICODEX_SANDBOX` | Точечное переопределение: только файловая песочница — `read-only`, `workspace-write` или `danger-full-access`; приоритетнее `ICODEX_MODE` для поля sandbox | — |
 | `ICODEX_APPROVAL` | Точечное переопределение: только политика одобрения — `untrusted`, `on-failure`, `on-request` или `never`; приоритетнее `ICODEX_MODE` для поля approval | — |
 | `ICODEX_PERMISSIONS` | Точечное переопределение: только профиль управляемых прав — `dev-safe`, `ssh-on-request` или `none`; приоритетнее `ICODEX_MODE` для поля permissions | — |
-| `ICODEX_PROXY` | URL прокси, экспортируется как `HTTPS_PROXY` / `HTTP_PROXY` для codex | — |
+| `ICODEX_PROXY` | Ordered comma-separated proxy URLs; selected route exported for Codex | — |
 | `ICODEX_NO_PROXY` | Список хостов-исключений через запятую, экспортируется как `NO_PROXY` (например `localhost,127.0.0.1,github.com`) | — |
 | `ICODEX_TELEMETRY` | Opt-in telemetry mode: `off`, `otel`, `langfuse` или `both` | `off` |
 | `ICODEX_OTEL_ENDPOINT` | Локальный OTel collector endpoint для metadata-only ops metrics/Grafana | `http://127.0.0.1:4318` |
@@ -251,24 +251,98 @@ registry, manifest или context отличаются от committed HEAD; не
 
 `ICODEX_NO_PROXY` — это список исключений (стандартная семантика `NO_PROXY`), **не**
 выключатель — чтобы пропустить прокси на один запуск, используйте флаг `--no-proxy`.
-`./icodex.sh --proxy <url>` пишет `ICODEX_PROXY` в `.codex_config` (сохраняя другие ключи);
+`./icodex.sh --proxy <urls>` пишет `ICODEX_PROXY` в `.codex_config` (сохраняя другие ключи);
 `./icodex.sh --clear` удаляет файл.
 
-Proxy preflight now checks an HTTPS tunnel to ChatGPT without an account token.
-It verifies TLS, ignores curlrc and bypass rules, and has an 8-second deadline.
-HTTP 401 is expected for this unauthenticated check. A successful probe does not
-verify account access or later model connections. Failures identify the stage
-without printing credentials. Interactive runs retain the direct-fallback prompt;
-non-interactive runs warn and continue directly. Invalid URLs stop the launch.
+Proxy settings accept one URL or a comma-separated list in priority order.
+Save two HTTPS candidates; icodex tries the second only if the first fails:
 
-`--no-proxy` and direct fallback clear `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`,
-and their lowercase variants. Saved settings and `NO_PROXY` are preserved.
-Supported schemes: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h`.
-`socks5s` is rejected. See the [English reference](../README.md) for details.
+```bash
+./icodex.sh --proxy 'https://proxy-one.example:443,https://proxy-two.example:443'
+```
 
-Codex 0.166.0 compatibility differs from curl: HTTP CONNECT is verified end to end;
-HTTPS requires fallback after WebSocket scheme errors; direct SOCKS5 fails workspace
-discovery because reqwest SOCKS support is not enabled in that release. Use HTTP.
+Alternatively, set the same value in the ignored `.codex_config`:
+
+```ini
+ICODEX_PROXY=https://proxy-one.example:443,https://proxy-two.example:443
+```
+
+Use a single HTTPS endpoint with authentication:
+
+```bash
+./icodex.sh --proxy 'https://username:password@proxy-one.example:443'
+```
+
+Use HTTPS first with an explicit HTTP fallback, or HTTP alone:
+
+```bash
+./icodex.sh --proxy 'https://proxy-one.example:443,http://proxy-two.example:8080'
+./icodex.sh --proxy 'http://proxy-one.example:8080'
+```
+
+These are alternative configurations; each `--proxy` command replaces the saved list.
+Use the proxy's actual TLS listener port for `https://`. Changing the scheme of a
+plain HTTP listener does not enable TLS. HTTP adds no TLS protection between the
+client and proxy; choose two HTTPS endpoints when both routes must protect that link.
+Percent-encode reserved characters in credentials, including `@` as `%40` and commas
+as `%2C`. For real credentials, edit `.codex_config` with mode 600 to avoid shell history.
+
+Launch with the saved configuration, or bypass proxies for one invocation:
+
+```bash
+./icodex.sh
+./icodex.sh --no-proxy
+```
+
+The list is saved unchanged. Spaces around entries are allowed; empty entries and
+invalid URLs are rejected before saving. Encode commas inside credentials as `%2C`.
+Supported schemes remain `http`, `https`, `socks4`, `socks4a`, `socks5`, and `socks5h`;
+a schemeless URL uses HTTP. SOCKS support still depends on the installed Codex client.
+
+Before network downloads or launch, icodex checks candidates sequentially. Each probe
+uses an authenticated tunnel to `https://chatgpt.com/backend-api/wham/accounts/check`
+without an account token. It ignores curlrc and bypass rules, verifies TLS, and has
+an 8-second deadline (3 seconds to connect). HTTP 401 is expected. The first passing
+candidate is selected for this invocation; later candidates are not probed.
+
+HTTP connects directly to the proxy. HTTPS starts a dedicated foreground stunnel child
+and gives Codex a local HTTP CONNECT endpoint on `127.0.0.1`. stunnel verifies the
+remote certificate chain and DNS name or IP identity. This avoids exposing the HTTPS
+proxy scheme to Codex WebSocket clients. Trust selection is `ICODEX_CA_BUNDLE`, then
+`SSL_CERT_FILE`, then `CURL_CA_BUNDLE`, then system CA discovery. Invalid explicit
+trust settings fail that HTTPS candidate; verification is never disabled.
+
+If stunnel is missing, an interactive Linux invocation offers installation once.
+Debian/Ubuntu use `apt-get` with `stunnel4`; ALT uses `apt-get` with `stunnel`;
+Fedora/RHEL derivatives use `dnf`; Arch uses `pacman`; openSUSE uses `zypper`;
+Alpine uses `apk`. Availability depends on enabled distribution repositories.
+Installation requires explicit consent and may request sudo. Native package scripts
+can run; icodex does not enable a system stunnel service or add repositories.
+APT installation connects directly, ignoring proxy settings for this transaction only.
+APT ignores generic, per-host, and automatic HTTP/HTTPS proxy settings through a
+temporary configuration. System APT configuration remains unchanged. Other package
+managers use host repository settings.
+An HTTPS-only network can therefore require manual installation beforehand.
+Refusal, installation failure, unsupported installation, or absent TTY skips candidates
+requiring the missing executable. HTTP candidates remain available.
+
+If every candidate fails, icodex asks whether to continue directly, with default **No**.
+Only an explicit `y` or `yes` allows direct access. Empty input, EOF, refusal, or no TTY
+stops the invocation. Consenting to package installation does not authorize direct launch.
+Direct fallback and `--no-proxy` clear inherited HTTP/HTTPS/ALL_PROXY variables and their
+lowercase variants. Saved settings and the `NO_PROXY` host bypass list remain unchanged.
+
+Each selected stunnel belongs to one invocation. Concurrent launches have separate
+stunnel processes, loopback ports, and private configuration directories. Closing one
+invocation cleans up its own tunnel without stopping the others. Codex receives an
+HTTP loopback proxy URL even when the remote connection uses TLS; this is expected.
+Rejected tunnels are stopped before
+trying the next candidate. Normal exits and handled INT/TERM clean up the owned child
+and private runtime files. PII, telemetry, and profile launches retain their existing
+behavior while sharing tunnel cleanup. SIGKILL and host failure cannot guarantee cleanup.
+There is no live session migration or automatic direct fallback after launch.
+Diagnostics identify candidate number and failure stage without printing credentials.
+A passing probe does not guarantee account access or every later model connection.
 
 ### Телеметрия
 

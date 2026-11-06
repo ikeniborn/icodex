@@ -77,7 +77,8 @@ search_prepare_launch false ''
 ! grep -q synthetic-secret "$RECORD_ARGS"
 grep -qx 'space argument' "$RECORD_ARGS"
 ICODEX_TELEMETRY=off
-( launch_codex_wrapped "${ICODEX_SEARCH_ARGS[@]}" 'wrapped argument' )
+# The parent owns this fixture; the wrapped child restores its caller traps.
+( trap - EXIT; launch_codex_wrapped "${ICODEX_SEARCH_ARGS[@]}" 'wrapped argument' )
 ! grep -q synthetic-secret "$RECORD_ARGS"
 grep -qx 'wrapped argument' "$RECORD_ARGS"
 [[ "$before" == "$(sha256sum "$ICODEX_HOME_DIR/config.toml")" ]]

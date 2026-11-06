@@ -15,7 +15,7 @@ export ICODEX_ROOT
 
 for m in core/logging core/init core/validation command/args command/router search/search \
          binary/detect binary/lockfile binary/install \
-         config/isolated config/permissions config/sandbox config/env config/ca_trust proxy/proxy symlink/symlink \
+         config/isolated config/permissions config/sandbox config/env config/ca_trust proxy/proxy proxy/stunnel symlink/symlink \
          plugin/superpowers plugin/loen caveman/caveman idd/idd iwiki/iwiki profile/wiring profile/profile \
          pii-proxy/detect pii-proxy/install pii-proxy/status \
          telemetry/telemetry telemetry/otel telemetry/langfuse launcher/launch; do
@@ -57,6 +57,13 @@ main() {
     proxy_save "$ICODEX_CONFIG" "$ICODEX_PROXY"
   fi
 
+  trap 'proxy_cleanup' EXIT
+  trap 'proxy_cleanup; exit 130' INT
+  trap 'proxy_cleanup; exit 143' TERM
+  if (( ! ICODEX_DISABLE_PROXY )); then
+    proxy_ensure || return 1
+  fi
+
   case "$ICODEX_CMD" in
     install) setup_shared_dirs; install_ensure          || exit 1; ensure_uv_dependency || exit 1; ensure_cli_tools || exit 1; install_symlink; ensure_path_entry; exit 0 ;;
     update)  setup_shared_dirs; install_ensure --update || exit 1; ensure_uv_dependency || exit 1; ensure_cli_tools || exit 1; update_pii_nlp_models || exit 1; install_symlink; ensure_path_entry; exit 0 ;;
@@ -82,7 +89,6 @@ main() {
   install_ensure || exit 1
   ensure_uv_dependency || exit 1
   ensure_cli_tools || exit 1
-  (( ICODEX_DISABLE_PROXY )) || proxy_ensure
   ICODEX_USE_PII_PROXY_RESOLVED=false
   if [[ "${ICODEX_USE_PII_PROXY:-false}" == "true" || "$ICODEX_USE_PII_PROXY_FLAG" == "1" ]]; then
     ICODEX_USE_PII_PROXY_RESOLVED=true

@@ -14,7 +14,7 @@ parse_args() {
   while (( $# )); do
     case "$1" in
       --proxy)
-        if [[ -z "${2:-}" ]]; then log_error "--proxy requires a url"; return 1; fi
+        if [[ -z "${2:-}" ]]; then log_error "--proxy requires a URL or comma-separated URLs"; return 1; fi
         ICODEX_SET_PROXY="$2"; shift 2 ;;
       --router)
         if [[ -z "${2:-}" ]]; then log_error "--router requires a preset name"; return 1; fi
@@ -59,7 +59,7 @@ icodex — isolated wrapper for OpenAI Codex CLI
 Usage: icodex [icodex-flags] [-- codex-args...]
 
 icodex flags:
-  --proxy <url>   Save ICODEX_PROXY to .codex_config and route codex through it
+  --proxy <urls>  Save ordered comma-separated proxy URLs; HTTPS uses managed stunnel
   --router <preset>
                   Run codex with the model + provider from one preset in
                   .codex-isolated/router.toml, applied as one-run -c overrides
