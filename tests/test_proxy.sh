@@ -60,9 +60,9 @@ assert_eq "schemeless host:port"    "h 9"    "$(_proxy_host_port h:9)"
 # --- _proxy_unreachable_action: decision logic (Task 2) ---
 assert_eq "tty + n -> exit"        "exit"     "$(_proxy_unreachable_action 1 n)"
 assert_eq "tty + N -> exit"        "exit"     "$(_proxy_unreachable_action 1 N)"
-assert_eq "tty + empty -> continue" "continue" "$(_proxy_unreachable_action 1 '')"
+assert_eq "tty + empty -> exit" "exit" "$(_proxy_unreachable_action 1 '')"
 assert_eq "tty + y -> continue"     "continue" "$(_proxy_unreachable_action 1 y)"
-assert_eq "no tty -> continue"      "continue" "$(_proxy_unreachable_action 0 '')"
+assert_eq "no tty -> exit"          "exit" "$(_proxy_unreachable_action 0 '')"
 
 # --- proxy_ensure: orchestration (Task 3) ---
 # no proxy set -> no-op (nothing exported)
@@ -73,7 +73,7 @@ assert_eq "no proxy -> noop" "" "${HTTPS_PROXY:-}"
 # unreachable + no TTY (stdin from /dev/null) -> continue, proxy NOT applied
 unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
 ICODEX_PROXY="http://127.0.0.1:65000" proxy_ensure </dev/null
-assert_eq "unreachable continues (exit 0)" "0" "$?"
+assert_eq "unreachable refuses (exit 1)" "1" "$?"
 assert_eq "unreachable -> proxy not applied" "" "${HTTPS_PROXY:-}"
 
 # reachable (stub) -> proxy applied
@@ -88,5 +88,19 @@ assert_exit "hostless url parser rejects input" 1 _proxy_host_port http://
 unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy
 ICODEX_PROXY="http://"
 assert_exit "hostless URL rejected" 1 proxy_ensure
+# Lists preserve order and stop at the first working candidate.
+proxy_parse_list 'http://first:8080, https://test:pass%2Cword@second:443'
+assert_eq 'two candidates' 2 "${#ICODEX_PROXY_CANDIDATES[@]}"
+assert_eq 'userinfo preserved' 'https://test:pass%2Cword@second:443' "${ICODEX_PROXY_CANDIDATES[1]}"
+assert_exit 'trailing separator rejected' 1 proxy_parse_list 'http://first:8080,'
+assert_exit 'empty entry rejected' 1 proxy_parse_list 'http://first:8080,,http://second:8080'
+assert_exit 'control rejected' 1 proxy_parse_list $'http://first:8080,\nhttp://second:8080'
+assert_eq 'explicit yes' continue "$(_proxy_unreachable_action 1 YES)"
+ICODEX_PROXY='http://first:8080,http://second:8080,http://third:8080'
+_proxy_probe() { printf '%s\n' "$ICODEX_PROXY_ACTIVE" >> "$tmp/attempts"; [[ "$ICODEX_PROXY_ACTIVE" == http://second:8080 ]]; }
+proxy_ensure
+assert_eq 'selected second' http://second:8080 "$HTTPS_PROXY"
+assert_eq 'only two attempts' 2 "$(wc -l < "$tmp/attempts")"
+assert_eq 'list retained' 'http://first:8080,http://second:8080,http://third:8080' "$ICODEX_PROXY"
 rm -rf "$tmp"
 finish

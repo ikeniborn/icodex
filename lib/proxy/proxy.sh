@@ -4,13 +4,45 @@
 # comma-separated host bypass list (standard NO_PROXY semantics). proxy_apply
 # exports the standard *_PROXY / NO_PROXY vars, which Codex (Rust reqwest) honors.
 proxy_save() { # <config_file> <url>
-  proxy_validate "$2" || return 1
+  proxy_parse_list "$2" || return 1
   _config_set "$1" ICODEX_PROXY "$2"
 }
 
 # Clear inherited routes before any wrapper network operation or direct fallback.
 proxy_disable() {
   unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+  ICODEX_PROXY_ACTIVE=""
+}
+
+# Parse the full list before persisting or attempting any route.
+proxy_parse_list() {
+  local rest="$1" candidate
+  ICODEX_PROXY_CANDIDATES=()
+  [[ "$rest" != *[[:cntrl:]]* ]] || { log_error "invalid proxy list"; return 1; }
+  while :; do
+    candidate="${rest%%,*}"
+    candidate="${candidate#"${candidate%%[! ]*}"}"
+    candidate="${candidate%"${candidate##*[! ]}"}"
+    proxy_validate "$candidate" || return 1
+    ICODEX_PROXY_CANDIDATES+=("$candidate")
+    [[ "$rest" == *,* ]] || break
+    rest="${rest#*,}"
+  done
+}
+
+proxy_cleanup() {
+  if declare -F proxy_stunnel_stop >/dev/null; then proxy_stunnel_stop; fi
+}
+
+proxy_prepare_candidate() {
+  ICODEX_PROXY_ACTIVE="$1"
+  if [[ "$1" == https://* ]]; then
+    if ! declare -F proxy_stunnel_start >/dev/null; then
+      log_warn "HTTPS proxy requires the stunnel module"
+      return 1
+    fi
+    proxy_stunnel_start "$1" || return 1
+  fi
 }
 
 proxy_validate() { # <url>; never include the input in diagnostics
@@ -34,8 +66,10 @@ proxy_clear() { # <config_file>
 }
 
 proxy_apply() { # exports *_PROXY from $ICODEX_PROXY; NO_PROXY from $ICODEX_NO_PROXY
-  [[ -n "${ICODEX_PROXY:-}" ]] || return 0
-  export HTTPS_PROXY="$ICODEX_PROXY" HTTP_PROXY="$ICODEX_PROXY" https_proxy="$ICODEX_PROXY" http_proxy="$ICODEX_PROXY"
+  local active="${ICODEX_PROXY_ACTIVE-${ICODEX_PROXY:-}}"
+  [[ -n "$active" ]] || return 0
+  unset ALL_PROXY all_proxy
+  export HTTPS_PROXY="$active" HTTP_PROXY="$active" https_proxy="$active" http_proxy="$active"
   if [[ -n "${ICODEX_NO_PROXY:-}" ]]; then
     export NO_PROXY="$ICODEX_NO_PROXY" no_proxy="$ICODEX_NO_PROXY"
   fi
@@ -75,14 +109,16 @@ _proxy_host_port() { # <url>
 
 # Probe an authenticated tunnel, without sending account credentials. Pass proxy
 # credentials through stdin, not argv. Ignore curlrc and inherited bypass rules.
+_proxy_probe_target() { printf '%s\n' https://chatgpt.com/backend-api/wham/accounts/check; }
+
 _proxy_probe() {
-  local escaped="$ICODEX_PROXY" result rc=0 connect status
+  local escaped="${ICODEX_PROXY_ACTIVE-${ICODEX_PROXY:-}}" result rc=0 connect status
   escaped="${escaped//\\/\\\\}"
   escaped="${escaped//\"/\\\"}"
   result=$(printf 'proxy = "%s"\n' "$escaped" | curl -q --config - \
     --noproxy '' --silent --connect-timeout 3 --max-time 8 \
     --output /dev/null --write-out '%{http_connect} %{http_code}' \
-    https://chatgpt.com/backend-api/wham/accounts/check 2>/dev/null) || rc=$?
+    "$(_proxy_probe_target)" 2>/dev/null) || rc=$?
   read -r connect status <<< "$result"
   if [[ "$connect" == 407 ]]; then
     log_warn "proxy authentication rejected (HTTP 407)"; return 1
@@ -97,43 +133,48 @@ _proxy_probe() {
     97) log_warn "SOCKS negotiation or authentication failed"; return 1 ;;
     *) log_warn "proxy tunnel probe failed (curl code $rc)"; return 1 ;;
   esac
+  case "${ICODEX_PROXY_ACTIVE-${ICODEX_PROXY:-}}" in
+    socks*) ;;
+    *) [[ "$connect" == 200 ]] || { log_warn "proxy CONNECT failed"; return 1; } ;;
+  esac
   case "$status" in
     2??|401) return 0 ;;
     *) log_warn "proxy probe target rejected request (HTTP ${status:-000})"; return 1 ;;
   esac
 }
 
-# Echo "continue" or "exit" for the proxy-unreachable case. Only an explicit n/N
-# at an interactive prompt exits; an empty reply, y/Y, EOF, or no TTY continues.
+# Direct fallback requires an affirmative answer from an interactive user.
 _proxy_unreachable_action() { # <tty:0|1> <reply>
-  local tty="$1" reply="$2"
-  if [[ "$tty" == 1 && "$reply" =~ ^[Nn]$ ]]; then
-    printf 'exit\n'
-  else
+  if [[ "$1" == 1 && "$2" =~ ^([Yy]|[Yy][Ee][Ss])$ ]]; then
     printf 'continue\n'
+  else
+    printf 'exit\n'
   fi
 }
 
-# Probe the tunnel before launch; preserve the existing direct-fallback choice.
-# A successful probe does not guarantee later Codex connections will succeed.
 proxy_ensure() {
   [[ -n "${ICODEX_PROXY:-}" ]] || return 0
-  proxy_validate "$ICODEX_PROXY" || return 1
-  if _proxy_probe; then
-    proxy_apply
-    return 0
-  fi
-  local tty=0 reply=""
+  proxy_parse_list "$ICODEX_PROXY" || return 1
+  local candidate index=0 tty=0 reply=""
+  for candidate in "${ICODEX_PROXY_CANDIDATES[@]}"; do
+    index=$((index + 1))
+    log_info "checking proxy candidate $index"
+    if proxy_prepare_candidate "$candidate" && _proxy_probe; then
+      proxy_apply
+      log_info "selected proxy candidate $index"
+      return 0
+    fi
+    proxy_cleanup
+  done
+  proxy_disable
   if [[ -t 0 ]]; then
     tty=1
-    printf '[icodex] Continue without proxy? [Y/n] ' >&2
+    printf '[icodex] All proxies failed. Continue without proxy? [y/N] ' >&2
     read -r reply || reply=""
   fi
   if [[ "$(_proxy_unreachable_action "$tty" "$reply")" == exit ]]; then
-    log_error "aborted: configured proxy probe failed"
-    exit 1
+    log_error "aborted: no working proxy and no direct-connection consent"
+    return 1
   fi
-  proxy_disable
-  log_warn "continuing directly without proxy; later Codex connections were not verified"
-  return 0
+  log_warn "continuing directly with user consent"
 }
