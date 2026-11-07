@@ -7,6 +7,29 @@ description: Use when starting, updating, delegating, completing, or reporting a
 
 Track every direct, chain, and LoEn task, including read-only work. The parent agent is the sole writer; task state lives on iwiki, never in a repository ledger.
 
+
+## Call economy
+
+Reuse the verified binding within the same MCP session, project, normalized scope, and configured policy.
+Reuse the recorded status and effective policy when that binding remains valid.
+After a reconnect, configuration or project change, uncertain session continuity, or defaulted response, bind and verify again.
+Apply all binding error and policy mismatch rules regardless of earlier evidence.
+Do not repeat startup calls merely because another skill or conversation turn starts.
+Search once per task and read selected content before relying on it.
+Repeat retrieval for expanded scope, conflicting evidence, or a new unresolved question.
+Run lint after a completed write batch and before closure; reuse it until another write.
+Run startup lint only for a requested health audit or relevant unresolved lint finding.
+Conversational explanations based only on supplied text require no task page or wiki calls.
+Exclude project investigation, changes, status reports, and new project conclusions from that exception.
+Retain graph readiness checks before relevant code analysis and all source maintenance requirements.
+These rules scope the startup steps below; they do not relax CAS, recovery, GWT, evidence, or completion gates.
+
+Batch material events at the next durable checkpoint without omitting decisions, blockers, checks, or gate outcomes.
+Persist dispatch before delegation and return before the next transition.
+Persist blockers and handoff state before yielding control.
+Persist pending evidence before closure; never defer it beyond the task's completion claim.
+Preserve every event in linked history segments and retain the spool recovery contract.
+
 ## Required flow
 
 1. For local stdio or remote HTTP, first load and normalize the project `.iwiki.toml` scope and call `wiki_bind` with its full `read`, `write`, and `primary` values before `wiki_status`; never narrow to the project basename. Hosted HTTP carries explicitly configured mode and snapshot-age policy through `project_policy`; local stdio omits both policy arguments. Read [iwiki MCP binding and maintenance](../context-awareness/references/iwiki-mcp.md) before binding; every rebind resends the complete policy. After hosted bind, require `wiki_status` to report `binding_source: session` and the requested primary. Rebind and repeat on a defaulted answer. Read the effective specification mode from status: exact override, tenant-wide override, carried project mode, hosted default, then built-in `optional`; `source: hosted_override` is legitimate, while `project_mode_suppressed: true` reports refusal. A rejected bind, `binding_not_selected`, or unresolved primary substitution permits no task-page mutation; any binding mismatch retains `completion-pending`. An unaccepted mode mismatch retains `completion-pending` and blocks only mutating specification calls; ordinary non-specification Wiki and task-page work remains available when session binding and provenance are valid. Under generated remote-scope instructions, missing, invalid, or rejected scope permits no mutating call and retains `completion-pending`.

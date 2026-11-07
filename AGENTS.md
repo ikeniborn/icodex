@@ -30,6 +30,18 @@ Git history mostly follows Conventional Commits, such as `feat(plugin): ...`, `f
 
 Keep secrets in `.codex_config` or Codex auth files, never in tracked docs or scripts. Do not commit downloaded binaries, SQLite runtime state, logs, tokens, or local credentials. When editing `.codex-isolated/`, respect the existing whitelist-style tracking model.
 
+## iwiki call economy precedence
+
+Apply the maintained call economy rules in `.codex-isolated/AGENTS.md` and the task-ledger and context-awareness skills.
+These project rules override conflicting startup and publication advice in the upstream snippet below.
+Reuse the verified binding only within the same MCP session, project, normalized scope, and configured policy.
+After reconnect, configuration changes, uncertain session continuity, or defaulted responses, bind and verify again.
+Search once per task and read selected content; repeat retrieval for expanded scope or unresolved questions.
+Run lint after completed write batches and before closure, or for a requested health audit.
+Exempt only conversational explanations based on supplied text without investigation, changes, status reports, or new project conclusions.
+Preserve task history, current revisions, recovery, GWT checks, source maintenance, and completion gates.
+Use `wiki_sync` only for Git storage when publication is required.
+
 <!-- iwiki-mcp:tool-surface:start — copied from iwiki-mcp templates/AGENTS.md.snippet; refresh from there rather than editing in place -->
 
 ## iwiki (shared wiki via MCP)

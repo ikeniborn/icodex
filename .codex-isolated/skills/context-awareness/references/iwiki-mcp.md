@@ -5,6 +5,15 @@ hosted policy and graph maintenance; existing project scope, CAS, GWT, and task-
 rules still apply. Source guidance: iwiki-mcp pages `base-binding` (Hosted policy
 resolution), `retrieval`, `concept/code-graph-runtime`, and `concept/code-graph-wiki-linking`.
 
+## Call economy
+
+Reuse the verified binding only within the same MCP session, project, normalized scope, and configured policy.
+Invalidate reuse after reconnect, configuration changes, uncertain session continuity, or defaulted responses.
+Do not repeat binding and status for another skill in the same verified session.
+Read current revisions immediately before mutations; cached binding evidence never replaces revision checks.
+Run lint after each completed write batch and before closure, or for a requested health audit.
+Preserve retrieval, lifecycle evidence, source maintenance, GWT, and recovery obligations.
+
 ## Binding and effective policy
 
 For hosted HTTP, prefer `project_policy`: map explicitly configured `[specifications].mode`

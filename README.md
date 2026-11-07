@@ -11,8 +11,7 @@ _Russian version / Русская версия: [`docs/README.ru.md`](docs/READM
 ## Workflow boundaries
 
 IDD->SDD/Superpowers and LoEn are separate workflow systems. Non-trivial
-work does not select a workflow by itself. Workflow routing has three entries: `direct`,
-`chain`, and `loen`.
+work does not select a workflow by itself. Workflow routing has two recommended entries: `direct` and `chain`.
 
 - Before selecting a route, bounded discovery reads the request, relevant docs, affected
   code, and available tests; missing evidence alone does not select `chain`.
@@ -20,7 +19,7 @@ work does not select a workflow by itself. Workflow routing has three entries: `
 - `chain` starts with `fix-intent -> check-chain intent`. After intent-scoped analysis,
   `execute` is the default; `full` needs both a design-risk category and a named unresolved
   design decision. Both end with `check-chain result`, using the intent or plan as source.
-- `loen` uses `loen:loop-*` skills and artifacts under `docs/loen/<topic>/`; a LoEn loop
+- Explicitly requested existing LoEn workflows use `loen:loop-*` skills and artifacts under `docs/loen/<topic>/`; a LoEn loop
   does not require `fix-intent`, `superpowers:*`, or `$check-chain` unless the user
   explicitly chooses chain for a separate non-LoEn change.
 
@@ -42,7 +41,7 @@ High-risk security, migration, concurrency, and data-integrity checks are never 
 ## Task tracking
 
 One canonical topic maps to `reference/tasks/<topic>`. Every direct, chain, and LoEn
-task, including read-only analysis, requires that task page. The parent agent is the
+task, including read-only analysis, requires that task page. Conversational explanations based only on supplied text are exempt when they involve no project investigation, change, status report, or new project conclusion. The parent agent is the
 sole writer; subagents return structured evidence only. On an MCP outage, execution
 may continue: an MCP outage writes redacted local delivery-spool evidence and keeps
 lifecycle `completion-pending`. Task-tagged wiki pages are the only current task-status

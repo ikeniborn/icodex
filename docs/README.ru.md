@@ -26,12 +26,12 @@
 ## Границы workflow
 
 IDD -> SDD/Superpowers и LoEn — отдельные workflow. Нетри­виальная работа через
-Superpowers сама по себе не выбирает полную цепочку. Маршрутизация workflow имеет три входа: `direct`, `chain` и `loen`.
+Superpowers сама по себе не выбирает полную цепочку. Маршрутизация workflow рекомендует два входа: `direct` и `chain`.
 
 - Перед выбором маршрута выполняется ограниченный анализ запроса, docs, затронутого кода и тестов; нехватка данных сама по себе не выбирает `chain`.
 - `direct` выполняет ограниченную задачу или диагностику без формальных intent/spec/plan.
 - `chain` начинается с `fix-intent -> check-chain intent`. После intent-scoped анализа `execute` выбирается по умолчанию; для `full` одновременно нужны категория design-risk и явно названное нерешённое design decision. Обе ветки завершаются через `check-chain result` с intent или plan как source.
-- `loen` использует навыки `loen:loop-*` и артефакты в `docs/loen/<topic>/`; активный LoEn loop сам по себе не требует `fix-intent`, `superpowers:*` или `$check-chain`, если пользователь явно не выбирает chain для отдельного не-LoEn изменения.
+- Явно запрошенный существующий процесс LoEn использует навыки `loen:loop-*` и артефакты в `docs/loen/<topic>/`; активный LoEn loop сам по себе не требует `fix-intent`, `superpowers:*` или `$check-chain`, если пользователь явно не выбирает chain для отдельного не-LoEn изменения.
 
 ### Экономная верификация
 
@@ -46,7 +46,7 @@ migration, concurrency и data integrity не сокращаются.
 ## Учёт задач
 
 Один canonical topic соответствует `reference/tasks/<topic>`. Каждая задача direct,
-chain или LoEn, включая read-only analysis, требует эту страницу. Только parent agent
+chain или LoEn, включая read-only analysis, требует эту страницу. Исключение: объяснение предоставленного текста без исследования проекта, изменений, отчёта о состоянии или новых выводов о проекте. Только parent agent
 пишет состояние; subagent возвращает лишь structured evidence. При outage MCP выполнение
 может продолжаться: outage MCP записывает redacted evidence в локальный delivery spool и
 сохраняет lifecycle `completion-pending`. Task-tagged wiki pages — единственный текущий

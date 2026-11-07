@@ -29,12 +29,12 @@ if [[ -f "$agents" ]]; then
   assert_contains "topic rule includes LoEn topic directory" "$agents_body" "LoEn topic directory, for LoEn loop work"
   assert_contains "thread title is best effort" "$agents_body" "Naming is best effort"
   assert_contains "inaccessible thread title is not blocking" "$flat_agents_body" "Do not treat an inaccessible UI thread title as a blocking artifact"
-  assert_contains "workflow has three external routes" "$agents_body" 'Workflow recommendation: direct | chain | loen'
+  assert_contains "workflow has two recommended routes" "$agents_body" 'Workflow recommendation: direct | chain'
   assert_contains "workflow requires routing discovery" "$flat_agents_body" 'Before selecting a workflow, perform bounded routing discovery'
   assert_contains "missing evidence does not select chain" "$flat_agents_body" 'Absence of evidence is not evidence for chain'
   assert_contains "chain branches after intent" "$agents_body" 'Continuation after intent: execute | full | n/a'
   assert_contains "chain execute skips spec and plan" "$flat_agents_body" 'implements directly from the approved intent and marks Spec and Plan n/a'
-  assert_contains "task page precedes every task" "$agents_body" "Every direct, chain, and LoEn task"
+  assert_contains "task page precedes every task" "$agents_body" "Every project task"
   assert_contains "read-only work tracked" "$agents_body" "including read-only analysis"
   assert_contains "wiki is sole durable status" "$agents_body" "sole durable task index"
   assert_contains "outage is fail-open execution" "$agents_body" "execution may continue"
@@ -48,7 +48,7 @@ if [[ -f "$agents" ]]; then
   done
   assert_exit "no live repository task log" 1 grep -qF "Task Log (docs/TODO.md)" "$agents"
   assert_contains "routing discovery excludes task-specific analysis" "$flat_agents_body" 'must not perform task-specific analysis, reproduction, or test execution before the task page is resolved'
-  assert_contains "direct creates no chain artifacts but resolves a task page" "$flat_agents_body" 'Direct work creates no formal intent, spec, plan, or `check-chain` artifact, but always resolves a wiki task page.'
+  assert_contains "direct creates no chain artifacts but resolves a task page" "$flat_agents_body" 'Direct work creates no formal intent, spec, plan, or `check-chain` artifact, and resolves a wiki task page unless the conversational explanation exception applies.'
   assert_contains "full continuation needs evidence" "$flat_agents_body" 'Recommend `full` only when both an enumerated design-risk category'
   assert_contains "full requires an unresolved decision" "$flat_agents_body" 'named unresolved design decision'
   assert_contains "direct skips fix-intent" "$agents_body" 'Direct work must not invoke `fix-intent`'
@@ -80,7 +80,7 @@ if [[ -f "$readme" ]]; then
   assert_contains "README separates LoEn and Superpowers" "$readme_body" "IDD->SDD/Superpowers and LoEn are separate workflow systems"
   assert_contains "README LoEn no Superpowers requirement" "$flat_readme_body" "a LoEn loop does not require \`fix-intent\`, \`superpowers:*\`, or"
   assert_contains "README thread titles best effort" "$readme_body" "Thread titles are best-effort only"
-  assert_contains "README documents three workflow routes" "$flat_readme_body" 'Workflow routing has three entries: `direct`, `chain`, and `loen`.'
+  assert_contains "README documents two recommended workflow routes" "$flat_readme_body" 'Workflow routing has two recommended entries: `direct` and `chain`.'
   assert_contains "README documents chain continuation" "$flat_readme_body" '`execute` is the default; `full` needs both a design-risk category and a named unresolved design decision.'
   assert_contains "README documents state-based verification" "$flat_readme_body" 'Verification evidence is tied to relevant inputs and an exact code-state fingerprint, not to a conversation turn.'
   assert_contains "README documents one final full suite" "$flat_readme_body" 'run the full suite once on the final stable state'
@@ -100,7 +100,7 @@ if [[ -f "$readme_ru" ]]; then
   assert_contains "Russian README separates LoEn and Superpowers" "$readme_ru_body" "IDD -> SDD/Superpowers и LoEn — отдельные workflow"
   assert_contains "Russian README LoEn no Superpowers requirement" "$readme_ru_body" "активный LoEn loop сам по себе не требует \`fix-intent\`, \`superpowers:*\` или"
   assert_contains "Russian README thread titles best effort" "$readme_ru_body" "Thread title — best-effort"
-  assert_contains "Russian README documents three workflow routes" "$readme_ru_body" 'Маршрутизация workflow имеет три входа: `direct`, `chain` и `loen`.'
+  assert_contains "Russian README documents two recommended workflow routes" "$readme_ru_body" 'Маршрутизация workflow рекомендует два входа: `direct` и `chain`.'
   assert_contains "Russian README documents chain continuation" "$readme_ru_body" '`execute` выбирается по умолчанию; для `full` одновременно нужны категория design-risk и явно названное нерешённое design decision.'
   assert_contains "Russian README documents state-based verification" "$flat_readme_ru_body" 'Verification evidence привязывается к релевантным входам и точному fingerprint состояния кода, а не к сообщению в диалоге.'
   assert_contains "Russian README documents one final full suite" "$flat_readme_ru_body" 'запускают full suite один раз на финальном стабильном состоянии'
