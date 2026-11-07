@@ -85,6 +85,11 @@ ensure_iwiki_remote_scope_instructions() {
 
 Before the first wiki call, load `read`, `write`, `primary`, and optional `[specifications].mode` from the project-root `.iwiki.toml`. Normalize domain names before passing them to `wiki_bind`; never pass TOML text, paths, `iwiki_id`, tokens, or other credentials. Call `wiki_bind` with the full normalized `read`, `write`, and `primary` values from `.iwiki.toml`, and carry configured hosted policy as described below before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call.
 
+Reuse the verified binding within the same MCP session, project, normalized scope, and configured policy.
+Do not repeat bind or status merely because another skill or conversation turn starts.
+After a reconnect, configuration or project change, uncertain session continuity, unexpected identity, or defaulted response, rebind and verify.
+These reuse rules apply to the startup procedure above; all fail-closed rules below remain mandatory.
+
 Prefer `project_policy`: map `[specifications].mode` to `specification_mode`, and
 `[code_graph].max_snapshot_age_seconds` to its same-named field, only when explicitly
 configured. `require_session_binding` is operator-only; never include it in `project_policy`.

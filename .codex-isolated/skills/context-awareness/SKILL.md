@@ -11,6 +11,23 @@ agent: Explore
 
 # Context Awareness
 
+
+## Call economy
+
+Reuse the verified binding within the same MCP session, project, normalized scope, and configured policy.
+Reuse the recorded status and effective policy when that binding remains valid.
+After a reconnect, configuration or project change, uncertain session continuity, or defaulted response, bind and verify again.
+Apply all binding error and policy mismatch rules regardless of earlier evidence.
+Do not repeat startup calls merely because another skill or conversation turn starts.
+Search once per task and read selected content before relying on it.
+Repeat retrieval for expanded scope, conflicting evidence, or a new unresolved question.
+Run lint after a completed write batch and before closure; reuse it until another write.
+Run startup lint only for a requested health audit or relevant unresolved lint finding.
+Conversational explanations based only on supplied text require no task page or wiki calls.
+Exclude project investigation, changes, status reports, and new project conclusions from that exception.
+Retain graph readiness checks before relevant code analysis and all source maintenance requirements.
+These rules scope the startup steps below; they do not relax CAS, recovery, GWT, evidence, or completion gates.
+
 ## Subagent Routing
 
 Agent: `project-explorer`

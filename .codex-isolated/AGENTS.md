@@ -27,7 +27,7 @@ These rules apply to instruction text. They do not change the language or conver
 | Confirmation | A question used to obtain or clarify approval. |
 | Accepted recommendation | A recommendation that the user has approved. |
 | Gate | A condition that must be satisfied before the specified action. |
-| Workflow route | `direct`, `chain`, or `loen`. |
+| Workflow route | `direct` or `chain`. |
 | Trusted binding | The complete configured project scope, accepted by the server and verified through `wiki_status`. Hosted bindings also require `binding_source: session`. |
 | Binding mismatch | A rejected or defaulted binding, an unexpected session identity, or a substituted project primary. |
 | Unaccepted policy mismatch | A configured policy that was not carried or is inconsistent with status after applying hosted precedence. A valid hosted override is accepted. |
@@ -49,10 +49,10 @@ At task start, load context if the area is unfamiliar or more than one day has p
 Skip this context refresh only for a familiar area in the same session.
 
 1. If project-root `.iwiki.toml` exists, read its full normalized `read`, `write`, and `primary` scope.
-2. Apply the binding procedure below before any wiki call, including task-ledger calls.
-3. After binding, run `wiki_status`.
-4. Search the task topic with `wiki_search`.
-5. Run `wiki_lint`.
+2. Apply the binding procedure below unless its verified session binding can be reused.
+3. After a new binding, run `wiki_status`.
+4. Search the task topic once with `wiki_search` and read the selected pages or sections.
+5. Repeat search when scope expands, evidence conflicts, or a new unresolved question appears.
 6. Map the `docs/` layout with this command:
 
 ```bash
@@ -77,6 +77,20 @@ If the generated `Remote iwiki project scope` section exists, its fail-closed ru
 6. For hosted HTTP, require `binding_source: session` and the configured primary.
 
 For local stdio, omit both policy arguments. The server reads project configuration.
+
+Reuse the verified binding within the same MCP session, project, normalized scope, and configured policy.
+Do not repeat `wiki_bind` or `wiki_status` merely because another skill or conversation turn starts.
+After a reconnect, project change, configuration change, unexpected session identity, or defaulted response, invalidate that evidence.
+If session continuity is uncertain, verify the complete binding again before relying on it.
+Apply every binding error rule below even when earlier evidence was valid.
+Keep effective policy and suppression evidence with the verified session context.
+Never reuse cached page revisions for mutations; read the current revision immediately before each mutation.
+Recheck graph readiness after source changes, publication, or snapshot expiry before graph-assisted analysis.
+
+Conversational explanations based only on supplied text require no wiki calls or task page.
+Apply this exception only when no project investigation, change, status report, or new project conclusion is requested.
+For actual project analysis and changes, retain the task ledger and required knowledge retrieval.
+
 
 ### Binding errors
 
@@ -231,7 +245,9 @@ Read `storage` and `transport` from `wiki_status` once.
 | Local PostgreSQL stdio | Domain creation is unsupported. |
 
 Call `wiki_index(domain)` only after out-of-band Markdown edits or a sync conflict.
-Run `wiki_lint` after wiki changes.
+Run `wiki_lint` after each completed write batch and before task closure.
+Reuse that result until another wiki write invalidates it.
+Run startup lint only for a requested wiki health audit or a relevant unresolved lint finding.
 Git lint checks links, structure, orphans, stale sources, frontmatter, and tag drift.
 Task/history orphans are expected advisories.
 PostgreSQL lint does not compute orphan, stale-source, frontmatter, or tag-drift findings.
@@ -359,7 +375,9 @@ They never write to Wiki or replace interactive MCP calls owned by the parent ag
 
 ## Wiki Task Ledger
 
-**Every direct, chain, and LoEn task, including read-only analysis, has one task-tagged iwiki page at `reference/tasks/<topic>`.**
+**Every project task, including read-only analysis, has one task-tagged iwiki page at `reference/tasks/<topic>`.**
+
+Apply the conversational explanation exception in Project Context and Wiki Binding before creating a task page.
 This page is the sole durable task index.
 
 Bounded discovery may derive domain, topic, and route without a page.
@@ -469,7 +487,8 @@ schema or migration, security/concurrency/transaction/data-invariant behavior, o
 subsystem work. Chain does not imply spec and plan: that decision occurs only after
 `$check-chain intent` returns `OK`.
 
-Recommend **loen** only for tasks that operate a durable LoEn workspace through its own loop lifecycle.
+Do not recommend LoEn as a workflow route. Preserve existing LoEn artifacts and history.
+Use its separate lifecycle only when the user explicitly requests an existing LoEn workflow.
 
 ### Select the chain continuation
 
@@ -491,7 +510,7 @@ before starting `full`. Prefer `execute` when no full trigger is evidenced.
 
 ### Direct work
 
-Direct work creates no formal intent, spec, plan, or `check-chain` artifact, but always resolves a wiki task page.
+Direct work creates no formal intent, spec, plan, or `check-chain` artifact, and resolves a wiki task page unless the conversational explanation exception applies.
 The exception is an explicit direct topic: `@topic <kebab-case-topic>` is a user approval
 to create `docs/profiles/<topic>.yaml` with the initial `engineering` profile and bind it
 to the current local session. The next user prompt continues immediately; the direct
@@ -506,7 +525,7 @@ allowed. `superpowers:finishing-a-development-branch` remains available after ve
 direct or chain work. If direct scope crosses a chain trigger, stop and recommend chain.
 
 ```text
-Workflow recommendation: direct | chain | loen
+Workflow recommendation: direct | chain
 Continuation after intent: execute | full | n/a
 Evidence: <bounded facts or qualifying trigger>
 Intent required: yes | no
@@ -525,7 +544,6 @@ Use this mapping instead of repeating the brainstorming path classification:
 | `direct`: local change resembling `Bounded` | Implement the authorized request with focused verification. Do not invoke brainstorming or add its separate design-approval step. |
 | `chain/execute` | Implement the approved intent. Skip brainstorming and formal spec/plan creation. |
 | `chain/full` | Use brainstorming's `Architectural` path. Produce the checked spec and plan required by the chain. |
-| `loen` | Use the LoEn lifecycle and its approvals. Do not select a brainstorming path for the loop. |
 
 For `chain/full`, pass the approved intent and accepted continuation into brainstorming.
 Do not select `Spike` or `Bounded` after `full` has been accepted.
@@ -574,7 +592,13 @@ transition gate only: validation state still comes from frontmatter written by t
 ## Execution Safeguards
 
 Preserve user approval requirements for destructive actions, external actions, and scope changes.
-Delegate only when explicit ownership and verification justify the coordination cost.
+Before implementation, state the execution strategy and its reason: parent execution or independent delegated tasks.
+For accepted `chain/full` plans, preserve the checked-plan execution choice unless the user already selected it.
+For accepted `chain/full` plans, consider `superpowers:subagent-driven-development` when independent tasks justify its coordination cost.
+For `direct` work, the prohibition on that skill does not prohibit separately authorized scoped delegation.
+Recommend delegation only when explicit ownership and verification justify the coordination cost.
+If delegation is already authorized, do not request the same approval again.
+Otherwise, follow the active delegation permission rules before spawning agents.
 Delegation does not bypass approval requirements.
 
 For a critical migration, perform a separate final integration review.

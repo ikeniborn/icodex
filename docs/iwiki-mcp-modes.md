@@ -1,5 +1,16 @@
 # iwiki MCP modes
 
+## Call economy and completeness
+
+Reuse a verified binding and effective policy only within the same MCP session, project, scope, and configuration.
+Invalidate reuse after reconnect, changed configuration, uncertain session continuity, or defaulted answers.
+Search once per task, read selected sections, and repeat retrieval when new questions or scope require it.
+Batch material ledger events without losing decisions, blockers, verification, dispatch/return, or gate outcomes.
+Run lint after completed write batches and before task closure; reserve startup lint for health audits or unresolved findings.
+Conversational explanations of supplied text need no wiki record unless they involve project investigation, changes, status, or new project conclusions.
+Retain current-revision checks, spool replay, source and scenario maintenance, and all completion gates.
+A completed task must retain its reason, decisions, changes, verification evidence, and remaining limitations.
+
 ## Local stdio
 
 icodex registers `iwiki-mcp` as a local stdio MCP server on launch. Keep the active Git
