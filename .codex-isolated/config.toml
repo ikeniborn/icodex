@@ -334,7 +334,7 @@ trust_level = "trusted"
 trust_level = "trusted"
 
 [tui]
-status_line = ["current-dir", "model-with-reasoning", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]
+status_line = ["current-dir", "model-with-reasoning", "git-branch", "context-used", "five-hour-limit", "weekly-limit", "thread-title"]
 status_line_use_colors = true
 
 [tui.model_availability_nux]

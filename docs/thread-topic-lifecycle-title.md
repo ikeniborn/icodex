@@ -54,3 +54,15 @@ case. It creates an isolated temporary home and starts no model turn:
 ```bash
 ICODEX_TITLE_INTEGRATION=1 bash tests/test_thread_title_hook.sh
 ```
+
+## Task startup and resume
+
+After resolving the canonical topic, announce `Топик: <topic>` in user-visible commentary before task-specific work.
+At task startup or resume in another session, use `task-ledger` to create or replace `Current State` with `Lifecycle: in-progress`.
+Reading an existing page does not trigger the hook.
+Reuse the lifecycle write during the same active task session.
+If binding or storage is unavailable, announce the topic and follow the task-ledger recovery rules.
+
+The explicit `@topic` command supplies agent context and profile binding; it does not replace the lifecycle write.
+If the displayed title remains unchanged, read the persisted name before diagnosing a hook failure.
+Report an unavailable metadata read as unverified naming.

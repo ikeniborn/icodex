@@ -174,6 +174,13 @@ downstream-навыки (brainstorming, prd-generator) используют
 
 ## Output
 
+After resolving the canonical topic, announce `Топик: <topic>` in user-visible commentary before task-specific work.
+Repeat the announcement when switching topics or starting work in another session.
+Pass the topic and existing task-page state to `task-ledger` for the start or resume lifecycle write.
+Context discovery does not itself write the lifecycle or rename the thread.
+If task storage is unavailable, still announce the topic and preserve pending-delivery evidence.
+
+
 Используй шаблон: `@template:project-context`
 
 ## Quick Reference
