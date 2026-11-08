@@ -49,6 +49,11 @@ Use `wiki_sync` only for Git storage when publication is required.
 This project is bound to a shared wiki base (see `.iwiki.toml`: `read` = domains to
 search, `write` = domain to author into). Use the `iwiki` MCP tools:
 
+- Preserve the exact spelling and letter case of domain names from `.iwiki.toml` in every tool argument and wiki link.
+- Do not lowercase or casefold domain names.
+- For example, pass `familyTraffic` exactly; `familytraffic` is a different identifier.
+- Normalize only the scope representation, such as a legacy scalar `write` into a list.
+- Before diagnosing `domain_not_granted`, compare submitted names with `.iwiki.toml` character for character.
 - **Before starting a task:** call `wiki_search` with the topic to recall existing
   knowledge (scope `project` for the read-set, `all` for the whole base).
 - **Binding changes are manual setup:** do not create domains, call `wiki_bind`, or

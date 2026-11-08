@@ -18,7 +18,10 @@ ensure_iwiki_remote_scope_instructions
 agents="$(cat "$ICODEX_HOME_DIR/AGENTS.md")"
 flat_agents="$(tr '\n' ' ' < "$ICODEX_HOME_DIR/AGENTS.md" | sed 's/[[:space:]][[:space:]]*/ /g')"
 assert_contains "remote scope region starts" "$agents" '<!-- icodex:iwiki-remote-scope:start -->'
-assert_contains "remote scope normalizes domains" "$agents" 'Normalize domain names before passing them to `wiki_bind`'
+assert_contains "remote scope preserves domain case" "$agents" 'Preserve the exact spelling and letter case of every configured domain name.'
+assert_contains "remote scope forbids case folding" "$agents" 'Do not lowercase or casefold domain names.'
+assert_contains "remote scope shows mixed-case identity" "$agents" '`familyTraffic` must remain `familyTraffic`, never `familytraffic`.'
+assert_contains "remote scope checks spelling before access diagnosis" "$agents" 'Before diagnosing `domain_not_granted`, compare the submitted names with `.iwiki.toml` character for character.'
 assert_contains "remote scope binds before status" "$agents" 'before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call'
 assert_contains "remote scope includes full TOML scope" "$agents" 'full normalized `read`, `write`, and `primary` values from `.iwiki.toml`'
 assert_contains "remote scope forwards specification mode" "$agents" 'map `[specifications].mode` to `specification_mode`'

@@ -65,6 +65,13 @@ Follow [Wiki Task Ledger](#wiki-task-ledger) for unavailable task storage.
 
 ### Binding procedure
 
+Preserve the exact spelling and letter case of every configured domain name.
+Do not lowercase or casefold domain names.
+Normalize only the scope representation, such as a legacy scalar `write` into a list.
+For example, `familyTraffic` must remain `familyTraffic`, never `familytraffic`.
+Before diagnosing `domain_not_granted`, compare the submitted names with `.iwiki.toml` character for character.
+If a submitted name differs, restore the configured spelling and retry the complete binding with all configured policy fields.
+
 **One binding protocol applies to local stdio and remote HTTP.**
 Use live callable tool schemas and observed server responses as the operation contract.
 If the generated `Remote iwiki project scope` section exists, its fail-closed rules take precedence.

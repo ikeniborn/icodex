@@ -148,6 +148,10 @@ read/write scope from the token; database and model credentials remain server-on
 In this remote-client mode, icodex also generates a short instruction in the active project
 agent file. Before its first iwiki operation, the agent reads the normalized `read`, `write`, and
 `primary` scope and, when present, `[specifications].mode` from the project-root `.iwiki.toml`.
+Domain names retain their exact configured spelling and letter case: `familyTraffic` must
+not become `familytraffic`. Normalization changes only the scope representation, such as
+converting a legacy scalar `write` into a list. Before treating `domain_not_granted` as a
+permissions problem, compare submitted names with the project file character for character.
 It calls `wiki_bind` with the complete scope and carries explicitly configured policy through
 `project_policy`: `[specifications].mode` becomes `specification_mode`, while
 `[code_graph].max_snapshot_age_seconds` retains its field name.

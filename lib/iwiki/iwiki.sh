@@ -83,7 +83,15 @@ ensure_iwiki_remote_scope_instructions() {
 
 ## Remote iwiki project scope
 
-Before the first wiki call, load `read`, `write`, `primary`, and optional `[specifications].mode` from the project-root `.iwiki.toml`. Normalize domain names before passing them to `wiki_bind`; never pass TOML text, paths, `iwiki_id`, tokens, or other credentials. Call `wiki_bind` with the full normalized `read`, `write`, and `primary` values from `.iwiki.toml`, and carry configured hosted policy as described below before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call.
+Before the first wiki call, load `read`, `write`, `primary`, and optional `[specifications].mode` from the project-root `.iwiki.toml`.
+Preserve the exact spelling and letter case of every configured domain name.
+Do not lowercase or casefold domain names.
+Normalize only the scope representation, such as a legacy scalar `write` into a list.
+For example, `familyTraffic` must remain `familyTraffic`, never `familytraffic`.
+Before diagnosing `domain_not_granted`, compare the submitted names with `.iwiki.toml` character for character.
+If a submitted name differs, restore the configured spelling and retry the complete binding with all configured policy fields.
+Never pass TOML text, paths, `iwiki_id`, tokens, or other credentials.
+Call `wiki_bind` with the full normalized `read`, `write`, and `primary` values from `.iwiki.toml`, and carry configured hosted policy as described below before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call.
 
 Reuse the verified binding within the same MCP session, project, normalized scope, and configured policy.
 Do not repeat bind or status merely because another skill or conversation turn starts.
