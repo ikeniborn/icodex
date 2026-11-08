@@ -57,6 +57,15 @@ Idempotency key: SHA-256 of topic, kind, and canonical redacted evidence hash, t
 
 ## Thread lifecycle titles
 
+After resolving the canonical topic, announce `Топик: <topic>` in user-visible commentary before task-specific work.
+Repeat the announcement when switching topics or starting work in another session.
+Before starting or resuming work, create the task page or replace `Current State` with `Lifecycle: in-progress`.
+Reading an existing page does not trigger naming.
+Reuse this lifecycle write within the same active task session; do not repeat it for every prompt.
+Read the current revision immediately before replacing the section and preserve unrelated state fields.
+If binding or storage is unavailable, announce the topic and retain the existing `completion-pending` recovery flow.
+
+
 1. In `## Current State`, write exactly one plain `Lifecycle: <state>` field outside code fences.
 2. Use `in-progress`, `blocked`, `completion-pending`, or `done` as the state.
 3. When updating lifecycle, replace `Current State` through `wiki_update_page`.
@@ -82,6 +91,9 @@ Other sections, failed writes, and history pages do not trigger naming.
 | `blocked` or `completion-pending` | Previous title retained. |
 
 Naming is best effort and does not establish task completion.
+Distinguish persisted naming from client display refresh.
+If naming is uncertain, read the persisted thread name before diagnosing a hook failure.
+Report an unavailable read as unverified naming; do not infer success or failure from client display alone.
 Existing sessions need a restart to load a newly installed hook; clients may need a refresh to display titles.
 See `docs/thread-topic-lifecycle-title.md` in the icodex repository for runtime boundaries and verification commands.
 

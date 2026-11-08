@@ -446,6 +446,14 @@ workflow artifacts the agent can control.**
 - Expect `blocked` and `completion-pending` to retain the previous title.
 - Keep these title suffixes out of canonical topics, task-page slugs, profiles, and branch names.
 - Do not overwrite the lifecycle title with the bare topic.
+- After resolving the canonical topic, announce `Топик: <topic>` in user-visible commentary before task-specific work.
+- Repeat this announcement when starting work on the topic in another session or switching topics.
+- Before starting or resuming task work, create or update `Current State` through `task-ledger` with `Lifecycle: in-progress`.
+- Reading an existing task page does not trigger thread naming.
+- Reuse the lifecycle write within the same active task session; do not repeat it for every prompt.
+- If task storage or binding is unavailable, announce the topic and preserve the existing `completion-pending` recovery rules.
+- Distinguish a persisted thread name from the name displayed by the client.
+- If naming is uncertain, read the persisted thread name before diagnosing a hook failure.
 - If title automation is unavailable, state the topic and continue the task.
 
 The hook observes successful `wiki_write_page` and `wiki_update_page` calls in the configured primary domain.
