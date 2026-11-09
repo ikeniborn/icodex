@@ -10,6 +10,12 @@ _Russian version / Русская версия: [`docs/README.ru.md`](docs/READM
 
 ## Workflow boundaries
 
+Accepted `chain/full` brainstorming has an optional interface-design pilot for a named
+unresolved decision about caller obligations or module ownership. It feeds the existing
+spec discussion and approval gates. The reference lives under
+`.codex-isolated/skills/fix-intent/references/full-interface-design.md`; `direct` and
+`chain/execute` do not use it. Its incremental benefit remains under evaluation.
+
 IDD->SDD/Superpowers and LoEn are separate workflow systems. Non-trivial
 work does not select a workflow by itself. Workflow routing has two recommended entries: `direct` and `chain`.
 
@@ -28,6 +34,14 @@ routes. `direct` and `chain/execute` skip brainstorming and reuse authorization 
 unchanged scope. `chain/full` enters `Architectural` without repeating path selection;
 its spec/plan checks and approvals remain required. LoEn keeps its own lifecycle.
 Project instructions do not prescribe models, reasoning levels, or model-switch confirmations.
+
+Before implementation, `direct` and `chain/execute` establish the intended result,
+current behavior, impact boundaries, material unknowns, verification, and stop conditions.
+The agent investigates discoverable facts and summarizes the approach. Clear authorized
+work proceeds without another approval; material unresolved decisions stop dependent edits.
+Research-only requests still require authorization before implementation. Evidence belongs
+to the existing task page; execute retains the approved intent with Spec and Plan n/a.
+The authoritative rules are in `.codex-isolated/AGENTS.md`, under implementation readiness.
 
 ### Verification economy
 

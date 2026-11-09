@@ -195,6 +195,9 @@ git commit -m "docs(idd): add intent profile for $topic"
 
 ```text
 Intent doc approved at <path> (Status: approved; continuation: execute).
+Before implementation, apply the AGENTS.md implementation-readiness rules for
+direct and chain/execute. Establish current behavior, impact, and verification
+from repository evidence without reopening accepted intent decisions.
 Do not run brainstorming or writing-plans. Implement only from the approved
 Desired Outcomes, Health Metrics, Hard Constraints, and Stop Rules, using scoped
 implementation skills. Finish with $check-chain result <path>.
@@ -211,6 +214,12 @@ Carry Desired Outcomes + "Done when" verbatim into the design doc as an
 "## Acceptance (from intent)" section so they reach writing-plans and
 spec review.
 ```
+
+During accepted `full` brainstorming, consider
+[the optional interface-design reference](references/full-interface-design.md)
+when a named unresolved decision concerns caller obligations or module ownership.
+If useful, consult it and keep its conclusions in the existing design discussion and spec.
+Otherwise, continue without it.
 
 ## Intent doc template
 

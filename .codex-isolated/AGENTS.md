@@ -547,6 +547,44 @@ Intent required: yes | no
 Confirmation required: yes | no
 ```
 
+### Implementation readiness for direct and chain/execute
+
+After task-page resolution, investigate within the authorized scope before the first implementation change.
+Research is an activity within the selected route, not another workflow route.
+An approved intent establishes requirements; it does not prove repository readiness.
+
+Resolve these six points using relevant existing evidence:
+
+1. State the observable result and its authority: the user request or approved intent.
+2. Establish current behavior from sources or reproduction; check for an existing equivalent capability and relevant prior decisions.
+3. Identify affected callers, contracts, and state; state the task's exclusions and guarantees that must remain intact.
+4. Separate confirmed facts, reversible implementation choices, and unresolved material decisions.
+5. Select the smallest relevant verification that distinguishes the intended result from failure and protects the identified guarantees.
+6. State what permits implementation and which finding would stop dependent changes or reopen an existing approval.
+
+For a bug, establish a symptom-specific reproduction or state the evidence gap.
+A passing unrelated suite or failed reproduction does not establish that the reported bug is absent.
+When changes affect persistent state, check failure behavior and recovery before editing that state.
+Do not assume that reverting code restores changed data.
+
+Summarize the conclusions briefly before implementation; scale the detail to the task.
+Record material evidence in the existing task-page `Evidence` and unresolved work in `TODO`.
+For `direct`, create no formal intent, spec, or plan.
+For `chain/execute`, derive commitments from the approved intent; keep Spec and Plan n/a.
+Do not reinterview accepted intent decisions or create another authoritative brief.
+
+| Condition | Required action |
+|-----------|-----------------|
+| A fact can be established from available sources or safe diagnostics | Investigate it before asking the user. |
+| Evidence supports the authorized change; only reversible implementation details remain | State the approach and proceed without another confirmation. |
+| A material requirement, scope boundary, or authorized constraint remains ambiguous or conflicts | Stop dependent edits and obtain the user's decision. Continue independent authorized investigation. |
+| The cause or required verification environment is unavailable | Continue useful investigation or preparation. Report the gap; do not apply a speculative fix or claim unverified success. |
+| Evidence meets an existing route or continuation change criterion | Recommend the change and obtain the required acceptance before switching. |
+| The user requested research followed by discussion before editing | Report findings and open decisions; wait for implementation authorization. |
+
+Reuse this evidence while its relevant inputs remain unchanged.
+This readiness check creates no new lifecycle state, artifact, or unconditional approval gate.
+
 ### Superpowers 6.3.0 compatibility
 
 `Spike`, `Bounded`, and `Architectural` are brainstorming paths, not additional workflow routes.
@@ -561,6 +599,11 @@ Use this mapping instead of repeating the brainstorming path classification:
 | `chain/full` | Use brainstorming's `Architectural` path. Produce the checked spec and plan required by the chain. |
 
 For `chain/full`, pass the approved intent and accepted continuation into brainstorming.
+During accepted `chain/full` brainstorming, consider the optional interface-design reference
+when a named unresolved decision concerns caller obligations or module ownership.
+If useful for that decision, read `$CODEX_HOME/skills/fix-intent/references/full-interface-design.md`.
+Apply it within the existing design discussion, before checked-spec approval; otherwise continue without it.
+This pilot adds no step to `direct` or `chain/execute` and selects no workflow route.
 Do not select `Spike` or `Bounded` after `full` has been accepted.
 Keep the required spec and plan checks and user approvals.
 
@@ -650,10 +693,10 @@ After a failed check, change the diagnostic strategy before retrying.
 **State assumptions and tradeoffs. Ask when a requirement is unclear.**
 
 Before implementing:
-- State assumptions explicitly. If uncertain, ask.
+- State assumptions explicitly. Investigate discoverable facts before asking.
 - If multiple interpretations exist, present them — do not pick silently.
 - If a simpler approach exists, say so.
-- If something is unclear, stop. Name what is confusing. Ask.
+- If a material requirement or constraint remains unclear, stop dependent edits and ask.
 
 ## Simplicity First
 
