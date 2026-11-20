@@ -102,6 +102,12 @@ search, `write` = domain to author into). Use the `iwiki` MCP tools:
   hand-assemble a batch, rebuild with `wiki_code_index` and let `iwiki-mcp code publish`
   stream it. `wiki_code_refresh_links(domain)` re-derives one domain's wiki links after a
   snapshot republish, without reparsing source.
+- **Recover a hosted upload:** With CLI and server 0.7.321 or later and PostgreSQL
+  schema 10, select `--resume` on the first MCP publication. Repeat the same command
+  from the original checkout with its cache, endpoint, primary and token intact.
+  The CLI calls `wiki_code_publish_inspect` to reconcile receipts. A successful replay
+  identifies the original attempt. Read `wiki_code_status` for the current active revision.
+  Use `--forget-resume` only when discarding local evidence is intended.
 - **More specifications:** `wiki_spec_search` finds projected Given-When-Then scenarios
   across the read scope before designing a new one.
 - **Governance (not routine writing):** `wiki_migrate_okf` / `wiki_apply_okf` /
