@@ -79,6 +79,13 @@ empty: `stale_snapshot` may omit `job_unknown`. Report that the build cannot be 
 rather than repeatedly polling an error answer. A failed publication can
 produce a failed job despite a ready local graph. Do not repeatedly start builds to poll.
 
+Use `job_only=true` with the returned job ID for local progress counters.
+Recover a hosted transfer by repeating the publisher CLI command with `--resume`
+when the initial upload used that flag. Preserve the publisher's checkout, private
+cache, primary, endpoint and token. See the recovery procedure in
+[the MCP modes guide](../../../../docs/iwiki-mcp-modes.md#recover-a-hosted-code-graph-upload).
+
+
 ## Wiki links versus source freshness
 
 `wiki_links_stale` tracks derived Markdown links independently of source snapshot age.
