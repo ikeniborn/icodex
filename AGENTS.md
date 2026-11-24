@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+If `.codex/AGENTS.local.md` exists, read it before starting work.
+
 ## Project Structure & Module Organization
 
 `icodex.sh` is the main Bash entrypoint. Runtime modules live under `lib/`, grouped by responsibility: `core/`, `command/`, `binary/`, `config/`, `proxy/`, `plugin/`, `launcher/`, and `symlink/`. Maintenance scripts live in `scripts/`. Tests are standalone Bash files in `tests/`, with shared assertions in `tests/helpers.sh`. Project documentation and design notes are under `docs/superpowers/`. The isolated Codex home template is tracked selectively in `.codex-isolated/`; do not add secrets or runtime state there.
