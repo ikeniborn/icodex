@@ -622,6 +622,10 @@ Resolve these six points using relevant existing evidence:
 2. Establish current behavior from sources or reproduction; check for an existing equivalent capability and relevant prior decisions.
 3. Identify affected callers, contracts, and state; state the task's exclusions and guarantees that must remain intact.
 4. Separate confirmed facts, reversible implementation choices, and unresolved material decisions.
+   - When plausible solutions differ in scope, compatibility, or recovery, compare them against the required behavior.
+   - Identify which component owns the affected rule.
+   - State the decisive fact and the main tradeoff before implementation.
+   - If the choice relies on an unverified assumption, select a check that could disprove it.
 5. Select the smallest relevant verification that distinguishes the intended result from failure and protects the identified guarantees.
 6. State what permits implementation and which finding would stop dependent changes or reopen an existing approval.
 
