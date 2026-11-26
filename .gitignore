@@ -62,6 +62,8 @@
 # Per-project CODEX_HOME directories — runtime state, never committed
 .codex-homes/
 
+/.codex-lockfile.json
+
 # SDD scratch (briefs, reports, ledger) — never commit
 .superpowers
 
