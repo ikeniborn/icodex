@@ -101,6 +101,15 @@ Read the original slug directly to inspect its historical text and declared repl
 To retire a page on PostgreSQL, read its revision immediately before the update.
 Pass `status="deprecated"`, the same-bundle `superseded_by` path, and `expected_revision` to `wiki_update_page`.
 
+If `tools/list` advertises `wiki_verify_page`, use the page authorship and verification workflow.
+For meaningful edits, pass the actual `human:<id>` or `agent:<producer>/<version>` as `author`.
+On `author_required`, retry with the identified editor.
+Use `presentation_only=True` only for edits that preserve facts and instructions.
+Before `wiki_verify_page`, compare the whole page with its source and identify the `verifier`.
+Record a human verifier only after that person confirms the reviewed text.
+Pass the reviewed PostgreSQL `revision` as `expected_revision`. After a conflict, reread and review the page.
+Check the returned `trust_tier` on reads and the `freshness` findings from `wiki_lint` for the explicit `stale_after` deadline.
+
 Reuse the verified binding within the same MCP session, project, normalized scope, and configured policy.
 Do not repeat bind or status merely because another skill or conversation turn starts.
 After a reconnect, configuration or project change, uncertain session continuity, unexpected identity, or defaulted response, rebind and verify.

@@ -58,6 +58,9 @@ assert_contains "remote scope protects grant reads and mutations" "$flat_agents"
 assert_contains "scope: guidance excludes historical records" "$agents" 'exclude_tags=["task", "task-history"]'
 assert_contains "scope: task lookup includes every status" "$agents" 'lifecycle="all", tags=["task"]'
 assert_contains "scope: names document succession" "$agents" 'superseded_by'
+for option in 'author_required' 'agent:<producer>/<version>' 'presentation_only=True' 'wiki_verify_page' 'expected_revision' 'trust_tier' 'stale_after' 'freshness'; do
+  assert_contains "scope: page authorship and verification $option" "$agents" "$option"
+done
 assert_contains "scope: names the local server" "$agents" "iwiki-local"
 assert_contains "scope: names the remote server" "$agents" "iwiki-remote"
 assert_contains "scope: routes hosted writes to remote" "$agents" 'send every Markdown and specification call'
