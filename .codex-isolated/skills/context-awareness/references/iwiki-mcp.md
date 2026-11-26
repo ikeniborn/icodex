@@ -107,3 +107,6 @@ Page mutations already reindex; `wiki_index` is not a routine post-write operati
 PostgreSQL writes are durable without `wiki_sync`. OKF maintenance remains Git-only.
 `wiki_migrate_okf` mutates even in plan mode: deterministic layout moves and reindexing
 still run. Do not call it as read-only discovery or merely to inspect capabilities.
+
+Search for working guidance with `wiki_search(query=topic, lifecycle="current", exclude_tags=["task", "task-history"])`.
+Find task records with `wiki_search(query=topic, lifecycle="all", tags=["task"])`.

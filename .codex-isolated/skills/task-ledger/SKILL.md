@@ -5,6 +5,8 @@ description: Use when starting, updating, delegating, completing, or reporting a
 
 # Task Ledger
 
+Find task records with `wiki_search(query=topic, lifecycle="all", tags=["task"])`. Keep the task lifecycle in the page body distinct from document status.
+
 Track every direct, chain, and LoEn task, including read-only work. The parent agent is the sole writer; task state lives on iwiki, never in a repository ledger.
 
 
