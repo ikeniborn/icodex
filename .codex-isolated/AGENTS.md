@@ -610,6 +610,24 @@ Intent required: yes | no
 Confirmation required: yes | no
 ```
 
+### Task decomposition and design choices
+
+Apply these rules to `direct`, `chain/execute`, and `chain/full`.
+
+- Give each subtask one observable result and a check that distinguishes success from failure.
+- State which requirement or unresolved question makes the subtask necessary.
+- Split a step when its result determines the next action or when an outcome requires independent verification.
+- Keep individual edits and commands together when they serve the same result.
+
+When plausible solutions differ in scope, compatibility, or recovery, compare them against the required behavior.
+Identify which component owns the affected rule.
+State the decisive fact and the main tradeoff before implementation.
+If the choice relies on an unverified assumption, select a check that could disprove it.
+
+For `direct` and `chain/execute`, summarize these choices during implementation readiness.
+For `chain/full`, record design choices in the specification before approval.
+For `chain/full`, derive plan subtasks and their checks from the approved specification.
+
 ### Implementation readiness for direct and chain/execute
 
 After task-page resolution, investigate within the authorized scope before the first implementation change.
@@ -622,10 +640,6 @@ Resolve these six points using relevant existing evidence:
 2. Establish current behavior from sources or reproduction; check for an existing equivalent capability and relevant prior decisions.
 3. Identify affected callers, contracts, and state; state the task's exclusions and guarantees that must remain intact.
 4. Separate confirmed facts, reversible implementation choices, and unresolved material decisions.
-   - When plausible solutions differ in scope, compatibility, or recovery, compare them against the required behavior.
-   - Identify which component owns the affected rule.
-   - State the decisive fact and the main tradeoff before implementation.
-   - If the choice relies on an unverified assumption, select a check that could disprove it.
 5. Select the smallest relevant verification that distinguishes the intended result from failure and protects the identified guarantees.
 6. State what permits implementation and which finding would stop dependent changes or reopen an existing approval.
 
