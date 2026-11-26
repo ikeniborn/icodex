@@ -11,6 +11,8 @@ agent: Explore
 
 # Context Awareness
 
+Search for working guidance with `wiki_search(query=topic, lifecycle="current", exclude_tags=["task", "task-history"])`.
+
 
 ## Call economy
 
@@ -107,12 +109,12 @@ IF MCP-сервер iwiki подключён:
   2. For local stdio or remote HTTP: load and normalize the full `read`, `write`, and `primary` scope from project `.iwiki.toml`, then call `wiki_bind` with that full scope before `wiki_status`; never narrow to basename or substitute a primary. Hosted HTTP carries explicitly configured mode and snapshot-age policy through `project_policy`; local stdio omits both policy arguments. Read [iwiki MCP binding and maintenance](references/iwiki-mcp.md) before hosted binding or graph diagnostics. Under generated remote-scope instructions, missing, invalid, or rejected scope permits no mutation and retains `completion-pending`.
   3. wiki_status → storage, transport, список `domains`, текущая привязка read/write/primary. On hosted HTTP, trust status only when `binding_source == "session"` and requested primary remains unchanged; otherwise rebind and repeat once, or report `completion-pending`. Read the effective per-domain specification mode from `wiki_status`; never infer it from `.iwiki.toml`. `source: hosted_override` legitimately outranks project mode and is not a mismatch; `project_mode_suppressed: true` means the carried project value was refused and must be reported. If configured policy cannot be carried, report it and retain `completion-pending`; an unaccepted specification-mode mismatch blocks specification mutations, while ordinary non-specification Wiki work remains available with trusted binding. A rejected bind blocks all mutations.
   4. Если `primary` присутствует в `domains` и trusted binding is available:
-       - wiki_summary ← wiki_read_page(primary, "overview") (если есть)
-         либо wiki_search('ключевые компоненты и архитектура проекта')
+       - Search the project topic with lifecycle="current" and exclude_tags=["task", "task-history"].
+       - Read the selected page or heading for wiki_summary.
      Добавить в project_context:
        wiki_initialized: true
        wiki_domain: "<primary>"
-       wiki_summary: <обзор страницы overview или результат wiki_search>
+       wiki_summary: <summary of the selected page or heading>
        task_topic: <canonical topic or null>
        task_page_slug: "reference/tasks/<topic>" | null
        task_page_found: true|false

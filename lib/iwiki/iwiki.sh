@@ -93,6 +93,14 @@ If a submitted name differs, restore the configured spelling and retry the compl
 Never pass TOML text, paths, `iwiki_id`, tokens, or other credentials.
 Call `wiki_bind` with the full normalized `read`, `write`, and `primary` values from `.iwiki.toml`, and carry configured hosted policy as described below before `wiki_status`, `wiki_search`, task-ledger, or any other wiki call.
 
+Check that `tools/list` advertises `wiki_search.lifecycle`, `wiki_search.exclude_tags`, and `wiki_update_page.superseded_by`.
+Search for working guidance with `wiki_search(query=topic, lifecycle="current", exclude_tags=["task", "task-history"])`.
+Read the returned page and heading, including when the query used an obsolete name.
+Find task records with `wiki_search(query=topic, lifecycle="all", tags=["task"])`.
+Read the original slug directly to inspect its historical text and declared replacement.
+To retire a page on PostgreSQL, read its revision immediately before the update.
+Pass `status="deprecated"`, the same-bundle `superseded_by` path, and `expected_revision` to `wiki_update_page`.
+
 Reuse the verified binding within the same MCP session, project, normalized scope, and configured policy.
 Do not repeat bind or status merely because another skill or conversation turn starts.
 After a reconnect, configuration or project change, uncertain session continuity, unexpected identity, or defaulted response, rebind and verify.

@@ -55,6 +55,9 @@ assert_contains "remote scope fails closed on binding mismatch" "$flat_agents" '
 assert_contains "remote scope gates hosted graph freshness and provenance" "$flat_agents" 'Use hosted code results only when `state == "ready"`, `fresh == true`, and `binding_source == "session"`.'
 assert_contains "remote scope constrains hosted publication" "$flat_agents" 'Hosted publication requires a writable primary, accepts neither client `domain` nor `iwiki_id`, and must obey the limits returned by `wiki_code_publish_begin`.'
 assert_contains "remote scope protects grant reads and mutations" "$flat_agents" 'Domain-grant reads require explicit hosted management work; `wiki_set_domain_grant` and `wiki_revoke_domain_grant` require separate explicit user authorization and hosted management authority.'
+assert_contains "scope: guidance excludes historical records" "$agents" 'exclude_tags=["task", "task-history"]'
+assert_contains "scope: task lookup includes every status" "$agents" 'lifecycle="all", tags=["task"]'
+assert_contains "scope: names document succession" "$agents" 'superseded_by'
 assert_contains "scope: names the local server" "$agents" "iwiki-local"
 assert_contains "scope: names the remote server" "$agents" "iwiki-remote"
 assert_contains "scope: routes hosted writes to remote" "$agents" 'send every Markdown and specification call'
